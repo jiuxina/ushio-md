@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 /// Markdown editing toolbar with beautiful gradient buttons
 class MarkdownToolbar extends StatelessWidget {
   final TextEditingController controller;
+  final String? filePath; // Path to the markdown file being edited
 
-  const MarkdownToolbar({super.key, required this.controller});
+  const MarkdownToolbar({
+    super.key,
+    required this.controller,
+    this.filePath,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -437,13 +443,218 @@ class MarkdownToolbar extends StatelessWidget {
         final file = result.files.first;
         final path = file.path ?? file.name;
         
-        // Insert as local file path
-        _insertImageWithUrl(path, file.name);
+        // Check if file is accessible
+        final isAccessible = await _checkFileAccessible(path);
+        
+        if (isAccessible) {
+          // Use original path directly
+          _insertImageWithUrl(path, file.name);
+        } else {
+          // Show dialog asking user what to do
+          if (context.mounted) {
+            _showImageAccessDialog(context, path, file.name);
+          }
+        }
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('选择图片失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// Check if a file is accessible by the app
+  Future<bool> _checkFileAccessible(String path) async {
+    try {
+      final file = File(path);
+      // Try to check if file exists and is readable
+      final exists = await file.exists();
+      if (!exists) return false;
+      
+      // Try to read file length to verify access
+      await file.length();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Show dialog when image is not accessible
+  void _showImageAccessDialog(BuildContext context, String imagePath, String imageName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber,
+                color: Colors.orange,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '无法访问图片',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '应用无法访问该图片路径。您可以选择将图片移动到 Markdown 文件同目录的 images 文件夹中。',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('取消'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _moveImageToImagesFolder(context, imagePath, imageName);
+                    },
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.folder_open, size: 18),
+                    label: const Text('移动到 images'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Move image to images folder and insert relative path
+  Future<void> _moveImageToImagesFolder(BuildContext context, String imagePath, String imageName) async {
+    try {
+      // Get markdown file directory
+      if (filePath == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('无法确定 Markdown 文件位置')),
+          );
+        }
+        return;
+      }
+
+      final mdFile = File(filePath!);
+      final mdDirectory = mdFile.parent;
+      final imagesDir = Directory('${mdDirectory.path}${Platform.pathSeparator}images');
+
+      // Create images directory if it doesn't exist
+      if (!await imagesDir.exists()) {
+        await imagesDir.create(recursive: true);
+      }
+
+      // Copy image to images folder
+      final sourceFile = File(imagePath);
+      final targetPath = '${imagesDir.path}${Platform.pathSeparator}$imageName';
+      final targetFile = File(targetPath);
+
+      // Check if file with same name already exists
+      int counter = 1;
+      String finalName = imageName;
+      String finalPath = targetPath;
+      while (await File(finalPath).exists()) {
+        final parts = imageName.split('.');
+        final extension = parts.length > 1 ? parts.last : '';
+        final nameWithoutExt = parts.length > 1 
+            ? parts.sublist(0, parts.length - 1).join('.')
+            : imageName;
+        finalName = '${nameWithoutExt}_$counter.$extension';
+        finalPath = '${imagesDir.path}${Platform.pathSeparator}$finalName';
+        counter++;
+      }
+
+      await sourceFile.copy(finalPath);
+
+      // Insert with relative path
+      final relativePath = 'images/$finalName';
+      _insertImageWithUrl(relativePath, finalName);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.check, color: Colors.green, size: 16),
+                ),
+                const SizedBox(width: 12),
+                const Text('图片已移动到 images 文件夹'),
+              ],
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('移动图片失败: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
         );
       }
     }

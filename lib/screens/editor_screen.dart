@@ -324,7 +324,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             _buildHeader(),
             _buildModeSelector(),
             if (!_isLoading && _error == null && _mode != EditorMode.preview)
-              MarkdownToolbar(controller: _textController),
+              MarkdownToolbar(
+                controller: _textController,
+                filePath: widget.filePath,
+              ),
             Expanded(child: _buildContent()),
           ],
         ),
