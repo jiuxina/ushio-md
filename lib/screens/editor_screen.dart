@@ -22,6 +22,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   late TextEditingController _textController;
   late ScrollController _editScrollController;
   late ScrollController _previewScrollController;
+  late UndoHistoryController _undoController; // 撤回重做控制器
 
   EditorMode _mode = EditorMode.preview;
   bool _isLoading = true;
@@ -40,6 +41,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _textController = TextEditingController();
     _editScrollController = ScrollController();
     _previewScrollController = ScrollController();
+    _undoController = UndoHistoryController(); // 初始化撤回重做控制器
     _loadFile();
   }
 
@@ -221,6 +223,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _textController.dispose();
     _editScrollController.dispose();
     _previewScrollController.dispose();
+    _undoController.dispose(); // 释放撤回重做控制器
     super.dispose();
   }
 
@@ -698,13 +701,22 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 child: _buildPreviewPanel(settings),
               ),
             ),
-            // TOC button
-            if (_tocItems.isNotEmpty)
-              Positioned(
-                right: 24,
-                bottom: 24,
-                child: _buildTocButton(),
+            // 悬浮按钮组：全屏按钮 + TOC按钮
+            Positioned(
+              right: 24,
+              bottom: 24,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 全屏预览按钮
+                  _buildFullscreenButton(),
+                  if (_tocItems.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildTocButton(),
+                  ],
+                ],
               ),
+            ),
           ],
         );
       case EditorMode.split:
@@ -729,35 +741,73 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Theme.of(context).dividerColor.withOpacity(0.5),
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: _buildPreviewPanel(settings),
-                      ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor.withOpacity(0.5),
                     ),
-                    // TOC button
-                    if (_tocItems.isNotEmpty)
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: _buildTocButton(mini: true),
-                      ),
-                  ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: _buildPreviewPanel(settings),
+                  ),
                 ),
               ),
             ],
           ),
         );
     }
+  }
+
+  /// 构建全屏预览按钮
+  Widget _buildFullscreenButton({bool mini = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(mini ? 12 : 16),
+        onTap: _openFullscreenPreview,
+        child: Container(
+          padding: EdgeInsets.all(mini ? 10 : 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Theme.of(context).colorScheme.secondary,
+                Theme.of(context).colorScheme.tertiary,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(mini ? 12 : 16),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.secondary.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(
+            Icons.fullscreen,
+            color: Colors.white,
+            size: mini ? 18 : 24,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 打开全屏预览页面
+  void _openFullscreenPreview() {
+    final settings = context.read<SettingsProvider>();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => _FullscreenPreviewPage(
+          markdownContent: _textController.text,
+          settings: settings,
+          fileName: fileName,
+        ),
+      ),
+    );
   }
 
   Widget _buildTocButton({bool mini = false}) {
@@ -962,6 +1012,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     return TextField(
       controller: _textController,
       scrollController: _editScrollController,
+      undoController: _undoController, // 启用撤回重做功能
       maxLines: null,
       expands: true,
       keyboardType: TextInputType.multiline,
@@ -1094,4 +1145,150 @@ class TocItem {
     required this.title,
     required this.lineNumber,
   });
+}
+
+/// 全屏预览页面
+/// 支持返回手势和返回键退出
+class _FullscreenPreviewPage extends StatelessWidget {
+  final String markdownContent;
+  final SettingsProvider settings;
+  final String fileName;
+
+  const _FullscreenPreviewPage({
+    required this.markdownContent,
+    required this.settings,
+    required this.fileName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).dividerColor.withOpacity(0.5),
+              ),
+            ),
+            child: Icon(
+              Icons.fullscreen_exit,
+              size: 20,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        centerTitle: true,
+      ),
+      body: Markdown(
+        data: markdownContent,
+        selectable: true,
+        padding: const EdgeInsets.all(20),
+        styleSheet: MarkdownStyleSheet(
+          p: TextStyle(fontSize: settings.fontSize, height: 1.6),
+          h1: TextStyle(
+            fontSize: settings.fontSize * 2,
+            fontWeight: FontWeight.bold,
+            height: 1.4,
+          ),
+          h2: TextStyle(
+            fontSize: settings.fontSize * 1.5,
+            fontWeight: FontWeight.bold,
+            height: 1.4,
+          ),
+          h3: TextStyle(
+            fontSize: settings.fontSize * 1.25,
+            fontWeight: FontWeight.w600,
+            height: 1.4,
+          ),
+          h4: TextStyle(
+            fontSize: settings.fontSize * 1.1,
+            fontWeight: FontWeight.w600,
+          ),
+          h5: TextStyle(
+            fontSize: settings.fontSize,
+            fontWeight: FontWeight.w600,
+          ),
+          h6: TextStyle(
+            fontSize: settings.fontSize * 0.9,
+            fontWeight: FontWeight.w600,
+          ),
+          code: TextStyle(
+            backgroundColor: isDark 
+                ? const Color(0xFF2d2d2d) 
+                : const Color(0xFFf5f5f5),
+            fontFamily: 'monospace',
+            fontSize: settings.fontSize * 0.9,
+            color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
+          ),
+          codeblockDecoration: BoxDecoration(
+            color: isDark 
+                ? const Color(0xFF1e1e1e) 
+                : const Color(0xFFf8f8f8),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark 
+                  ? const Color(0xFF3d3d3d) 
+                  : const Color(0xFFe0e0e0),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          codeblockPadding: const EdgeInsets.all(16),
+          blockquoteDecoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 4,
+              ),
+            ),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+          ),
+          blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          listBullet: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          horizontalRuleDecoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 1,
+              ),
+            ),
+          ),
+          tableHead: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: settings.fontSize,
+          ),
+          tableBody: TextStyle(fontSize: settings.fontSize),
+          tableBorder: TableBorder.all(
+            color: Theme.of(context).dividerColor,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          tableCellsPadding: const EdgeInsets.all(8),
+          tableHeadAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
 }

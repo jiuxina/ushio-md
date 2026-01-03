@@ -23,9 +23,15 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   
-  // Animation controller for tab transitions
+  // Animation controller for tab transitions (used for bottom nav indicator)
   late AnimationController _tabAnimationController;
   late Animation<double> _tabAnimation;
+  
+  // PageController for swipe gesture with follow-through effect
+  late PageController _pageController;
+  
+  // 用于存储上一个页面的内容，实现双向动画（点击切换时使用）
+  Widget? _previousPageContent;
 
   @override
   void initState() {
@@ -44,6 +50,9 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       curve: Curves.easeOutCubic,
     );
     _tabAnimationController.forward();
+    
+    // 初始化PageController用于跟手滑动
+    _pageController = PageController(initialPage: _currentIndex);
   }
 
   Future<void> _initialize() async {
@@ -59,14 +68,35 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     if (index == _currentIndex) return;
     _previousIndex = _currentIndex;
     setState(() => _currentIndex = index);
-    _tabAnimationController.reset();
-    _tabAnimationController.forward();
+    // 使用PageController平滑滑动到目标页面
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  // 构建指定索引的Tab内容
+  Widget _buildTabContent(int index, FileProvider fileProvider) {
+    switch (index) {
+      case 0:
+        return _buildHomeTab(fileProvider);
+      case 1:
+        return _buildRecentFilesTab(fileProvider);
+      case 2:
+        return _buildRecentFoldersTab(fileProvider);
+      case 3:
+        return _buildSettingsTab();
+      default:
+        return _buildHomeTab(fileProvider);
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _tabAnimationController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -123,82 +153,52 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         ? Theme.of(context).colorScheme.primary 
         : Theme.of(context).colorScheme.outline;
 
-    return GestureDetector(
-      onTap: () => _switchTab(index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 16 : 12,
-          vertical: 8,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 22),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ],
+    // 使用Expanded让每个tab均分底栏空间，增大点击区域
+    // 只显示图标，不显示文字（无字Tab导航）
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque, // 确保透明区域也可点击
+        onTap: () => _switchTab(index),
+        child: Container(
+          height: 56, // 增大点击高度，符合Material Design触摸目标尺寸
+          alignment: Alignment.center,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isSelected 
+                  ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icon, 
+              color: color, 
+              size: isSelected ? 26 : 24, // 选中时图标稍大
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildBody(FileProvider fileProvider) {
-    Widget content;
-    switch (_currentIndex) {
-      case 0:
-        content = _buildHomeTab(fileProvider);
-        break;
-      case 1:
-        content = _buildRecentFilesTab(fileProvider);
-        break;
-      case 2:
-        content = _buildRecentFoldersTab(fileProvider);
-        break;
-      case 3:
-        content = _buildSettingsTab();
-        break;
-      default:
-        content = _buildHomeTab(fileProvider);
-    }
-    
-    // Direction-aware slide animation
-    // Slide from right when moving to higher index, from left when moving to lower index
-    final isMovingRight = _currentIndex > _previousIndex;
-    final beginOffset = isMovingRight 
-        ? const Offset(0.15, 0)   // Slide from right
-        : const Offset(-0.15, 0); // Slide from left
-    
-    return AnimatedBuilder(
-      animation: _tabAnimation,
-      builder: (context, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: beginOffset,
-            end: Offset.zero,
-          ).animate(_tabAnimation),
-          child: FadeTransition(
-            opacity: _tabAnimation,
-            child: child,
-          ),
-        );
+    // 使用PageView实现跟手滑动切换，支持边滑动边松手、滑到一半再滑回来等自然手势
+    return PageView(
+      controller: _pageController,
+      onPageChanged: (index) {
+        // 当页面滑动完成时同步底栏状态
+        if (index != _currentIndex) {
+          _previousIndex = _currentIndex;
+          setState(() => _currentIndex = index);
+        }
       },
-      child: content,
+      children: [
+        _buildHomeTab(fileProvider),
+        _buildRecentFilesTab(fileProvider),
+        _buildRecentFoldersTab(fileProvider),
+        _buildSettingsTab(),
+      ],
     );
   }
 

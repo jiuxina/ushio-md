@@ -20,6 +20,7 @@
 /// ============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'providers/file_provider.dart';
 import 'providers/settings_provider.dart';
@@ -70,6 +71,17 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: AppConstants.appName,
             debugShowCheckedModeBanner: false,  // 隐藏调试标识
+            // 中文本地化支持（实现编辑菜单中文化）
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('zh', 'CN'),  // 简体中文
+              Locale('en', 'US'),  // 英文
+            ],
+            locale: const Locale('zh', 'CN'),  // 默认使用中文
             theme: _buildLightTheme(primaryColor),  // 浅色主题
             darkTheme: _buildDarkTheme(primaryColor),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
