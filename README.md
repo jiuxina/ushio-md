@@ -43,7 +43,7 @@
 
 ## 📦 安装
 
-### 从源码构建前往 [Releases](https://github.com/jiuxina/mdreader/releases) 页面下载最新 APK。
+### 从源码构建前往 [Releases](https://github.com/jiuxina/ushio-md/releases) 页面下载最新 APK。
 
 ## 📋 权限说明
 
@@ -86,5 +86,6 @@ MIT License
 ---
 
 <p align="center">
-  Made with ❤️ using Flutter
+  Made with ❤️ You
 </p>
+
