@@ -298,14 +298,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                     const SizedBox(height: 12),
                     _buildPinnedFoldersList(fileProvider),
                   ],
-                  
-                  const SizedBox(height: 24),
-                  // Current directory files
-                  if (fileProvider.currentDirectory != null) ...[
-                    _buildSectionHeader('当前文件夹', Icons.folder_open),
-                    const SizedBox(height: 12),
-                    _buildCurrentDirectoryContent(fileProvider),
-                  ],
                 ],
               ),
             ),
@@ -318,44 +310,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   Widget _buildHomeHeader(FileProvider fileProvider) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
-        children: [
-          if (fileProvider.currentDirectory != null)
-            IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.arrow_back,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-              ),
-              onPressed: () {
-                final parent = Directory(fileProvider.currentDirectory!).parent;
-                if (parent.path.length > 1) {
-                  fileProvider.setDirectory(parent.path);
-                } else {
-                  // Clear current directory to go home
-                  fileProvider.clearDirectory();
-                }
-              },
-            ),
-          Expanded(
-            child: fileProvider.currentDirectory == null
-                ? _buildAppTitle()
-                : Text(
-                    fileProvider.currentDirectory!.split(Platform.pathSeparator).last,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-          ),
-        ],
-      ),
+      child: _buildAppTitle(),
     );
   }
 
@@ -492,7 +447,16 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                   label: '打开文件夹',
                   color: Colors.amber,
                   onTap: () async {
-                    await fileProvider.pickDirectory();
+                    final path = await fileProvider.pickDirectory();
+                    if (path != null && mounted) {
+                      await fileProvider.addToRecentFolders(path);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FolderBrowserScreen(folderPath: path),
+                        ),
+                      );
+                    }
                   },
                 ),
               ),
@@ -750,8 +714,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
-            fileProvider.setDirectory(path);
-            setState(() => _currentIndex = 0);
+            fileProvider.addToRecentFolders(path);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FolderBrowserScreen(folderPath: path),
+              ),
+            );
           },
           onLongPress: () => _showFolderContextMenu(path, fileProvider, isPinned: isPinned),
           child: Padding(
@@ -1252,8 +1221,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               color: Colors.amber,
               onTap: () {
                 Navigator.pop(context);
-                fileProvider.setDirectory(path);
-                setState(() => _currentIndex = 0);
+                fileProvider.addToRecentFolders(path);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FolderBrowserScreen(folderPath: path),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 8),
@@ -1871,7 +1845,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             SnackBar(content: Text('文件夹 "${result['name']}" 创建成功')),
           );
           // Navigate to the new folder
-          fileProvider.setDirectory(newFolderPath);
+          await fileProvider.addToRecentFolders(newFolderPath);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FolderBrowserScreen(folderPath: newFolderPath),
+            ),
+          );
         }
       } catch (e) {
         if (mounted) {

@@ -369,6 +369,10 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
               ),
             );
           },
+          onLongPress: () {
+            final fileProvider = context.read<FileProvider>();
+            _showFileContextMenu(file.path, fileProvider);
+          },
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -497,5 +501,231 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
         ),
       ),
     );
+  }
+
+  /// 显示文件上下文菜单
+  void _showFileContextMenu(String path, FileProvider fileProvider) {
+    final fileName = path.split(Platform.pathSeparator).last;
+    final isCurrentlyPinned = fileProvider.isFilePinned(path);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              fileName,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 20),
+            _buildContextMenuItem(
+              icon: Icons.open_in_new,
+              label: '打开',
+              color: Colors.blue,
+              onTap: () {
+                Navigator.pop(context);
+                fileProvider.addToRecentFiles(path);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditorScreen(filePath: path),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            _buildContextMenuItem(
+              icon: isCurrentlyPinned ? Icons.push_pin_outlined : Icons.push_pin,
+              label: isCurrentlyPinned ? '取消置顶' : '置顶到首页',
+              color: Colors.purple,
+              onTap: () {
+                Navigator.pop(context);
+                fileProvider.togglePinFile(path);
+              },
+            ),
+            const SizedBox(height: 8),
+            _buildContextMenuItem(
+              icon: Icons.edit,
+              label: '重命名',
+              color: Colors.orange,
+              onTap: () {
+                Navigator.pop(context);
+                _showRenameDialog(path, fileProvider);
+              },
+            ),
+            const SizedBox(height: 8),
+            _buildContextMenuItem(
+              icon: Icons.delete,
+              label: '删除文件',
+              color: Colors.red,
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDelete(path, fileProvider);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建上下文菜单项
+  Widget _buildContextMenuItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 显示重命名对话框
+  Future<void> _showRenameDialog(String path, FileProvider fileProvider) async {
+    final fileName = path.split(Platform.pathSeparator).last;
+    final nameWithoutExt = fileName.replaceAll('.md', '').replaceAll('.markdown', '');
+    final controller = TextEditingController(text: nameWithoutExt);
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('重命名文件'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: '新文件名',
+            suffixText: '.md',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty && result != nameWithoutExt) {
+      try {
+        final dir = path.substring(0, path.lastIndexOf(Platform.pathSeparator));
+        final newPath = '$dir${Platform.pathSeparator}$result.md';
+        final file = File(path);
+        await file.rename(newPath);
+        
+        // 刷新文件列表
+        await _loadFiles();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('重命名成功')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('重命名失败: $e')),
+          );
+        }
+      }
+    }
+    
+    controller.dispose();
+  }
+
+  /// 确认删除对话框
+  Future<void> _confirmDelete(String path, FileProvider fileProvider) async {
+    final fileName = path.split(Platform.pathSeparator).last;
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('删除文件'),
+        content: Text('确定要删除 "$fileName" 吗？此操作不可撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final success = await fileProvider.deleteFile(path);
+      if (success) {
+        // 刷新文件列表
+        await _loadFiles();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('文件已删除')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('删除失败')),
+          );
+        }
+      }
+    }
   }
 }

@@ -158,11 +158,10 @@ class FileProvider extends ChangeNotifier {
   /// 选择目录
   /// 
   /// 打开系统文件选择器，让用户选择一个目录
-  Future<void> pickDirectory() async {
+  /// 返回选中的目录路径（用户取消则返回 null）
+  Future<String?> pickDirectory() async {
     final path = await _fileService.pickDirectory();
-    if (path != null) {
-      await setDirectory(path);
-    }
+    return path;
   }
 
   /// 选择并打开文件

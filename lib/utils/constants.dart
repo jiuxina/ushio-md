@@ -21,7 +21,7 @@ class AppConstants {
   static const String appName = '汐';
   
   /// 版本号
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '1.0.1';
   
   /// 应用描述
   static const String appDescription = '简易的 Markdown 编辑器';
@@ -30,7 +30,7 @@ class AppConstants {
   static const String appAuthor = 'jiuxina';
   
   /// GitHub 仓库地址
-  static const String githubUrl = 'https://github.com/jiuxina/mdreader';
+  static const String githubUrl = 'https://github.com/jiuxina/ushio-md';
 
   // ==================== 主题色 ====================
   
