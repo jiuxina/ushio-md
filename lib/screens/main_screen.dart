@@ -956,10 +956,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                     ],
                   ),
                 ),
-                trailing ?? Icon(
-                  Icons.chevron_right,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+                trailing ?? const SizedBox.shrink(),
               ],
             ),
           ),
@@ -999,14 +996,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             }
           : () {},
       onLongPress: () => _showFileContextMenu(path, fileProvider, isRecent: true),
-      trailing: IconButton(
-        icon: Icon(
-          Icons.close,
-          size: 18,
-          color: Theme.of(context).colorScheme.outline,
-        ),
-        onPressed: () => fileProvider.removeFromRecentFiles(path),
-      ),
     );
   }
 
@@ -1056,14 +1045,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         );
       },
       onLongPress: () => _showFileContextMenu(file.path, fileProvider),
-      trailing: PopupMenuButton<String>(
-        icon: Icon(
-          Icons.more_vert,
-          color: Theme.of(context).colorScheme.outline,
-        ),
-        onSelected: (value) => _handleFileAction(value, file.path, fileProvider),
-        itemBuilder: (context) => _buildFileMenuItems(),
-      ),
     );
   }
 

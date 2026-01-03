@@ -24,7 +24,7 @@ class AppConstants {
   static const String appVersion = '1.0.1';
   
   /// 应用描述
-  static const String appDescription = '简易的 Markdown 编辑器';
+  static const String appDescription = 'Markdown 编辑器';
   
   /// 作者
   static const String appAuthor = 'jiuxina';

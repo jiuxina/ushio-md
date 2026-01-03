@@ -254,56 +254,114 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   }
 
   Widget _buildSortButton() {
-    return PopupMenuButton<FileSortOption>(
-      icon: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withOpacity(0.5),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _showSortMenu,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withOpacity(0.5),
+            ),
           ),
+          child: const Icon(Icons.sort, size: 20),
         ),
-        child: const Icon(Icons.sort, size: 20),
       ),
-      onSelected: (option) {
-        _sortOption = option;
-        _sortFiles();
-      },
-      itemBuilder: (context) => [
-        _buildSortMenuItem(FileSortOption.nameAsc, '名称 A-Z', Icons.sort_by_alpha),
-        _buildSortMenuItem(FileSortOption.nameDesc, '名称 Z-A', Icons.sort_by_alpha),
-        const PopupMenuDivider(),
-        _buildSortMenuItem(FileSortOption.dateDesc, '最近修改', Icons.access_time),
-        _buildSortMenuItem(FileSortOption.dateAsc, '最早修改', Icons.history),
-        const PopupMenuDivider(),
-        _buildSortMenuItem(FileSortOption.sizeDesc, '最大优先', Icons.expand),
-        _buildSortMenuItem(FileSortOption.sizeAsc, '最小优先', Icons.compress),
-      ],
     );
   }
 
-  PopupMenuItem<FileSortOption> _buildSortMenuItem(
-      FileSortOption option, String label, IconData icon) {
-    final isSelected = _sortOption == option;
-    return PopupMenuItem(
-      value: option,
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: isSelected ? Theme.of(context).colorScheme.primary : null),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : null,
-              color: isSelected ? Theme.of(context).colorScheme.primary : null,
+  void _showSortMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          if (isSelected) ...[
-            const Spacer(),
-            Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 20),
+            Text(
+              '排序方式',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 20),
+            _buildSortOption(FileSortOption.nameAsc, '名称 A-Z', Icons.sort_by_alpha),
+            const SizedBox(height: 8),
+            _buildSortOption(FileSortOption.nameDesc, '名称 Z-A', Icons.sort_by_alpha),
+            const SizedBox(height: 16),
+            _buildSortOption(FileSortOption.dateDesc, '最近修改', Icons.access_time),
+            const SizedBox(height: 8),
+            _buildSortOption(FileSortOption.dateAsc, '最早修改', Icons.history),
+            const SizedBox(height: 16),
+            _buildSortOption(FileSortOption.sizeDesc, '最大优先', Icons.expand),
+            const SizedBox(height: 8),
+            _buildSortOption(FileSortOption.sizeAsc, '最小优先', Icons.compress),
+            const SizedBox(height: 16),
           ],
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortOption(FileSortOption option, String label, IconData icon) {
+    final isSelected = _sortOption == option;
+    final color = isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.pop(context);
+          setState(() {
+            _sortOption = option;
+          });
+          _sortFiles();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected 
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check, color: color, size: 20),
+            ],
+          ),
+        ),
       ),
     );
   }
