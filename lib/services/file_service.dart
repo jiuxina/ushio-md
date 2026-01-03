@@ -1,33 +1,58 @@
+/// ============================================================================
+/// 文件服务
+/// ============================================================================
+/// 
+/// 封装所有文件系统操作，包括：
+/// - 权限管理（Android 存储权限）
+/// - 文件选择器
+/// - 文件读写
+/// - 目录遍历
+/// 
+/// 使用 file_picker 和 permission_handler 插件。
+/// ============================================================================
+
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/markdown_file.dart';
 
-/// Service for file system operations
+/// 文件服务类
+/// 
+/// 提供文件系统的底层操作封装
 class FileService {
-  /// Request storage permissions
+  // ==================== 权限管理 ====================
+
+  /// 请求存储权限
+  /// 
+  /// Android 权限策略：
+  /// 1. 首先检查是否已有 MANAGE_EXTERNAL_STORAGE 权限
+  /// 2. 请求基本存储权限
+  /// 3. 对于 Android 11+，需要请求 MANAGE_EXTERNAL_STORAGE
+  /// 
+  /// 返回 true 表示获得权限
   Future<bool> requestPermissions() async {
     if (Platform.isAndroid) {
-      // For Android 11+, we need MANAGE_EXTERNAL_STORAGE
+      // 检查是否已有完全存储访问权限
       if (await Permission.manageExternalStorage.isGranted) {
         return true;
       }
 
-      // Request basic storage permission first
+      // 请求基本存储权限
       var status = await Permission.storage.request();
       if (status.isGranted) {
         return true;
       }
 
-      // For Android 11+, request MANAGE_EXTERNAL_STORAGE
+      // Android 11+ 需要额外的管理权限
       status = await Permission.manageExternalStorage.request();
       return status.isGranted;
     }
+    // iOS 和其他平台默认返回 true
     return true;
   }
 
-  /// Check if we have storage permissions
+  /// 检查是否已有存储权限
   Future<bool> hasPermissions() async {
     if (Platform.isAndroid) {
       return await Permission.storage.isGranted ||
@@ -36,18 +61,28 @@ class FileService {
     return true;
   }
 
-  /// Open permission settings
+  /// 打开系统设置页面
+  /// 
+  /// 用户可以在设置中手动开启权限
   Future<void> openSettings() async {
     await openAppSettings();
   }
 
-  /// Pick a directory
+  // ==================== 文件选择器 ====================
+
+  /// 选择目录
+  /// 
+  /// 打开系统目录选择器
+  /// 返回选中目录的路径，取消则返回 null
   Future<String?> pickDirectory() async {
     final result = await FilePicker.platform.getDirectoryPath();
     return result;
   }
 
-  /// Pick a markdown file
+  /// 选择 Markdown 文件
+  /// 
+  /// 支持的扩展名：.md, .markdown, .txt
+  /// 返回选中文件的路径，取消则返回 null
   Future<String?> pickMarkdownFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -56,7 +91,13 @@ class FileService {
     return result?.files.single.path;
   }
 
-  /// List markdown files in a directory
+  // ==================== 目录遍历 ====================
+
+  /// 列出目录下的所有 Markdown 文件
+  /// 
+  /// [directoryPath] 目录的绝对路径
+  /// 
+  /// 返回按修改时间倒序排列的文件列表
   Future<List<MarkdownFile>> listMarkdownFiles(String directoryPath) async {
     final directory = Directory(directoryPath);
     if (!await directory.exists()) {
@@ -68,6 +109,7 @@ class FileService {
       await for (final entity in directory.list()) {
         if (entity is File) {
           final path = entity.path.toLowerCase();
+          // 只处理 Markdown 文件
           if (path.endsWith('.md') || path.endsWith('.markdown')) {
             final stat = await entity.stat();
             files.add(MarkdownFile(
@@ -80,16 +122,20 @@ class FileService {
         }
       }
     } catch (e) {
-      // Handle permission errors gracefully
+      // 优雅处理权限错误等情况
       debugPrint('Error listing files: $e');
     }
 
-    // Sort by last modified, newest first
+    // 按修改时间倒序排列（最新的在前）
     files.sort((a, b) => b.lastModified.compareTo(a.lastModified));
     return files;
   }
 
-  /// List subdirectories in a directory
+  /// 列出目录下的所有子目录
+  /// 
+  /// [directoryPath] 目录的绝对路径
+  /// 
+  /// 返回按路径字母顺序排列的目录列表
   Future<List<Directory>> listSubdirectories(String directoryPath) async {
     final directory = Directory(directoryPath);
     if (!await directory.exists()) {
@@ -107,12 +153,18 @@ class FileService {
       debugPrint('Error listing directories: $e');
     }
 
-    // Sort alphabetically
+    // 按路径字母顺序排列
     dirs.sort((a, b) => a.path.compareTo(b.path));
     return dirs;
   }
 
-  /// Read file content
+  // ==================== 文件读写 ====================
+
+  /// 读取文件内容
+  /// 
+  /// [path] 文件的绝对路径
+  /// 
+  /// 抛出异常如果文件不存在
   Future<String> readFile(String path) async {
     final file = File(path);
     if (!await file.exists()) {
@@ -121,14 +173,24 @@ class FileService {
     return await file.readAsString();
   }
 
-  /// Save file content
+  /// 保存文件内容
+  /// 
+  /// [path] 文件的绝对路径
+  /// [content] 要写入的内容
   Future<void> saveFile(String path, String content) async {
     final file = File(path);
     await file.writeAsString(content);
   }
 
-  /// Create a new markdown file
+  /// 创建新的 Markdown 文件
+  /// 
+  /// [directoryPath] 目标目录路径
+  /// [fileName] 文件名（自动添加 .md 扩展名）
+  /// 
+  /// 新文件包含默认的标题模板
+  /// 抛出异常如果文件已存在
   Future<MarkdownFile> createFile(String directoryPath, String fileName) async {
+    // 确保有 .md 扩展名
     if (!fileName.endsWith('.md')) {
       fileName = '$fileName.md';
     }
@@ -136,10 +198,12 @@ class FileService {
     final path = '$directoryPath${Platform.pathSeparator}$fileName';
     final file = File(path);
 
+    // 检查文件是否已存在
     if (await file.exists()) {
       throw Exception('File already exists: $fileName');
     }
 
+    // 创建文件并写入默认内容
     await file.writeAsString('# $fileName\n\n');
 
     final stat = await file.stat();
@@ -152,7 +216,9 @@ class FileService {
     );
   }
 
-  /// Delete a file
+  /// 删除文件
+  /// 
+  /// [path] 文件的绝对路径
   Future<void> deleteFile(String path) async {
     final file = File(path);
     if (await file.exists()) {
@@ -160,7 +226,13 @@ class FileService {
     }
   }
 
-  /// Rename a file
+  /// 重命名文件
+  /// 
+  /// [oldPath] 原文件路径
+  /// [newName] 新文件名（自动添加 .md 扩展名）
+  /// 
+  /// 返回新文件的路径
+  /// 抛出异常如果目标文件已存在
   Future<String> renameFile(String oldPath, String newName) async {
     if (!newName.endsWith('.md')) {
       newName = '$newName.md';
@@ -178,12 +250,19 @@ class FileService {
     return newPath;
   }
 
-  /// Get common storage paths
+  // ==================== 常用路径 ====================
+
+  /// 获取常用存储路径
+  /// 
+  /// Android 设备的常用目录：
+  /// - Documents
+  /// - Download
+  /// - Notes
+  /// - 根目录
   Future<List<String>> getCommonPaths() async {
     final paths = <String>[];
 
     if (Platform.isAndroid) {
-      // Common Android paths
       final commonDirs = [
         '/storage/emulated/0/Documents',
         '/storage/emulated/0/Download',

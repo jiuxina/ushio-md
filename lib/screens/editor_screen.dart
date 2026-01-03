@@ -23,7 +23,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   late ScrollController _editScrollController;
   late ScrollController _previewScrollController;
 
-  EditorMode _mode = EditorMode.edit;
+  EditorMode _mode = EditorMode.preview;
   bool _isLoading = true;
   bool _isModified = false;
   bool _isSaving = false;
@@ -503,9 +503,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       ),
       child: Row(
         children: [
-          _buildModeButton(EditorMode.edit, '编辑', Icons.edit),
-          _buildModeButton(EditorMode.split, '分屏', Icons.vertical_split),
           _buildModeButton(EditorMode.preview, '预览', Icons.visibility),
+          _buildModeButton(EditorMode.split, '分屏', Icons.vertical_split),
+          _buildModeButton(EditorMode.edit, '编辑', Icons.edit),
         ],
       ),
     );

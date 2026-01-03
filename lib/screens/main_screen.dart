@@ -8,6 +8,7 @@ import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import 'editor_screen.dart';
+import 'folder_browser_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -19,7 +20,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _previousIndex = 0;
-  List<String> _commonPaths = [];
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   
@@ -52,15 +52,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     
     await fileProvider.initialize();
     await settingsProvider.initialize();
-    
-    _commonPaths = await fileProvider.getCommonPaths();
     if (mounted) setState(() {});
-  }
-
-  Future<void> _loadCommonPaths() async {
-    final provider = context.read<FileProvider>();
-    _commonPaths = await provider.getCommonPaths();
-    setState(() {});
   }
 
   void _switchTab(int index) {
@@ -185,13 +177,19 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         content = _buildHomeTab(fileProvider);
     }
     
-    // Add slide animation
+    // Direction-aware slide animation
+    // Slide from right when moving to higher index, from left when moving to lower index
+    final isMovingRight = _currentIndex > _previousIndex;
+    final beginOffset = isMovingRight 
+        ? const Offset(0.15, 0)   // Slide from right
+        : const Offset(-0.15, 0); // Slide from left
+    
     return AnimatedBuilder(
       animation: _tabAnimation,
       builder: (context, child) {
         return SlideTransition(
           position: Tween<Offset>(
-            begin: const Offset(0.1, 0),
+            begin: beginOffset,
             end: Offset.zero,
           ).animate(_tabAnimation),
           child: FadeTransition(
@@ -577,16 +575,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildBrowseOptions(FileProvider fileProvider) {
-    return _buildGlassCard(
-      icon: Icons.folder_open,
-      iconColor: Theme.of(context).colorScheme.primary,
-      title: '选择文件夹',
-      subtitle: '浏览手机存储中的文件夹',
-      onTap: () => fileProvider.pickDirectory(),
-    );
-  }
-
   Widget _buildPinnedFilesList(FileProvider fileProvider) {
     return ReorderableListView.builder(
       shrinkWrap: true,
@@ -879,14 +867,14 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         children: [
           _buildTabHeader('最近文件夹', Icons.folder),
           Expanded(
-            child: _commonPaths.isEmpty
-                ? _buildEmptyState('没有常用文件夹')
+            child: fileProvider.recentFolders.isEmpty
+                ? _buildEmptyState('没有最近文件夹')
                 : ListView.builder(
                     padding: const EdgeInsets.all(20),
-                    itemCount: _commonPaths.length,
+                    itemCount: fileProvider.recentFolders.length,
                     itemBuilder: (context, index) {
                       return _buildFolderTile(
-                        _commonPaths[index],
+                        fileProvider.recentFolders[index],
                         fileProvider,
                       );
                     },
@@ -1071,8 +1059,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       title: folderName,
       subtitle: dateStr.isNotEmpty ? '$dateStr · $path' : path,
       onTap: () {
-        fileProvider.setDirectory(path);
-        setState(() => _currentIndex = 0); // Switch to home tab
+        fileProvider.addToRecentFolders(path);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FolderBrowserScreen(folderPath: path),
+          ),
+        );
       },
       onLongPress: () => _showFolderContextMenu(path, fileProvider),
     );
@@ -1417,8 +1410,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     final nameController = TextEditingController();
     String? selectedPath = fileProvider.currentDirectory;
     
-    if (selectedPath == null && _commonPaths.isNotEmpty) {
-      selectedPath = _commonPaths.first;
+    if (selectedPath == null && fileProvider.recentFolders.isNotEmpty) {
+      selectedPath = fileProvider.recentFolders.first;
     }
 
     final result = await showDialog<Map<String, String>>(
@@ -1760,8 +1753,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     final nameController = TextEditingController();
     String? selectedPath = fileProvider.currentDirectory;
     
-    if (selectedPath == null && _commonPaths.isNotEmpty) {
-      selectedPath = _commonPaths.first;
+    if (selectedPath == null && fileProvider.recentFolders.isNotEmpty) {
+      selectedPath = fileProvider.recentFolders.first;
     }
 
     final result = await showDialog<Map<String, String>>(
@@ -1928,6 +1921,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               // Storage section
               _buildSettingsSection('存储', Icons.folder, [
                 _buildClearRecentFilesButton(fileProvider),
+                const SizedBox(height: 12),
+                _buildClearRecentFoldersButton(fileProvider),
               ]),
               
               const SizedBox(height: 16),
@@ -2038,6 +2033,56 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                   );
                   if (confirm == true) {
                     fileProvider.clearRecentFiles();
+                  }
+                },
+          child: const Text('清除'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClearRecentFoldersButton(FileProvider fileProvider) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('清除最近文件夹', style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              '${fileProvider.recentFolders.length} 个文件夹',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+          ],
+        ),
+        TextButton(
+          onPressed: fileProvider.recentFolders.isEmpty
+              ? null
+              : () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      title: const Text('清除最近文件夹'),
+                      content: const Text('确定要清除所有最近文件夹记录吗？'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('取消'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('清除'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    fileProvider.clearRecentFolders();
                   }
                 },
           child: const Text('清除'),
@@ -2193,34 +2238,28 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: settings.backgroundEffect,
-                  decoration: InputDecoration(
-                    labelText: '覆盖效果',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'none', child: Text('无')),
-                    DropdownMenuItem(value: 'blur', child: Text('模糊')),
-                    DropdownMenuItem(value: 'overlay', child: Text('蒙版')),
-                  ],
-                  onChanged: (v) => settings.setBackgroundEffect(v ?? 'none'),
-                ),
-              ),
-              const SizedBox(width: 8),
+              Text('覆盖效果', style: Theme.of(context).textTheme.bodyMedium),
               IconButton(
                 onPressed: () => settings.setBackgroundImage(null),
-                icon: const Icon(Icons.delete, color: Colors.red),
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                tooltip: '移除背景图片',
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _buildBackgroundEffectChip(settings, 'none', '无'),
+              const SizedBox(width: 8),
+              _buildBackgroundEffectChip(settings, 'blur', '模糊'),
+            ],
+          ),
           if (settings.backgroundEffect == 'blur') ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               children: [
                 const Text('模糊度'),
@@ -2235,24 +2274,39 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               ],
             ),
           ],
-          if (settings.backgroundEffect == 'overlay') ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('透明度'),
-                Expanded(
-                  child: Slider(
-                    value: settings.backgroundOverlayOpacity,
-                    min: 0,
-                    max: 1,
-                    onChanged: (v) => settings.setBackgroundOverlayOpacity(v),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
       ],
+    );
+  }
+
+  Widget _buildBackgroundEffectChip(SettingsProvider settings, String value, String label) {
+    final isSelected = settings.backgroundEffect == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => settings.setBackgroundEffect(value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
+                : Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).dividerColor,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Theme.of(context).colorScheme.primary : null,
+              fontWeight: isSelected ? FontWeight.bold : null,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
