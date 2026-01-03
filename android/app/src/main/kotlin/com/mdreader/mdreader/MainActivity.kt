@@ -1,4 +1,4 @@
-package com.mdreader.mdreader
+package com.ushiomd
 
 import io.flutter.embedding.android.FlutterActivity
 
