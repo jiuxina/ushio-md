@@ -34,50 +34,16 @@
   - 模糊效果 - 可调节模糊度
 - **字体大小** - 12-24px 可调
 
-### 🚀 用户体验
-- **底部导航** - 首页/最近文件/最近文件夹/设置
-- **方向感美动画** - 左向滑入或右向滑入的 Tab 切换动画
-- **毛玻璃效果** - 精美的玻璃态 UI 设计
-- **渐变背景** - 优雅的色彩过渡
-
 ## 📱 截图
 
 | 首页 | 编辑器 | 设置 |
 |:---:|:---:|:---:|
 | 快速操作、置顶文件 | 预览模式、目录导航 | 主题色、背景设置 |
-
-## 🛠️ 技术栈
-
-- **Flutter** - 跨平台 UI 框架
-- **Provider** - 状态管理
-- **flutter_markdown** - Markdown 渲染
-- **file_picker** - 文件选择
-- **shared_preferences** - 本地存储
-- **permission_handler** - 权限管理
-- **url_launcher** - 外部链接
+| <img src="sample\1.jpg" alt="1" style="zoom: 25%;" /> | <img src="sample\2.jpg" alt="1" style="zoom: 25%;" /> | <img src="sample\3.jpg" alt="1" style="zoom: 25%;" /> |
 
 ## 📦 安装
 
-### 从源码构建
-
-```bash
-# 克隆仓库
-git clone https://github.com/jiuxina/mdreader.git
-cd mdreader
-
-# 安装依赖
-flutter pub get
-
-# 运行调试版
-flutter run
-
-# 构建 APK
-flutter build apk --release
-```
-
-### 直接下载
-
-前往 [Releases](https://github.com/jiuxina/mdreader/releases) 页面下载最新 APK。
+### 从源码构建前往 [Releases](https://github.com/jiuxina/mdreader/releases) 页面下载最新 APK。
 
 ## 📋 权限说明
 
@@ -85,29 +51,6 @@ flutter build apk --release
 |-----|------|
 | 存储权限 | 读取和保存 Markdown 文件 |
 | 管理所有文件 | 访问设备上的所有文件夹 |
-
-## 🗂️ 项目结构
-
-```
-lib/
-├── main.dart              # 应用入口
-├── models/                # 数据模型
-│   └── markdown_file.dart
-├── providers/             # 状态管理
-│   ├── file_provider.dart
-│   └── settings_provider.dart
-├── screens/               # 页面
-│   ├── main_screen.dart
-│   ├── editor_screen.dart
-│   ├── folder_browser_screen.dart
-│   └── settings_screen.dart
-├── services/              # 服务层
-│   └── file_service.dart
-├── utils/                 # 工具类
-│   └── constants.dart
-└── widgets/               # 组件
-    └── markdown_toolbar.dart
-```
 
 ## 🎯 Markdown 支持
 
