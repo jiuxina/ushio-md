@@ -30,6 +30,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _isSaving = false;
   bool _showToc = false;
   Timer? _autoSaveTimer;
+  Timer? _tocDebounceTimer; // TOC 更新防抖计时器
   String? _error;
   List<TocItem> _tocItems = [];
 
@@ -78,7 +79,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     if (!_isModified) {
       setState(() => _isModified = true);
     }
-    _updateToc();
+    // 防抖：用户停止输入 500ms 后再更新 TOC，减少性能开销
+    _tocDebounceTimer?.cancel();
+    _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
   }
 
   void _updateToc() {
@@ -258,6 +261,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
+    _tocDebounceTimer?.cancel(); // 释放 TOC 防抖计时器
     _textController.dispose();
     _editScrollController.dispose();
     _previewScrollController.dispose();

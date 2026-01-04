@@ -259,15 +259,20 @@ class FileService {
   /// - Download
   /// - Notes
   /// - 根目录
+  /// 
+  /// 使用动态路径解析，兼容不同设备
   Future<List<String>> getCommonPaths() async {
     final paths = <String>[];
 
     if (Platform.isAndroid) {
+      // 动态获取外部存储根目录，避免硬编码
+      final externalRoot = Platform.environment['EXTERNAL_STORAGE'] ?? '/storage/emulated/0';
+      
       final commonDirs = [
-        '/storage/emulated/0/Documents',
-        '/storage/emulated/0/Download',
-        '/storage/emulated/0/Notes',
-        '/storage/emulated/0',
+        '$externalRoot/Documents',
+        '$externalRoot/Download',
+        '$externalRoot/Notes',
+        externalRoot,
       ];
 
       for (final dir in commonDirs) {

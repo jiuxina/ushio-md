@@ -81,7 +81,7 @@ class MyApp extends StatelessWidget {
               Locale('zh', 'CN'),  // 简体中文
               Locale('en', 'US'),  // 英文
             ],
-            locale: const Locale('zh', 'CN'),  // 默认使用中文
+            locale: settings.locale,  // 使用动态语言设置
             theme: _buildLightTheme(primaryColor),  // 浅色主题
             darkTheme: _buildDarkTheme(primaryColor),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
@@ -289,7 +289,7 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.wait([
       fileProvider.initialize(),
       settingsProvider.initialize(),
-      Future.delayed(const Duration(milliseconds: 2000)),
+      Future.delayed(const Duration(milliseconds: 500)),
     ]);
 
     // 跳转到主页面（带淡出动画）

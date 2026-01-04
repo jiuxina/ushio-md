@@ -53,6 +53,11 @@ class SettingsProvider extends ChangeNotifier {
   
   /// 遮罩透明度（0-1，保留但当前 UI 未使用）
   double _backgroundOverlayOpacity = 0.5;
+  
+  // ==================== 语言设置 ====================
+  
+  /// 当前语言环境（默认中文）
+  Locale _locale = const Locale('zh', 'CN');
 
   // ==================== 预设主题色 ====================
   
@@ -81,6 +86,7 @@ class SettingsProvider extends ChangeNotifier {
   String get backgroundEffect => _backgroundEffect;
   double get backgroundBlur => _backgroundBlur;
   double get backgroundOverlayOpacity => _backgroundOverlayOpacity;
+  Locale get locale => _locale;
 
   // ==================== 初始化 ====================
 
@@ -104,6 +110,10 @@ class SettingsProvider extends ChangeNotifier {
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
     _backgroundBlur = prefs.getDouble('background_blur') ?? 10.0;
     _backgroundOverlayOpacity = prefs.getDouble('background_overlay_opacity') ?? 0.5;
+    
+    // 语言设置
+    final localeCode = prefs.getString('locale') ?? 'zh';
+    _locale = localeCode == 'en' ? const Locale('en', 'US') : const Locale('zh', 'CN');
 
     notifyListeners();
   }
@@ -215,6 +225,18 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       await prefs.remove('default_directory');
     }
+    notifyListeners();
+  }
+
+  // ==================== 语言设置方法 ====================
+
+  /// 设置应用语言
+  /// 
+  /// [locale] Locale('zh', 'CN') 或 Locale('en', 'US')
+  Future<void> setLocale(Locale locale) async {
+    _locale = locale;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('locale', locale.languageCode);
     notifyListeners();
   }
 }
