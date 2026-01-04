@@ -74,8 +74,12 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "app.ico"
+  image_path: "app.png"
   min_sdk_android: 21
+  windows:
+    generate: true
+    image_path: "app.png"
+    icon_size: 256
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
