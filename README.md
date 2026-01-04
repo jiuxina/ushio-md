@@ -1,4 +1,4 @@
-# 汐 - Markdown 编辑器
+# 汐
 
 <p align="center">
   <img src="app.png" width="100" alt="汐 Logo">
