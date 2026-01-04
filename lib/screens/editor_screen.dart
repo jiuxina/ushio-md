@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
@@ -82,21 +82,61 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   void _updateToc() {
-    final lines = _textController.text.split('\n');
+    final text = _textController.text;
+    final lines = text.split('\n');
     final items = <TocItem>[];
     int lineNumber = 0;
+    bool inCodeBlock = false;
 
-    for (final line in lines) {
-      if (line.startsWith('#')) {
-        final match = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(line);
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmedLine = line.trim();
+      
+      // 检测代码块
+      if (trimmedLine.startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        lineNumber++;
+        continue;
+      }
+      
+      // 如果在代码块中，跳过
+      if (inCodeBlock) {
+        lineNumber++;
+        continue;
+      }
+
+      // ATX 标题 (# Title) - 放宽匹配规则，允许无空格
+      if (trimmedLine.startsWith('#')) {
+        final match = RegExp(r'^(#{1,6})\s*(.+)$').firstMatch(trimmedLine);
         if (match != null) {
           final level = match.group(1)!.length;
-          final title = match.group(2)!;
+          final title = match.group(2)!.trim();
           items.add(TocItem(
             level: level,
             title: title,
             lineNumber: lineNumber,
           ));
+        }
+      }
+      // Setext 标题 (Title \n ===)
+      else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
+        final nextLine = lines[i + 1].trim();
+        if (nextLine.isNotEmpty) {
+          if (RegExp(r'^=+$').hasMatch(nextLine)) {
+            items.add(TocItem(
+              level: 1,
+              title: trimmedLine,
+              lineNumber: lineNumber,
+            ));
+          } else if (RegExp(r'^-+$').hasMatch(nextLine)) {
+            // 排除水平分割线（通常前面是空行）
+            // 如果这一行是普通文本，下一行是---，则是二级标题
+            items.add(TocItem(
+              level: 2,
+              title: trimmedLine,
+              lineNumber: lineNumber,
+            ));
+          }
         }
       }
       lineNumber++;
@@ -109,24 +149,25 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     // Close TOC first
     setState(() => _showToc = false);
 
-    // Calculate approximate scroll position based on heading index
-    // We estimate based on the position of this heading among all headings
-    final headingIndex = _tocItems.indexOf(item);
-    final totalHeadings = _tocItems.length;
-    
+    // 计算标题在文本中的字符偏移量
+    final lines = _textController.text.split('\n');
+    int position = 0;
+    // 累加标题之前的所有行的长度
+    for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
+      position += lines[i].length + 1; // +1 是换行符
+    }
+    final totalLength = _textController.text.length;
+    // 避免除以零
+    final ratio = totalLength > 0 ? position / totalLength : 0.0;
+
     if (_mode == EditorMode.edit) {
-      // In edit mode, move cursor to line
-      final lines = _textController.text.split('\n');
-      int position = 0;
-      for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
-        position += lines[i].length + 1;
-      }
+      // In edit mode, move cursor and scroll
       _textController.selection = TextSelection.collapsed(offset: position);
       
-      // Scroll edit panel
+      // Scroll edit panel based on char offset ratio
       if (_editScrollController.hasClients) {
         final maxScroll = _editScrollController.position.maxScrollExtent;
-        final targetScroll = (item.lineNumber / lines.length) * maxScroll;
+        final targetScroll = ratio * maxScroll;
         _editScrollController.animateTo(
           targetScroll.clamp(0.0, maxScroll),
           duration: const Duration(milliseconds: 300),
@@ -134,13 +175,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         );
       }
     } else {
-      // In preview or split mode, scroll preview panel
+      // In preview or split mode, scroll preview panel based on char offset ratio
       if (_previewScrollController.hasClients) {
         final maxScroll = _previewScrollController.position.maxScrollExtent;
-        // Calculate position based on heading index ratio
-        final targetScroll = totalHeadings > 1
-            ? (headingIndex / (totalHeadings - 1)) * maxScroll
-            : 0.0;
+        final targetScroll = ratio * maxScroll;
         _previewScrollController.animateTo(
           targetScroll.clamp(0.0, maxScroll),
           duration: const Duration(milliseconds: 300),
@@ -291,6 +329,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false, // 防止输入法挤压界面
         body: Stack(
           children: [
             _buildBody(),
@@ -329,7 +368,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             if (!_isLoading && _error == null && _mode != EditorMode.preview)
               MarkdownToolbar(
                 controller: _textController,
+                undoController: _undoController,
                 filePath: widget.filePath,
+                onSearchPressed: _showSearchDialog,
               ),
             Expanded(child: _buildContent()),
           ],
@@ -701,19 +742,21 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 child: _buildPreviewPanel(settings),
               ),
             ),
-            // 悬浮按钮组：全屏按钮 + TOC按钮
+            // 悬浮按钮组：搜索按钮 + 全屏按钮 + TOC按钮
             Positioned(
               right: 24,
               bottom: 24,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // 搜索按钮
+                  _buildSearchButton(),
+                  const SizedBox(height: 12),
                   // 全屏预览按钮
                   _buildFullscreenButton(),
-                  if (_tocItems.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildTocButton(),
-                  ],
+                  const SizedBox(height: 12),
+                  // 目录按钮（始终显示）
+                  _buildTocButton(),
                 ],
               ),
             ),
@@ -810,6 +853,289 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     );
   }
 
+  /// 构建搜索悬浮按钮
+  Widget _buildSearchButton({bool mini = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(mini ? 12 : 16),
+        onTap: _showSearchDialog,
+        child: Container(
+          padding: EdgeInsets.all(mini ? 10 : 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.teal,
+                Colors.cyan,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(mini ? 12 : 16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.teal.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(
+            Icons.search,
+            color: Colors.white,
+            size: mini ? 18 : 24,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 显示搜索对话框
+  void _showSearchDialog() {
+    final searchController = TextEditingController();
+    List<int> matchPositions = [];
+    int currentMatchIndex = 0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          void performSearch(String query) {
+            if (query.isEmpty) {
+              setModalState(() {
+                matchPositions = [];
+                currentMatchIndex = 0;
+              });
+              return;
+            }
+
+            final text = _textController.text.toLowerCase();
+            final searchText = query.toLowerCase();
+            final positions = <int>[];
+            int index = 0;
+            
+            while (true) {
+              index = text.indexOf(searchText, index);
+              if (index == -1) break;
+              positions.add(index);
+              index += searchText.length;
+            }
+
+            setModalState(() {
+              matchPositions = positions;
+              currentMatchIndex = positions.isNotEmpty ? 0 : -1;
+            });
+          }
+
+          void jumpToMatch(int position) {
+            // 关闭对话框
+            Navigator.pop(context);
+            
+            // 切换到编辑模式并跳转到匹配位置
+            setState(() => _mode = EditorMode.edit);
+            
+            // 延迟执行以确保编辑器已渲染
+            Future.delayed(const Duration(milliseconds: 100), () {
+              final query = searchController.text;
+              _textController.selection = TextSelection(
+                baseOffset: position,
+                extentOffset: position + query.length,
+              );
+              
+              // 滚动到匹配位置
+              if (_editScrollController.hasClients) {
+                final lines = _textController.text.substring(0, position).split('\n');
+                final lineHeight = 24.0; // 估算行高
+                final targetScroll = lines.length * lineHeight;
+                _editScrollController.animateTo(
+                  targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              }
+            });
+          }
+
+          // 获取键盘高度
+          final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+          final screenHeight = MediaQuery.of(context).size.height;
+          // 动态计算最大高度：屏幕高度 - 键盘高度 - 顶部安全边距
+          final maxHeight = screenHeight - bottomInset - 100;
+          
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottomInset), // 适配输入法高度
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: maxHeight > 200 ? maxHeight : 200, // 确保最小高度
+                minHeight: 200,
+              ),
+              // removing fixed height
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+            child: Column(
+              children: [
+                // 拖动指示器
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // 搜索输入框
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: searchController,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            hintText: '搜索内容...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: matchPositions.isNotEmpty
+                                ? Text(
+                                    '${currentMatchIndex + 1}/${matchPositions.length}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  )
+                                : null,
+                            suffixIconConstraints: const BoxConstraints(minWidth: 60),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).colorScheme.surface,
+                          ),
+                          onChanged: performSearch,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // 上一个/下一个按钮
+                      IconButton(
+                        icon: const Icon(Icons.keyboard_arrow_up),
+                        onPressed: matchPositions.isEmpty ? null : () {
+                          setModalState(() {
+                            currentMatchIndex = (currentMatchIndex - 1 + matchPositions.length) % matchPositions.length;
+                          });
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.keyboard_arrow_down),
+                        onPressed: matchPositions.isEmpty ? null : () {
+                          setModalState(() {
+                            currentMatchIndex = (currentMatchIndex + 1) % matchPositions.length;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                // 搜索结果列表
+                Expanded(
+                  child: matchPositions.isEmpty
+                      ? Center(
+                          child: Text(
+                            searchController.text.isEmpty ? '输入关键词开始搜索' : '未找到匹配内容',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: matchPositions.length,
+                          itemBuilder: (context, index) {
+                            final position = matchPositions[index];
+                            final text = _textController.text;
+                            final start = (position - 20).clamp(0, text.length);
+                            final end = (position + searchController.text.length + 20).clamp(0, text.length);
+                            final context_ = text.substring(start, end).replaceAll('\n', ' ');
+
+                            return ListTile(
+                              leading: CircleAvatar(
+                                radius: 14,
+                                backgroundColor: index == currentMatchIndex
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: index == currentMatchIndex
+                                        ? Colors.white
+                                        : Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                '...$context_...',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              onTap: () => jumpToMatch(position),
+                            );
+                          },
+                        ),  // ListView.builder end
+                ),  // Expanded end
+              ],  // Column children end
+            ),  // Column end
+          ),  // Container end
+        );  // Padding end
+        },
+      ),
+    );
+  }
+
+  /// 切换checkbox状态
+  /// [index] 是checkbox在markdown中的索引（从0开始）
+  /// [newValue] 是新的选中状态
+  void _toggleCheckbox(int index, bool newValue) {
+    final text = _textController.text;
+    final lines = text.split('\n');
+    int checkboxCount = 0;
+    
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      // 匹配任务列表项: - [ ] 或 - [x] 或 - [X]
+      final uncheckedMatch = RegExp(r'^(\s*-\s*)\[\s*\](.*)$').firstMatch(line);
+      final checkedMatch = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$').firstMatch(line);
+      
+      if (uncheckedMatch != null || checkedMatch != null) {
+        if (checkboxCount == index) {
+          // 找到目标checkbox，切换状态
+          if (newValue) {
+            // 从未选中切换到选中
+            if (uncheckedMatch != null) {
+              lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
+            }
+          } else {
+            // 从选中切换到未选中
+            if (checkedMatch != null) {
+              lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
+            }
+          }
+          break;
+        }
+        checkboxCount++;
+      }
+    }
+    
+    // 更新文本内容
+    final newText = lines.join('\n');
+    if (newText != text) {
+      setState(() {
+        _textController.text = newText;
+        _isModified = true;
+      });
+    }
+  }
+
   Widget _buildTocButton({bool mini = false}) {
     return Material(
       color: Colors.transparent,
@@ -845,15 +1171,24 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   Widget _buildTocOverlay() {
-    return GestureDetector(
-      onTap: () => setState(() => _showToc = false),
-      child: Container(
-        color: Colors.black.withOpacity(0.5),
-        child: Align(
-          alignment: Alignment.centerRight,
-          child: GestureDetector(
-            onTap: () {}, // Prevent close on panel tap
-            child: Container(
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return GestureDetector(
+          onTap: () => setState(() => _showToc = false),
+          child: Container(
+            color: Colors.black.withOpacity(0.5 * value), // 背景淡入
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Transform.translate(
+                offset: Offset((1 - value) * 100, 0), // 从右侧滑入
+                child: Opacity(
+                  opacity: value,
+                  child: GestureDetector(
+                    onTap: () {}, // Prevent close on panel tap
+                    child: Container(
               width: MediaQuery.of(context).size.width * 0.75,
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -934,10 +1269,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
+          ),  // Opacity end
+        ),  // Transform.translate end
+      ),  // Align end
+    ),  // Container end
+  ),  // GestureDetector end
+);  // Outer GestureDetector end
+      },  // TweenAnimationBuilder builder end
+    );  // TweenAnimationBuilder end
   }
 
   Widget _buildTocItem(TocItem item) {
@@ -1035,12 +1374,27 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   Widget _buildPreviewPanel(SettingsProvider settings) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // 计算当前checkbox索引（用于checkboxBuilder）
+    int checkboxIndex = 0;
     
     return Markdown(
       controller: _previewScrollController,
       data: _textController.text,
       selectable: true,
       padding: const EdgeInsets.all(16),
+      // checkbox构建器：实现可点击的任务列表
+      checkboxBuilder: (bool value) {
+        final currentIndex = checkboxIndex++;
+        return Checkbox(
+          value: value,
+          onChanged: (newValue) {
+            _toggleCheckbox(currentIndex, newValue ?? false);
+            // 重置索引以便下次重建
+            checkboxIndex = 0;
+          },
+          activeColor: Theme.of(context).colorScheme.primary,
+        );
+      },
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(fontSize: settings.fontSize, height: 1.6),
         h1: TextStyle(

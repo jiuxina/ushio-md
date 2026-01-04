@@ -5,12 +5,16 @@ import 'dart:io';
 /// Markdown editing toolbar with beautiful gradient buttons
 class MarkdownToolbar extends StatelessWidget {
   final TextEditingController controller;
+  final UndoHistoryController? undoController; // 撤回重做控制器
   final String? filePath; // Path to the markdown file being edited
+  final VoidCallback? onSearchPressed; // 搜索按钮回调
 
   const MarkdownToolbar({
     super.key,
     required this.controller,
+    this.undoController,
     this.filePath,
+    this.onSearchPressed,
   });
 
   @override
@@ -36,6 +40,35 @@ class MarkdownToolbar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         children: [
+          // 撤回重做按钮组
+          if (undoController != null)
+            _ToolbarButtonGroup(
+              children: [
+                ValueListenableBuilder<UndoHistoryValue>(
+                  valueListenable: undoController!,
+                  builder: (context, value, child) {
+                    return _ToolbarButton(
+                      icon: Icons.undo,
+                      tooltip: '撤回',
+                      enabled: value.canUndo,
+                      onPressed: () => undoController!.undo(),
+                    );
+                  },
+                ),
+                ValueListenableBuilder<UndoHistoryValue>(
+                  valueListenable: undoController!,
+                  builder: (context, value, child) {
+                    return _ToolbarButton(
+                      icon: Icons.redo,
+                      tooltip: '重做',
+                      enabled: value.canRedo,
+                      onPressed: () => undoController!.redo(),
+                    );
+                  },
+                ),
+              ],
+            ),
+          if (undoController != null) _buildDivider(context),
           _ToolbarButtonGroup(
             children: [
               _ToolbarButton(
@@ -140,6 +173,19 @@ class MarkdownToolbar extends StatelessWidget {
               ),
             ],
           ),
+          // 搜索按钮
+          if (onSearchPressed != null) ...[
+            _buildDivider(context),
+            _ToolbarButtonGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.search,
+                  tooltip: '搜索',
+                  onPressed: onSearchPressed!,
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -739,11 +785,13 @@ class _ToolbarButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final bool enabled; // 是否启用
 
   const _ToolbarButton({
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.enabled = true, // 默认启用
   });
 
   @override
@@ -755,10 +803,12 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
 
   @override
   Widget build(BuildContext context) {
+    final isEnabled = widget.enabled;
+    
     return Tooltip(
       message: widget.tooltip,
       child: GestureDetector(
-        onTap: widget.onPressed,
+        onTap: isEnabled ? widget.onPressed : null,
         child: MouseRegion(
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
@@ -768,7 +818,7 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
             height: 36,
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
-              gradient: _isHovered
+              gradient: (_isHovered && isEnabled)
                   ? LinearGradient(
                       colors: [
                         Theme.of(context).colorScheme.primary.withOpacity(0.2),
@@ -781,9 +831,11 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
             child: Icon(
               widget.icon,
               size: 18,
-              color: _isHovered
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              color: isEnabled
+                  ? (_isHovered
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7))
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.3), // 禁用时灰色
             ),
           ),
         ),
