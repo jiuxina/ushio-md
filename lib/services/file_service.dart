@@ -93,11 +93,11 @@ class FileService {
 
   // ==================== 目录遍历 ====================
 
-  /// 列出目录下的所有 Markdown 文件
+  /// 列出目录下的所有 Markdown 文件（包含子目录）
   /// 
   /// [directoryPath] 目录的绝对路径
   /// 
-  /// 返回按修改时间倒序排列的文件列表
+  /// 递归扫描所有子目录，返回按修改时间倒序排列的文件列表
   Future<List<MarkdownFile>> listMarkdownFiles(String directoryPath) async {
     final directory = Directory(directoryPath);
     if (!await directory.exists()) {
@@ -106,7 +106,8 @@ class FileService {
 
     final files = <MarkdownFile>[];
     try {
-      await for (final entity in directory.list()) {
+      // 递归扫描所有子目录
+      await for (final entity in directory.list(recursive: true)) {
         if (entity is File) {
           final path = entity.path.toLowerCase();
           // 只处理 Markdown 文件
