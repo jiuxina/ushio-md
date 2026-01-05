@@ -2089,10 +2089,19 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildThemeModeSelector(SettingsProvider settings) {
+    // Determine if we should show dark theme options
+    // Show if manually set to Dark, or if System is selected (user might want to preview/set the dark preference for when system is dark)
+    // For simplicity, let's always show them if the effective brightness is dark, or just show them when ThemeMode is dark.
+    // Let's stick to showing specific dark themes only when 'Dark' is explicitly selected or maybe just add a "Dark Theme Style" section.
+    
+    // Revised design:
+    // Row 1: System / Light / Dark
+    // Row 2 (Conditional): Dark Theme Style
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('主题及模式', style: Theme.of(context).textTheme.bodyMedium),
+        Text('主题模式', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -2107,30 +2116,51 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               isSelected: settings.themeMode == ThemeMode.light,
               onTap: () => settings.setThemeMode(ThemeMode.light),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _buildThemeOptionChip(
-              label: '半夜间模式',
-              isSelected: settings.themeMode == ThemeMode.dark && settings.darkThemeIndex != 4, // 默认选中非纯黑
-              onTap: () {
-                settings.setThemeMode(ThemeMode.dark);
-                settings.setDarkThemeIndex(0); // 默认深蓝
-              },
-            ),
             const SizedBox(width: 8),
             _buildThemeOptionChip(
-              label: '纯夜间模式',
-              isSelected: settings.themeMode == ThemeMode.dark && settings.darkThemeIndex == 4, // 纯黑
-              onTap: () {
-                settings.setThemeMode(ThemeMode.dark);
-                settings.setDarkThemeIndex(4); // AppConstants中全黑模式的索引
-              },
+              label: '夜间模式',
+              isSelected: settings.themeMode == ThemeMode.dark,
+              onTap: () => settings.setThemeMode(ThemeMode.dark),
             ),
           ],
         ),
+        
+        // Dark Theme Schemes
+        if (settings.themeMode == ThemeMode.dark) ...[
+          const SizedBox(height: 16),
+          Text('夜间风格', style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(AppConstants.darkThemeSchemes.length, (index) {
+              final scheme = AppConstants.darkThemeSchemes[index];
+              final isSelected = settings.darkThemeIndex == index;
+              return ChoiceChip(
+                label: Text(scheme.name),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    settings.setDarkThemeIndex(index);
+                  }
+                },
+                selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                labelStyle: TextStyle(
+                  color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                  fontWeight: isSelected ? FontWeight.bold : null,
+                  fontSize: 12,
+                ),
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                side: BorderSide(
+                  color: isSelected 
+                      ? Theme.of(context).colorScheme.primary 
+                      : Theme.of(context).dividerColor,
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              );
+            }),
+          ),
+        ],
       ],
     );
   }

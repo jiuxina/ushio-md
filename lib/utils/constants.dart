@@ -53,7 +53,7 @@ class AppConstants {
   static const String appName = '汐';
   
   /// 版本号
-  static const String appVersion = '1.0.3';
+  static const String appVersion = '1.0.4';
   
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';
@@ -118,53 +118,53 @@ class AppConstants {
   /// 
   /// 包含 4 种精心设计的夜间主题
   static const List<DarkThemeScheme> darkThemeSchemes = [
-    // 默认深蓝 - Slate 风格
+    // 1. 柔和暗灰 (Lightest) - GitHub Dimmed 风格
     DarkThemeScheme(
-      name: '深蓝',
-      background: Color(0xFF0F172A),
-      surface: Color(0xFF1E293B),
-      text: Color(0xFFF1F5F9),
-      textSecondary: Color(0xFF94A3B8),
+      name: '柔和暗灰',
+      background: Color(0xFF22272E),
+      surface: Color(0xFF2D333B),
+      text: Color(0xFFADBAC7),
+      textSecondary: Color(0xFF768390),
     ),
-    // AMOLED 纯黑 - 省电模式
+    // 2. 舒适暖灰 - 温和护眼
     DarkThemeScheme(
-      name: 'AMOLED 纯黑',
-      background: Color(0xFF000000),
-      surface: Color(0xFF121212),
-      text: Color(0xFFFFFFFF),
-      textSecondary: Color(0xFFB3B3B3),
-    ),
-    // 暖灰护眼 - 温和护眼
-    DarkThemeScheme(
-      name: '暖灰护眼',
+      name: '舒适暖灰',
       background: Color(0xFF1A1A1A),
       surface: Color(0xFF2D2D2D),
       text: Color(0xFFE8E6E3),
       textSecondary: Color(0xFFA8A8A8),
     ),
-    // 午夜靛蓝 - 深沉蓝调
+    // 3. 午夜深蓝 - Slate 风格 (原默认)
     DarkThemeScheme(
-      name: '午夜靛蓝',
-      background: Color(0xFF0A1628),
-      surface: Color(0xFF142238),
-      text: Color(0xFFE2E8F0),
-      textSecondary: Color(0xFF7C8CA8),
+      name: '午夜深蓝',
+      background: Color(0xFF0F172A),
+      surface: Color(0xFF1E293B),
+      text: Color(0xFFF1F5F9),
+      textSecondary: Color(0xFF94A3B8),
     ),
-    // 全黑模式 - 极致纯黑
+    // 4. 深邃极夜 - GitHub Dark 风格
     DarkThemeScheme(
-      name: '全黑模式',
+      name: '深邃极夜',
+      background: Color(0xFF0D1117),
+      surface: Color(0xFF161B22),
+      text: Color(0xFFC9D1D9),
+      textSecondary: Color(0xFF8B949E),
+    ),
+    // 5. 经典黑 - AMOLED 省电
+    DarkThemeScheme(
+      name: '经典黑',
+      background: Color(0xFF000000),
+      surface: Color(0xFF121212),
+      text: Color(0xFFFFFFFF),
+      textSecondary: Color(0xFFB3B3B3),
+    ),
+    // 6. 极致纯黑 - 全黑模式
+    DarkThemeScheme(
+      name: '极致纯黑',
       background: Color(0xFF000000),
       surface: Color(0xFF000000),
       text: Color(0xFFFFFFFF),
       textSecondary: Color(0xFF888888),
-    ),
-    // 深邃极夜 - 类似 GitHub Dark
-    DarkThemeScheme(
-      name: '深邃极夜',
-      background: Color(0xFF010409),
-      surface: Color(0xFF0D1117),
-      text: Color(0xFFE6EDF3),
-      textSecondary: Color(0xFF7D8590),
     ),
   ];
 
