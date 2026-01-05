@@ -11,6 +11,38 @@
 
 import 'package:flutter/material.dart';
 
+/// 夜间主题配色方案
+/// 
+/// 定义单个夜间主题的所有颜色属性
+class DarkThemeScheme {
+  final String name;
+  final Color background;
+  final Color surface;
+  final Color text;
+  final Color textSecondary;
+  
+  const DarkThemeScheme({
+    required this.name,
+    required this.background,
+    required this.surface,
+    required this.text,
+    required this.textSecondary,
+  });
+}
+
+/// 字体选项
+/// 
+/// 定义可选字体的显示名称和字体族名称
+class FontOption {
+  final String name;       // 显示名称（中文）
+  final String fontFamily; // 字体族名称
+  
+  const FontOption({
+    required this.name,
+    required this.fontFamily,
+  });
+}
+
 /// 应用常量
 /// 
 /// 使用静态常量确保全局一致性
@@ -21,7 +53,7 @@ class AppConstants {
   static const String appName = '汐';
   
   /// 版本号
-  static const String appVersion = '1.0.2';
+  static const String appVersion = '1.0.3';
   
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';
@@ -79,6 +111,73 @@ class AppConstants {
   
   /// 深色次要文字
   static const Color darkTextSecondary = Color(0xFF94A3B8);
+
+  // ==================== 夜间主题方案 ====================
+  
+  /// 夜间主题配色方案定义
+  /// 
+  /// 包含 4 种精心设计的夜间主题
+  static const List<DarkThemeScheme> darkThemeSchemes = [
+    // 默认深蓝 - Slate 风格
+    DarkThemeScheme(
+      name: '深蓝',
+      background: Color(0xFF0F172A),
+      surface: Color(0xFF1E293B),
+      text: Color(0xFFF1F5F9),
+      textSecondary: Color(0xFF94A3B8),
+    ),
+    // AMOLED 纯黑 - 省电模式
+    DarkThemeScheme(
+      name: 'AMOLED 纯黑',
+      background: Color(0xFF000000),
+      surface: Color(0xFF121212),
+      text: Color(0xFFFFFFFF),
+      textSecondary: Color(0xFFB3B3B3),
+    ),
+    // 暖灰护眼 - 温和护眼
+    DarkThemeScheme(
+      name: '暖灰护眼',
+      background: Color(0xFF1A1A1A),
+      surface: Color(0xFF2D2D2D),
+      text: Color(0xFFE8E6E3),
+      textSecondary: Color(0xFFA8A8A8),
+    ),
+    // 午夜靛蓝 - 深沉蓝调
+    DarkThemeScheme(
+      name: '午夜靛蓝',
+      background: Color(0xFF0A1628),
+      surface: Color(0xFF142238),
+      text: Color(0xFFE2E8F0),
+      textSecondary: Color(0xFF7C8CA8),
+    ),
+    // 全黑模式 - 极致纯黑
+    DarkThemeScheme(
+      name: '全黑模式',
+      background: Color(0xFF000000),
+      surface: Color(0xFF000000),
+      text: Color(0xFFFFFFFF),
+      textSecondary: Color(0xFF888888),
+    ),
+    // 深邃极夜 - 类似 GitHub Dark
+    DarkThemeScheme(
+      name: '深邃极夜',
+      background: Color(0xFF010409),
+      surface: Color(0xFF0D1117),
+      text: Color(0xFFE6EDF3),
+      textSecondary: Color(0xFF7D8590),
+    ),
+  ];
+
+  // ==================== 可用字体 ====================
+  
+  /// 可选字体列表
+  /// 
+  /// 第一个为系统默认，其余使用 Google Fonts
+  static const List<FontOption> availableFonts = [
+    FontOption(name: '系统默认', fontFamily: 'System'),
+    FontOption(name: '思源黑体', fontFamily: 'Noto Sans SC'),
+    FontOption(name: 'JetBrains Mono', fontFamily: 'JetBrains Mono'),
+  ];
 
   // ==================== 尺寸规范 ====================
   

@@ -34,9 +34,19 @@ import 'utils/constants.dart';
 /// 应用程序入口函数
 /// 
 /// 初始化 Flutter 绑定并启动应用
+import 'services/font_service.dart';
+
+/// 应用程序入口函数
+/// 
+/// 初始化 Flutter 绑定并启动应用
 void main() async {
   // 确保 Flutter 引擎初始化完成（异步操作前必须调用）
   WidgetsFlutterBinding.ensureInitialized();
+  
+
+  // 加载已安装的自定义字体（包括手动下载的 Google 字体）
+  await FontService.loadAllCustomFonts();
+  
   runApp(const MyApp());
 }
 
@@ -67,6 +77,10 @@ class MyApp extends StatelessWidget {
         builder: (context, settings, child) {
           // 获取用户选择的主题色
           final primaryColor = settings.primaryColor;
+          // 获取字体设置（System 表示使用系统默认）
+          final fontFamily = settings.uiFontFamily == 'System' ? null : settings.uiFontFamily;
+          // 获取夜间主题配色方案
+          final darkThemeIndex = settings.darkThemeIndex;
           
           return MaterialApp(
             title: AppConstants.appName,
@@ -82,8 +96,8 @@ class MyApp extends StatelessWidget {
               Locale('en', 'US'),  // 英文
             ],
             locale: settings.locale,  // 使用动态语言设置
-            theme: _buildLightTheme(primaryColor),  // 浅色主题
-            darkTheme: _buildDarkTheme(primaryColor),  // 深色主题
+            theme: _buildLightTheme(primaryColor, fontFamily),  // 浅色主题
+            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
             home: const MainScreen(),  // 主页面
           );
@@ -95,10 +109,12 @@ class MyApp extends StatelessWidget {
   /// 构建浅色主题
   /// 
   /// [primaryColor] 用户选择的主题色
-  ThemeData _buildLightTheme(Color primaryColor) {
+  /// [fontFamily] 用户选择的字体（null 表示系统默认）
+  ThemeData _buildLightTheme(Color primaryColor, String? fontFamily) {
     return ThemeData(
       useMaterial3: true,  // 启用 Material 3 设计
       brightness: Brightness.light,
+      fontFamily: fontFamily,
       colorScheme: ColorScheme.light(
         primary: primaryColor,
         secondary: AppConstants.accentColor,
@@ -151,31 +167,37 @@ class MyApp extends StatelessWidget {
   /// 构建深色主题
   /// 
   /// [primaryColor] 用户选择的主题色
-  ThemeData _buildDarkTheme(Color primaryColor) {
+  /// [darkThemeIndex] 夜间主题配色方案索引
+  /// [fontFamily] 用户选择的字体（null 表示系统默认）
+  ThemeData _buildDarkTheme(Color primaryColor, int darkThemeIndex, String? fontFamily) {
+    // 获取选中的夜间主题配色方案
+    final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
+    
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: fontFamily,
       colorScheme: ColorScheme.dark(
         primary: primaryColor,
         secondary: AppConstants.accentColor,
-        surface: AppConstants.darkSurface,
+        surface: scheme.surface,
         error: AppConstants.errorColor,
       ),
-      scaffoldBackgroundColor: AppConstants.darkBackground,
+      scaffoldBackgroundColor: scheme.background,
       
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppConstants.darkSurface,
-        foregroundColor: AppConstants.darkText,
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.text,
         elevation: 0,
         centerTitle: false,
       ),
       
       cardTheme: CardThemeData(
-        color: AppConstants.darkSurface,
+        color: scheme.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          side: BorderSide(color: Colors.grey.shade800),
+          side: BorderSide(color: scheme.textSecondary.withOpacity(0.3)),
         ),
       ),
       
@@ -189,12 +211,22 @@ class MyApp extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
         ),
         filled: true,
-        fillColor: AppConstants.darkBackground,
+        fillColor: scheme.background,
       ),
       
       dividerTheme: DividerThemeData(
-        color: Colors.grey.shade800,
+        color: scheme.textSecondary.withOpacity(0.3),
         thickness: 1,
+      ),
+      
+      // 文本主题（使用夜间主题配色）
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: scheme.text),
+        bodyMedium: TextStyle(color: scheme.text),
+        bodySmall: TextStyle(color: scheme.textSecondary),
+        titleLarge: TextStyle(color: scheme.text),
+        titleMedium: TextStyle(color: scheme.text),
+        titleSmall: TextStyle(color: scheme.textSecondary),
       ),
     );
   }

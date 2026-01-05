@@ -26,6 +26,18 @@ class SettingsProvider extends ChangeNotifier {
   /// 主题色索引（对应 themeColors 列表）
   int _primaryColorIndex = 0;
   
+  /// 夜间主题索引（对应 AppConstants.darkThemeSchemes 列表）
+  int _darkThemeIndex = 0;
+  
+  /// UI 字体族（System 表示系统默认）
+  String _uiFontFamily = 'System';
+  
+  /// 编辑器字体族
+  String _editorFontFamily = 'System';
+  
+  /// 代码块字体族
+  String _codeFontFamily = 'System';
+  
   // ==================== 编辑器设置 ====================
   
   /// 编辑器字体大小（12-24px）
@@ -87,6 +99,10 @@ class SettingsProvider extends ChangeNotifier {
   double get backgroundBlur => _backgroundBlur;
   double get backgroundOverlayOpacity => _backgroundOverlayOpacity;
   Locale get locale => _locale;
+  int get darkThemeIndex => _darkThemeIndex;
+  String get uiFontFamily => _uiFontFamily;
+  String get editorFontFamily => _editorFontFamily;
+  String get codeFontFamily => _codeFontFamily;
 
   // ==================== 初始化 ====================
 
@@ -114,6 +130,15 @@ class SettingsProvider extends ChangeNotifier {
     // 语言设置
     final localeCode = prefs.getString('locale') ?? 'zh';
     _locale = localeCode == 'en' ? const Locale('en', 'US') : const Locale('zh', 'CN');
+    
+    // 夜间主题和字体设置
+    _darkThemeIndex = prefs.getInt('dark_theme_index') ?? 0;
+    
+    // 字体设置迁移逻辑
+    final oldFontFamily = prefs.getString('font_family');
+    _uiFontFamily = prefs.getString('font_family_ui') ?? oldFontFamily ?? 'System';
+    _editorFontFamily = prefs.getString('font_family_editor') ?? oldFontFamily ?? 'System';
+    _codeFontFamily = prefs.getString('font_family_code') ?? 'JetBrains Mono'; // 代码块默认使用 JetBrains Mono 如果有
 
     notifyListeners();
   }
@@ -143,8 +168,6 @@ class SettingsProvider extends ChangeNotifier {
   // ==================== 背景设置方法 ====================
 
   /// 设置背景图片
-  /// 
-  /// [path] 图片的绝对路径，null 表示清除背景图
   Future<void> setBackgroundImage(String? path) async {
     _backgroundImagePath = path;
     final prefs = await SharedPreferences.getInstance();
@@ -157,8 +180,6 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   /// 设置背景效果
-  /// 
-  /// [effect] 'none'（无效果）或 'blur'（模糊效果）
   Future<void> setBackgroundEffect(String effect) async {
     _backgroundEffect = effect;
     final prefs = await SharedPreferences.getInstance();
@@ -167,8 +188,6 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   /// 设置模糊强度
-  /// 
-  /// [blur] 模糊半径（0-30）
   Future<void> setBackgroundBlur(double blur) async {
     _backgroundBlur = blur;
     final prefs = await SharedPreferences.getInstance();
@@ -176,7 +195,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 设置遮罩透明度（保留方法，当前 UI 未使用）
+  /// 设置遮罩透明度
   Future<void> setBackgroundOverlayOpacity(double opacity) async {
     _backgroundOverlayOpacity = opacity;
     final prefs = await SharedPreferences.getInstance();
@@ -187,8 +206,6 @@ class SettingsProvider extends ChangeNotifier {
   // ==================== 编辑器设置方法 ====================
 
   /// 设置编辑器字体大小
-  /// 
-  /// [size] 字体大小（推荐 12-24px）
   Future<void> setFontSize(double size) async {
     _fontSize = size;
     final prefs = await SharedPreferences.getInstance();
@@ -205,8 +222,6 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   /// 设置自动保存间隔
-  /// 
-  /// [seconds] 保存间隔（秒）
   Future<void> setAutoSaveInterval(int seconds) async {
     _autoSaveInterval = seconds;
     final prefs = await SharedPreferences.getInstance();
@@ -215,8 +230,6 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   /// 设置默认目录
-  /// 
-  /// [path] 目录的绝对路径，null 表示清除
   Future<void> setDefaultDirectory(String? path) async {
     _defaultDirectory = path;
     final prefs = await SharedPreferences.getInstance();
@@ -231,12 +244,44 @@ class SettingsProvider extends ChangeNotifier {
   // ==================== 语言设置方法 ====================
 
   /// 设置应用语言
-  /// 
-  /// [locale] Locale('zh', 'CN') 或 Locale('en', 'US')
   Future<void> setLocale(Locale locale) async {
     _locale = locale;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('locale', locale.languageCode);
+    notifyListeners();
+  }
+
+  // ==================== 夜间主题和字体设置方法 ====================
+
+  /// 设置夜间主题索引
+  Future<void> setDarkThemeIndex(int index) async {
+    _darkThemeIndex = index;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('dark_theme_index', index);
+    notifyListeners();
+  }
+
+  /// 设置 UI 字体
+  Future<void> setUiFontFamily(String fontFamily) async {
+    _uiFontFamily = fontFamily;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('font_family_ui', fontFamily);
+    notifyListeners();
+  }
+  
+  /// 设置编辑器字体
+  Future<void> setEditorFontFamily(String fontFamily) async {
+    _editorFontFamily = fontFamily;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('font_family_editor', fontFamily);
+    notifyListeners();
+  }
+
+  /// 设置代码块字体
+  Future<void> setCodeFontFamily(String fontFamily) async {
+    _codeFontFamily = fontFamily;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('font_family_code', fontFamily);
     notifyListeners();
   }
 }

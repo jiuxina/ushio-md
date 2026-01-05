@@ -37,6 +37,25 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // 多架构 APK 分包配置
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            isUniversalApk = true  // 同时生成通用 APK
+        }
+    }
+
+    // APK 输出命名配置
+    applicationVariants.all {
+        outputs.all {
+            val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val abiName = outputImpl.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
+            outputImpl.outputFileName = "ushio-md-v${versionName}-${abiName}.apk"
+        }
+    }
 }
 
 flutter {

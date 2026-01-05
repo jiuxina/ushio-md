@@ -6,6 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/update_service.dart';
+import '../services/font_service.dart';
 import '../utils/constants.dart';
 import 'editor_screen.dart';
 import 'folder_browser_screen.dart';
@@ -1861,6 +1863,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                 const SizedBox(height: 16),
                 _buildThemeColorSelector(settings),
                 const SizedBox(height: 16),
+                _buildFontSelector(settings),
+                const SizedBox(height: 16),
                 _buildBackgroundSettings(settings),
               ]),
               
@@ -2088,26 +2092,57 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('主题模式', style: Theme.of(context).textTheme.bodyMedium),
+        Text('主题及模式', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
         Row(
           children: [
-            _buildThemeModeChip(settings, ThemeMode.system, '跟随系统'),
+            _buildThemeOptionChip(
+              label: '跟随系统',
+              isSelected: settings.themeMode == ThemeMode.system,
+              onTap: () => settings.setThemeMode(ThemeMode.system),
+            ),
             const SizedBox(width: 8),
-            _buildThemeModeChip(settings, ThemeMode.light, '浅色'),
+            _buildThemeOptionChip(
+              label: '日间模式',
+              isSelected: settings.themeMode == ThemeMode.light,
+              onTap: () => settings.setThemeMode(ThemeMode.light),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildThemeOptionChip(
+              label: '半夜间模式',
+              isSelected: settings.themeMode == ThemeMode.dark && settings.darkThemeIndex != 4, // 默认选中非纯黑
+              onTap: () {
+                settings.setThemeMode(ThemeMode.dark);
+                settings.setDarkThemeIndex(0); // 默认深蓝
+              },
+            ),
             const SizedBox(width: 8),
-            _buildThemeModeChip(settings, ThemeMode.dark, '深色'),
+            _buildThemeOptionChip(
+              label: '纯夜间模式',
+              isSelected: settings.themeMode == ThemeMode.dark && settings.darkThemeIndex == 4, // 纯黑
+              onTap: () {
+                settings.setThemeMode(ThemeMode.dark);
+                settings.setDarkThemeIndex(4); // AppConstants中全黑模式的索引
+              },
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildThemeModeChip(SettingsProvider settings, ThemeMode mode, String label) {
-    final isSelected = settings.themeMode == mode;
+  Widget _buildThemeOptionChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
     return Expanded(
       child: GestureDetector(
-        onTap: () => settings.setThemeMode(mode),
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
@@ -2437,6 +2472,48 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _showUpdateConfirmDialog(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.system_update, color: Colors.green, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '检查更新',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        Text(
+                          '检查是否有新版本',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -2448,4 +2525,438 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }
   }
+
+  /// 构建字体选择器
+  Widget _buildFontSelector(SettingsProvider settings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.font_download, size: 18, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text('字体设置', style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // UI 字体
+        _buildFontSettingItem(
+          context, 
+          '界面字体', 
+          settings.uiFontFamily, 
+          (fontFamily) => settings.setUiFontFamily(fontFamily),
+          Colors.teal,
+        ),
+        const SizedBox(height: 8),
+        // 编辑器字体
+        _buildFontSettingItem(
+          context, 
+          '编辑器字体', 
+          settings.editorFontFamily, 
+          (fontFamily) => settings.setEditorFontFamily(fontFamily),
+          Colors.blue,
+        ),
+        const SizedBox(height: 8),
+        // 代码字体
+        _buildFontSettingItem(
+          context, 
+          '代码字体', 
+          settings.codeFontFamily, 
+          (fontFamily) => settings.setCodeFontFamily(fontFamily),
+          Colors.purple,
+        ),
+        const SizedBox(height: 8),
+        // 安装本地字体
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _installLocalFont(settings),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).dividerColor.withOpacity(0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.file_upload, color: Colors.orange, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('安装本地字体', style: Theme.of(context).textTheme.bodyMedium),
+                      Text(
+                        '导入 .ttf 或 .otf 文件',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 构建字体设置项
+  Widget _buildFontSettingItem(
+    BuildContext context, 
+    String title, 
+    String currentFontFamily, 
+    Function(String) onSelected,
+    Color iconColor,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _showFontSelectionDialog(
+        title: title,
+        currentValue: currentFontFamily,
+        onSelected: onSelected,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withOpacity(0.5),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.font_download, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.bodyMedium),
+                  Text(
+                    currentFontFamily == 'System'
+                        ? '系统默认'
+                        : AppConstants.availableFonts
+                            .firstWhere(
+                              (f) => f.fontFamily == currentFontFamily,
+                              orElse: () => FontOption(name: currentFontFamily, fontFamily: currentFontFamily),
+                            )
+                            .name,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                      fontFamily: currentFontFamily == 'System' ? null : currentFontFamily,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示字体选择对话框
+  void _showFontSelectionDialog({
+    required String title,
+    required String currentValue,
+    required Function(String) onSelected,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.teal.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.font_download, color: Colors.teal),
+            ),
+            const SizedBox(width: 12),
+            Text(title),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: AppConstants.availableFonts.map((font) => RadioListTile<String>(
+              title: Text(
+                font.name,
+                style: TextStyle(
+                  fontFamily: font.fontFamily == 'System' ? null : font.fontFamily,
+                ),
+              ),
+              value: font.fontFamily,
+              groupValue: currentValue,
+              onChanged: (value) {
+                if (value != null) {
+                  onSelected(value);
+                  Navigator.pop(context);
+                }
+              },
+            )).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+
+  /// 安装本地字体
+  void _installLocalFont(SettingsProvider settings) async {
+    final fontName = await FontService.installFontFromFile(context);
+    if (fontName != null && mounted) {
+      // 这里的字体安装仅仅是添加到可用字体列表（由 FontService 内部管理并持久化）
+      // 我们不需要调用 settings.setFontFamily，因为现在有多个字体设置。
+      // 只需提示用户安装成功。
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.check, color: Colors.green, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text('字体「$fontName」已安装，请在上方列表中选择使用')),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      
+      // 强制刷新界面以更新字体列表（虽然 SettingsProvider 可能没变，但 FontService 列表变了）
+      setState(() {});
+    }
+  }
+
+  /// 显示检查更新确认对话框
+  void _showUpdateConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.system_update, color: Colors.green),
+            ),
+            const SizedBox(width: 12),
+            const Text('检查更新'),
+          ],
+        ),
+        content: const Text('此功能需要联网，仅用于检查更新。是否继续？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _checkForUpdate();
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 检查更新
+  void _checkForUpdate() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('正在检查更新...'),
+          ],
+        ),
+      ),
+    );
+
+    final updateInfo = await UpdateService.checkForUpdate(AppConstants.appVersion);
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    if (updateInfo == null) {
+      _displayUpdateResult(null, '检查更新失败，请检查网络连接后重试。');
+    } else if (updateInfo.hasUpdate) {
+      _showNewVersionDialog(updateInfo);
+    } else {
+      _displayUpdateResult(true, '当前已是最新版本 v${updateInfo.currentVersion}');
+    }
+  }
+
+  /// 显示更新结果对话框
+  void _displayUpdateResult(bool? success, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: (success == true ? Colors.green : Colors.red).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                success == true ? Icons.check_circle : Icons.error,
+                color: success == true ? Colors.green : Colors.red,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(success == true ? '已是最新' : '检查失败'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 显示新版本对话框
+  void _showNewVersionDialog(UpdateInfo updateInfo) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.new_releases, color: Colors.blue),
+            ),
+            const SizedBox(width: 12),
+            const Text('发现新版本'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    'v${updateInfo.currentVersion}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'v${updateInfo.latestVersion}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('更新说明：', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 150),
+              child: SingleChildScrollView(
+                child: Text(
+                  updateInfo.changelog,
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('稍后再说'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+              final url = Uri.parse(updateInfo.downloadUrl);
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              }
+            },
+            icon: const Icon(Icons.download, size: 18),
+            label: const Text('立即下载'),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+

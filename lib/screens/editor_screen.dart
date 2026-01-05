@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:flutter_highlight/flutter_highlight.dart';
+import 'package:flutter_highlight/themes/atom-one-dark.dart';
+import 'package:flutter_highlight/themes/atom-one-light.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:provider/provider.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
@@ -849,9 +853,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => _FullscreenPreviewPage(
-          markdownContent: _textController.text,
+          controller: _textController,
           settings: settings,
           fileName: fileName,
+          onCheckboxChanged: _toggleCheckbox,
         ),
       ),
     );
@@ -1362,8 +1367,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       textAlignVertical: TextAlignVertical.top,
       style: TextStyle(
         fontSize: settings.fontSize,
-        fontFamily: 'monospace',
-        height: 1.6,
+        fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+        height: 1.5,
       ),
       decoration: InputDecoration(
         border: InputBorder.none,
@@ -1386,53 +1391,50 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       data: _textController.text,
       selectable: true,
       padding: const EdgeInsets.all(16),
-      // checkbox构建器：实现可点击的任务列表
-      checkboxBuilder: (bool value) {
-        final currentIndex = checkboxIndex++;
-        return Checkbox(
-          value: value,
-          onChanged: (newValue) {
-            _toggleCheckbox(currentIndex, newValue ?? false);
-            // 重置索引以便下次重建
-            checkboxIndex = 0;
-          },
-          activeColor: Theme.of(context).colorScheme.primary,
-        );
-      },
       styleSheet: MarkdownStyleSheet(
-        p: TextStyle(fontSize: settings.fontSize, height: 1.6),
+        p: TextStyle(
+          fontSize: settings.fontSize, 
+          height: 1.6,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+        ),
         h1: TextStyle(
           fontSize: settings.fontSize * 2,
           fontWeight: FontWeight.bold,
           height: 1.4,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
         h2: TextStyle(
           fontSize: settings.fontSize * 1.5,
           fontWeight: FontWeight.bold,
           height: 1.4,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
         h3: TextStyle(
           fontSize: settings.fontSize * 1.25,
           fontWeight: FontWeight.w600,
           height: 1.4,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
         h4: TextStyle(
           fontSize: settings.fontSize * 1.1,
           fontWeight: FontWeight.w600,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
         h5: TextStyle(
           fontSize: settings.fontSize,
           fontWeight: FontWeight.w600,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
         h6: TextStyle(
           fontSize: settings.fontSize * 0.9,
           fontWeight: FontWeight.w600,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
         code: TextStyle(
           backgroundColor: isDark 
               ? const Color(0xFF2d2d2d) 
               : const Color(0xFFf5f5f5),
-          fontFamily: 'monospace',
+          fontFamily: settings.codeFontFamily == 'System' ? 'monospace' : settings.codeFontFamily,
           fontSize: settings.fontSize * 0.9,
           color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
         ),
@@ -1467,6 +1469,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
         listBullet: TextStyle(
           color: Theme.of(context).colorScheme.primary,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
         horizontalRuleDecoration: BoxDecoration(
           border: Border(
@@ -1479,8 +1482,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         tableHead: TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: settings.fontSize,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
         ),
-        tableBody: TextStyle(fontSize: settings.fontSize),
+        tableBody: TextStyle(
+          fontSize: settings.fontSize,
+          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+        ),
         tableBorder: TableBorder.all(
           color: Theme.of(context).dividerColor,
           borderRadius: BorderRadius.circular(8),
@@ -1488,6 +1495,27 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         tableCellsPadding: const EdgeInsets.all(8),
         tableHeadAlign: TextAlign.center,
       ),
+      // 自定义代码块构建器：使用语法高亮
+      builders: {
+        'code': CodeBlockBuilder(
+          isDark: isDark, 
+          fontSize: settings.fontSize,
+          fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
+        ),
+      },
+      // checkbox构建器：实现可点击的任务列表
+      checkboxBuilder: (bool value) {
+        final currentIndex = checkboxIndex++;
+        return Checkbox(
+          value: value,
+          onChanged: (newValue) {
+            _toggleCheckbox(currentIndex, newValue ?? false);
+            // 重置索引以便下次重建
+            checkboxIndex = 0;
+          },
+          activeColor: Theme.of(context).colorScheme.primary,
+        );
+      },
     );
   }
 }
@@ -1507,20 +1535,47 @@ class TocItem {
 
 /// 全屏预览页面
 /// 支持返回手势和返回键退出
-class _FullscreenPreviewPage extends StatelessWidget {
-  final String markdownContent;
+class _FullscreenPreviewPage extends StatefulWidget {
+  final TextEditingController controller;
   final SettingsProvider settings;
   final String fileName;
+  final Function(int, bool) onCheckboxChanged;
 
   const _FullscreenPreviewPage({
-    required this.markdownContent,
+    required this.controller,
     required this.settings,
     required this.fileName,
+    required this.onCheckboxChanged,
   });
+
+  @override
+  State<_FullscreenPreviewPage> createState() => _FullscreenPreviewPageState();
+}
+
+class _FullscreenPreviewPageState extends State<_FullscreenPreviewPage> {
+  int _checkboxIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // 监听文本变化以刷新界面
+    widget.controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onTextChanged);
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    _checkboxIndex = 0; // 重置索引
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1546,7 +1601,7 @@ class _FullscreenPreviewPage extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
+          widget.fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -1554,44 +1609,70 @@ class _FullscreenPreviewPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: Markdown(
-        data: markdownContent,
+        data: widget.controller.text,
         selectable: true,
         padding: const EdgeInsets.all(20),
+        // 添加代码高亮和复选框支持
+        builders: {
+          'code': CodeBlockBuilder(isDark: isDark, fontSize: widget.settings.fontSize),
+        },
+        checkboxBuilder: (bool value) {
+          final currentIndex = _checkboxIndex++;
+          return Checkbox(
+            value: value,
+            onChanged: (newValue) {
+              // 暂时在重绘前重置 index？虽然 Markdown 会重新构建
+              _checkboxIndex = 0; 
+              widget.onCheckboxChanged(currentIndex, newValue ?? false);
+            },
+            activeColor: Theme.of(context).colorScheme.primary,
+          );
+        },
         styleSheet: MarkdownStyleSheet(
-          p: TextStyle(fontSize: settings.fontSize, height: 1.6),
+          p: TextStyle(
+            fontSize: widget.settings.fontSize, 
+            height: 1.6,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
+          ),
           h1: TextStyle(
-            fontSize: settings.fontSize * 2,
+            fontSize: widget.settings.fontSize * 2,
             fontWeight: FontWeight.bold,
             height: 1.4,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
           h2: TextStyle(
-            fontSize: settings.fontSize * 1.5,
+            fontSize: widget.settings.fontSize * 1.5,
             fontWeight: FontWeight.bold,
             height: 1.4,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
           h3: TextStyle(
-            fontSize: settings.fontSize * 1.25,
+            fontSize: widget.settings.fontSize * 1.25,
             fontWeight: FontWeight.w600,
             height: 1.4,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
           h4: TextStyle(
-            fontSize: settings.fontSize * 1.1,
+            fontSize: widget.settings.fontSize * 1.1,
             fontWeight: FontWeight.w600,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
           h5: TextStyle(
-            fontSize: settings.fontSize,
+            fontSize: widget.settings.fontSize,
             fontWeight: FontWeight.w600,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
           h6: TextStyle(
-            fontSize: settings.fontSize * 0.9,
+            fontSize: widget.settings.fontSize * 0.9,
             fontWeight: FontWeight.w600,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
           code: TextStyle(
             backgroundColor: isDark 
                 ? const Color(0xFF2d2d2d) 
                 : const Color(0xFFf5f5f5),
-            fontFamily: 'monospace',
-            fontSize: settings.fontSize * 0.9,
+            fontFamily: widget.settings.codeFontFamily == 'System' ? 'monospace' : widget.settings.codeFontFamily,
+            fontSize: widget.settings.fontSize * 0.9,
             color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
           ),
           codeblockDecoration: BoxDecoration(
@@ -1625,6 +1706,7 @@ class _FullscreenPreviewPage extends StatelessWidget {
           blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
           listBullet: TextStyle(
             color: Theme.of(context).colorScheme.primary,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
           horizontalRuleDecoration: BoxDecoration(
             border: Border(
@@ -1636,9 +1718,13 @@ class _FullscreenPreviewPage extends StatelessWidget {
           ),
           tableHead: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: settings.fontSize,
+            fontSize: widget.settings.fontSize,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
           ),
-          tableBody: TextStyle(fontSize: settings.fontSize),
+          tableBody: TextStyle(
+            fontSize: widget.settings.fontSize,
+            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
+          ),
           tableBorder: TableBorder.all(
             color: Theme.of(context).dividerColor,
             borderRadius: BorderRadius.circular(8),
@@ -1648,5 +1734,128 @@ class _FullscreenPreviewPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 代码块语法高亮构建器
+/// 
+/// 为 Markdown 中的代码块提供语法高亮支持
+class CodeBlockBuilder extends MarkdownElementBuilder {
+  final bool isDark;
+  final double fontSize;
+  final String? fontFamily;
+  
+  CodeBlockBuilder({
+    required this.isDark, 
+    required this.fontSize,
+    this.fontFamily,
+  });
+  
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    // 只处理代码块，不处理行内代码
+    if (element.tag != 'code') return null;
+    
+    // 获取代码内容
+    final code = element.textContent;
+    
+    // 获取语言类型（从 class 属性中提取，如 language-dart）
+    String language = '';
+    final className = element.attributes['class'];
+    if (className != null && className.startsWith('language-')) {
+      language = className.replaceFirst('language-', '');
+    }
+    
+    // 如果没有指定语言或代码较短，使用默认样式
+    if (language.isEmpty || code.length < 20) {
+      return null; // 返回 null 使用默认渲染
+    }
+    
+    // 使用语法高亮渲染
+    try {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF282c34) : const Color(0xFFfafafa),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? const Color(0xFF3d3d3d) : const Color(0xFFe0e0e0),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 语言标签
+              if (language.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark 
+                        ? const Color(0xFF21252b) 
+                        : const Color(0xFFf0f0f0),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isDark 
+                            ? const Color(0xFF3d3d3d) 
+                            : const Color(0xFFe0e0e0),
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    language.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isDark 
+                          ? const Color(0xFF7f848e) 
+                          : const Color(0xFF6a737d),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              // 代码内容（带语法高亮）
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.all(16),
+                child: HighlightView(
+                  code,
+                  language: _mapLanguage(language),
+                  theme: isDark ? atomOneDarkTheme : atomOneLightTheme,
+                  textStyle: TextStyle(
+                    fontFamily: fontFamily ?? 'monospace',
+                    fontSize: fontSize * 0.85,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      // 如果高亮失败，返回 null 使用默认渲染
+      return null;
+    }
+  }
+  
+  /// 映射常见语言别名到 flutter_highlight 支持的语言
+  String _mapLanguage(String lang) {
+    final langMap = {
+      'js': 'javascript',
+      'ts': 'typescript',
+      'py': 'python',
+      'rb': 'ruby',
+      'sh': 'bash',
+      'shell': 'bash',
+      'yml': 'yaml',
+      'md': 'markdown',
+      'objc': 'objectivec',
+      'c++': 'cpp',
+      'c#': 'csharp',
+    };
+    return langMap[lang.toLowerCase()] ?? lang.toLowerCase();
   }
 }
