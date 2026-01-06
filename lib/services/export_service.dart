@@ -27,6 +27,7 @@ class ExportService {
     GlobalKey globalKey, 
     String fileName, {
     double pixelRatio = 3.0,
+    Duration cleanupDelay = const Duration(minutes: 5),
   }) async {
     try {
       final boundary = globalKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -47,7 +48,7 @@ class ExportService {
       await Share.shareXFiles([XFile(file.path)], subject: '$fileName.png');
       
       // 延迟清理
-      Future.delayed(const Duration(minutes: 5), () {
+      Future.delayed(cleanupDelay, () {
         try { file.deleteSync(); } catch (_) {}
       });
       
@@ -67,6 +68,7 @@ class ExportService {
     String content,
     String fileName, {
     String? title,
+    Duration cleanupDelay = const Duration(minutes: 5),
   }) async {
     try {
       final pdf = pw.Document();
@@ -149,7 +151,7 @@ class ExportService {
       await Share.shareXFiles([XFile(file.path)], subject: '$fileName.pdf');
       
       // 延迟清理
-      Future.delayed(const Duration(minutes: 5), () {
+      Future.delayed(cleanupDelay, () {
         try { file.deleteSync(); } catch (_) {}
       });
       

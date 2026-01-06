@@ -128,6 +128,9 @@ class PluginManifest {
   /// 插件主页或仓库地址
   final String? homepage;
   
+  /// 使用说明文件路径（相对于插件目录）
+  final String? readmePath;
+  
   /// 所需权限列表
   final List<String> permissions;
   
@@ -150,6 +153,7 @@ class PluginManifest {
     this.signature,
     this.minAppVersion,
     this.homepage,
+    this.readmePath,
     this.permissions = const [],
     this.extensions = const {},
     this.installPath,
@@ -168,6 +172,7 @@ class PluginManifest {
       signature: json['signature'] as String?,
       minAppVersion: json['minAppVersion'] as String?,
       homepage: json['homepage'] as String?,
+      readmePath: json['readme'] as String?,
       permissions: (json['permissions'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList() ?? [],
@@ -190,6 +195,7 @@ class PluginManifest {
       'author': author,
       'description': description,
       if (iconPath != null) 'icon': iconPath,
+      if (readmePath != null) 'readme': readmePath,
       if (signature != null) 'signature': signature,
       if (minAppVersion != null) 'minAppVersion': minAppVersion,
       if (homepage != null) 'homepage': homepage,
@@ -221,6 +227,7 @@ class PluginManifest {
     String? author,
     String? description,
     String? iconPath,
+    String? readmePath,
     String? signature,
     String? minAppVersion,
     String? homepage,
@@ -236,6 +243,7 @@ class PluginManifest {
       author: author ?? this.author,
       description: description ?? this.description,
       iconPath: iconPath ?? this.iconPath,
+      readmePath: readmePath ?? this.readmePath,
       signature: signature ?? this.signature,
       minAppVersion: minAppVersion ?? this.minAppVersion,
       homepage: homepage ?? this.homepage,
@@ -271,6 +279,7 @@ class MarketplacePluginInfo {
   final String author;
   final String description;
   final String? iconUrl;
+  final String? readmeUrl;
   final String downloadUrl;
   final int downloadCount;
   final double rating;
@@ -284,6 +293,7 @@ class MarketplacePluginInfo {
     required this.author,
     required this.description,
     this.iconUrl,
+    this.readmeUrl,
     required this.downloadUrl,
     this.downloadCount = 0,
     this.rating = 0.0,
@@ -299,6 +309,7 @@ class MarketplacePluginInfo {
       author: json['author'] as String? ?? 'Unknown',
       description: json['description'] as String? ?? '',
       iconUrl: json['iconUrl'] as String?,
+      readmeUrl: json['readmeUrl'] as String?,
       downloadUrl: json['downloadUrl'] as String? ?? '',
       downloadCount: json['downloadCount'] as int? ?? 0,
       rating: (json['rating'] as num?)?.toDouble() ?? 0.0,

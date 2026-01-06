@@ -5,12 +5,15 @@ import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/constants.dart';
 import 'main/tabs/home_tab.dart';
 import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
 import 'main/tabs/settings_tab.dart';
 import 'main/components/permission_screen.dart';
 import 'editor_screen.dart';
+import '../providers/plugin_provider.dart';
+import '../plugins/extensions/navigation_extension.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -124,6 +127,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         return Scaffold(
           body: _buildBody(fileProvider),
           bottomNavigationBar: _buildBottomNav(),
+          drawer: _buildDrawer(),
         );
       },
     );
@@ -211,6 +215,66 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         HistoryTab(fileProvider: fileProvider),
         const SettingsTab(),
       ],
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Consumer<PluginProvider>(
+      builder: (context, pluginProvider, child) {
+        final navExtensions = pluginProvider.getNavigationExtensions()
+            .where((ext) => ext.position == NavigationPosition.drawer)
+            .toList();
+
+        // Sort by priority
+        navExtensions.sort((a, b) => a.priority.compareTo(b.priority));
+
+        return Drawer(
+          child: Column(
+            children: [
+              UserAccountsDrawerHeader(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                accountName: const Text('汐 Markdown'),
+                accountEmail: Text(AppConstants.appVersion),
+                currentAccountPicture: const CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Image(image: AssetImage('app.png')),
+                ),
+              ),
+              if (navExtensions.isEmpty)
+                const ListTile(
+                  title: Text('暂无插件导航项'),
+                  leading: Icon(Icons.extension_off),
+                ),
+              ...navExtensions.map((ext) {
+                return ListTile(
+                  leading: Icon(ext.iconData),
+                  title: Text(ext.title),
+                  onTap: () {
+                    Navigator.pop(context); // Close drawer
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('插件页面: ${ext.title} (暂未实现加载)')),
+                    );
+                    // TODO: Implement plugin page loading (WebView or Custom Widget)
+                  },
+                );
+              }),
+              const Spacer(),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('设置'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _switchTab(3); // Switch to Settings tab
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 }

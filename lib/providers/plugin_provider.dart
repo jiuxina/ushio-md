@@ -19,6 +19,13 @@ import '../plugins/plugin_security.dart';
 import '../plugins/extensions/toolbar_extension.dart';
 import '../plugins/extensions/theme_extension.dart';
 import '../plugins/extensions/preview_extension.dart';
+import '../plugins/extensions/navigation_extension.dart';
+import '../plugins/extensions/file_action_extension.dart';
+import '../plugins/extensions/export_extension.dart';
+import '../plugins/extensions/editor_extension.dart';
+import '../plugins/extensions/widget_extension.dart';
+import '../plugins/extensions/shortcut_extension.dart';
+import '../plugins/extensions/localization_extension.dart';
 
 /// 插件状态管理器
 /// 
@@ -349,6 +356,161 @@ class PluginProvider extends ChangeNotifier {
       if (previewConfig != null && previewConfig is Map<String, dynamic>) {
         try {
           extensions.add(PluginPreviewExtension.fromJson(previewConfig, plugin.id));
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    
+    return extensions;
+  }
+
+  /// 获取所有已启用插件的导航扩展
+  List<PluginNavigationExtension> getNavigationExtensions() {
+    final extensions = <PluginNavigationExtension>[];
+    
+    for (final plugin in enabledPlugins) {
+      final navConfig = plugin.extensions['navigation'];
+      if (navConfig != null && navConfig is List) {
+        for (final itemConfig in navConfig) {
+          try {
+            extensions.add(PluginNavigationExtension.fromJson(
+              itemConfig as Map<String, dynamic>,
+              plugin.id,
+            ));
+          } catch (e) {
+            continue;
+          }
+        }
+      }
+    }
+    
+    return extensions;
+  }
+
+  /// 获取所有已启用插件的文件操作扩展
+  List<PluginFileActionExtension> getFileActionExtensions() {
+    final extensions = <PluginFileActionExtension>[];
+    
+    for (final plugin in enabledPlugins) {
+      final actionConfig = plugin.extensions['file_actions']; // 注意 key 可能不同，需确认 json 结构，假设是 file_actions
+      if (actionConfig != null && actionConfig is List) {
+        for (final itemConfig in actionConfig) {
+          try {
+            extensions.add(PluginFileActionExtension.fromJson(
+              itemConfig as Map<String, dynamic>,
+              plugin.id,
+            ));
+          } catch (e) {
+            continue;
+          }
+        }
+      }
+    }
+    
+    return extensions;
+  }
+
+  /// 获取所有已启用插件的导出扩展
+  List<PluginExportExtension> getExportExtensions() {
+    final extensions = <PluginExportExtension>[];
+    
+    for (final plugin in enabledPlugins) {
+      final exportConfig = plugin.extensions['export'];
+      if (exportConfig != null && exportConfig is List) {
+        for (final itemConfig in exportConfig) {
+          try {
+            extensions.add(PluginExportExtension.fromJson(
+              itemConfig as Map<String, dynamic>,
+              plugin.id,
+            ));
+          } catch (e) {
+            continue;
+          }
+        }
+      }
+    }
+    
+    return extensions;
+  }
+
+  /// 获取所有已启用插件的编辑器扩展
+  List<PluginEditorExtension> getEditorExtensions() {
+    final extensions = <PluginEditorExtension>[];
+    
+    for (final plugin in enabledPlugins) {
+      final editorConfig = plugin.extensions['editor'];
+      if (editorConfig != null && editorConfig is Map<String, dynamic>) {
+        try {
+          extensions.add(PluginEditorExtension.fromJson(
+            editorConfig,
+            plugin.id,
+          ));
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    
+    return extensions;
+  }
+
+  /// 获取所有已启用插件的小组件扩展
+  List<PluginWidgetExtension> getWidgetExtensions() {
+    final extensions = <PluginWidgetExtension>[];
+    
+    for (final plugin in enabledPlugins) {
+      final widgetConfig = plugin.extensions['widget'];
+      if (widgetConfig != null && widgetConfig is Map<String, dynamic>) {
+        try {
+          extensions.add(PluginWidgetExtension.fromJson(
+            widgetConfig,
+            plugin.id,
+          ));
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    
+    return extensions;
+  }
+
+  /// 获取所有已启用插件的快捷键扩展
+  List<PluginShortcutExtension> getShortcutExtensions() {
+    final extensions = <PluginShortcutExtension>[];
+    
+    for (final plugin in enabledPlugins) {
+      final shortcutConfig = plugin.extensions['shortcuts'];
+      if (shortcutConfig != null && shortcutConfig is List) {
+        for (final itemConfig in shortcutConfig) {
+          try {
+            extensions.add(PluginShortcutExtension.fromJson(
+              itemConfig as Map<String, dynamic>,
+              plugin.id,
+            ));
+          } catch (e) {
+            continue;
+          }
+        }
+      }
+    }
+    
+    return extensions;
+  }
+  
+  /// 获取所有已启用插件的本地化扩展
+  List<PluginLocalizationExtension> getLocalizationExtensions() {
+    final extensions = <PluginLocalizationExtension>[];
+    
+    for (final plugin in enabledPlugins) {
+      final locConfig = plugin.extensions['localization'];
+      if (locConfig != null && locConfig is Map<String, dynamic>) {
+        try {
+          extensions.add(PluginLocalizationExtension.fromJson(
+            locConfig,
+            plugin.id,
+          ));
         } catch (e) {
           continue;
         }

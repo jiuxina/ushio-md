@@ -5,6 +5,7 @@
     "author": "汐官方",
     "description": "快速插入 GitHub 风格的 NOTE/TIP/IMPORTANT/WARNING/CAUTION 提示框，让文档更加清晰易读",
     "icon": "icon.png",
+    "readme": "README.md",
     "homepage": "https://github.com/jiuxina/ushio-md-plugins",
     "minAppVersion": "1.1.0",
     "permissions": [

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
@@ -12,6 +13,9 @@ import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
 import 'editor/components/search_sheet.dart';
 import 'editor/components/fullscreen_preview_page.dart';
+import '../providers/plugin_provider.dart';
+import '../plugins/extensions/shortcut_extension.dart';
+import '../services/export_service.dart';
 
 enum EditorMode { edit, preview, split }
 
@@ -25,6 +29,7 @@ class EditorScreen extends StatefulWidget {
 }
 
 class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMixin {
+  bool _isAutoCompleting = false;
   late TextEditingController _textController;
   late ScrollController _editScrollController;
   late ScrollController _previewScrollController;
@@ -96,6 +101,43 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
     _tocDebounceTimer?.cancel();
     _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
+    
+    // 自动补全处理
+    if (!_isAutoCompleting) {
+      final text = _textController.text;
+      final selection = _textController.selection;
+      if (!selection.isValid || selection.start != selection.end) return;
+      
+      final pluginProvider = context.read<PluginProvider>();
+      for (final ext in pluginProvider.getEditorExtensions()) {
+        for (final rule in ext.autoCompleteRules) {
+          if (rule.trigger.isEmpty) continue;
+          
+          if (selection.start >= rule.trigger.length) {
+            final beforeCursor = text.substring(selection.start - rule.trigger.length, selection.start);
+            if (beforeCursor == rule.trigger) {
+              _isAutoCompleting = true;
+              
+              final newText = text.replaceRange(
+                selection.start - rule.trigger.length, 
+                selection.start, 
+                rule.completion
+              );
+              
+              final newSelectionOffset = selection.start - rule.trigger.length + rule.completion.length + rule.cursorOffset;
+              
+              _textController.value = TextEditingValue(
+                text: newText,
+                selection: TextSelection.collapsed(offset: newSelectionOffset),
+              );
+              
+              _isAutoCompleting = false;
+              return;
+            }
+          }
+        }
+      }
+    }
   }
 
   /// 更新目录结构
@@ -435,16 +477,19 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       },
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        body: Stack(
-          children: [
-            _buildBody(),
+        body: CallbackShortcuts(
+          bindings: _buildShortcutBindings(),
+          child: Stack(
+            children: [
+              _buildBody(),
             if (_showToc) 
               TocOverlay(
                 items: _tocItems,
                 onClose: () => setState(() => _showToc = false),
                 onJumpToHeading: _jumpToHeading,
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -486,6 +531,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     }
                   },
                   onSave: _saveFile,
+                  onMore: _showMoreMenu,
                 ),
                 _buildModeSelector(),
                 if (!_isLoading && _error == null && _mode != EditorMode.preview)
@@ -846,6 +892,132 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       controller: _previewScrollController,
       onCheckboxChanged: _toggleCheckbox,
       baseDirectory: File(widget.filePath).parent.path,
+    );
+  }
+
+  Map<ShortcutActivator, VoidCallback> _buildShortcutBindings() {
+    final bindings = <ShortcutActivator, VoidCallback>{};
+    final pluginProvider = context.read<PluginProvider>();
+    
+    for (final ext in pluginProvider.getShortcutExtensions()) {
+      if (ext.logicalKeys.isEmpty) continue;
+      
+      final triggerKey = ext.logicalKeys.last;
+      final hasControl = ext.logicalKeys.contains(LogicalKeyboardKey.control) || 
+                        ext.logicalKeys.contains(LogicalKeyboardKey.meta);
+      final hasShift = ext.logicalKeys.contains(LogicalKeyboardKey.shift);
+      final hasAlt = ext.logicalKeys.contains(LogicalKeyboardKey.alt);
+
+      final activator = SingleActivator(
+        triggerKey,
+        control: hasControl,
+        shift: hasShift,
+        alt: hasAlt,
+      );
+
+      bindings[activator] = () {
+        _handlePluginShortcut(ext);
+      };
+    }
+
+    return bindings;
+  }
+
+  void _handlePluginShortcut(PluginShortcutExtension ext) {
+    debugPrint('Triggered shortcut: ${ext.shortcutId}');
+    switch (ext.actionType) {
+      case ShortcutActionType.insertText:
+        final text = ext.actionParams['text'] as String?;
+        if (text != null) {
+          final selection = _textController.selection;
+          final newText = _textController.text.replaceRange(
+            selection.start, selection.end, text
+          );
+          _textController.value = TextEditingValue(
+            text: newText,
+            selection: TextSelection.collapsed(offset: selection.start + text.length),
+          );
+          _onTextChanged();
+        }
+        break;
+      case ShortcutActionType.toggleMode:
+         final modeStr = ext.actionParams['mode'] as String?;
+         if (modeStr == 'preview') {
+           setState(() => _mode = _mode == EditorMode.preview ? EditorMode.edit : EditorMode.preview);
+         } else if (modeStr == 'split') {
+            setState(() => _mode = _mode == EditorMode.split ? EditorMode.edit : EditorMode.split);
+         }
+         break;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('插件快捷键: ${ext.description} (未实现)')),
+        );
+    }
+  }
+
+  void _showMoreMenu() {
+    final pluginProvider = context.read<PluginProvider>();
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+             ListTile(
+              leading: const Icon(Icons.fullscreen),
+              title: const Text('全屏预览'),
+              onTap: () {
+                Navigator.pop(context);
+                _openFullscreenPreview();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf),
+              title: const Text('导出为 PDF'),
+              onTap: () async {
+                Navigator.pop(context);
+                 ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('正在生成 PDF...')),
+                );
+                await ExportService.exportAndShareAsPdf(
+                  _textController.text,
+                  widget.filePath.split(Platform.pathSeparator).last.replaceAll('.md', ''),
+                );
+              },
+            ),
+            ...pluginProvider.getExportExtensions().map((ext) {
+               return ListTile(
+                leading: const Icon(Icons.extension),
+                title: Text('导出为 ${ext.formatName}'),
+                subtitle: Text(ext.formatId),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('插件导出: ${ext.formatName} (待实现)')),
+                  );
+                },
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 }

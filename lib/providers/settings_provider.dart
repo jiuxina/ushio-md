@@ -10,9 +10,12 @@
 // 所有设置使用 SharedPreferences 持久化存储。
 // ============================================================================
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// 设置状态提供者
 /// 
@@ -256,15 +259,63 @@ class SettingsProvider extends ChangeNotifier {
   // ==================== 背景设置方法 ====================
 
   /// 设置背景图片
+  /// 
+  /// 将图片复制到应用私有目录，避免清理缓存后图片丢失
   Future<void> setBackgroundImage(String? path) async {
-    _backgroundImagePath = path;
-    final prefs = await SharedPreferences.getInstance();
-    if (path != null) {
-      await prefs.setString('background_image_path', path);
-    } else {
+    if (path == null) {
+      // 清除背景图片
+      // 删除旧的背景图片文件
+      if (_backgroundImagePath != null) {
+        try {
+          final oldFile = File(_backgroundImagePath!);
+          if (await oldFile.exists()) {
+            await oldFile.delete();
+          }
+        } catch (_) {}
+      }
+      _backgroundImagePath = null;
+      final prefs = await SharedPreferences.getInstance();
       await prefs.remove('background_image_path');
+      notifyListeners();
+      return;
     }
-    notifyListeners();
+    
+    try {
+      // 将图片复制到应用私有目录
+      final appDir = await getApplicationSupportDirectory();
+      final bgDir = Directory('${appDir.path}/backgrounds');
+      if (!await bgDir.exists()) {
+        await bgDir.create(recursive: true);
+      }
+      
+      final sourceFile = File(path);
+      final fileName = 'background_${DateTime.now().millisecondsSinceEpoch}.${path.split('.').last}';
+      final destPath = '${bgDir.path}/$fileName';
+      
+      // 复制文件
+      await sourceFile.copy(destPath);
+      
+      // 删除旧的背景图片文件（如果有）
+      if (_backgroundImagePath != null && _backgroundImagePath != destPath) {
+        try {
+          final oldFile = File(_backgroundImagePath!);
+          if (await oldFile.exists()) {
+            await oldFile.delete();
+          }
+        } catch (_) {}
+      }
+      
+      _backgroundImagePath = destPath;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('background_image_path', destPath);
+      notifyListeners();
+    } catch (e) {
+      // 如果复制失败，直接使用原路径（回退方案）
+      _backgroundImagePath = path;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('background_image_path', path);
+      notifyListeners();
+    }
   }
 
   /// 设置背景效果

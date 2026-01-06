@@ -5,7 +5,10 @@ import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:flutter_highlight/themes/atom-one-light.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/plugin_provider.dart';
+// import '../plugins/extensions/preview_extension.dart';
 
 class MarkdownPreview extends StatelessWidget {
   final String data;
@@ -31,6 +34,30 @@ class MarkdownPreview extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     int checkboxIndex = 0;
 
+    // 获取插件扩展样式
+    final pluginProvider = context.watch<PluginProvider>();
+    final previewExtensions = pluginProvider.getPreviewExtensions();
+    
+    // 计算最终样式配置 (插件覆盖设置)
+    String? pluginFontFamily;
+    double? pluginLineHeight;
+    // String? pluginCodeTheme;
+    
+    for (final ext in previewExtensions) {
+      if (ext.fontFamily != null) pluginFontFamily = ext.fontFamily;
+      if (ext.lineHeight != null) pluginLineHeight = ext.lineHeight;
+      // if (ext.codeTheme != null) pluginCodeTheme = ext.codeTheme;
+    }
+    
+    // 最终使用的样式值
+    final fontFamily = pluginFontFamily ?? (settings.editorFontFamily == 'System' ? null : settings.editorFontFamily);
+    final lineHeight = pluginLineHeight ?? 1.6;
+    // 注意: codeTheme 映射比较复杂, 这里简单处理或忽略，依然依赖 SettingsProvider 的设置
+    // 如果插件提供了 codeTheme，理想情况下应该找到对应的 Map<String, TextStyle>
+    // 但 flutter_highlight 的主题是编译时确定的 Map。
+    // 这里我们暂时只支持预设主题的切换，或者如果插件提供了 codeTheme 名字且我们在列表中，则切换。
+    // 简化起见，目前仅支持 font 和 line-height 覆盖。
+
     return Markdown(
       controller: controller,
       data: data,
@@ -40,41 +67,41 @@ class MarkdownPreview extends StatelessWidget {
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(
           fontSize: settings.fontSize, 
-          height: 1.6,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          height: lineHeight,
+          fontFamily: fontFamily,
         ),
         h1: TextStyle(
           fontSize: settings.fontSize * 2,
           fontWeight: FontWeight.bold,
           height: 1.4,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         h2: TextStyle(
           fontSize: settings.fontSize * 1.5,
           fontWeight: FontWeight.bold,
           height: 1.4,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         h3: TextStyle(
           fontSize: settings.fontSize * 1.25,
           fontWeight: FontWeight.w600,
           height: 1.4,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         h4: TextStyle(
           fontSize: settings.fontSize * 1.1,
           fontWeight: FontWeight.w600,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         h5: TextStyle(
           fontSize: settings.fontSize,
           fontWeight: FontWeight.w600,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         h6: TextStyle(
           fontSize: settings.fontSize * 0.9,
           fontWeight: FontWeight.w600,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         code: TextStyle(
           backgroundColor: isDark 
@@ -115,7 +142,7 @@ class MarkdownPreview extends StatelessWidget {
         blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
         listBullet: TextStyle(
           color: Theme.of(context).colorScheme.primary,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         horizontalRuleDecoration: BoxDecoration(
           border: Border(
@@ -128,11 +155,11 @@ class MarkdownPreview extends StatelessWidget {
         tableHead: TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: settings.fontSize,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         tableBody: TextStyle(
           fontSize: settings.fontSize,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+          fontFamily: fontFamily,
         ),
         tableBorder: TableBorder.all(
           color: Theme.of(context).dividerColor,

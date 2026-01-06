@@ -139,4 +139,11 @@ class FolderSortService {
     // Combine (Folders first, then files)
     return [...dirs, ...files];
   }
+
+  @visibleForTesting
+  void reset() {
+    _initialized = false;
+    _folderOrders.clear();
+    _folderSortOptions.clear();
+  }
 }

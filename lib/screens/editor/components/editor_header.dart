@@ -7,6 +7,7 @@ class EditorHeader extends StatelessWidget {
   final bool isSaving;
   final VoidCallback onBack;
   final VoidCallback onSave;
+  final VoidCallback? onMore;
 
   const EditorHeader({
     super.key,
@@ -16,6 +17,7 @@ class EditorHeader extends StatelessWidget {
     required this.isSaving,
     required this.onBack,
     required this.onSave,
+    this.onMore,
   });
 
   @override
@@ -87,6 +89,27 @@ class EditorHeader extends StatelessWidget {
             ),
           ),
           _buildSaveButton(context),
+          if (onMore != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Icon(
+                  Icons.more_vert,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              onPressed: onMore,
+            ),
+          ],
         ],
       ),
     );

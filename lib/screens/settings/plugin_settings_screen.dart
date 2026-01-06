@@ -7,6 +7,9 @@
 // - 社区市场：预留接口
 // ============================================================================
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/plugin_provider.dart';
@@ -228,6 +231,14 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
 
   /// 构建已安装插件卡片
   Widget _buildPluginCard(PluginManifest plugin, {bool isInstalled = false}) {
+    // 构建本地图标路径
+    String? iconPath;
+    if (plugin.iconPath != null && plugin.installPath != null) {
+      final path = '${plugin.installPath}/${plugin.iconPath}';
+      if (File(path).existsSync()) {
+        iconPath = path;
+      }
+    }
     
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -239,15 +250,26 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    Icons.extension,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: iconPath != null
+                      ? Image.file(
+                          File(iconPath),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            Icons.extension,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        )
+                      : Icon(
+                          Icons.extension,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -310,6 +332,13 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // 使用说明按钮
+                  if (_hasReadme(plugin))
+                    TextButton.icon(
+                      onPressed: () => _showReadmeDialog(plugin),
+                      icon: const Icon(Icons.description_outlined, size: 18),
+                      label: const Text('使用说明'),
+                    ),
                   TextButton.icon(
                     onPressed: () => _uninstallPlugin(plugin),
                     icon: const Icon(Icons.delete_outline, size: 18),
@@ -342,15 +371,38 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    Icons.extension,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: plugin.iconUrl != null && plugin.iconUrl!.isNotEmpty
+                      ? Image.network(
+                          plugin.iconUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            Icons.extension,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            );
+                          },
+                        )
+                      : Icon(
+                          Icons.extension,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -402,6 +454,20 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
                       fontSize: 12,
                       color: Colors.orange.shade700,
                     ),
+                  ),
+                ],
+              ),
+            ],
+            // 使用说明按钮
+            if (plugin.readmeUrl != null && plugin.readmeUrl!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _showMarketplaceReadmeDialog(plugin),
+                    icon: const Icon(Icons.description_outlined, size: 18),
+                    label: const Text('使用说明'),
                   ),
                 ],
               ),
@@ -502,7 +568,10 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
   Future<void> _installFromMarketplace(MarketplacePluginInfo plugin) async {
     final pluginProvider = context.read<PluginProvider>();
     
-    final downloadUrl = _marketplace.getDownloadUrl(plugin.id);
+    // 直接使用 plugins.json 中提供的 downloadUrl，而不是固定格式的 URL
+    final downloadUrl = plugin.downloadUrl.isNotEmpty 
+        ? plugin.downloadUrl 
+        : _marketplace.getDownloadUrl(plugin.id);
     final result = await pluginProvider.installFromUrl(context, downloadUrl);
     
     if (mounted) {
@@ -517,5 +586,175 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
         setState(() {}); // 刷新UI
       }
     }
+  }
+
+  /// 检查已安装插件是否有 README 文件
+  bool _hasReadme(PluginManifest plugin) {
+    if (plugin.readmePath == null || plugin.installPath == null) {
+      return false;
+    }
+    final readmePath = '${plugin.installPath}/${plugin.readmePath}';
+    return File(readmePath).existsSync();
+  }
+
+  /// 显示已安装插件的 README 弹窗（本地文件）
+  Future<void> _showReadmeDialog(PluginManifest plugin) async {
+    if (plugin.readmePath == null || plugin.installPath == null) return;
+    
+    final readmePath = '${plugin.installPath}/${plugin.readmePath}';
+    final file = File(readmePath);
+    
+    String content;
+    try {
+      content = await file.readAsString();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('读取使用说明失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
+    if (mounted) {
+      _showReadmeContent(plugin.name, content);
+    }
+  }
+
+  /// 显示市场插件的 README 弹窗（从网络加载）
+  Future<void> _showMarketplaceReadmeDialog(MarketplacePluginInfo plugin) async {
+    if (plugin.readmeUrl == null || plugin.readmeUrl!.isEmpty) return;
+    
+    // 显示加载对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('加载使用说明...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    String content;
+    try {
+      final httpClient = HttpClient();
+      final request = await httpClient.getUrl(Uri.parse(plugin.readmeUrl!));
+      final response = await request.close();
+      
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      
+      content = await response.transform(utf8.decoder).join();
+      httpClient.close();
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // 关闭加载对话框
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('加载使用说明失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
+    if (mounted) {
+      Navigator.of(context).pop(); // 关闭加载对话框
+      _showReadmeContent(plugin.name, content);
+    }
+  }
+
+  /// 显示 README 内容弹窗
+  void _showReadmeContent(String pluginName, String content) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 600,
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 标题栏
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(28),
+                    topRight: Radius.circular(28),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.description,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '$pluginName - 使用说明',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              // 内容区域
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: SelectableText(
+                    content,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontFamily: 'monospace',
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+              // 底部按钮
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('关闭'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

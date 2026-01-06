@@ -28,6 +28,7 @@ import 'package:provider/provider.dart';
 import 'providers/file_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/plugin_provider.dart';
+import 'plugins/extensions/theme_extension.dart';
 import 'screens/main_screen.dart';
 import 'utils/constants.dart';
 
@@ -83,10 +84,37 @@ class MyApp extends StatelessWidget {
         // 插件管理状态（已安装/已启用插件、扩展点等）
         ChangeNotifierProvider(create: (_) => PluginProvider()),
       ],
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, child) {
+      child: Consumer2<SettingsProvider, PluginProvider>(
+        builder: (context, settings, pluginProvider, child) {
           // 获取用户选择的主题色
-          final primaryColor = settings.primaryColor;
+          Color primaryColor = settings.primaryColor;
+          
+          // 获取插件主题扩展
+          final themeExtensions = pluginProvider.getThemeExtensions();
+          ThemeColors? pluginLightColors;
+          ThemeColors? pluginDarkColors;
+          
+          // 使用最后一个启用的插件主题覆盖
+          if (themeExtensions.isNotEmpty) {
+            final ext = themeExtensions.last;
+            pluginLightColors = ext.lightColors;
+            pluginDarkColors = ext.darkColors;
+            
+            // 如果插件定义了主题色，优先使用插件的主题色
+            if (settings.themeMode == ThemeMode.light && pluginLightColors?.primary != null) {
+              primaryColor = pluginLightColors!.primary!;
+            } else if (settings.themeMode == ThemeMode.dark && pluginDarkColors?.primary != null) {
+              primaryColor = pluginDarkColors!.primary!;
+            } else if (settings.themeMode == ThemeMode.system) {
+              final brightness = MediaQuery.platformBrightnessOf(context);
+              if (brightness == Brightness.light && pluginLightColors?.primary != null) {
+                primaryColor = pluginLightColors!.primary!;
+              } else if (brightness == Brightness.dark && pluginDarkColors?.primary != null) {
+                primaryColor = pluginDarkColors!.primary!;
+              }
+            }
+          }
+
           // 获取字体设置（System 表示使用系统默认）
           final fontFamily = settings.uiFontFamily == 'System' ? null : settings.uiFontFamily;
           // 获取主题配色方案索引
@@ -107,8 +135,8 @@ class MyApp extends StatelessWidget {
               Locale('en', 'US'),  // 英文
             ],
             locale: settings.locale,  // 使用动态语言设置
-            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex),  // 浅色主题
-            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily),  // 深色主题
+            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, pluginLightColors),  // 浅色主题
+            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, pluginDarkColors),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
             home: const MainScreen(),  // 主页面
           );
@@ -121,20 +149,29 @@ class MyApp extends StatelessWidget {
   /// 
   /// [primaryColor] 用户选择的主题色
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
-  ThemeData _buildLightTheme(Color primaryColor, String? fontFamily, int lightThemeIndex) {
+  /// [pluginColors] 插件自定义颜色
+  ThemeData _buildLightTheme(Color primaryColor, String? fontFamily, int lightThemeIndex, ThemeColors? pluginColors) {
     // 获取选中的浅色主题配色方案
     final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
+    
+    // 构建基础 ColorScheme
+    var colorScheme = ColorScheme.light(
+      primary: primaryColor,
+      secondary: AppConstants.accentColor,
+      surface: scheme.surface,
+      error: AppConstants.errorColor,
+    );
+    
+    // 应用插件颜色覆盖
+    if (pluginColors != null) {
+      colorScheme = pluginColors.applyTo(colorScheme);
+    }
     
     // 构建基础主题
     ThemeData theme = ThemeData(
       useMaterial3: true,  // 启用 Material 3 设计
       brightness: Brightness.light,
-      colorScheme: ColorScheme.light(
-        primary: primaryColor,
-        secondary: AppConstants.accentColor,
-        surface: scheme.surface,
-        error: AppConstants.errorColor,
-      ),
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: scheme.background,
       
       // AppBar 主题
@@ -216,20 +253,29 @@ class MyApp extends StatelessWidget {
   /// [primaryColor] 用户选择的主题色
   /// [darkThemeIndex] 夜间主题配色方案索引
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
-  ThemeData _buildDarkTheme(Color primaryColor, int darkThemeIndex, String? fontFamily) {
+  /// [pluginColors] 插件自定义颜色
+  ThemeData _buildDarkTheme(Color primaryColor, int darkThemeIndex, String? fontFamily, ThemeColors? pluginColors) {
     // 获取选中的夜间主题配色方案
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
+    
+    // 构建基础 ColorScheme
+    var colorScheme = ColorScheme.dark(
+      primary: primaryColor,
+      secondary: AppConstants.accentColor,
+      surface: scheme.surface,
+      error: AppConstants.errorColor,
+    );
+    
+    // 应用插件颜色覆盖
+    if (pluginColors != null) {
+      colorScheme = pluginColors.applyTo(colorScheme);
+    }
     
     // 构建基础主题
     ThemeData theme = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.dark(
-        primary: primaryColor,
-        secondary: AppConstants.accentColor,
-        surface: scheme.surface,
-        error: AppConstants.errorColor,
-      ),
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: scheme.background,
       
       appBarTheme: AppBarTheme(

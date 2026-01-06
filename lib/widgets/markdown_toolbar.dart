@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
 import 'dart:io';
 import '../services/my_files_service.dart';
+import '../providers/plugin_provider.dart';
+import '../plugins/extensions/toolbar_extension.dart';
 
 /// Markdown editing toolbar with beautiful gradient buttons
 class MarkdownToolbar extends StatelessWidget {
@@ -187,9 +190,47 @@ class MarkdownToolbar extends StatelessWidget {
               ],
             ),
           ],
+          // 插件工具栏按钮
+          ..._buildPluginButtons(context),
         ],
       ),
     );
+  }
+
+  /// 构建插件工具栏按钮
+  /// 
+  /// 从 PluginProvider 获取已启用插件的工具栏扩展
+  List<Widget> _buildPluginButtons(BuildContext context) {
+    final pluginProvider = context.watch<PluginProvider>();
+    final extensions = pluginProvider.getToolbarExtensions();
+    
+    if (extensions.isEmpty) return [];
+    
+    // 按 group 分组
+    final groups = <String?, List<ToolbarButtonExtension>>{};
+    for (final ext in extensions) {
+      groups.putIfAbsent(ext.group, () => []).add(ext);
+    }
+    
+    // 对每个组内的按钮按 priority 排序
+    for (final list in groups.values) {
+      list.sort((a, b) => a.priority.compareTo(b.priority));
+    }
+    
+    final widgets = <Widget>[];
+    
+    for (final entry in groups.entries) {
+      widgets.add(_buildDivider(context));
+      widgets.add(_ToolbarButtonGroup(
+        children: entry.value.map((ext) => _ToolbarButton(
+          icon: ext.iconData,
+          tooltip: ext.tooltip,
+          onPressed: () => ext.execute(controller),
+        )).toList(),
+      ));
+    }
+    
+    return widgets;
   }
 
   Widget _buildDivider(BuildContext context) {

@@ -22,8 +22,11 @@ class PluginLoader {
   static const String pluginsDirectoryName = 'plugins';
   
   /// 获取插件安装目录
+  /// 
+  /// 使用 getApplicationSupportDirectory 而不是 getApplicationDocumentsDirectory
+  /// 因为后者在 Android 上清理缓存时会被删除
   static Future<Directory> getPluginsDirectory() async {
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await getApplicationSupportDirectory();
     final pluginsDir = Directory('${appDir.path}/$pluginsDirectoryName');
     if (!await pluginsDir.exists()) {
       await pluginsDir.create(recursive: true);
