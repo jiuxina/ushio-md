@@ -7,6 +7,22 @@
 .buildlog/
 .history
 
+# IDE配置文件
+.idea/
+.vscode/
+*.iml
+
+# 项目特定的临时文件
+analysis.txt
+analysis_final.txt
+analysis_output.txt
+build_log*.txt
+download_assets.dart
+download_assets_v2.dart
+
+# 示例和测试文件（如果不需要上传）
+# sample/
+
 
 
 # Flutter repo-specific
