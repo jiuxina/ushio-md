@@ -1,0 +1,62 @@
+{
+    "id": "official.github-alerts",
+    "name": "GitHub 风格提示框",
+    "version": "1.0.0",
+    "author": "汐官方",
+    "description": "快速插入 GitHub 风格的 NOTE/TIP/IMPORTANT/WARNING/CAUTION 提示框，让文档更加清晰易读",
+    "icon": "icon.png",
+    "homepage": "https://github.com/jiuxina/ushio-md-plugins",
+    "minAppVersion": "1.1.0",
+    "permissions": [
+        "toolbar"
+    ],
+    "extensions": {
+        "toolbar": [
+            {
+                "id": "note",
+                "icon": "info",
+                "tooltip": "NOTE 提示",
+                "insertBefore": "> [!NOTE]\n> ",
+                "insertAfter": "\n",
+                "group": "alerts",
+                "priority": 10
+            },
+            {
+                "id": "tip",
+                "icon": "tips_and_updates",
+                "tooltip": "TIP 技巧",
+                "insertBefore": "> [!TIP]\n> ",
+                "insertAfter": "\n",
+                "group": "alerts",
+                "priority": 11
+            },
+            {
+                "id": "important",
+                "icon": "star",
+                "tooltip": "IMPORTANT 重要",
+                "insertBefore": "> [!IMPORTANT]\n> ",
+                "insertAfter": "\n",
+                "group": "alerts",
+                "priority": 12
+            },
+            {
+                "id": "warning",
+                "icon": "warning",
+                "tooltip": "WARNING 警告",
+                "insertBefore": "> [!WARNING]\n> ",
+                "insertAfter": "\n",
+                "group": "alerts",
+                "priority": 13
+            },
+            {
+                "id": "caution",
+                "icon": "error",
+                "tooltip": "CAUTION 危险",
+                "insertBefore": "> [!CAUTION]\n> ",
+                "insertAfter": "\n",
+                "group": "alerts",
+                "priority": 14
+            }
+        ]
+    }
+}

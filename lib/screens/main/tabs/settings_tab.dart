@@ -8,12 +8,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../providers/plugin_provider.dart';
 import '../../../widgets/app_background.dart';
 import '../../../utils/constants.dart';
 import '../../settings/appearance_settings_screen.dart';
 import '../../settings/editor_settings_screen.dart';
 import '../../settings/cloud_sync_screen.dart';
 import '../../settings/storage_settings_screen.dart';
+import '../../settings/plugin_settings_screen.dart';
 import '../../settings/about_screen.dart';
 
 class SettingsTab extends StatelessWidget {
@@ -76,6 +78,22 @@ class SettingsTab extends StatelessWidget {
                   context,
                   MaterialPageRoute(builder: (_) => const StorageSettingsScreen()),
                 ),
+              ),
+              
+              Consumer<PluginProvider>(
+                builder: (context, pluginProvider, child) {
+                  return _buildSettingsItem(
+                    context,
+                    icon: Icons.extension,
+                    iconColor: Colors.deepPurple,
+                    title: '插件',
+                    subtitle: '已安装 ${pluginProvider.installedCount} 个插件',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PluginSettingsScreen()),
+                    ),
+                  );
+                },
               ),
               
               _buildSettingsItem(

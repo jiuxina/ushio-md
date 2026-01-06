@@ -20,8 +20,6 @@ build_log*.txt
 download_assets.dart
 download_assets_v2.dart
 
-# 示例和测试文件（如果不需要上传）
-# sample/
 
 
 

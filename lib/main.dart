@@ -27,6 +27,7 @@ import 'package:provider/provider.dart';
 
 import 'providers/file_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/plugin_provider.dart';
 import 'screens/main_screen.dart';
 import 'utils/constants.dart';
 
@@ -79,6 +80,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FileProvider()),
         // 设置状态（主题、字体、自动保存等）
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        // 插件管理状态（已安装/已启用插件、扩展点等）
+        ChangeNotifierProvider(create: (_) => PluginProvider()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, child) {
