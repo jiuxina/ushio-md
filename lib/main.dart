@@ -56,7 +56,11 @@ void main() async {
   // 加载已安装的自定义字体（包括手动下载的 Google 字体）
   await FontService.loadAllCustomFonts();
   
-  runApp(const MyApp());
+  // 初始化插件系统（加载已安装的插件）
+  final pluginProvider = PluginProvider();
+  await pluginProvider.initialize();
+  
+  runApp(MyApp(pluginProvider: pluginProvider));
 }
 
 /// ============================================================================
@@ -70,7 +74,9 @@ void main() async {
 /// - 设置主题（浅色/深色）
 /// - 配置 MaterialApp
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final PluginProvider pluginProvider;
+  
+  const MyApp({super.key, required this.pluginProvider});
 
   @override
   Widget build(BuildContext context) {
@@ -81,8 +87,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FileProvider()),
         // 设置状态（主题、字体、自动保存等）
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        // 插件管理状态（已安装/已启用插件、扩展点等）
-        ChangeNotifierProvider(create: (_) => PluginProvider()),
+        // 插件管理状态（已安装/已启用插件、扩展点等）- 使用预初始化的实例
+        ChangeNotifierProvider.value(value: pluginProvider),
       ],
       child: Consumer2<SettingsProvider, PluginProvider>(
         builder: (context, settings, pluginProvider, child) {

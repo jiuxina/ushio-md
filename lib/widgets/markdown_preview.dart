@@ -174,6 +174,7 @@ class MarkdownPreview extends StatelessWidget {
           fontSize: settings.fontSize,
           fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
         ),
+        'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: settings.fontSize),
       },
       checkboxBuilder: (bool value) {
         final currentIndex = checkboxIndex++;
@@ -386,5 +387,130 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
   
   String _mapLanguage(String lang) {
     return _langMap[lang.toLowerCase()] ?? lang.toLowerCase();
+  }
+}
+
+/// GitHub 风格 Alert 渲染器
+/// 
+/// 支持的 Alert 类型：
+/// - [!NOTE] - 信息提示（蓝色）
+/// - [!TIP] - 技巧提示（绿色）
+/// - [!IMPORTANT] - 重要信息（紫色）
+/// - [!WARNING] - 警告信息（橙色）
+/// - [!CAUTION] - 危险警告（红色）
+/// 
+/// 插件开发者可以通过在 Markdown 中使用 `> [!NOTE]` 等语法来触发这些样式。
+class GitHubAlertBuilder extends MarkdownElementBuilder {
+  final bool isDark;
+  final double fontSize;
+  
+  /// Alert 类型配置
+  /// 键: Alert 类型名称
+  /// 值: (颜色, 图标, 显示标题)
+  static const Map<String, (Color, IconData, String)> _alertTypes = {
+    'NOTE': (Color(0xFF0969DA), Icons.info_outline, 'Note'),
+    'TIP': (Color(0xFF1A7F37), Icons.tips_and_updates, 'Tip'),
+    'IMPORTANT': (Color(0xFF8250DF), Icons.star_outline, 'Important'),
+    'WARNING': (Color(0xFFBF8700), Icons.warning_amber_rounded, 'Warning'),
+    'CAUTION': (Color(0xFFCF222E), Icons.error_outline, 'Caution'),
+  };
+  
+  GitHubAlertBuilder({required this.isDark, required this.fontSize});
+  
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    if (element.tag != 'blockquote') return null;
+    
+    // 获取 blockquote 的文本内容
+    final textContent = _extractTextContent(element);
+    
+    // 检测 [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] 模式
+    final alertPattern = RegExp(r'^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n?', caseSensitive: false);
+    final match = alertPattern.firstMatch(textContent);
+    
+    if (match == null) {
+      return null; // 不是 GitHub Alert，使用默认渲染
+    }
+    
+    final alertType = match.group(1)!.toUpperCase();
+    final content = textContent.substring(match.end).trim();
+    
+    return _buildAlertWidget(alertType, content);
+  }
+  
+  /// 递归提取元素的文本内容
+  String _extractTextContent(md.Node node) {
+    if (node is md.Text) {
+      return node.text;
+    }
+    if (node is md.Element) {
+      final buffer = StringBuffer();
+      for (final child in node.children ?? []) {
+        buffer.write(_extractTextContent(child));
+        if (child is md.Element && child.tag == 'p') {
+          buffer.write('\n');
+        }
+      }
+      return buffer.toString();
+    }
+    return '';
+  }
+  
+  /// 构建 Alert Widget
+  Widget _buildAlertWidget(String type, String content) {
+    final config = _alertTypes[type];
+    if (config == null) return Text(content);
+    
+    final (color, icon, title) = config;
+    
+    // 深色模式下调整颜色亮度
+    final displayColor = isDark ? Color.lerp(color, Colors.white, 0.3)! : color;
+    final bgColor = isDark 
+        ? color.withValues(alpha: 0.15)
+        : color.withValues(alpha: 0.1);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(color: displayColor, width: 4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Alert 标题行
+          Row(
+            children: [
+              Icon(icon, color: displayColor, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  color: displayColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: fontSize * 0.9,
+                ),
+              ),
+            ],
+          ),
+          if (content.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            // Alert 内容
+            Text(
+              content,
+              style: TextStyle(
+                fontSize: fontSize,
+                height: 1.5,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

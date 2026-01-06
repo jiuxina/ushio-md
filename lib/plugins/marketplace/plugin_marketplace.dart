@@ -12,9 +12,17 @@ import '../plugin_manifest.dart';
 /// 官方插件市场
 /// 
 /// 基于 GitHub 仓库的插件市场实现
+/// 优先使用镜像加速访问 GitHub 资源
 class OfficialMarketplace {
   /// GitHub 仓库 Raw 文件基础 URL
   static const String _baseUrl = 'https://raw.githubusercontent.com/jiuxina/ushio-md-plugins/main';
+  
+  /// 镜像加速 URL 前缀列表（按优先级排序）
+  static const List<String> _proxyPrefixes = [
+    'https://gh-proxy.org/',
+    'https://ghproxy.com/',
+    'https://mirror.ghproxy.com/',
+  ];
   
   /// 插件索引文件路径
   static const String _indexPath = '/plugins.json';
@@ -40,33 +48,67 @@ class OfficialMarketplace {
       }
     }
     
+    final originalUrl = '$_baseUrl$_indexPath';
+    
+    // 尝试镜像源，失败则回退到原始链接
+    String? body;
+    String? lastError;
+    
+    // 先尝试所有镜像源
+    for (final prefix in _proxyPrefixes) {
+      try {
+        body = await _fetchUrl('$prefix$originalUrl');
+        if (body != null) break;
+      } catch (e) {
+        lastError = e.toString();
+        continue;
+      }
+    }
+    
+    // 镜像都失败，尝试原始链接
+    if (body == null) {
+      try {
+        body = await _fetchUrl(originalUrl);
+      } catch (e) {
+        throw MarketplaceException('获取插件列表失败：${lastError ?? e.toString()}');
+      }
+    }
+    
+    if (body == null) {
+      throw MarketplaceException('获取插件列表失败：无法连接到服务器');
+    }
+    
+    final json = jsonDecode(body);
+    
+    if (json is! Map<String, dynamic>) {
+      throw MarketplaceException('插件索引格式无效');
+    }
+    
+    final pluginsJson = json['plugins'] as List<dynamic>?;
+    if (pluginsJson == null) {
+      throw MarketplaceException('插件索引中未找到 plugins 字段');
+    }
+    
+    _cachedPlugins = pluginsJson
+        .map((e) => MarketplacePluginInfo.fromJson(e as Map<String, dynamic>))
+        .toList();
+    _cacheTime = DateTime.now();
+    
+    return _cachedPlugins!;
+  }
+  
+  /// 从 URL 获取内容
+  Future<String?> _fetchUrl(String url) async {
     final httpClient = HttpClient();
     try {
-      final request = await httpClient.getUrl(Uri.parse('$_baseUrl$_indexPath'));
+      final request = await httpClient.getUrl(Uri.parse(url))
+          .timeout(const Duration(seconds: 10));
       final response = await request.close();
       
-      if (response.statusCode != 200) {
-        throw MarketplaceException('获取插件列表失败：HTTP ${response.statusCode}');
+      if (response.statusCode == 200) {
+        return await response.transform(utf8.decoder).join();
       }
-      
-      final body = await response.transform(utf8.decoder).join();
-      final json = jsonDecode(body);
-      
-      if (json is! Map<String, dynamic>) {
-        throw MarketplaceException('插件索引格式无效');
-      }
-      
-      final pluginsJson = json['plugins'] as List<dynamic>?;
-      if (pluginsJson == null) {
-        throw MarketplaceException('插件索引中未找到 plugins 字段');
-      }
-      
-      _cachedPlugins = pluginsJson
-          .map((e) => MarketplacePluginInfo.fromJson(e as Map<String, dynamic>))
-          .toList();
-      _cacheTime = DateTime.now();
-      
-      return _cachedPlugins!;
+      return null;
     } finally {
       httpClient.close();
     }

@@ -7,7 +7,27 @@
 // ============================================================================
 
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import '../utils/constants.dart';
+
+/// 安装器抽象
+class AppInstaller {
+  static const platform = MethodChannel('com.ushiomd/install');
+  
+  Future<bool?> install(String filePath) async {
+    try {
+      final result = await platform.invokeMethod<bool>('installApk', {'filePath': filePath});
+      return result;
+    } catch (e) {
+      debugPrint('Install error: $e');
+      return false;
+    }
+  }
+}
 
 /// 更新信息
 class UpdateInfo {
@@ -118,5 +138,95 @@ class UpdateService {
       if (parts1[i] < parts2[i]) return -1;
     }
     return 0;
+  }
+
+  /// 下载并安装更新
+  /// 
+  /// [url] APK 下载链接
+  /// [fileName] 保存的文件名
+  /// [onProgress] 进度回调 (0.0 - 1.0)
+  static Future<bool> downloadAndInstallUpdate(
+    String url, 
+    String fileName, {
+    Function(double)? onProgress,
+    http.Client? client,
+    AppInstaller? installer,
+  }) async {
+    // 优先使用镜像加速
+    final proxyUrl = 'https://gh-proxy.org/$url';
+    
+    // 尝试下载 (优先镜像，失败回退)
+    File? apkFile;
+    if (await _downloadFile(proxyUrl, fileName, onProgress: onProgress, client: client)) {
+      apkFile = await _getLocalFile(fileName);
+    } else {
+      // 镜像失败，尝试原链接
+      debugPrint('镜像下载失败，尝试原始链接...');
+      if (await _downloadFile(url, fileName, onProgress: onProgress, client: client)) {
+        apkFile = await _getLocalFile(fileName);
+      }
+    }
+    
+    if (apkFile != null && apkFile.existsSync()) {
+      // 安装
+      debugPrint('开始安装: ${apkFile.path}');
+      final appInstaller = installer ?? AppInstaller();
+      final result = await appInstaller.install(apkFile.path);
+      return result == true;
+    }
+    
+    return false;
+  }
+
+  /// 获取本地临时文件
+  static Future<File> _getLocalFile(String fileName) async {
+    final dir = await getTemporaryDirectory();
+    return File('${dir.path}/$fileName');
+  }
+
+  /// 下载文件内部实现
+  static Future<bool> _downloadFile(
+    String url, 
+    String fileName, {
+    Function(double)? onProgress,
+    http.Client? client,
+  }) async {
+    try {
+      final finalClient = client ?? http.Client();
+      final request = http.Request('GET', Uri.parse(url));
+      final response = await finalClient.send(request).timeout(const Duration(seconds: 30));
+      
+      if (response.statusCode == 200) {
+        final totalBytes = response.contentLength ?? 0;
+        int receivedBytes = 0;
+        
+        final file = await _getLocalFile(fileName);
+        final sink = file.openWrite();
+        
+        await response.stream.listen(
+          (List<int> chunk) {
+            receivedBytes += chunk.length;
+            sink.add(chunk);
+            if (totalBytes > 0 && onProgress != null) {
+              onProgress(receivedBytes / totalBytes);
+            }
+          },
+          onDone: () async {
+            await sink.close();
+          },
+          onError: (e) {
+            debugPrint('下载流错误: $e');
+            sink.close();
+          },
+          cancelOnError: true,
+        ).asFuture();
+        
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('下载异常: $url, $e');
+      return false;
+    }
   }
 }

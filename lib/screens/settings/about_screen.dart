@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../utils/constants.dart';
 import '../../services/update_service.dart';
 import '../../widgets/app_background.dart';
@@ -219,7 +220,7 @@ class _AboutScreenState extends State<AboutScreen> {
       if (!mounted) return;
       
       if (updateInfo != null && updateInfo.hasUpdate) {
-        _showUpdateDialog(updateInfo.latestVersion);
+        _showUpdateDialog(updateInfo);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -249,7 +250,7 @@ class _AboutScreenState extends State<AboutScreen> {
     }
   }
 
-  void _showUpdateDialog(String version) {
+  void _showUpdateDialog(UpdateInfo info) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -268,7 +269,28 @@ class _AboutScreenState extends State<AboutScreen> {
             const Flexible(child: Text('发现新版本')),
           ],
         ),
-        content: Text('新版本 $version 已发布，是否前往下载？'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('新版本 ${info.latestVersion} 已发布，是否立即更新？'),
+            const SizedBox(height: 12),
+            Container(
+               constraints: const BoxConstraints(maxHeight: 200),
+               child: Markdown(
+                 data: info.changelog,
+                 shrinkWrap: true,
+                 padding: EdgeInsets.zero,
+                 styleSheet: MarkdownStyleSheet(
+                   p: Theme.of(context).textTheme.bodySmall,
+                   h1: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                   h2: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                   listBullet: Theme.of(context).textTheme.bodySmall,
+                 ),
+               ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -277,13 +299,79 @@ class _AboutScreenState extends State<AboutScreen> {
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
-              _launchUrl(AppConstants.githubUrl);
+              if (info.downloadUrl.isNotEmpty) {
+                _startDownload(info);
+              } else {
+                 _launchUrl(AppConstants.githubUrl);
+              }
             },
-            child: const Text('前往下载'),
+            child: const Text('立即更新'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _startDownload(UpdateInfo info) async {
+    // 显示进度对话框
+    final progressNotifier = ValueNotifier<double>(0.0);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('正在下载更新'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<double>(
+                valueListenable: progressNotifier,
+                builder: (context, value, child) {
+                  return Column(
+                    children: [
+                      LinearProgressIndicator(value: value),
+                      const SizedBox(height: 8),
+                      Text('${(value * 100).toStringAsFixed(1)}%'),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              const Text('优先使用镜像加速下载中...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final success = await UpdateService.downloadAndInstallUpdate(
+        info.downloadUrl, 
+        'update_${info.latestVersion}.apk',
+        onProgress: (progress) {
+          progressNotifier.value = progress;
+        },
+      );
+      
+      if (!mounted) return;
+      Navigator.pop(context); // 关闭进度框
+      
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('下载或安装失败，建议手动下载')),
+        );
+        // 失败后尝试跳转浏览器
+        _launchUrl(info.downloadUrl);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // 关闭进度框
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('更新出错: $e')),
+      );
+    }
   }
 
   Future<void> _launchUrl(String url) async {

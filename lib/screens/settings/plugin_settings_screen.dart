@@ -12,6 +12,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../providers/plugin_provider.dart';
 import '../../plugins/plugin_manifest.dart';
 import '../../plugins/plugin_security.dart';
@@ -35,11 +36,21 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
   List<MarketplacePluginInfo>? _marketplacePlugins;
   bool _isLoadingMarketplace = false;
   String? _marketplaceError;
+  
+  /// 正在安装的插件 ID 集合
+  final Set<String> _installingPlugins = {};
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    
+    // 监听 Tab 切换，自动加载官方市场
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && _marketplacePlugins == null && !_isLoadingMarketplace) {
+        _loadMarketplacePlugins();
+      }
+    });
   }
 
   @override
@@ -156,9 +167,20 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
           onRefresh: provider.refresh,
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: provider.installedPlugins.length,
+            itemCount: provider.installedPlugins.length + 1, // +1 for header
             itemBuilder: (context, index) {
-              final plugin = provider.installedPlugins[index];
+              // 首行显示检查更新按钮
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: OutlinedButton.icon(
+                    onPressed: _checkPluginUpdates,
+                    icon: const Icon(Icons.update),
+                    label: const Text('一键检查更新'),
+                  ),
+                );
+              }
+              final plugin = provider.installedPlugins[index - 1];
               return _buildPluginCard(plugin, isInstalled: true);
             },
           ),
@@ -430,6 +452,17 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
                     backgroundColor: Colors.green.shade100,
                     labelStyle: TextStyle(color: Colors.green.shade700),
                   )
+                else if (_installingPlugins.contains(plugin.id))
+                  const SizedBox(
+                    width: 80,
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
                 else
                   FilledButton(
                     onPressed: () => _installFromMarketplace(plugin),
@@ -566,42 +599,250 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
 
   /// 从市场安装插件
   Future<void> _installFromMarketplace(MarketplacePluginInfo plugin) async {
-    final pluginProvider = context.read<PluginProvider>();
+    // 标记开始安装
+    setState(() {
+      _installingPlugins.add(plugin.id);
+    });
     
-    // 直接使用 plugins.json 中提供的 downloadUrl，而不是固定格式的 URL
-    final downloadUrl = plugin.downloadUrl.isNotEmpty 
-        ? plugin.downloadUrl 
-        : _marketplace.getDownloadUrl(plugin.id);
-    final result = await pluginProvider.installFromUrl(context, downloadUrl);
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message),
-          backgroundColor: result.success ? Colors.green : Colors.red,
-        ),
-      );
+    try {
+      final pluginProvider = context.read<PluginProvider>();
       
-      if (result.success) {
-        setState(() {}); // 刷新UI
+      // 直接使用 plugins.json 中提供的 downloadUrl，而不是固定格式的 URL
+      final downloadUrl = plugin.downloadUrl.isNotEmpty 
+          ? plugin.downloadUrl 
+          : _marketplace.getDownloadUrl(plugin.id);
+      final result = await pluginProvider.installFromUrl(context, downloadUrl);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: result.success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    } finally {
+      // 标记安装结束
+      if (mounted) {
+        setState(() {
+          _installingPlugins.remove(plugin.id);
+        });
       }
     }
   }
 
+  /// 检查已安装插件是否有更新
+  Future<void> _checkPluginUpdates() async {
+    final pluginProvider = context.read<PluginProvider>();
+    
+    // 首先确保网络权限
+    if (!pluginProvider.networkAccessAllowed) {
+      final allowed = await PluginSecurity.showNetworkAccessWarning(context);
+      if (!allowed) return;
+      await pluginProvider.setNetworkAccessAllowed(true);
+    }
+    
+    if (!mounted) return;
+    
+    // 显示检查中对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('正在检查插件更新...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    try {
+      // 获取市场插件列表
+      final marketplacePlugins = await _marketplace.fetchPlugins(forceRefresh: true);
+      
+      // 比较版本
+      final updates = <Map<String, dynamic>>[];
+      for (final installed in pluginProvider.installedPlugins) {
+        final marketPlugin = marketplacePlugins.where((p) => p.id == installed.id).firstOrNull;
+        if (marketPlugin != null && _isNewerVersion(marketPlugin.version, installed.version)) {
+          updates.add({
+            'installed': installed,
+            'market': marketPlugin,
+          });
+        }
+      }
+      
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 关闭检查对话框
+      
+      if (updates.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check, color: Colors.white),
+                SizedBox(width: 12),
+                Text('所有插件均为最新版本'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        _showUpdatesDialog(updates);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('检查更新失败: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+  
+  /// 比较版本号，判断 v1 是否比 v2 新
+  bool _isNewerVersion(String v1, String v2) {
+    final parts1 = v1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final parts2 = v2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    
+    while (parts1.length < 3) {
+      parts1.add(0);
+    }
+    while (parts2.length < 3) {
+      parts2.add(0);
+    }
+    
+    for (int i = 0; i < 3; i++) {
+      if (parts1[i] > parts2[i]) return true;
+      if (parts1[i] < parts2[i]) return false;
+    }
+    return false;
+  }
+  
+  /// 显示可更新插件对话框
+  void _showUpdatesDialog(List<Map<String, dynamic>> updates) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.update, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 12),
+            Text('发现 ${updates.length} 个更新'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: updates.length,
+            itemBuilder: (context, index) {
+              final update = updates[index];
+              final installed = update['installed'] as PluginManifest;
+              final market = update['market'] as MarketplacePluginInfo;
+              
+              return ListTile(
+                leading: const Icon(Icons.extension),
+                title: Text(installed.name),
+                subtitle: Text('${installed.version} → ${market.version}'),
+                trailing: FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _installFromMarketplace(market);
+                  },
+                  child: const Text('更新'),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 检查已安装插件是否有 README 文件
   bool _hasReadme(PluginManifest plugin) {
-    if (plugin.readmePath == null || plugin.installPath == null) {
+    if (plugin.installPath == null) {
       return false;
     }
-    final readmePath = '${plugin.installPath}/${plugin.readmePath}';
-    return File(readmePath).existsSync();
+    
+    // 如果 manifest 中指定了 readme 路径，直接检查
+    if (plugin.readmePath != null) {
+      final readmePath = '${plugin.installPath}/${plugin.readmePath}';
+      if (File(readmePath).existsSync()) {
+        return true;
+      }
+    }
+    
+    // 否则尝试常见的 README 文件名
+    final commonReadmeNames = ['README.md', 'readme.md', 'README.MD', 'Readme.md'];
+    for (final name in commonReadmeNames) {
+      final path = '${plugin.installPath}/$name';
+      if (File(path).existsSync()) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  /// 获取已安装插件的 README 文件路径
+  String? _findReadmePath(PluginManifest plugin) {
+    if (plugin.installPath == null) return null;
+    
+    // 优先使用 manifest 中指定的路径
+    if (plugin.readmePath != null) {
+      final path = '${plugin.installPath}/${plugin.readmePath}';
+      if (File(path).existsSync()) {
+        return path;
+      }
+    }
+    
+    // 尝试常见的 README 文件名
+    final commonReadmeNames = ['README.md', 'readme.md', 'README.MD', 'Readme.md'];
+    for (final name in commonReadmeNames) {
+      final path = '${plugin.installPath}/$name';
+      if (File(path).existsSync()) {
+        return path;
+      }
+    }
+    
+    return null;
   }
 
   /// 显示已安装插件的 README 弹窗（本地文件）
   Future<void> _showReadmeDialog(PluginManifest plugin) async {
-    if (plugin.readmePath == null || plugin.installPath == null) return;
+    final readmePath = _findReadmePath(plugin);
+    if (readmePath == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('未找到使用说明文件'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
     
-    final readmePath = '${plugin.installPath}/${plugin.readmePath}';
     final file = File(readmePath);
     
     String content;
@@ -725,15 +966,30 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
                   ],
                 ),
               ),
-              // 内容区域
+              // 内容区域 - 使用 Markdown 渲染
               Flexible(
-                child: SingleChildScrollView(
+                child: Markdown(
+                  data: content,
+                  selectable: true,
                   padding: const EdgeInsets.all(16),
-                  child: SelectableText(
-                    content,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  styleSheet: MarkdownStyleSheet(
+                    p: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.6),
+                    h1: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    h2: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    h3: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    code: TextStyle(
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                       fontFamily: 'monospace',
-                      height: 1.5,
+                      fontSize: 13,
+                    ),
+                    blockquoteDecoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 4,
+                        ),
+                      ),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
                     ),
                   ),
                 ),

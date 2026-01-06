@@ -82,6 +82,9 @@ class AppConstants {
   /// GitHub 仓库地址
   static const String githubUrl = 'https://github.com/jiuxina/ushio-md';
 
+  /// 包名 (Application ID)
+  static const String packageName = 'com.ushiomd';
+
   // ==================== 主题色 ====================
   
   /// 主色调（靛蓝）
