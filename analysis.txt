@@ -1,0 +1,72 @@
+Resolving dependencies...
+Downloading packages...
+  characters 1.4.0 (1.4.1 available)
+  file_picker 8.3.7 (10.3.8 available)
+  flutter_lints 5.0.0 (6.0.0 available)
+  lints 5.1.1 (6.0.0 available)
+  matcher 0.12.17 (0.12.18 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.16.0 (1.17.0 available)
+  permission_handler 11.4.0 (12.0.1 available)
+  permission_handler_android 12.1.0 (13.0.1 available)
+  test_api 0.7.6 (0.7.8 available)
+Got dependencies!
+10 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing mdreader...                                           
+
+   info - Don't invoke 'print' in production code - download_assets.dart:26:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:32:10 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:40:9 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:42:9 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:45:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:26:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:30:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:36:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:40:9 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:43:12 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:51:14 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:63:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:72:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:89:3 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:93:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:95:5 - avoid_print
+   info - Dangling library doc comment - lib\main.dart:1:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:200:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:218:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:398:36 - deprecated_member_use
+   info - Dangling library doc comment - lib\models\markdown_file.dart:7:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\providers\file_provider.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\providers\settings_provider.dart:1:1 - dangling_library_doc_comments
+   info - Don't use 'BuildContext's across async gaps - lib\screens\editor_screen.dart:67:24 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\main\components\quick_actions.dart:108:25 - use_build_context_synchronously
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\screens\main\tabs\settings_tab.dart:913:15 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\screens\main\tabs\settings_tab.dart:914:15 - deprecated_member_use
+warning - The value of the field '_previousIndex' isn't used - lib\screens\main_screen.dart:20:7 - unused_field
+warning - The value of the field '_tabAnimation' isn't used - lib\screens\main_screen.dart:24:26 - unused_field
+   info - Dangling library doc comment - lib\services\file_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\font_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\services\update_service.dart:1:1 - dangling_library_doc_comments
+   info - Statements in a while should be enclosed in a block - lib\services\update_service.dart:109:31 - curly_braces_in_flow_control_structures
+   info - Statements in a while should be enclosed in a block - lib\services\update_service.dart:110:31 - curly_braces_in_flow_control_structures
+   info - Dangling library doc comment - lib\utils\constants.dart:1:1 - dangling_library_doc_comments
+   info - Don't use 'BuildContext's across async gaps - lib\utils\file_actions.dart:616:13 - use_build_context_synchronously
+   info - The imported package 'markdown' isn't a dependency of the importing package - lib\widgets\markdown_preview.dart:6:8 - depend_on_referenced_packages
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:26:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:29:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:33:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:199:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:300:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:358:26 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:360:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:367:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:416:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:548:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:556:38 - deprecated_member_use
+warning - The value of the local variable 'targetFile' isn't used - lib\widgets\markdown_toolbar.dart:646:13 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:677:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:824:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:825:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:837:65 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\markdown_toolbar.dart:838:61 - deprecated_member_use
+

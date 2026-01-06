@@ -1,16 +1,16 @@
-/// ============================================================================
-/// 文件状态管理器
-/// ============================================================================
-/// 
-/// 管理应用的文件相关状态，包括：
-/// - 文件列表和当前目录
-/// - 最近访问的文件/文件夹
-/// - 置顶的文件/文件夹
-/// - 存储权限管理
-/// 
-/// 使用 SharedPreferences 持久化存储用户数据。
-/// ============================================================================
+// ============================================================================
+// 文件状态管理器
+// 
+// 管理应用的文件相关状态，包括：
+// - 文件列表和当前目录
+// - 最近访问的文件/文件夹
+// - 置顶的文件/文件夹
+// - 存储权限管理
+// 
+// 使用 SharedPreferences 持久化存储用户数据。
+// ============================================================================
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/markdown_file.dart';
@@ -58,10 +58,23 @@ class FileProvider extends ChangeNotifier {
   // ==================== Getters ====================
   
   List<MarkdownFile> get files => _files;
-  List<String> get recentFiles => _recentFiles;
-  List<String> get recentFolders => _recentFolders;
-  List<String> get pinnedFiles => _pinnedFiles;
-  List<String> get pinnedFolders => _pinnedFolders;
+  
+  /// 获取最近文件列表（过滤不存在的文件）
+  List<String> get recentFiles => 
+      _recentFiles.where((path) => File(path).existsSync()).toList();
+  
+  /// 获取最近文件夹列表（过滤不存在的文件夹）
+  List<String> get recentFolders => 
+      _recentFolders.where((path) => Directory(path).existsSync()).toList();
+  
+  /// 获取置顶文件列表（过滤不存在的文件）
+  List<String> get pinnedFiles => 
+      _pinnedFiles.where((path) => File(path).existsSync()).toList();
+  
+  /// 获取置顶文件夹列表（过滤不存在的文件夹）
+  List<String> get pinnedFolders => 
+      _pinnedFolders.where((path) => Directory(path).existsSync()).toList();
+  
   String? get currentDirectory => _currentDirectory;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -273,6 +286,17 @@ class FileProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 重新排序最近文件夹（拖拽排序）
+  void reorderRecentFolders(int oldIndex, int newIndex) async {
+    if (newIndex > oldIndex) newIndex--;
+    final item = _recentFolders.removeAt(oldIndex);
+    _recentFolders.insert(newIndex, item);
+    notifyListeners();
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('recent_folders', _recentFolders);
+  }
+
   // ==================== 置顶项目管理 ====================
 
   /// 从本地存储加载置顶项目
@@ -370,8 +394,35 @@ class FileProvider extends ChangeNotifier {
       await _fileService.deleteFile(path);
       await removeFromRecentFiles(path);
       _pinnedFiles.remove(path);
+      // Persist pinned removal? togglePinFile logic persists. Here we just remove from memory, need to persist.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('pinned_files', _pinnedFiles);
+      
       await refresh();
       return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// 删除文件夹
+  Future<bool> deleteFolder(String path) async {
+    try {
+      final dir = Directory(path);
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+        await removeFromRecentFolders(path);
+        _pinnedFolders.remove(path);
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList('pinned_folders', _pinnedFolders);
+        
+        await refresh();
+        return true;
+      }
+      return false;
     } catch (e) {
       _error = e.toString();
       notifyListeners();

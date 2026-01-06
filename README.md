@@ -3,11 +3,11 @@
 <p align="center">
   <img src="app.png" width="180" alt="汐 Logo">
 </p>
-
 <p align="center">
   <b>一款简洁优雅的安卓端 Markdown 编辑器</b><br>
-  Markdown支持 · 多菜单 · 自定义背景 · 自定义字体
+  Markdown支持 · 文件管理 · 个性化设置 · 云同步 
 </p>
+
 
 <p align="center">
   <a href="https://github.com/jiuxina/ushio-md/stargazers">
@@ -15,9 +15,6 @@
   </a>
   <a href="https://github.com/jiuxina/ushio-md/network/members">
     <img src="https://img.shields.io/github/forks/jiuxina/ushio-md?style=social" alt="GitHub forks">
-  </a>
-  <a href="https://github.com/jiuxina/ushio-md/releases">
-    <img src="https://img.shields.io/github/downloads/jiuxina/ushio-md/total?label=downloads&color=brightgreen" alt="GitHub downloads">
   </a>
   <a href="https://github.com/jiuxina/ushio-md/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/jiuxina/ushio-md" alt="GitHub license">
@@ -45,22 +42,46 @@
 - 三种查看模式：编辑 / 预览 / 分屏
 - 自动保存，可自定义间隔
 - 快捷工具栏，快速插入常用格式
-- 其它更新请查看 [Releases](https://github.com/jiuxina/ushio-md/releases)
+- 智能目录导航，快速跳转章节
+- 全文搜索，高亮匹配结果
+- 代码高亮显示，支持多种语言
+- 此外，请等待后续更新……
 
 ### 📁 文件管理
 - 本地文件 & 文件夹浏览，支持搜索、排序、新建
 - 最近文件/文件夹快速访问
 - 长按置顶 + 拖拽排序，首页更整洁
 - 一键清除最近记录
-- 其它更新请查看 [Releases](https://github.com/jiuxina/ushio-md/releases)
+- 多种排序方式：名称、修改时间、自定义顺序
+- 智能过滤：自动清理不存在的文件引用
+- 输入验证：重命名时自动检测非法字符
+- 此外，请等待后续更新……
 
 ### 🎨 个性化设置
 - 主题模式：跟随系统 / 浅色 / 深色
-- 8 种精选主题色
-- 自定义背景图片
+- 8 种精选主题色 + 多套明暗主题方案
+- 自定义背景图片，支持模糊效果
 - 内置字体 + 支持导入本地字体
 - 字体大小 12-24px 自由调节
-- 其它更新请查看 [Releases](https://github.com/jiuxina/ushio-md/releases)
+- 粒子效果：樱花、雨滴、萤火虫、雪花
+- 粒子速率 0.1x-1.0x 可调
+- 全局显示开关，可单独控制编辑器区域
+- 此外，请等待后续更新……
+
+### ☁️ 云端同步
+- WebDAV 协议，兼容主流网盘
+- 智能冲突检测，支持手动解决
+- 同步预览，明确上传/下载文件
+- 安全存储：密码加密保护
+- 自动同步 + 手动触发
+- 此外，请等待后续更新……
+
+### 📤 分享导出
+- 文件夹压缩分享（ZIP 格式）
+- PDF 导出，支持中文字体
+- WYSIWYG 图片导出（含背景、粒子效果）
+- 全屏预览模式一键分享
+- 此外，请等待后续更新……
 
 ## 📱 截图展示
 
@@ -103,14 +124,7 @@
 
 ## 🤝 贡献
 
-
-
 发现 bug、想加新功能、优化体验，或者单纯想打个招呼，都欢迎提交 Issue 或 Pull Request 的说~
-
-<p align="center">
-  <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" alt="PRs Welcome">
-</p>
-
 
 ## 📄 开源协议
 
@@ -119,4 +133,5 @@
 ## 👨‍💻 作者
 
 **jiuxina**  
+
 Made with ❤️ by Me & You

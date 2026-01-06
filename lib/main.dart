@@ -1,27 +1,30 @@
-/// ============================================================================
-/// 汐 - Markdown 编辑器
-/// ============================================================================
-/// 
-/// 一款简洁优雅的移动端 Markdown 编辑器应用。
-/// 
-/// 功能特性：
-/// - 📝 Markdown 编辑与预览
-/// - 📁 文件浏览与管理
-/// - 🎨 主题切换与个性化设置
-/// - 💾 自动保存功能
-/// 
-/// 技术栈：
-/// - Flutter - 跨平台 UI 框架
-/// - Provider - 状态管理
-/// - flutter_markdown - Markdown 渲染
-/// 
-/// @author jiuxina
-/// @version 1.0.0
-/// ============================================================================
+// ============================================================================
+// 汐 - Markdown 编辑器
+// ============================================================================
+// 
+// 一款简洁优雅的移动端 Markdown 编辑器应用。
+// 
+// 功能特性：
+// - 📝 Markdown 编辑与预览
+// - 📁 文件浏览与管理
+// - 🎨 主题切换与个性化设置
+// - 💾 自动保存功能
+// 
+// 技术栈：
+// - Flutter - 跨平台 UI 框架
+// - Provider - 状态管理
+// - flutter_markdown - Markdown 渲染
+// 
+// @author jiuxina
+// @version 1.0.0
+// ============================================================================
+
+
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+
 import 'providers/file_provider.dart';
 import 'providers/settings_provider.dart';
 import 'screens/main_screen.dart';
@@ -35,6 +38,7 @@ import 'utils/constants.dart';
 /// 
 /// 初始化 Flutter 绑定并启动应用
 import 'services/font_service.dart';
+import 'services/my_files_service.dart';
 
 /// 应用程序入口函数
 /// 
@@ -43,6 +47,9 @@ void main() async {
   // 确保 Flutter 引擎初始化完成（异步操作前必须调用）
   WidgetsFlutterBinding.ensureInitialized();
   
+  // 初始化"我的文件"工作区（创建 Ushio-MD 目录）
+  final myFilesService = MyFilesService();
+  await myFilesService.initWorkspace();
 
   // 加载已安装的自定义字体（包括手动下载的 Google 字体）
   await FontService.loadAllCustomFonts();
@@ -79,8 +86,9 @@ class MyApp extends StatelessWidget {
           final primaryColor = settings.primaryColor;
           // 获取字体设置（System 表示使用系统默认）
           final fontFamily = settings.uiFontFamily == 'System' ? null : settings.uiFontFamily;
-          // 获取夜间主题配色方案
+          // 获取主题配色方案索引
           final darkThemeIndex = settings.darkThemeIndex;
+          final lightThemeIndex = settings.lightThemeIndex;
           
           return MaterialApp(
             title: AppConstants.appName,
@@ -96,7 +104,7 @@ class MyApp extends StatelessWidget {
               Locale('en', 'US'),  // 英文
             ],
             locale: settings.locale,  // 使用动态语言设置
-            theme: _buildLightTheme(primaryColor, fontFamily),  // 浅色主题
+            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex),  // 浅色主题
             darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
             home: const MainScreen(),  // 主页面
@@ -110,34 +118,37 @@ class MyApp extends StatelessWidget {
   /// 
   /// [primaryColor] 用户选择的主题色
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
-  ThemeData _buildLightTheme(Color primaryColor, String? fontFamily) {
-    return ThemeData(
+  ThemeData _buildLightTheme(Color primaryColor, String? fontFamily, int lightThemeIndex) {
+    // 获取选中的浅色主题配色方案
+    final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
+    
+    // 构建基础主题
+    ThemeData theme = ThemeData(
       useMaterial3: true,  // 启用 Material 3 设计
       brightness: Brightness.light,
-      fontFamily: fontFamily,
       colorScheme: ColorScheme.light(
         primary: primaryColor,
         secondary: AppConstants.accentColor,
-        surface: AppConstants.lightSurface,
+        surface: scheme.surface,
         error: AppConstants.errorColor,
       ),
-      scaffoldBackgroundColor: AppConstants.lightBackground,
+      scaffoldBackgroundColor: scheme.background,
       
       // AppBar 主题
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppConstants.lightSurface,
-        foregroundColor: AppConstants.lightText,
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.text,
         elevation: 0,  // 无阴影
         centerTitle: false,  // 标题左对齐
       ),
       
       // 卡片主题
       cardTheme: CardThemeData(
-        color: AppConstants.lightSurface,
+        color: scheme.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          side: BorderSide(color: Colors.grey.shade200),
+          side: BorderSide(color: scheme.textSecondary.withValues(alpha: 0.2)),
         ),
       ),
       
@@ -153,15 +164,48 @@ class MyApp extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
         ),
         filled: true,
-        fillColor: AppConstants.lightBackground,
+        fillColor: scheme.background,
       ),
       
       // 分割线主题
       dividerTheme: DividerThemeData(
-        color: Colors.grey.shade200,
+        color: scheme.textSecondary.withValues(alpha: 0.2),
         thickness: 1,
       ),
+      
+      // 下拉菜单主题
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: TextStyle(color: scheme.text),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(scheme.surface),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          elevation: const WidgetStatePropertyAll(8),
+          padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
+        ),
+      ),
+      
+      // 弹出菜单主题
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 8,
+      ),
     );
+    
+    // 应用字体
+    if (fontFamily != null) {
+      theme = theme.copyWith(
+        textTheme: theme.textTheme.apply(fontFamily: fontFamily),
+      );
+    }
+    
+    return theme;
   }
 
   /// 构建深色主题
@@ -173,10 +217,10 @@ class MyApp extends StatelessWidget {
     // 获取选中的夜间主题配色方案
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
     
-    return ThemeData(
+    // 构建基础主题
+    ThemeData theme = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      fontFamily: fontFamily,
       colorScheme: ColorScheme.dark(
         primary: primaryColor,
         secondary: AppConstants.accentColor,
@@ -197,7 +241,8 @@ class MyApp extends StatelessWidget {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          side: BorderSide(color: scheme.textSecondary.withOpacity(0.3)),
+          side: BorderSide(color: scheme.textSecondary.withValues(alpha: 0.3)),
+
         ),
       ),
       
@@ -215,7 +260,8 @@ class MyApp extends StatelessWidget {
       ),
       
       dividerTheme: DividerThemeData(
-        color: scheme.textSecondary.withOpacity(0.3),
+        color: scheme.textSecondary.withValues(alpha: 0.3),
+
         thickness: 1,
       ),
       
@@ -228,7 +274,40 @@ class MyApp extends StatelessWidget {
         titleMedium: TextStyle(color: scheme.text),
         titleSmall: TextStyle(color: scheme.textSecondary),
       ),
+      
+      // 下拉菜单主题
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: TextStyle(color: scheme.text),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(scheme.surface),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          elevation: const WidgetStatePropertyAll(8),
+          padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
+        ),
+      ),
+      
+      // 弹出菜单主题
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 8,
+      ),
     );
+    
+    // 应用字体
+    if (fontFamily != null) {
+      theme = theme.copyWith(
+        textTheme: theme.textTheme.apply(fontFamily: fontFamily),
+      );
+    }
+    
+    return theme;
   }
 }
 
@@ -395,7 +474,8 @@ class _SplashScreenState extends State<SplashScreen>
                               color: Theme.of(context)
                                   .colorScheme
                                   .primary
-                                  .withOpacity(0.4),
+                                  .withValues(alpha: 0.4),
+
                               blurRadius: 30,
                               offset: const Offset(0, 10),
                             ),

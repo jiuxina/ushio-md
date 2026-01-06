@@ -1,24 +1,28 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/file_provider.dart';
-import '../models/markdown_file.dart';
-import 'editor_screen.dart';
-
-/// Sort options for files
-enum FileSortOption {
-  nameAsc,
-  nameDesc,
-  dateAsc,
-  dateDesc,
-  sizeAsc,
-  sizeDesc,
-}
+import '../../providers/file_provider.dart';
+import '../../providers/settings_provider.dart';
+import '../../models/file_sort_option.dart';
+import '../../services/folder_sort_service.dart';
+import '../../utils/file_actions.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/particle_effect_widget.dart';
+import 'folder/components/folder_browser_header.dart';
+import 'folder/components/file_tile.dart';
 
 class FolderBrowserScreen extends StatefulWidget {
   final String folderPath;
+  final bool showBackButton;
+  final String? title;
 
-  const FolderBrowserScreen({super.key, required this.folderPath});
+  const FolderBrowserScreen({
+    super.key, 
+    required this.folderPath,
+    this.showBackButton = true,
+    this.title,
+  });
 
   @override
   State<FolderBrowserScreen> createState() => _FolderBrowserScreenState();
@@ -26,16 +30,31 @@ class FolderBrowserScreen extends StatefulWidget {
 
 class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FolderSortService _sortService = FolderSortService();
+  
   bool _isSearching = false;
   bool _isLoading = true;
-  List<MarkdownFile> _files = [];
+  bool _showImages = false; // 默认不显示图片
+  
+  List<FileSystemEntity> _entities = [];
   String? _error;
   FileSortOption _sortOption = FileSortOption.nameAsc;
 
   @override
   void initState() {
     super.initState();
-    _loadFiles();
+    _initAndLoad();
+  }
+  
+  Future<void> _initAndLoad() async {
+    await _sortService.init();
+    if (mounted) {
+      final index = _sortService.getSortOptionIndex(widget.folderPath);
+      if (index >= 0 && index < FileSortOption.values.length) {
+        _sortOption = FileSortOption.values[index];
+      }
+      _loadFiles();
+    }
   }
 
   @override
@@ -45,18 +64,37 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   }
 
   Future<void> _loadFiles() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final fileProvider = context.read<FileProvider>();
-      _files = await fileProvider.fileService.listMarkdownFiles(widget.folderPath);
+      final dir = Directory(widget.folderPath);
+      if (!await dir.exists()) {
+        throw Exception('文件夹不存在');
+      }
+
+      final entities = await dir.list().toList();
+      _entities = entities.where((e) {
+        final name = e.path.split(Platform.pathSeparator).last;
+        if (name.startsWith('.')) return false; // 隐藏隐藏文件
+        
+        final isDir = e is Directory;
+        if (isDir) return true;
+        
+        // 文件过滤
+        if (name.toLowerCase().endsWith('.md')) return true;
+        if (_showImages && _isImage(name)) return true;
+        
+        return false;
+      }).toList();
+
       _sortFiles();
     } catch (e) {
       _error = e.toString();
-      _files = [];
+      _entities = [];
     }
 
     if (mounted) {
@@ -64,217 +102,96 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     }
   }
 
+  bool _isImage(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.jpg') || 
+           lower.endsWith('.jpeg') || 
+           lower.endsWith('.png') || 
+           lower.endsWith('.gif') || 
+           lower.endsWith('.webp');
+  }
+
   void _sortFiles() {
-    switch (_sortOption) {
-      case FileSortOption.nameAsc:
-        _files.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-        break;
-      case FileSortOption.nameDesc:
-        _files.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
-        break;
-      case FileSortOption.dateAsc:
-        _files.sort((a, b) => a.lastModified.compareTo(b.lastModified));
-        break;
-      case FileSortOption.dateDesc:
-        _files.sort((a, b) => b.lastModified.compareTo(a.lastModified));
-        break;
-      case FileSortOption.sizeAsc:
-        _files.sort((a, b) => a.size.compareTo(b.size));
-        break;
-      case FileSortOption.sizeDesc:
-        _files.sort((a, b) => b.size.compareTo(a.size));
-        break;
+    if (_sortOption == FileSortOption.custom) {
+      _entities = _sortService.sortEntities(widget.folderPath, _entities);
+      if (mounted) setState(() {});
+      return;
     }
+
+    _entities.sort((a, b) {
+      final aIsDir = a is Directory;
+      final bIsDir = b is Directory;
+      
+      // 始终让文件夹排在前面 (除非自定义排序?) 
+      // 通常文件管理器也是文件夹优先，这里保持一致
+      if (aIsDir && !bIsDir) return -1;
+      if (!aIsDir && bIsDir) return 1;
+      
+      final nameA = a.path.split(Platform.pathSeparator).last;
+      final nameB = b.path.split(Platform.pathSeparator).last;
+      
+      switch (_sortOption) {
+        case FileSortOption.nameAsc:
+          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+        case FileSortOption.nameDesc:
+          return nameB.toLowerCase().compareTo(nameA.toLowerCase());
+        case FileSortOption.dateAsc:
+          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
+              ? File(a.path).lastModifiedSync().compareTo(File(b.path).lastModifiedSync())
+              : 0; // Folder date sort might be inaccurate, keeping simple
+        case FileSortOption.dateDesc:
+          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
+            ? File(b.path).lastModifiedSync().compareTo(File(a.path).lastModifiedSync())
+            : 0;
+        case FileSortOption.sizeAsc:
+          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
+            ? File(a.path).lengthSync().compareTo(File(b.path).lengthSync())
+            : 0;
+        case FileSortOption.sizeDesc:
+          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
+            ? File(b.path).lengthSync().compareTo(File(a.path).lengthSync())
+            : 0;
+        default:
+          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+      }
+    });
+    
     if (mounted) setState(() {});
   }
-
-  List<MarkdownFile> get _filteredFiles {
-    final query = _searchController.text.toLowerCase();
-    if (query.isEmpty) return _files;
-    return _files.where((file) => 
-      file.name.toLowerCase().contains(query) ||
-      file.displayName.toLowerCase().contains(query)
-    ).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final folderName = widget.folderPath.split(Platform.pathSeparator).last;
-
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [
-                    const Color(0xFF1a1a2e),
-                    const Color(0xFF16213e),
-                    const Color(0xFF0f0f23),
-                  ]
-                : [
-                    const Color(0xFFf8f9ff),
-                    const Color(0xFFf0f4ff),
-                    const Color(0xFFe8eeff),
-                  ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(folderName),
-              Expanded(child: _buildContent()),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(String folderName) {
-    if (_isSearching) {
-      return _buildSearchHeader();
+  
+  Future<void> _handleReorder(int oldIndex, int newIndex) async {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
     }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.arrow_back,
-                color: Theme.of(context).colorScheme.primary,
-                size: 20,
-              ),
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  folderName,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  '${_files.length} 个文件',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                ),
-              ],
-            ),
-          ),
-          _buildIconButton(
-            icon: Icons.search,
-            onPressed: () => setState(() => _isSearching = true),
-          ),
-          const SizedBox(width: 4),
-          _buildSortButton(),
-        ],
-      ),
-    );
+    
+    // 如果当前不是自定义排序，拖拽后自动切换为自定义排序
+    if (_sortOption != FileSortOption.custom) {
+      setState(() {
+        _sortOption = FileSortOption.custom;
+      });
+      await _sortService.saveSortOption(widget.folderPath, FileSortOption.custom.index);
+    }
+    
+    setState(() {
+      final item = _entities.removeAt(oldIndex);
+      _entities.insert(newIndex, item);
+    });
+    
+    // 保存新顺序
+    final filenames = _entities.map((e) => e.path.split(Platform.pathSeparator).last).toList();
+    await _sortService.saveOrder(widget.folderPath, filenames);
   }
 
-  Widget _buildSearchHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-      child: Row(
-        children: [
-          _buildIconButton(
-            icon: Icons.arrow_back,
-            onPressed: () {
-              setState(() {
-                _isSearching = false;
-                _searchController.clear();
-              });
-            },
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-                ),
-              ),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '搜索文件...',
-                  border: InputBorder.none,
-                  icon: Icon(Icons.search),
-                ),
-                onChanged: (value) => setState(() {}),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  List<FileSystemEntity> get _filteredFiles {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) return _entities;
+    return _entities.where((e) {
+      final name = e.path.split(Platform.pathSeparator).last.toLowerCase();
+      return name.contains(query);
+    }).toList();
   }
 
-  Widget _buildIconButton({required IconData icon, required VoidCallback onPressed}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onPressed,
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withOpacity(0.5),
-            ),
-          ),
-          child: Icon(icon, size: 20),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSortButton() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: _showSortMenu,
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withOpacity(0.5),
-            ),
-          ),
-          child: const Icon(Icons.sort, size: 20),
-        ),
-      ),
-    );
-  }
-
-  void _showSortMenu() {
+  void _showNewItemMenu() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -287,82 +204,164 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
+            ListTile(
+              leading: const Icon(Icons.note_add, color: Colors.blue),
+              title: const Text('新建 Markdown'),
+              onTap: () {
+                Navigator.pop(context);
+                FileActions.showCreateFileInFolderDialog(context, widget.folderPath, context.read<FileProvider>());
+              },
             ),
-            const SizedBox(height: 20),
-            Text(
-              '排序方式',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            ListTile(
+              leading: const Icon(Icons.create_new_folder, color: Colors.orange),
+              title: const Text('新建文件夹'),
+              onTap: () {
+                Navigator.pop(context);
+                _showCreateFolderDialog();
+              },
             ),
-            const SizedBox(height: 20),
-            _buildSortOption(FileSortOption.nameAsc, '名称 A-Z', Icons.sort_by_alpha),
-            const SizedBox(height: 8),
-            _buildSortOption(FileSortOption.nameDesc, '名称 Z-A', Icons.sort_by_alpha),
-            const SizedBox(height: 16),
-            _buildSortOption(FileSortOption.dateDesc, '最近修改', Icons.access_time),
-            const SizedBox(height: 8),
-            _buildSortOption(FileSortOption.dateAsc, '最早修改', Icons.history),
-            const SizedBox(height: 16),
-            _buildSortOption(FileSortOption.sizeDesc, '最大优先', Icons.expand),
-            const SizedBox(height: 8),
-            _buildSortOption(FileSortOption.sizeAsc, '最小优先', Icons.compress),
-            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildSortOption(FileSortOption option, String label, IconData icon) {
-    final isSelected = _sortOption == option;
-    final color = isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
-    
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.pop(context);
-          setState(() {
-            _sortOption = option;
-          });
-          _sortFiles();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ),
-              if (isSelected)
-                Icon(Icons.check, color: color, size: 20),
-            ],
-          ),
+  
+  void _showCreateFolderDialog() {
+    // 简化的新建文件夹 Dialog，直接在当前目录
+    final nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('新建文件夹'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '文件夹名称'),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              if (nameController.text.isNotEmpty) {
+                try {
+                  final newPath = '${widget.folderPath}${Platform.pathSeparator}${nameController.text}';
+                  await Directory(newPath).create();
+                  _loadFiles();
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: $e')));
+                }
+              }
+            }, 
+            child: const Text('创建'),
+          ),
+        ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final folderName = widget.folderPath.split(Platform.pathSeparator).last;
+    
+    // Title Override Logic
+    String displayName;
+    if (widget.title != null) {
+      displayName = widget.title!;
+    } else if (folderName == 'Ushio-MD') {
+      displayName = '我的文件';
+    } else {
+      displayName = folderName;
+    }
+
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        BoxDecoration backgroundDecoration;
+        if (settings.backgroundImagePath != null && File(settings.backgroundImagePath!).existsSync()) {
+          backgroundDecoration = BoxDecoration(
+            image: DecorationImage(
+              image: FileImage(File(settings.backgroundImagePath!)),
+              fit: BoxFit.cover,
+            ),
+          );
+        } else {
+          backgroundDecoration = BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [const Color(0xFF1a1a2e), const Color(0xFF16213e), const Color(0xFF0f0f23)]
+                  : [const Color(0xFFf8f9ff), const Color(0xFFf0f4ff), const Color(0xFFe8eeff)],
+            ),
+          );
+        }
+
+        return Scaffold(
+          body: Container(
+            decoration: backgroundDecoration,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: settings.backgroundEffect == 'blur' ? settings.backgroundBlur : 0,
+                sigmaY: settings.backgroundEffect == 'blur' ? settings.backgroundBlur : 0,
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  SafeArea(
+                    child: Column(
+                      children: [
+                        FolderBrowserHeader(
+                          folderName: displayName,
+                          fileCount: _entities.length,
+                          isSearching: _isSearching,
+                          onSearchToggle: () {
+                            setState(() {
+                              if (_isSearching) {
+                                _isSearching = false;
+                                _searchController.clear();
+                              } else {
+                                _isSearching = true;
+                              }
+                            });
+                          },
+                          searchController: _searchController,
+                          onSearchChanged: (value) => setState(() {}),
+                          sortOption: _sortOption,
+                          onSortChanged: (option) async {
+                            setState(() => _sortOption = option);
+                            await _sortService.saveSortOption(widget.folderPath, option.index);
+                            _sortFiles();
+                          },
+                          onBack: widget.showBackButton ? () => Navigator.pop(context) : null,
+                          showImages: _showImages,
+                          onImageToggle: () {
+                            setState(() => _showImages = !_showImages);
+                            _loadFiles(); // 重新加载以过滤/显示图片
+                          },
+                          onNewItem: _showNewItemMenu,
+                        ),
+                        Expanded(child: _buildContent()),
+                      ],
+                    ),
+                  ),
+                  // 粒子效果层（全局模式时显示）
+                  if (settings.particleEnabled && settings.particleGlobal)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ParticleEffectWidget(
+                          particleType: settings.particleType,
+                          speed: settings.particleSpeed,
+                          enabled: true,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
     );
   }
 
@@ -372,418 +371,78 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     }
 
     if (_error != null) {
-      return _buildErrorState();
+      return Center(child: Text('加载失败: $_error', style: const TextStyle(color: Colors.red)));
     }
 
-    if (_files.isEmpty) {
-      return _buildEmptyState('此文件夹没有 Markdown 文件');
+    if (_entities.isEmpty) {
+      return const EmptyState(message: '此文件夹为空');
     }
 
-    final filteredFiles = _filteredFiles;
-    if (filteredFiles.isEmpty) {
-      return _buildEmptyState('没有找到匹配的文件');
+    final filtered = _filteredFiles;
+    if (filtered.isEmpty) {
+      return const EmptyState(message: '没有找到匹配的文件');
+    }
+
+    // 始终使用 ReorderableListView 以支持拖拽排序 (如果处于非自定义排序，拖拽后会自动切换到自定义)
+    // 只有在搜索时禁用拖拽(? 搜索结果通常不建议拖拽排序，因为索引不对应)
+    if (_isSearching && _searchController.text.isNotEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadFiles,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(20),
+          itemCount: filtered.length,
+          itemBuilder: (context, index) {
+            return FileTile(
+              entity: filtered[index],
+              onRefresh: _loadFiles,
+              isDraggable: false,
+              source: FileSource.myFiles,
+            );
+          },
+        ),
+      );
     }
 
     return RefreshIndicator(
       onRefresh: _loadFiles,
-      child: ListView.builder(
+      child: ReorderableListView.builder(
         padding: const EdgeInsets.all(20),
-        itemCount: filteredFiles.length,
+        itemCount: filtered.length,
+        buildDefaultDragHandles: false, // 禁用默认的长按拖拽，使用 FileTile 内部的 Handle
+        onReorder: _handleReorder,
+        proxyDecorator: (child, index, animation) {
+          return AnimatedBuilder(
+            animation: animation,
+            builder: (BuildContext context, Widget? child) {
+              final double animValue = Curves.easeInOut.transform(animation.value);
+              final double scale = lerpDouble(1.0, 1.05, animValue)!;
+              return Transform.scale(
+                scale: scale,
+                child: Material(
+                  elevation: 8,
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  child: child,
+                ),
+              );
+            },
+            child: child,
+          );
+        },
         itemBuilder: (context, index) {
-          return _buildFileTile(filteredFiles[index]);
+          final entity = filtered[index];
+          return Container(
+            key: ValueKey(entity.path),
+            child: FileTile(
+              entity: entity,
+              onRefresh: _loadFiles,
+              isDraggable: true, // 总是显示拖拽手柄
+              index: index, // 传递 index 给 ReorderableDragStartListener
+              source: FileSource.myFiles,
+            ),
+          );
         },
       ),
     );
-  }
-
-  Widget _buildFileTile(MarkdownFile file) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withOpacity(0.5),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            final fileProvider = context.read<FileProvider>();
-            fileProvider.addToRecentFiles(file.path);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => EditorScreen(filePath: file.path),
-              ),
-            );
-          },
-          onLongPress: () {
-            final fileProvider = context.read<FileProvider>();
-            _showFileContextMenu(file.path, fileProvider);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.description,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        file.displayName,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${file.formattedSize} · ${file.formattedDate}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.inbox_outlined,
-                size: 48,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              message,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Colors.red,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              '加载失败',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.red,
-                  ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _loadFiles,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 显示文件上下文菜单
-  void _showFileContextMenu(String path, FileProvider fileProvider) {
-    final fileName = path.split(Platform.pathSeparator).last;
-    final isCurrentlyPinned = fileProvider.isFilePinned(path);
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              fileName,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 20),
-            _buildContextMenuItem(
-              icon: Icons.open_in_new,
-              label: '打开',
-              color: Colors.blue,
-              onTap: () {
-                Navigator.pop(context);
-                fileProvider.addToRecentFiles(path);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditorScreen(filePath: path),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildContextMenuItem(
-              icon: isCurrentlyPinned ? Icons.push_pin_outlined : Icons.push_pin,
-              label: isCurrentlyPinned ? '取消置顶' : '置顶到首页',
-              color: Colors.purple,
-              onTap: () {
-                Navigator.pop(context);
-                fileProvider.togglePinFile(path);
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildContextMenuItem(
-              icon: Icons.edit,
-              label: '重命名',
-              color: Colors.orange,
-              onTap: () {
-                Navigator.pop(context);
-                _showRenameDialog(path, fileProvider);
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildContextMenuItem(
-              icon: Icons.delete,
-              label: '删除文件',
-              color: Colors.red,
-              onTap: () {
-                Navigator.pop(context);
-                _confirmDelete(path, fileProvider);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建上下文菜单项
-  Widget _buildContextMenuItem({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 显示重命名对话框
-  Future<void> _showRenameDialog(String path, FileProvider fileProvider) async {
-    final fileName = path.split(Platform.pathSeparator).last;
-    final nameWithoutExt = fileName.replaceAll('.md', '').replaceAll('.markdown', '');
-    final controller = TextEditingController(text: nameWithoutExt);
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('重命名文件'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: '新文件名',
-            suffixText: '.md',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != null && result.isNotEmpty && result != nameWithoutExt) {
-      try {
-        final dir = path.substring(0, path.lastIndexOf(Platform.pathSeparator));
-        final newPath = '$dir${Platform.pathSeparator}$result.md';
-        final file = File(path);
-        await file.rename(newPath);
-        
-        // 刷新文件列表
-        await _loadFiles();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('重命名成功')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('重命名失败: $e')),
-          );
-        }
-      }
-    }
-    
-    controller.dispose();
-  }
-
-  /// 确认删除对话框
-  Future<void> _confirmDelete(String path, FileProvider fileProvider) async {
-    final fileName = path.split(Platform.pathSeparator).last;
-    
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('删除文件'),
-        content: Text('确定要删除 "$fileName" 吗？此操作不可撤销。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final success = await fileProvider.deleteFile(path);
-      if (success) {
-        // 刷新文件列表
-        await _loadFiles();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('文件已删除')),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('删除失败')),
-          );
-        }
-      }
-    }
   }
 }

@@ -1,0 +1,46 @@
+Analyzing mdreader...                                           
+
+   info - Don't invoke 'print' in production code - download_assets.dart:26:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:32:10 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:40:9 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:42:9 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets.dart:45:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:26:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:30:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:36:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:40:9 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:43:12 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:51:14 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:63:7 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:72:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:89:3 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:93:5 - avoid_print
+   info - Don't invoke 'print' in production code - download_assets_v2.dart:95:5 - avoid_print
+warning - Unused import: 'package:shared_preferences/shared_preferences.dart' - lib\main.dart:25:8 - unused_import
+warning - Unused import: 'package:receive_sharing_intent/receive_sharing_intent.dart' - lib\main.dart:27:8 - unused_import
+warning - Unused import: 'package:path_provider/path_provider.dart' - lib\main.dart:28:8 - unused_import
+warning - Unused import: 'dart:io' - lib\main.dart:29:8 - unused_import
+warning - Dead code - lib\main.dart:115:13 - dead_code
+warning - The label 'home' isn't used - lib\main.dart:115:13 - unused_label
+  error - Expected to find ';' - lib\main.dart:115:36 - expected_token
+  error - Expected an identifier - lib\main.dart:115:37 - missing_identifier
+  error - Expected to find ';' - lib\main.dart:115:37 - expected_token
+  error - Unexpected text ';' - lib\main.dart:115:37 - unexpected_token
+  error - Expected an identifier - lib\main.dart:116:11 - missing_identifier
+  error - Unexpected text ';' - lib\main.dart:116:11 - unexpected_token
+   info - Unnecessary empty statement - lib\main.dart:116:12 - empty_statements
+warning - The operand can't be 'null', so the condition is always 'true' - lib\screens\editor_screen.dart:830:38 - unnecessary_null_comparison
+warning - The '!' will have no effect because the receiver can't be null - lib\screens\editor_screen.dart:830:68 - unnecessary_non_null_assertion
+warning - Dead code - lib\screens\editor_screen.dart:830:85 - dead_code
+warning - Unused import: '../../../screens/editor_screen.dart' - lib\screens\main\components\quick_actions.dart:5:8 - unused_import
+   info - Don't use 'BuildContext's across async gaps - lib\screens\main\components\quick_actions.dart:108:25 - use_build_context_synchronously
+warning - Unused import: '../../editor_screen.dart' - lib\screens\main\tabs\history_tab.dart:17:8 - unused_import
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre - lib\screens\main\tabs\history_tab.dart:143:50 - deprecated_member_use
+warning - Unused import: '../../../screens/editor_screen.dart' - lib\screens\main\tabs\home_tab.dart:9:8 - unused_import
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\main\tabs\my_files_tab.dart:687:42 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\main\tabs\my_files_tab.dart:743:42 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\main\tabs\my_files_tab.dart:801:42 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\main\tabs\my_files_tab.dart:850:40 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\main\tabs\my_files_tab.dart:866:40 - use_build_context_synchronously
+warning - The receiver can't be null, so the null-aware operator '?.' is unnecessary - lib\screens\main\tabs\settings_tab.dart:62:45 - invalid_null_aware_operator
+

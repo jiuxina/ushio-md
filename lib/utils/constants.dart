@@ -1,13 +1,12 @@
-/// ============================================================================
-/// 应用常量配置
-/// ============================================================================
-/// 
-/// 集中管理应用的所有常量，包括：
-/// - 应用信息
-/// - 颜色配置
-/// - 尺寸规范
-/// - 预设主题
-/// ============================================================================
+// ============================================================================
+// 应用常量配置
+// 
+// 集中管理应用的所有常量，包括：
+// - 应用信息
+// - 颜色配置
+// - 尺寸规范
+// - 预设主题
+// ============================================================================
 
 import 'package:flutter/material.dart';
 
@@ -22,6 +21,25 @@ class DarkThemeScheme {
   final Color textSecondary;
   
   const DarkThemeScheme({
+    required this.name,
+    required this.background,
+    required this.surface,
+    required this.text,
+    required this.textSecondary,
+  });
+}
+
+/// 浅色主题配色方案
+/// 
+/// 定义单个浅色主题的所有颜色属性
+class LightThemeScheme {
+  final String name;
+  final Color background;
+  final Color surface;
+  final Color text;
+  final Color textSecondary;
+  
+  const LightThemeScheme({
     required this.name,
     required this.background,
     required this.surface,
@@ -53,7 +71,7 @@ class AppConstants {
   static const String appName = '汐';
   
   /// 版本号
-  static const String appVersion = '1.0.4';
+  static const String appVersion = '1.1.0';
   
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';
@@ -165,6 +183,54 @@ class AppConstants {
       surface: Color(0xFF000000),
       text: Color(0xFFFFFFFF),
       textSecondary: Color(0xFF888888),
+    ),
+  ];
+
+  // ==================== 浅色主题方案 ====================
+  
+  /// 浅色主题配色方案定义
+  /// 
+  /// 包含 5 种精心设计的浅色主题
+  static const List<LightThemeScheme> lightThemeSchemes = [
+    // 1. 经典白 - 默认浅色
+    LightThemeScheme(
+      name: '经典白',
+      background: Color(0xFFF8FAFC),
+      surface: Color(0xFFFFFFFF),
+      text: Color(0xFF1E293B),
+      textSecondary: Color(0xFF64748B),
+    ),
+    // 2. 暖纸色 - 护眼米白
+    LightThemeScheme(
+      name: '暖纸色',
+      background: Color(0xFFFAF8F5),
+      surface: Color(0xFFFFFDF9),
+      text: Color(0xFF3D3929),
+      textSecondary: Color(0xFF7A7567),
+    ),
+    // 3. 冷灰色 - 专业简洁
+    LightThemeScheme(
+      name: '冷灰色',
+      background: Color(0xFFF1F3F5),
+      surface: Color(0xFFFFFFFF),
+      text: Color(0xFF212529),
+      textSecondary: Color(0xFF6C757D),
+    ),
+    // 4. 天空蓝 - 清新明亮
+    LightThemeScheme(
+      name: '天空蓝',
+      background: Color(0xFFF0F9FF),
+      surface: Color(0xFFFFFFFF),
+      text: Color(0xFF0C4A6E),
+      textSecondary: Color(0xFF0369A1),
+    ),
+    // 5. 薄荷绿 - 自然清新
+    LightThemeScheme(
+      name: '薄荷绿',
+      background: Color(0xFFF0FDF4),
+      surface: Color(0xFFFFFFFF),
+      text: Color(0xFF14532D),
+      textSecondary: Color(0xFF166534),
     ),
   ];
 

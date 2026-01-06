@@ -1,15 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:flutter_highlight/flutter_highlight.dart';
-import 'package:flutter_highlight/themes/atom-one-dark.dart';
-import 'package:flutter_highlight/themes/atom-one-light.dart';
-import 'package:markdown/markdown.dart' as md;
 import 'package:provider/provider.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/markdown_toolbar.dart';
+import '../widgets/markdown_preview.dart';
+import '../widgets/particle_effect_widget.dart';
+import '../models/toc_item.dart';
+import 'editor/components/editor_header.dart';
+import 'editor/components/toc_overlay.dart';
+import 'editor/components/search_sheet.dart';
+import 'editor/components/fullscreen_preview_page.dart';
 
 enum EditorMode { edit, preview, split }
 
@@ -26,7 +28,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   late TextEditingController _textController;
   late ScrollController _editScrollController;
   late ScrollController _previewScrollController;
-  late UndoHistoryController _undoController; // 撤回重做控制器
+  late UndoHistoryController _undoController;
 
   EditorMode _mode = EditorMode.preview;
   bool _isLoading = true;
@@ -34,7 +36,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _isSaving = false;
   bool _showToc = false;
   Timer? _autoSaveTimer;
-  Timer? _tocDebounceTimer; // TOC 更新防抖计时器
+  Timer? _tocDebounceTimer;
+  // ==================== 正则表达式缓存 ====================
+  static final _headingRegex = RegExp(r'^(#{1,6})\s*(.+)$');
+  static final _h1UnderlineRegex = RegExp(r'^=+$');
+  static final _h2UnderlineRegex = RegExp(r'^-+$');
+  static final _uncheckedBoxRegex = RegExp(r'^(\s*-\s*)\[\s*\](.*)$');
+  static final _checkedBoxRegex = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$');
+  static final _wordSplitRegex = RegExp(r'\s+');
+
   String? _error;
   List<TocItem> _tocItems = [];
 
@@ -46,7 +56,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _textController = TextEditingController();
     _editScrollController = ScrollController();
     _previewScrollController = ScrollController();
-    _undoController = UndoHistoryController(); // 初始化撤回重做控制器
+    _undoController = UndoHistoryController();
     _loadFile();
   }
 
@@ -59,6 +69,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     try {
       final fileService = context.read<FileProvider>().fileService;
       final content = await fileService.readFile(widget.filePath);
+      if (!mounted) return;
       _textController.text = content;
       _textController.addListener(_onTextChanged);
       _updateToc();
@@ -83,11 +94,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     if (!_isModified) {
       setState(() => _isModified = true);
     }
-    // 防抖：用户停止输入 500ms 后再更新 TOC，减少性能开销
     _tocDebounceTimer?.cancel();
     _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
   }
 
+  /// 更新目录结构
+  /// 
+  /// 解析 Markdown 文本，提取标题（# 或 =/-）结构
+  /// 仅在非代码块区域进行解析
   void _updateToc() {
     final text = _textController.text;
     final lines = text.split('\n');
@@ -95,83 +109,74 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     int lineNumber = 0;
     bool inCodeBlock = false;
 
+    // 预编译 pattern 避免循环中重复创建
     for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final trimmedLine = line.trim();
+     final line = lines[i];
+     final trimmedLine = line.trim();
       
-      // 检测代码块
-      if (trimmedLine.startsWith('```')) {
-        inCodeBlock = !inCodeBlock;
-        lineNumber++;
-        continue;
-      }
+     // 处理代码块标记
+     if (trimmedLine.startsWith('```')) {
+       inCodeBlock = !inCodeBlock;
+       lineNumber++;
+       continue;
+     }
       
-      // 如果在代码块中，跳过
-      if (inCodeBlock) {
-        lineNumber++;
-        continue;
-      }
+     if (inCodeBlock) {
+       lineNumber++;
+       continue;
+     }
 
-      // ATX 标题 (# Title) - 放宽匹配规则，允许无空格
-      if (trimmedLine.startsWith('#')) {
-        final match = RegExp(r'^(#{1,6})\s*(.+)$').firstMatch(trimmedLine);
-        if (match != null) {
-          final level = match.group(1)!.length;
-          final title = match.group(2)!.trim();
-          items.add(TocItem(
-            level: level,
-            title: title,
-            lineNumber: lineNumber,
-          ));
-        }
-      }
-      // Setext 标题 (Title \n ===)
-      else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
-        final nextLine = lines[i + 1].trim();
-        if (nextLine.isNotEmpty) {
-          if (RegExp(r'^=+$').hasMatch(nextLine)) {
-            items.add(TocItem(
-              level: 1,
-              title: trimmedLine,
-              lineNumber: lineNumber,
-            ));
-          } else if (RegExp(r'^-+$').hasMatch(nextLine)) {
-            // 排除水平分割线（通常前面是空行）
-            // 如果这一行是普通文本，下一行是---，则是二级标题
-            items.add(TocItem(
-              level: 2,
-              title: trimmedLine,
-              lineNumber: lineNumber,
-            ));
-          }
-        }
-      }
-      lineNumber++;
+     // 1. 处理 # 标题
+     if (trimmedLine.startsWith('#')) {
+       final match = _headingRegex.firstMatch(trimmedLine);
+       if (match != null) {
+         final level = match.group(1)!.length;
+         final title = match.group(2)!.trim();
+         items.add(TocItem(
+           level: level,
+           title: title,
+           lineNumber: lineNumber,
+         ));
+       }
+     } 
+     // 2. 处理下划线标题 (= 和 -)
+     else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
+       final nextLine = lines[i + 1].trim();
+       if (nextLine.isNotEmpty) {
+         if (_h1UnderlineRegex.hasMatch(nextLine)) {
+           items.add(TocItem(
+             level: 1,
+             title: trimmedLine,
+             lineNumber: lineNumber,
+           ));
+         } else if (_h2UnderlineRegex.hasMatch(nextLine)) {
+           items.add(TocItem(
+             level: 2,
+             title: trimmedLine,
+             lineNumber: lineNumber,
+           ));
+         }
+       }
+     }
+     lineNumber++;
     }
 
     setState(() => _tocItems = items);
   }
 
   void _jumpToHeading(TocItem item) {
-    // Close TOC first
     setState(() => _showToc = false);
 
-    // 计算标题在文本中的字符偏移量
     final lines = _textController.text.split('\n');
     int position = 0;
-    // 累加标题之前的所有行的长度
     for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
-      position += lines[i].length + 1; // +1 是换行符
+      position += lines[i].length + 1;
     }
     final totalLength = _textController.text.length;
-    // 避免除以零
     final ratio = totalLength > 0 ? position / totalLength : 0.0;
 
     if (_mode == EditorMode.edit) {
-      // In edit mode, move cursor and scroll
       _textController.selection = TextSelection.collapsed(offset: position);
-      
-      // Scroll edit panel based on char offset ratio
       if (_editScrollController.hasClients) {
         final maxScroll = _editScrollController.position.maxScrollExtent;
         final targetScroll = ratio * maxScroll;
@@ -182,7 +187,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         );
       }
     } else {
-      // In preview or split mode, scroll preview panel based on char offset ratio
       if (_previewScrollController.hasClients) {
         final maxScroll = _previewScrollController.position.maxScrollExtent;
         final targetScroll = ratio * maxScroll;
@@ -195,12 +199,18 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
+  /// 自动保存
+  /// 
+  /// 仅在内容有修改且未在保存中时触发
   Future<void> _autoSave() async {
     if (_isModified && !_isSaving) {
       await _saveFile(showSnackbar: false);
     }
   }
 
+  /// 保存文件
+  /// 
+  /// [showSnackbar] 是否显示保存结果提示
   Future<void> _saveFile({bool showSnackbar = true}) async {
     if (_isSaving) return;
 
@@ -209,7 +219,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     try {
       final fileService = context.read<FileProvider>().fileService;
       await fileService.saveFile(widget.filePath, _textController.text);
-      setState(() => _isModified = false);
+      if (mounted) setState(() => _isModified = false);
 
       if (showSnackbar && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -219,7 +229,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
+                    color: Colors.green.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.check, color: Colors.green, size: 16),
@@ -265,11 +275,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
-    _tocDebounceTimer?.cancel(); // 释放 TOC 防抖计时器
+    _tocDebounceTimer?.cancel();
     _textController.dispose();
     _editScrollController.dispose();
     _previewScrollController.dispose();
-    _undoController.dispose(); // 释放撤回重做控制器
+    _undoController.dispose();
     super.dispose();
   }
 
@@ -287,7 +297,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.warning_amber, color: Colors.orange),
@@ -324,6 +334,93 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     return false;
   }
 
+  void _showSearchDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SearchSheet(
+        text: _textController.text,
+        onMatchSelected: (position, length) {
+          Navigator.pop(context);
+          setState(() => _mode = EditorMode.edit);
+          
+          Future.delayed(const Duration(milliseconds: 100), () {
+            _textController.selection = TextSelection(
+              baseOffset: position,
+              extentOffset: position + length,
+            );
+            
+            if (_editScrollController.hasClients) {
+              final lines = _textController.text.substring(0, position).split('\n');
+              final lineHeight = 24.0; 
+              final targetScroll = lines.length * lineHeight;
+              _editScrollController.animateTo(
+                targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  void _openFullscreenPreview() {
+    final settings = context.read<SettingsProvider>();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FullscreenPreviewPage(
+          controller: _textController,
+          settings: settings,
+          fileName: fileName,
+          onCheckboxChanged: _toggleCheckbox,
+        ),
+      ),
+    );
+  }
+
+  /// 切换复选框状态
+  /// 
+  /// [index] 复选框在文档中的索引（第几个复选框）
+  /// [newValue] 新的选中状态
+  void _toggleCheckbox(int index, bool newValue) {
+    final text = _textController.text;
+    final lines = text.split('\n');
+    int checkboxCount = 0;
+    
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final uncheckedMatch = _uncheckedBoxRegex.firstMatch(line);
+      final checkedMatch = _checkedBoxRegex.firstMatch(line);
+      
+      if (uncheckedMatch != null || checkedMatch != null) {
+        if (checkboxCount == index) {
+          if (newValue) {
+            if (uncheckedMatch != null) {
+              lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
+            }
+          } else {
+            if (checkedMatch != null) {
+              lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
+            }
+          }
+          break;
+        }
+        checkboxCount++;
+      }
+    }
+    
+    final newText = lines.join('\n');
+    if (newText != text) {
+      setState(() {
+        _textController.text = newText;
+        _isModified = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -337,12 +434,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       },
       child: Scaffold(
-        resizeToAvoidBottomInset: false, // 防止输入法挤压界面
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             _buildBody(),
-            // TOC overlay
-            if (_showToc) _buildTocOverlay(),
+            if (_showToc) 
+              TocOverlay(
+                items: _tocItems,
+                onClose: () => setState(() => _showToc = false),
+                onJumpToHeading: _jumpToHeading,
+              ),
           ],
         ),
       ),
@@ -351,6 +452,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   Widget _buildBody() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = context.watch<SettingsProvider>();
 
     return Container(
       decoration: BoxDecoration(
@@ -358,112 +460,56 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? [
-                  const Color(0xFF1a1a2e),
-                  const Color(0xFF16213e),
-                ]
-              : [
-                  const Color(0xFFf8f9ff),
-                  const Color(0xFFf0f4ff),
-                ],
+              ? [const Color(0xFF1a1a2e), const Color(0xFF16213e)]
+              : [const Color(0xFFf8f9ff), const Color(0xFFf0f4ff)],
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildModeSelector(),
-            if (!_isLoading && _error == null && _mode != EditorMode.preview)
-              MarkdownToolbar(
-                controller: _textController,
-                undoController: _undoController,
-                filePath: widget.filePath,
-                onSearchPressed: _showSearchDialog,
-              ),
-            Expanded(child: _buildContent()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-      child: Row(
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.5),
-                ),
-              ),
-              child: Icon(
-                Icons.arrow_back,
-                size: 20,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            onPressed: () async {
-              if (_isModified) {
-                final shouldPop = await _onWillPop();
-                if (shouldPop && mounted) {
-                  Navigator.of(context).pop();
-                }
-              } else {
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-          const SizedBox(width: 8),
-          Expanded(
+          SafeArea(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (_isModified)
-                      Container(
-                        margin: const EdgeInsets.only(left: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          '未保存',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
+                EditorHeader(
+                  fileName: fileName,
+                  wordCount: _getWordCount(),
+                  isModified: _isModified,
+                  isSaving: _isSaving,
+                  onBack: () async {
+                    if (_isModified) {
+                      final shouldPop = await _onWillPop();
+                      if (shouldPop && mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    } else {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  onSave: _saveFile,
                 ),
-                Text(
-                  _getWordCount(),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                ),
+                _buildModeSelector(),
+                if (!_isLoading && _error == null && _mode != EditorMode.preview)
+                  MarkdownToolbar(
+                    controller: _textController,
+                    undoController: _undoController,
+                    filePath: widget.filePath,
+                    onSearchPressed: _showSearchDialog,
+                  ),
+                Expanded(child: _buildContent()),
               ],
             ),
           ),
-          _buildSaveButton(),
+          // 粒子效果层（全局模式时显示）
+          if (settings.particleEnabled && settings.particleGlobal)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ParticleEffectWidget(
+                  particleType: settings.particleType,
+                  speed: settings.particleSpeed,
+                  enabled: true,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -472,77 +518,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   String _getWordCount() {
     final text = _textController.text;
     final chars = text.length;
-    final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    final words = text.split(_wordSplitRegex).where((w) => w.isNotEmpty).length;
     return '$chars 字符 · $words 词';
-  }
-
-  Widget _buildSaveButton() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: _isModified
-            ? LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.secondary,
-                ],
-              )
-            : null,
-        color: _isModified ? null : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: _isModified
-            ? null
-            : Border.all(
-                color: Theme.of(context).dividerColor.withOpacity(0.5),
-              ),
-        boxShadow: _isModified
-            ? [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: _isSaving ? null : () => _saveFile(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_isSaving)
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: _isModified ? Colors.white : null,
-                    ),
-                  )
-                else
-                  Icon(
-                    Icons.save,
-                    size: 18,
-                    color: _isModified ? Colors.white : null,
-                  ),
-                const SizedBox(width: 8),
-                Text(
-                  '保存',
-                  style: TextStyle(
-                    color: _isModified ? Colors.white : null,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildModeSelector() {
@@ -550,10 +527,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Theme.of(context).dividerColor.withOpacity(0.5),
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
         ),
       ),
       child: Row(
@@ -588,7 +565,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -632,7 +609,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: CircularProgressIndicator(
@@ -661,7 +638,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -711,11 +688,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Theme.of(context).dividerColor.withOpacity(0.5),
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -735,11 +712,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.5),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -750,21 +727,17 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 child: _buildPreviewPanel(settings),
               ),
             ),
-            // 悬浮按钮组：搜索按钮 + 全屏按钮 + TOC按钮
             Positioned(
               right: 24,
               bottom: 24,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 搜索按钮
-                  _buildSearchButton(),
+                  _buildFloatingButton(Icons.search, Colors.teal, _showSearchDialog),
                   const SizedBox(height: 12),
-                  // 全屏预览按钮
-                  _buildFullscreenButton(),
+                  _buildFloatingButton(Icons.fullscreen, Theme.of(context).colorScheme.secondary, _openFullscreenPreview),
                   const SizedBox(height: 12),
-                  // 目录按钮（始终显示）
-                  _buildTocButton(),
+                  _buildFloatingButton(Icons.list, Theme.of(context).colorScheme.primary, () => setState(() => _showToc = true)),
                 ],
               ),
             ),
@@ -781,7 +754,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: Theme.of(context).dividerColor.withOpacity(0.5),
+                      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                     ),
                   ),
                   child: ClipRRect(
@@ -797,7 +770,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: Theme.of(context).dividerColor.withOpacity(0.5),
+                      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                     ),
                   ),
                   child: ClipRRect(
@@ -812,544 +785,29 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
-  /// 构建全屏预览按钮
-  Widget _buildFullscreenButton({bool mini = false}) {
+  Widget _buildFloatingButton(IconData icon, Color color, VoidCallback onTap, {bool mini = false}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(mini ? 12 : 16),
-        onTap: _openFullscreenPreview,
+        onTap: onTap,
         child: Container(
           padding: EdgeInsets.all(mini ? 10 : 14),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Theme.of(context).colorScheme.secondary,
-                Theme.of(context).colorScheme.tertiary,
-              ],
-            ),
+            color: color,
             borderRadius: BorderRadius.circular(mini ? 12 : 16),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.secondary.withOpacity(0.4),
+                color: color.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Icon(
-            Icons.fullscreen,
+            icon,
             color: Colors.white,
             size: mini ? 18 : 24,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 打开全屏预览页面
-  void _openFullscreenPreview() {
-    final settings = context.read<SettingsProvider>();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => _FullscreenPreviewPage(
-          controller: _textController,
-          settings: settings,
-          fileName: fileName,
-          onCheckboxChanged: _toggleCheckbox,
-        ),
-      ),
-    );
-  }
-
-  /// 构建搜索悬浮按钮
-  Widget _buildSearchButton({bool mini = false}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(mini ? 12 : 16),
-        onTap: _showSearchDialog,
-        child: Container(
-          padding: EdgeInsets.all(mini ? 10 : 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.teal,
-                Colors.cyan,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(mini ? 12 : 16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.teal.withOpacity(0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.search,
-            color: Colors.white,
-            size: mini ? 18 : 24,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 显示搜索对话框
-  void _showSearchDialog() {
-    final searchController = TextEditingController();
-    List<int> matchPositions = [];
-    int currentMatchIndex = 0;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) {
-          void performSearch(String query) {
-            if (query.isEmpty) {
-              setModalState(() {
-                matchPositions = [];
-                currentMatchIndex = 0;
-              });
-              return;
-            }
-
-            final text = _textController.text.toLowerCase();
-            final searchText = query.toLowerCase();
-            final positions = <int>[];
-            int index = 0;
-            
-            while (true) {
-              index = text.indexOf(searchText, index);
-              if (index == -1) break;
-              positions.add(index);
-              index += searchText.length;
-            }
-
-            setModalState(() {
-              matchPositions = positions;
-              currentMatchIndex = positions.isNotEmpty ? 0 : -1;
-            });
-          }
-
-          void jumpToMatch(int position) {
-            // 关闭对话框
-            Navigator.pop(context);
-            
-            // 切换到编辑模式并跳转到匹配位置
-            setState(() => _mode = EditorMode.edit);
-            
-            // 延迟执行以确保编辑器已渲染
-            Future.delayed(const Duration(milliseconds: 100), () {
-              final query = searchController.text;
-              _textController.selection = TextSelection(
-                baseOffset: position,
-                extentOffset: position + query.length,
-              );
-              
-              // 滚动到匹配位置
-              if (_editScrollController.hasClients) {
-                final lines = _textController.text.substring(0, position).split('\n');
-                final lineHeight = 24.0; // 估算行高
-                final targetScroll = lines.length * lineHeight;
-                _editScrollController.animateTo(
-                  targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              }
-            });
-          }
-
-          // 获取键盘高度
-          final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-          final screenHeight = MediaQuery.of(context).size.height;
-          // 动态计算最大高度：屏幕高度 - 键盘高度 - 顶部安全边距
-          final maxHeight = screenHeight - bottomInset - 100;
-          
-          return Padding(
-            padding: EdgeInsets.only(bottom: bottomInset), // 适配输入法高度
-            child: Container(
-              constraints: BoxConstraints(
-                maxHeight: maxHeight > 200 ? maxHeight : 200, // 确保最小高度
-                minHeight: 200,
-              ),
-              // removing fixed height
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-            child: Column(
-              children: [
-                // 拖动指示器
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                // 搜索输入框
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: searchController,
-                          autofocus: true,
-                          decoration: InputDecoration(
-                            hintText: '搜索内容...',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: matchPositions.isNotEmpty
-                                ? Text(
-                                    '${currentMatchIndex + 1}/${matchPositions.length}',
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  )
-                                : null,
-                            suffixIconConstraints: const BoxConstraints(minWidth: 60),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            filled: true,
-                            fillColor: Theme.of(context).colorScheme.surface,
-                          ),
-                          onChanged: performSearch,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // 上一个/下一个按钮
-                      IconButton(
-                        icon: const Icon(Icons.keyboard_arrow_up),
-                        onPressed: matchPositions.isEmpty ? null : () {
-                          setModalState(() {
-                            currentMatchIndex = (currentMatchIndex - 1 + matchPositions.length) % matchPositions.length;
-                          });
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        onPressed: matchPositions.isEmpty ? null : () {
-                          setModalState(() {
-                            currentMatchIndex = (currentMatchIndex + 1) % matchPositions.length;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                // 搜索结果列表
-                Expanded(
-                  child: matchPositions.isEmpty
-                      ? Center(
-                          child: Text(
-                            searchController.text.isEmpty ? '输入关键词开始搜索' : '未找到匹配内容',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: matchPositions.length,
-                          itemBuilder: (context, index) {
-                            final position = matchPositions[index];
-                            final text = _textController.text;
-                            final start = (position - 20).clamp(0, text.length);
-                            final end = (position + searchController.text.length + 20).clamp(0, text.length);
-                            final context_ = text.substring(start, end).replaceAll('\n', ' ');
-
-                            return ListTile(
-                              leading: CircleAvatar(
-                                radius: 14,
-                                backgroundColor: index == currentMatchIndex
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                                child: Text(
-                                  '${index + 1}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: index == currentMatchIndex
-                                        ? Colors.white
-                                        : Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                '...$context_...',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              onTap: () => jumpToMatch(position),
-                            );
-                          },
-                        ),  // ListView.builder end
-                ),  // Expanded end
-              ],  // Column children end
-            ),  // Column end
-          ),  // Container end
-        );  // Padding end
-        },
-      ),
-    );
-  }
-
-  /// 切换checkbox状态
-  /// [index] 是checkbox在markdown中的索引（从0开始）
-  /// [newValue] 是新的选中状态
-  void _toggleCheckbox(int index, bool newValue) {
-    final text = _textController.text;
-    final lines = text.split('\n');
-    int checkboxCount = 0;
-    
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      // 匹配任务列表项: - [ ] 或 - [x] 或 - [X]
-      final uncheckedMatch = RegExp(r'^(\s*-\s*)\[\s*\](.*)$').firstMatch(line);
-      final checkedMatch = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$').firstMatch(line);
-      
-      if (uncheckedMatch != null || checkedMatch != null) {
-        if (checkboxCount == index) {
-          // 找到目标checkbox，切换状态
-          if (newValue) {
-            // 从未选中切换到选中
-            if (uncheckedMatch != null) {
-              lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
-            }
-          } else {
-            // 从选中切换到未选中
-            if (checkedMatch != null) {
-              lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
-            }
-          }
-          break;
-        }
-        checkboxCount++;
-      }
-    }
-    
-    // 更新文本内容
-    final newText = lines.join('\n');
-    if (newText != text) {
-      setState(() {
-        _textController.text = newText;
-        _isModified = true;
-      });
-    }
-  }
-
-  Widget _buildTocButton({bool mini = false}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(mini ? 12 : 16),
-        onTap: () => setState(() => _showToc = true),
-        child: Container(
-          padding: EdgeInsets.all(mini ? 10 : 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Theme.of(context).colorScheme.primary,
-                Theme.of(context).colorScheme.secondary,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(mini ? 12 : 16),
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.list,
-            color: Colors.white,
-            size: mini ? 18 : 24,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTocOverlay() {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return GestureDetector(
-          onTap: () => setState(() => _showToc = false),
-          child: Container(
-            color: Colors.black.withOpacity(0.5 * value), // 背景淡入
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Transform.translate(
-                offset: Offset((1 - value) * 100, 0), // 从右侧滑入
-                child: Opacity(
-                  opacity: value,
-                  child: GestureDetector(
-                    onTap: () {}, // Prevent close on panel tap
-                    child: Container(
-              width: MediaQuery.of(context).size.width * 0.75,
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(-5, 0),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                          Theme.of(context).colorScheme.secondary.withOpacity(0.05),
-                        ],
-                      ),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(20),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.list,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '目录',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => setState(() => _showToc = false),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // TOC items
-                  Expanded(
-                    child: _tocItems.isEmpty
-                        ? Center(
-                            child: Text(
-                              '没有找到标题',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context).colorScheme.outline,
-                                  ),
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _tocItems.length,
-                            itemBuilder: (context, index) {
-                              final item = _tocItems[index];
-                              return _buildTocItem(item);
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            ),
-          ),  // Opacity end
-        ),  // Transform.translate end
-      ),  // Align end
-    ),  // Container end
-  ),  // GestureDetector end
-);  // Outer GestureDetector end
-      },  // TweenAnimationBuilder builder end
-    );  // TweenAnimationBuilder end
-  }
-
-  Widget _buildTocItem(TocItem item) {
-    final indent = (item.level - 1) * 16.0;
-    final colors = [
-      Theme.of(context).colorScheme.primary,
-      Colors.blue,
-      Colors.teal,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-    ];
-    final color = colors[(item.level - 1) % colors.length];
-
-    return Padding(
-      padding: EdgeInsets.only(left: indent, bottom: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _jumpToHeading(item),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: color.withOpacity(0.2),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'H${item.level}',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: TextStyle(
-                      fontSize: 16 - (item.level - 1) * 1.0,
-                      fontWeight: item.level == 1 ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -1360,7 +818,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     return TextField(
       controller: _textController,
       scrollController: _editScrollController,
-      undoController: _undoController, // 启用撤回重做功能
+      undoController: _undoController,
       maxLines: null,
       expands: true,
       keyboardType: TextInputType.multiline,
@@ -1375,487 +833,19 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         contentPadding: const EdgeInsets.all(16),
         hintText: '开始编写你的 Markdown 内容...',
         hintStyle: TextStyle(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
         ),
       ),
     );
   }
 
   Widget _buildPreviewPanel(SettingsProvider settings) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // 计算当前checkbox索引（用于checkboxBuilder）
-    int checkboxIndex = 0;
-    
-    return Markdown(
-      controller: _previewScrollController,
+    return MarkdownPreview(
       data: _textController.text,
-      selectable: true,
-      padding: const EdgeInsets.all(16),
-      styleSheet: MarkdownStyleSheet(
-        p: TextStyle(
-          fontSize: settings.fontSize, 
-          height: 1.6,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        h1: TextStyle(
-          fontSize: settings.fontSize * 2,
-          fontWeight: FontWeight.bold,
-          height: 1.4,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        h2: TextStyle(
-          fontSize: settings.fontSize * 1.5,
-          fontWeight: FontWeight.bold,
-          height: 1.4,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        h3: TextStyle(
-          fontSize: settings.fontSize * 1.25,
-          fontWeight: FontWeight.w600,
-          height: 1.4,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        h4: TextStyle(
-          fontSize: settings.fontSize * 1.1,
-          fontWeight: FontWeight.w600,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        h5: TextStyle(
-          fontSize: settings.fontSize,
-          fontWeight: FontWeight.w600,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        h6: TextStyle(
-          fontSize: settings.fontSize * 0.9,
-          fontWeight: FontWeight.w600,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        code: TextStyle(
-          backgroundColor: isDark 
-              ? const Color(0xFF2d2d2d) 
-              : const Color(0xFFf5f5f5),
-          fontFamily: settings.codeFontFamily == 'System' ? 'monospace' : settings.codeFontFamily,
-          fontSize: settings.fontSize * 0.9,
-          color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
-        ),
-        codeblockDecoration: BoxDecoration(
-          color: isDark 
-              ? const Color(0xFF1e1e1e) 
-              : const Color(0xFFf8f8f8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark 
-                ? const Color(0xFF3d3d3d) 
-                : const Color(0xFFe0e0e0),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        codeblockPadding: const EdgeInsets.all(16),
-        blockquoteDecoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(
-              color: Theme.of(context).colorScheme.primary,
-              width: 4,
-            ),
-          ),
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-        ),
-        blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        listBullet: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        horizontalRuleDecoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 1,
-            ),
-          ),
-        ),
-        tableHead: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: settings.fontSize,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        tableBody: TextStyle(
-          fontSize: settings.fontSize,
-          fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        ),
-        tableBorder: TableBorder.all(
-          color: Theme.of(context).dividerColor,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        tableCellsPadding: const EdgeInsets.all(8),
-        tableHeadAlign: TextAlign.center,
-      ),
-      // 自定义代码块构建器：使用语法高亮
-      builders: {
-        'code': CodeBlockBuilder(
-          isDark: isDark, 
-          fontSize: settings.fontSize,
-          fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
-        ),
-      },
-      // checkbox构建器：实现可点击的任务列表
-      checkboxBuilder: (bool value) {
-        final currentIndex = checkboxIndex++;
-        return Checkbox(
-          value: value,
-          onChanged: (newValue) {
-            _toggleCheckbox(currentIndex, newValue ?? false);
-            // 重置索引以便下次重建
-            checkboxIndex = 0;
-          },
-          activeColor: Theme.of(context).colorScheme.primary,
-        );
-      },
+      settings: settings,
+      controller: _previewScrollController,
+      onCheckboxChanged: _toggleCheckbox,
+      baseDirectory: File(widget.filePath).parent.path,
     );
-  }
-}
-
-/// Table of contents item
-class TocItem {
-  final int level;
-  final String title;
-  final int lineNumber;
-
-  TocItem({
-    required this.level,
-    required this.title,
-    required this.lineNumber,
-  });
-}
-
-/// 全屏预览页面
-/// 支持返回手势和返回键退出
-class _FullscreenPreviewPage extends StatefulWidget {
-  final TextEditingController controller;
-  final SettingsProvider settings;
-  final String fileName;
-  final Function(int, bool) onCheckboxChanged;
-
-  const _FullscreenPreviewPage({
-    required this.controller,
-    required this.settings,
-    required this.fileName,
-    required this.onCheckboxChanged,
-  });
-
-  @override
-  State<_FullscreenPreviewPage> createState() => _FullscreenPreviewPageState();
-}
-
-class _FullscreenPreviewPageState extends State<_FullscreenPreviewPage> {
-  int _checkboxIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    // 监听文本变化以刷新界面
-    widget.controller.addListener(_onTextChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onTextChanged);
-    super.dispose();
-  }
-
-  void _onTextChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    _checkboxIndex = 0; // 重置索引
-
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).dividerColor.withOpacity(0.5),
-              ),
-            ),
-            child: Icon(
-              Icons.fullscreen_exit,
-              size: 20,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          widget.fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        centerTitle: true,
-      ),
-      body: Markdown(
-        data: widget.controller.text,
-        selectable: true,
-        padding: const EdgeInsets.all(20),
-        // 添加代码高亮和复选框支持
-        builders: {
-          'code': CodeBlockBuilder(isDark: isDark, fontSize: widget.settings.fontSize),
-        },
-        checkboxBuilder: (bool value) {
-          final currentIndex = _checkboxIndex++;
-          return Checkbox(
-            value: value,
-            onChanged: (newValue) {
-              // 暂时在重绘前重置 index？虽然 Markdown 会重新构建
-              _checkboxIndex = 0; 
-              widget.onCheckboxChanged(currentIndex, newValue ?? false);
-            },
-            activeColor: Theme.of(context).colorScheme.primary,
-          );
-        },
-        styleSheet: MarkdownStyleSheet(
-          p: TextStyle(
-            fontSize: widget.settings.fontSize, 
-            height: 1.6,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          h1: TextStyle(
-            fontSize: widget.settings.fontSize * 2,
-            fontWeight: FontWeight.bold,
-            height: 1.4,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          h2: TextStyle(
-            fontSize: widget.settings.fontSize * 1.5,
-            fontWeight: FontWeight.bold,
-            height: 1.4,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          h3: TextStyle(
-            fontSize: widget.settings.fontSize * 1.25,
-            fontWeight: FontWeight.w600,
-            height: 1.4,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          h4: TextStyle(
-            fontSize: widget.settings.fontSize * 1.1,
-            fontWeight: FontWeight.w600,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          h5: TextStyle(
-            fontSize: widget.settings.fontSize,
-            fontWeight: FontWeight.w600,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          h6: TextStyle(
-            fontSize: widget.settings.fontSize * 0.9,
-            fontWeight: FontWeight.w600,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          code: TextStyle(
-            backgroundColor: isDark 
-                ? const Color(0xFF2d2d2d) 
-                : const Color(0xFFf5f5f5),
-            fontFamily: widget.settings.codeFontFamily == 'System' ? 'monospace' : widget.settings.codeFontFamily,
-            fontSize: widget.settings.fontSize * 0.9,
-            color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
-          ),
-          codeblockDecoration: BoxDecoration(
-            color: isDark 
-                ? const Color(0xFF1e1e1e) 
-                : const Color(0xFFf8f8f8),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark 
-                  ? const Color(0xFF3d3d3d) 
-                  : const Color(0xFFe0e0e0),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          codeblockPadding: const EdgeInsets.all(16),
-          blockquoteDecoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: Theme.of(context).colorScheme.primary,
-                width: 4,
-              ),
-            ),
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-          ),
-          blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-          listBullet: TextStyle(
-            color: Theme.of(context).colorScheme.primary,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          horizontalRuleDecoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(
-                color: Theme.of(context).dividerColor,
-                width: 1,
-              ),
-            ),
-          ),
-          tableHead: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: widget.settings.fontSize,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          tableBody: TextStyle(
-            fontSize: widget.settings.fontSize,
-            fontFamily: widget.settings.editorFontFamily == 'System' ? null : widget.settings.editorFontFamily,
-          ),
-          tableBorder: TableBorder.all(
-            color: Theme.of(context).dividerColor,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          tableCellsPadding: const EdgeInsets.all(8),
-          tableHeadAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-}
-
-/// 代码块语法高亮构建器
-/// 
-/// 为 Markdown 中的代码块提供语法高亮支持
-class CodeBlockBuilder extends MarkdownElementBuilder {
-  final bool isDark;
-  final double fontSize;
-  final String? fontFamily;
-  
-  CodeBlockBuilder({
-    required this.isDark, 
-    required this.fontSize,
-    this.fontFamily,
-  });
-  
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    // 只处理代码块，不处理行内代码
-    if (element.tag != 'code') return null;
-    
-    // 获取代码内容
-    final code = element.textContent;
-    
-    // 获取语言类型（从 class 属性中提取，如 language-dart）
-    String language = '';
-    final className = element.attributes['class'];
-    if (className != null && className.startsWith('language-')) {
-      language = className.replaceFirst('language-', '');
-    }
-    
-    // 如果没有指定语言或代码较短，使用默认样式
-    if (language.isEmpty || code.length < 20) {
-      return null; // 返回 null 使用默认渲染
-    }
-    
-    // 使用语法高亮渲染
-    try {
-      return Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF282c34) : const Color(0xFFfafafa),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark ? const Color(0xFF3d3d3d) : const Color(0xFFe0e0e0),
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 语言标签
-              if (language.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark 
-                        ? const Color(0xFF21252b) 
-                        : const Color(0xFFf0f0f0),
-                    border: Border(
-                      bottom: BorderSide(
-                        color: isDark 
-                            ? const Color(0xFF3d3d3d) 
-                            : const Color(0xFFe0e0e0),
-                      ),
-                    ),
-                  ),
-                  child: Text(
-                    language.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isDark 
-                          ? const Color(0xFF7f848e) 
-                          : const Color(0xFF6a737d),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              // 代码内容（带语法高亮）
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.all(16),
-                child: HighlightView(
-                  code,
-                  language: _mapLanguage(language),
-                  theme: isDark ? atomOneDarkTheme : atomOneLightTheme,
-                  textStyle: TextStyle(
-                    fontFamily: fontFamily ?? 'monospace',
-                    fontSize: fontSize * 0.85,
-                    height: 1.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    } catch (e) {
-      // 如果高亮失败，返回 null 使用默认渲染
-      return null;
-    }
-  }
-  
-  /// 映射常见语言别名到 flutter_highlight 支持的语言
-  String _mapLanguage(String lang) {
-    final langMap = {
-      'js': 'javascript',
-      'ts': 'typescript',
-      'py': 'python',
-      'rb': 'ruby',
-      'sh': 'bash',
-      'shell': 'bash',
-      'yml': 'yaml',
-      'md': 'markdown',
-      'objc': 'objectivec',
-      'c++': 'cpp',
-      'c#': 'csharp',
-    };
-    return langMap[lang.toLowerCase()] ?? lang.toLowerCase();
   }
 }

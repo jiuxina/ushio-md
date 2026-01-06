@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import '../services/my_files_service.dart';
 
 /// Markdown editing toolbar with beautiful gradient buttons
 class MarkdownToolbar extends StatelessWidget {
@@ -23,14 +24,14 @@ class MarkdownToolbar extends StatelessWidget {
       height: 56,
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Theme.of(context).dividerColor.withOpacity(0.5),
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -196,7 +197,7 @@ class MarkdownToolbar extends StatelessWidget {
       width: 1,
       height: 24,
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      color: Theme.of(context).dividerColor.withOpacity(0.3),
+      color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
     );
   }
 
@@ -297,7 +298,7 @@ class MarkdownToolbar extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -355,16 +356,16 @@ class MarkdownToolbar extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color),
@@ -413,7 +414,7 @@ class MarkdownToolbar extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
+                color: Colors.blue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.link, color: Colors.blue),
@@ -479,6 +480,26 @@ class MarkdownToolbar extends StatelessWidget {
   }
 
   Future<void> _pickImageFile(BuildContext context) async {
+    // 首先检查当前文档是否在"我的文件"工作区中
+    final myFilesService = MyFilesService();
+    
+    if (filePath == null) {
+      if (context.mounted) {
+        _showMustSaveToMyFilesDialog(context, null);
+      }
+      return;
+    }
+    
+    final isInWorkspace = await myFilesService.isInWorkspace(filePath!);
+    
+    if (!isInWorkspace) {
+      if (context.mounted) {
+        _showMustSaveToMyFilesDialog(context, filePath);
+      }
+      return;
+    }
+    
+    // 文档在工作区内，允许选择图片
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
@@ -487,19 +508,41 @@ class MarkdownToolbar extends StatelessWidget {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        final path = file.path ?? file.name;
+        final imagePath = file.path ?? file.name;
         
-        // Check if file is accessible
-        final isAccessible = await _checkFileAccessible(path);
+        // 检查图片是否可访问
+        final isAccessible = await _checkFileAccessible(imagePath);
         
-        if (isAccessible) {
-          // Use original path directly
-          _insertImageWithUrl(path, file.name);
-        } else {
-          // Show dialog asking user what to do
-          if (context.mounted) {
-            _showImageAccessDialog(context, path, file.name);
+        if (isAccessible && context.mounted) {
+          // 复制图片到文档的 images 子目录
+          try {
+            final relativePath = await myFilesService.copyImageToDocument(imagePath, filePath!);
+            _insertImageWithUrl(relativePath, file.name);
+            
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.check, color: Colors.green),
+                      const SizedBox(width: 12),
+                      const Text('图片已保存到 images 文件夹'),
+                    ],
+                  ),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('保存图片失败: $e')),
+              );
+            }
           }
+        } else if (context.mounted) {
+          _showImageAccessDialog(context, imagePath, file.name);
         }
       }
     } catch (e) {
@@ -509,6 +552,40 @@ class MarkdownToolbar extends StatelessWidget {
         );
       }
     }
+  }
+
+  /// 显示需要保存到"我的文件"的对话框
+  void _showMustSaveToMyFilesDialog(BuildContext context, String? currentPath) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.folder_special, color: Colors.orange),
+            ),
+            const SizedBox(width: 12),
+            const Flexible(child: Text('需要保存到我的文件')),
+          ],
+        ),
+        content: const Text(
+          '插入本地图片功能仅适用于"我的文件"工作区中的文档。\n\n'
+          '请将当前文档保存到"我的文件"后再使用此功能，这样可以确保图片能够正确同步到云端。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('我知道了'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Check if a file is accessible by the app
@@ -545,7 +622,7 @@ class MarkdownToolbar extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -553,7 +630,7 @@ class MarkdownToolbar extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -643,7 +720,6 @@ class MarkdownToolbar extends StatelessWidget {
       // Copy image to images folder
       final sourceFile = File(imagePath);
       final targetPath = '${imagesDir.path}${Platform.pathSeparator}$imageName';
-      final targetFile = File(targetPath);
 
       // Check if file with same name already exists
       int counter = 1;
@@ -674,7 +750,7 @@ class MarkdownToolbar extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
+                    color: Colors.green.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.check, color: Colors.green, size: 16),
@@ -821,8 +897,8 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
               gradient: (_isHovered && isEnabled)
                   ? LinearGradient(
                       colors: [
-                        Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                        Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                        Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
                       ],
                     )
                   : null,
@@ -834,8 +910,8 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
               color: isEnabled
                   ? (_isHovered
                       ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7))
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.3), // 禁用时灰色
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3), // 禁用时灰色
             ),
           ),
         ),
