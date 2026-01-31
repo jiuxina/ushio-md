@@ -655,9 +655,9 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('正在检查插件更新...'),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text('正在检查插件更新...'),
               ],
             ),
           ),
@@ -880,9 +880,9 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('加载使用说明...'),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text('加载使用说明...'),
               ],
             ),
           ),
