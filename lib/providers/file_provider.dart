@@ -23,8 +23,6 @@ import '../services/file_service.dart';
 class FileProvider extends ChangeNotifier {
   // ==================== 依赖 ====================
   
-  // ==================== 依赖 ====================
-  
   /// 文件服务（处理实际的文件系统操作）
   final FileService _fileService;
 
