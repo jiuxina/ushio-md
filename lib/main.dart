@@ -30,17 +30,13 @@ import 'providers/settings_provider.dart';
 import 'providers/plugin_provider.dart';
 import 'plugins/extensions/theme_extension.dart';
 import 'screens/main_screen.dart';
+import 'services/font_service.dart';
+import 'services/my_files_service.dart';
 import 'utils/constants.dart';
 
 /// ============================================================================
 /// 应用入口
 /// ============================================================================
-
-/// 应用程序入口函数
-/// 
-/// 初始化 Flutter 绑定并启动应用
-import 'services/font_service.dart';
-import 'services/my_files_service.dart';
 
 /// 应用程序入口函数
 /// 
