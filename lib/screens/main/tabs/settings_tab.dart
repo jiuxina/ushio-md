@@ -61,7 +61,7 @@ class SettingsTab extends StatelessWidget {
                 icon: Icons.cloud_sync,
                 iconColor: Colors.teal,
                 title: '云同步',
-                subtitle: settings.webdavUrl.isNotEmpty == true ? '已配置' : '未配置',
+                subtitle: settings.webdavUrl.isNotEmpty ? '已配置' : '未配置',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CloudSyncScreen()),
