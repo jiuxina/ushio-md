@@ -13,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/webdav_service.dart';
+import '../../services/ftp_service.dart';
+import '../../services/sync_service_interface.dart';
 import '../../services/my_files_service.dart';
 import '../../services/cloud_sync_service.dart';
 import '../../widgets/app_background.dart';
@@ -26,9 +28,19 @@ class CloudSyncScreen extends StatefulWidget {
 
 class _CloudSyncScreenState extends State<CloudSyncScreen> {
   final _formKey = GlobalKey<FormState>();
+
+  // WebDAV 控制器
   final _urlController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _webdavUsernameController = TextEditingController();
+  final _webdavPasswordController = TextEditingController();
+
+  // FTP 控制器
+  final _ftpHostController = TextEditingController();
+  final _ftpPortController = TextEditingController();
+  final _ftpUsernameController = TextEditingController();
+  final _ftpPasswordController = TextEditingController();
+
+  // 共用控制器
   final _folderNameController = TextEditingController();
   final _remotePathController = TextEditingController();
 
@@ -38,45 +50,86 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   bool? _testResult;
   String? _syncError;
 
-  late WebDAVService _webdavService;
+  late SyncServiceInterface _syncService;
   late CloudSyncService _cloudSyncService;
+  String _selectedSyncType = 'webdav'; // 默认 WebDAV
 
   @override
   void initState() {
     super.initState();
-    _webdavService = WebDAVService();
-    _cloudSyncService = CloudSyncService(
-      webdavService: _webdavService,
-      myFilesService: MyFilesService(),
-    );
 
     // 加载现有配置
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<SettingsProvider>();
+
+      // 加载同步类型
+      _selectedSyncType = settings.syncType;
+
+      // 加载 WebDAV 配置
       _urlController.text = settings.webdavUrl;
-      _usernameController.text = settings.webdavUsername;
-      _passwordController.text = settings.webdavPassword;
+      _webdavUsernameController.text = settings.webdavUsername;
+      _webdavPasswordController.text = settings.webdavPassword;
+
+      // 加载 FTP 配置
+      _ftpHostController.text = settings.ftpHost;
+      _ftpPortController.text = settings.ftpPort.toString();
+      _ftpUsernameController.text = settings.ftpUsername;
+      _ftpPasswordController.text = settings.ftpPassword;
+
+      // 加载共用配置
       _folderNameController.text = settings.syncFolderName;
       _remotePathController.text = settings.syncRemotePath;
 
-      // 如果有配置，初始化服务
+      // 初始化服务
+      _initializeSyncService();
+    });
+  }
+
+  void _initializeSyncService() {
+    final settings = context.read<SettingsProvider>();
+
+    if (_selectedSyncType == 'webdav') {
+      final webdavService = WebDAVService();
       if (settings.isWebdavConfigured) {
-        _webdavService.setRemoteWorkspaceName(settings.syncFolderName);
-        _webdavService.setRemotePathPrefix(settings.syncRemotePath);
-        _webdavService.initialize(WebDAVConfig(
+        webdavService.setRemoteWorkspaceName(settings.syncFolderName);
+        webdavService.setRemotePathPrefix(settings.syncRemotePath);
+        webdavService.initialize(WebDAVConfig(
           url: settings.webdavUrl,
           username: settings.webdavUsername,
           password: settings.webdavPassword,
         ));
       }
-    });
+      _syncService = webdavService;
+    } else {
+      final ftpService = FTPService();
+      if (settings.isFtpConfigured) {
+        ftpService.setRemoteWorkspaceName(settings.syncFolderName);
+        ftpService.setRemotePathPrefix(settings.syncRemotePath);
+        ftpService.initialize(FTPConfig(
+          host: settings.ftpHost,
+          port: settings.ftpPort,
+          username: settings.ftpUsername,
+          password: settings.ftpPassword,
+        ));
+      }
+      _syncService = ftpService;
+    }
+
+    _cloudSyncService = CloudSyncService(
+      syncService: _syncService,
+      myFilesService: MyFilesService(),
+    );
   }
 
   @override
   void dispose() {
     _urlController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
+    _webdavUsernameController.dispose();
+    _webdavPasswordController.dispose();
+    _ftpHostController.dispose();
+    _ftpPortController.dispose();
+    _ftpUsernameController.dispose();
+    _ftpPasswordController.dispose();
     _folderNameController.dispose();
     _remotePathController.dispose();
     super.dispose();
@@ -119,6 +172,8 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   Widget _buildInfoCard() {
     final settings = context.watch<SettingsProvider>();
     final fullPath = settings.getFullSyncPath();
+    final syncTypeName = _selectedSyncType == 'webdav' ? 'WebDAV' : 'FTP';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -147,7 +202,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'WebDAV 云同步',
+                  '$syncTypeName 云同步',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -172,72 +227,44 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'WebDAV 服务器配置',
+          '云同步服务配置',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
         ),
         const SizedBox(height: 16),
-        TextFormField(
-          controller: _urlController,
+
+        // 同步类型选择器
+        DropdownButtonFormField<String>(
+          value: _selectedSyncType,
           decoration: InputDecoration(
-            labelText: '服务器地址',
-            hintText: 'https://dav.example.com',
-            prefixIcon: const Icon(Icons.link),
+            labelText: '同步服务类型',
+            prefixIcon: const Icon(Icons.sync_alt),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          keyboardType: TextInputType.url,
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return '请输入服务器地址';
+          items: const [
+            DropdownMenuItem(value: 'webdav', child: Text('WebDAV')),
+            DropdownMenuItem(value: 'ftp', child: Text('FTP')),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _selectedSyncType = value;
+                _testResult = null; // 重置测试结果
+              });
+              _initializeSyncService();
             }
-            if (!value.startsWith('http://') && !value.startsWith('https://')) {
-              return '请输入有效的 URL（以 http:// 或 https:// 开头）';
-            }
-            return null;
           },
         ),
         const SizedBox(height: 16),
-        TextFormField(
-          controller: _usernameController,
-          decoration: InputDecoration(
-            labelText: '用户名',
-            prefixIcon: const Icon(Icons.person),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return '请输入用户名';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _passwordController,
-          obscureText: !_isPasswordVisible,
-          decoration: InputDecoration(
-            labelText: '密码',
-            prefixIcon: const Icon(Icons.lock),
-            suffixIcon: IconButton(
-              icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return '请输入密码';
-            }
-            return null;
-          },
-        ),
+
+        // 根据选择的类型显示不同的配置字段
+        if (_selectedSyncType == 'webdav') ..._buildWebDAVFields(),
+        if (_selectedSyncType == 'ftp') ..._buildFTPFields(),
+
+        // 共用字段
         const SizedBox(height: 16),
         TextFormField(
           controller: _folderNameController,
@@ -343,6 +370,155 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     );
   }
 
+  List<Widget> _buildWebDAVFields() {
+    return [
+      TextFormField(
+        controller: _urlController,
+        decoration: InputDecoration(
+          labelText: '服务器地址',
+          hintText: 'https://dav.example.com',
+          prefixIcon: const Icon(Icons.link),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        keyboardType: TextInputType.url,
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return '请输入服务器地址';
+          }
+          if (!value.startsWith('http://') && !value.startsWith('https://')) {
+            return '请输入有效的 URL（以 http:// 或 https:// 开头）';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _webdavUsernameController,
+        decoration: InputDecoration(
+          labelText: '用户名',
+          prefixIcon: const Icon(Icons.person),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return '请输入用户名';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _webdavPasswordController,
+        obscureText: !_isPasswordVisible,
+        decoration: InputDecoration(
+          labelText: '密码',
+          prefixIcon: const Icon(Icons.lock),
+          suffixIcon: IconButton(
+            icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
+            onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return '请输入密码';
+          }
+          return null;
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _buildFTPFields() {
+    return [
+      TextFormField(
+        controller: _ftpHostController,
+        decoration: InputDecoration(
+          labelText: 'FTP 服务器地址',
+          hintText: 'ftp.example.com',
+          prefixIcon: const Icon(Icons.dns),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return '请输入服务器地址';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _ftpPortController,
+        decoration: InputDecoration(
+          labelText: '端口',
+          hintText: '21',
+          prefixIcon: const Icon(Icons.numbers),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        keyboardType: TextInputType.number,
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return '请输入端口';
+          }
+          final port = int.tryParse(value);
+          if (port == null || port < 1 || port > 65535) {
+            return '请输入有效的端口号 (1-65535)';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _ftpUsernameController,
+        decoration: InputDecoration(
+          labelText: '用户名',
+          prefixIcon: const Icon(Icons.person),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return '请输入用户名';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _ftpPasswordController,
+        obscureText: !_isPasswordVisible,
+        decoration: InputDecoration(
+          labelText: '密码',
+          prefixIcon: const Icon(Icons.lock),
+          suffixIcon: IconButton(
+            icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility),
+            onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return '请输入密码';
+          }
+          return null;
+        },
+      ),
+    ];
+  }
+
   Widget _buildSyncControlsSection(SettingsProvider settings) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,7 +575,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                   ),
                   Switch(
                     value: settings.autoSyncEnabled,
-                    onChanged: settings.isWebdavConfigured
+                    onChanged: settings.isSyncConfigured
                         ? (value) => settings.setAutoSyncEnabled(value)
                         : null,
                   ),
@@ -409,7 +585,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: settings.isWebdavConfigured && !_isSyncing
+                  onPressed: settings.isSyncConfigured && !_isSyncing
                       ? _performSync
                       : null,
                   icon: _isSyncing
@@ -461,6 +637,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   }
 
   Widget _buildStatusSection(SettingsProvider settings) {
+    final syncTypeName = settings.syncType == 'webdav' ? 'WebDAV' : 'FTP';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -483,9 +660,15 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           child: Column(
             children: [
               _buildStatusRow(
+                '同步服务',
+                syncTypeName,
+                Theme.of(context).colorScheme.primary,
+              ),
+              const Divider(height: 24),
+              _buildStatusRow(
                 '配置状态',
-                settings.isWebdavConfigured ? '已配置' : '未配置',
-                settings.isWebdavConfigured ? Colors.green : Colors.orange,
+                settings.isSyncConfigured ? '已配置' : '未配置',
+                settings.isSyncConfigured ? Colors.green : Colors.orange,
               ),
               const Divider(height: 24),
               _buildStatusRow(
@@ -554,15 +737,25 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       _testResult = null;
     });
 
-    _webdavService.setRemoteWorkspaceName(_folderNameController.text.trim());
-    _webdavService.setRemotePathPrefix(_remotePathController.text.trim());
-    _webdavService.initialize(WebDAVConfig(
-      url: _urlController.text.trim(),
-      username: _usernameController.text.trim(),
-      password: _passwordController.text,
-    ));
+    _syncService.setRemoteWorkspaceName(_folderNameController.text.trim());
+    _syncService.setRemotePathPrefix(_remotePathController.text.trim());
 
-    final success = await _webdavService.testConnection();
+    if (_selectedSyncType == 'webdav') {
+      (_syncService as WebDAVService).initialize(WebDAVConfig(
+        url: _urlController.text.trim(),
+        username: _webdavUsernameController.text.trim(),
+        password: _webdavPasswordController.text,
+      ));
+    } else {
+      (_syncService as FTPService).initialize(FTPConfig(
+        host: _ftpHostController.text.trim(),
+        port: int.tryParse(_ftpPortController.text.trim()) ?? 21,
+        username: _ftpUsernameController.text.trim(),
+        password: _ftpPasswordController.text,
+      ));
+    }
+
+    final success = await _syncService.testConnection();
 
     if (mounted) {
       setState(() {
@@ -576,21 +769,28 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final settings = context.read<SettingsProvider>();
-    await settings.saveWebdavCredentials(
-      url: _urlController.text.trim(),
-      username: _usernameController.text.trim(),
-      password: _passwordController.text,
-    );
+
+    // 保存同步类型
+    await settings.setSyncType(_selectedSyncType);
+
+    // 保存对应的凭据
+    if (_selectedSyncType == 'webdav') {
+      await settings.setWebdavUrl(_urlController.text.trim());
+      await settings.setWebdavUsername(_webdavUsernameController.text.trim());
+      await settings.setWebdavPassword(_webdavPasswordController.text);
+    } else {
+      await settings.setFtpHost(_ftpHostController.text.trim());
+      await settings.setFtpPort(int.tryParse(_ftpPortController.text.trim()) ?? 21);
+      await settings.setFtpUsername(_ftpUsernameController.text.trim());
+      await settings.setFtpPassword(_ftpPasswordController.text);
+    }
+
+    // 保存共用配置
     await settings.setSyncFolderName(_folderNameController.text.trim());
     await settings.setSyncRemotePath(_remotePathController.text.trim());
 
-    _webdavService.setRemoteWorkspaceName(_folderNameController.text.trim());
-    _webdavService.setRemotePathPrefix(_remotePathController.text.trim());
-    _webdavService.initialize(WebDAVConfig(
-      url: _urlController.text.trim(),
-      username: _usernameController.text.trim(),
-      password: _passwordController.text,
-    ));
+    // 重新初始化服务
+    _initializeSyncService();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
