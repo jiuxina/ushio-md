@@ -846,7 +846,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             style: TextStyle(
               fontSize: settings.fontSize,
               fontFamily: settings.editorFontFamily == 'System'
-                  ? (block.isMultiLine ? 'monospace' : null)
+                  ? (block.content.trimLeft().startsWith('```') ? 'monospace' : null)
                   : settings.editorFontFamily,
               height: 1.5,
             ),
