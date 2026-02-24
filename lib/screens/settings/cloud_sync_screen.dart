@@ -301,6 +301,8 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            helperText: '修改此名称将重命名云端文件夹（不会创建新文件夹）',
+            helperMaxLines: 2,
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {

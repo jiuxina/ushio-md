@@ -68,6 +68,9 @@ class SettingsProvider extends ChangeNotifier {
   /// 工作区文件夹名称
   String _workspaceName = 'Ushio-MD';
 
+  /// 自定义工作区基础路径（可选，为null时使用默认的getExternalStorageDirectory）
+  String? _customWorkspaceBasePath;
+
   // ==================== 背景设置 ====================
   
   /// 背景图片路径（null 表示无背景图）
@@ -162,6 +165,7 @@ class SettingsProvider extends ChangeNotifier {
   int get autoSaveInterval => _autoSaveInterval;
   String? get defaultDirectory => _defaultDirectory;
   String get workspaceName => _workspaceName;
+  String? get customWorkspaceBasePath => _customWorkspaceBasePath;
   int get primaryColorIndex => _primaryColorIndex;
   Color get primaryColor => themeColors[_primaryColorIndex];
   String? get backgroundImagePath => _backgroundImagePath;
@@ -266,6 +270,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
     _defaultDirectory = prefs.getString('default_directory');
     _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-MD';
+    _customWorkspaceBasePath = prefs.getString('custom_workspace_base_path');
 
     // 背景设置
     _backgroundImagePath = prefs.getString('background_image_path');
@@ -523,10 +528,18 @@ class SettingsProvider extends ChangeNotifier {
     _workspaceName = name;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('workspace_name', name);
+    notifyListeners();
+  }
 
-    // 同步更新云端文件夹名称
-    await setSyncFolderName(name);
-
+  /// 设置自定义工作区基础路径
+  Future<void> setCustomWorkspaceBasePath(String? path) async {
+    _customWorkspaceBasePath = path;
+    final prefs = await SharedPreferences.getInstance();
+    if (path != null && path.isNotEmpty) {
+      await prefs.setString('custom_workspace_base_path', path);
+    } else {
+      await prefs.remove('custom_workspace_base_path');
+    }
     notifyListeners();
   }
 
