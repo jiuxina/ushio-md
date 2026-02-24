@@ -20,6 +20,21 @@ import '../services/export_service.dart';
 
 enum EditorMode { edit, preview, split }
 
+/// Represents a logical block of markdown content for inline editing
+class _MarkdownBlock {
+  final int startLine;
+  final int endLine;
+  final String content;
+  final bool isMultiLine;
+
+  const _MarkdownBlock({
+    required this.startLine,
+    required this.endLine,
+    required this.content,
+    required this.isMultiLine,
+  });
+}
+
 class EditorScreen extends StatefulWidget {
   final String filePath;
 
@@ -37,6 +52,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   late UndoHistoryController _undoController;
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
+
+  // Inline editing state
+  int? _editingBlockIndex;
+  late TextEditingController _inlineEditController;
+  late FocusNode _inlineEditFocusNode;
 
   EditorMode _mode = EditorMode.preview;
   bool _isLoading = true;
@@ -58,6 +78,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   static final _uncheckedBoxRegex = RegExp(r'^(\s*-\s*)\[\s*\](.*)$');
   static final _checkedBoxRegex = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$');
   static final _wordSplitRegex = RegExp(r'\s+');
+  static final _codeBlockStartRegex = RegExp(r'^\s*```');
+  static final _tableRowRegex = RegExp(r'^\s*\|');
+  static final _blockquoteRegex = RegExp(r'^\s*>');
 
   String? _error;
   List<TocItem> _tocItems = [];
@@ -71,6 +94,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _editScrollController = ScrollController();
     _previewScrollController = ScrollController();
     _undoController = UndoHistoryController();
+    _inlineEditController = TextEditingController();
+    _inlineEditFocusNode = FocusNode();
     _highlightController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -416,11 +441,18 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _editScrollController.dispose();
     _previewScrollController.dispose();
     _undoController.dispose();
+    _inlineEditController.dispose();
+    _inlineEditFocusNode.dispose();
     _highlightController.dispose();
     super.dispose();
   }
 
   Future<bool> _onWillPop() async {
+    // Finish any inline edit first
+    if (_editingBlockIndex != null) {
+      _finishInlineEdit();
+    }
+
     if (!_isModified) return true;
 
     final result = await showDialog<String>(
@@ -593,6 +625,274 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
+  // ==================== Block Parsing & Inline Editing ====================
+
+  /// Parse markdown text into logical blocks for inline editing.
+  /// Code blocks, tables, and blockquotes are grouped as multi-line blocks.
+  /// All other lines are individual blocks.
+  List<_MarkdownBlock> _parseBlocks(String text) {
+    final lines = text.split('\n');
+    final blocks = <_MarkdownBlock>[];
+    int i = 0;
+
+    while (i < lines.length) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      // Code block: ``` to ```
+      if (_codeBlockStartRegex.hasMatch(trimmed)) {
+        int end = i + 1;
+        while (end < lines.length && !_codeBlockStartRegex.hasMatch(lines[end].trim())) {
+          end++;
+        }
+        if (end < lines.length) end++; // include closing ```
+        blocks.add(_MarkdownBlock(
+          startLine: i,
+          endLine: end - 1,
+          content: lines.sublist(i, end).join('\n'),
+          isMultiLine: true,
+        ));
+        i = end;
+        continue;
+      }
+
+      // Table: contiguous | lines (need at least 2 rows)
+      if (_tableRowRegex.hasMatch(trimmed) && i + 1 < lines.length && _tableRowRegex.hasMatch(lines[i + 1].trim())) {
+        int end = i;
+        while (end < lines.length && _tableRowRegex.hasMatch(lines[end].trim())) {
+          end++;
+        }
+        blocks.add(_MarkdownBlock(
+          startLine: i,
+          endLine: end - 1,
+          content: lines.sublist(i, end).join('\n'),
+          isMultiLine: true,
+        ));
+        i = end;
+        continue;
+      }
+
+      // Blockquote: contiguous > lines
+      if (_blockquoteRegex.hasMatch(trimmed)) {
+        int end = i;
+        while (end < lines.length && _blockquoteRegex.hasMatch(lines[end].trim())) {
+          end++;
+        }
+        blocks.add(_MarkdownBlock(
+          startLine: i,
+          endLine: end - 1,
+          content: lines.sublist(i, end).join('\n'),
+          isMultiLine: end > i + 1,
+        ));
+        i = end;
+        continue;
+      }
+
+      // Single line
+      blocks.add(_MarkdownBlock(
+        startLine: i,
+        endLine: i,
+        content: line,
+        isMultiLine: false,
+      ));
+      i++;
+    }
+
+    return blocks;
+  }
+
+  /// Count checkboxes in a text segment
+  int _countCheckboxesInText(String text) {
+    int count = 0;
+    for (final line in text.split('\n')) {
+      if (_uncheckedBoxRegex.hasMatch(line) || _checkedBoxRegex.hasMatch(line)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /// Start inline editing for a specific block
+  void _startInlineEdit(int blockIndex, List<_MarkdownBlock> blocks) {
+    if (blockIndex < 0 || blockIndex >= blocks.length) return;
+
+    // Finish any current editing first
+    if (_editingBlockIndex != null) {
+      _finishInlineEdit();
+    }
+
+    // Re-parse blocks after finishing previous edit
+    final currentBlocks = _parseBlocks(_textController.text);
+    if (blockIndex >= currentBlocks.length) return;
+
+    _inlineEditController.text = currentBlocks[blockIndex].content;
+    setState(() {
+      _editingBlockIndex = blockIndex;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _inlineEditFocusNode.requestFocus();
+    });
+  }
+
+  /// Finish inline editing and apply changes
+  void _finishInlineEdit() {
+    if (_editingBlockIndex == null) return;
+
+    final blocks = _parseBlocks(_textController.text);
+    final editingIndex = _editingBlockIndex!;
+
+    // Clear editing state first
+    setState(() => _editingBlockIndex = null);
+
+    if (editingIndex < blocks.length) {
+      final block = blocks[editingIndex];
+      final lines = _textController.text.split('\n');
+
+      final editedLines = _inlineEditController.text.split('\n');
+      final newLines = <String>[
+        ...lines.sublist(0, block.startLine),
+        ...editedLines,
+        if (block.endLine + 1 < lines.length)
+          ...lines.sublist(block.endLine + 1),
+      ];
+
+      final newText = newLines.join('\n');
+      if (newText != _textController.text) {
+        _textController.text = newText;
+        // _isModified will be set by _onTextChanged listener
+      }
+    }
+  }
+
+  /// Cancel inline editing without saving
+  void _cancelInlineEdit() {
+    setState(() => _editingBlockIndex = null);
+  }
+
+  /// Build the inline-editable preview with block-based rendering
+  Widget _buildInlineEditablePreview(SettingsProvider settings) {
+    final blocks = _parseBlocks(_textController.text);
+
+    // Pre-compute checkbox offsets for each block
+    final checkboxOffsets = <int>[0];
+    for (int b = 0; b < blocks.length - 1; b++) {
+      checkboxOffsets.add(checkboxOffsets.last + _countCheckboxesInText(blocks[b].content));
+    }
+
+    return ListView.builder(
+      controller: _previewScrollController,
+      padding: const EdgeInsets.all(16),
+      itemCount: blocks.length,
+      itemBuilder: (context, index) {
+        final block = blocks[index];
+
+        // Currently editing this block
+        if (index == _editingBlockIndex) {
+          return _buildBlockEditor(block, settings);
+        }
+
+        // Empty line: render as spacer
+        if (block.content.trim().isEmpty) {
+          return GestureDetector(
+            onDoubleTap: _editingBlockIndex == null
+                ? () => _startInlineEdit(index, blocks)
+                : null,
+            child: const SizedBox(height: 8),
+          );
+        }
+
+        final checkboxOffset = index < checkboxOffsets.length ? checkboxOffsets[index] : 0;
+
+        return GestureDetector(
+          onDoubleTap: _editingBlockIndex == null
+              ? () => _startInlineEdit(index, blocks)
+              : null,
+          child: MarkdownPreview(
+            data: block.content,
+            settings: settings,
+            shrinkWrap: true,
+            onCheckboxChanged: (localIdx, value) {
+              _toggleCheckbox(checkboxOffset + localIdx, value);
+            },
+            baseDirectory: File(widget.filePath).parent.path,
+            onTapLink: _handleLinkTap,
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build the inline editor widget for a block
+  Widget _buildBlockEditor(_MarkdownBlock block, SettingsProvider settings) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _inlineEditController,
+            focusNode: _inlineEditFocusNode,
+            maxLines: block.isMultiLine ? null : 1,
+            keyboardType: block.isMultiLine ? TextInputType.multiline : TextInputType.text,
+            onSubmitted: block.isMultiLine ? null : (_) => _finishInlineEdit(),
+            style: TextStyle(
+              fontSize: settings.fontSize,
+              fontFamily: settings.editorFontFamily == 'System'
+                  ? (block.isMultiLine ? 'monospace' : null)
+                  : settings.editorFontFamily,
+              height: 1.5,
+            ),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+              hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
+              hintStyle: TextStyle(
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: _cancelInlineEdit,
+                  icon: const Icon(Icons.close, size: 16),
+                  label: const Text('取消'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: _finishInlineEdit,
+                  icon: const Icon(Icons.check, size: 16),
+                  label: const Text('完成'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -606,7 +906,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       },
       child: Scaffold(
-        resizeToAvoidBottomInset: false,
+        resizeToAvoidBottomInset: _editingBlockIndex != null,
         body: CallbackShortcuts(
           bindings: _buildShortcutBindings(),
           child: Stack(
@@ -663,10 +963,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   onSave: _saveFile,
                   onMore: _showMoreMenu,
                 ),
-                if (!_isLoading && _error == null && _mode != EditorMode.preview)
+                if (!_isLoading && _error == null && (_mode != EditorMode.preview || _editingBlockIndex != null))
                   MarkdownToolbar(
-                    controller: _textController,
-                    undoController: _undoController,
+                    controller: _editingBlockIndex != null ? _inlineEditController : _textController,
+                    undoController: _editingBlockIndex != null ? null : _undoController,
                     filePath: widget.filePath,
                     onSearchPressed: _showSearchDialog,
                   ),
@@ -818,28 +1118,25 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       case EditorMode.preview:
         return Stack(
           children: [
-            GestureDetector(
-              onDoubleTap: () => setState(() => _mode = EditorMode.edit),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: _buildPreviewPanel(settings),
-                ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: _buildInlineEditablePreview(settings),
               ),
             ),
             Positioned(
@@ -848,7 +1145,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () => setState(() => _mode = EditorMode.edit)),
+                  _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () {
+                    if (_editingBlockIndex != null) _finishInlineEdit();
+                    setState(() => _mode = EditorMode.edit);
+                  }),
                   const SizedBox(height: 12),
                   _buildFloatingButton(Icons.search, Colors.teal, _showSearchDialog),
                   const SizedBox(height: 12),
