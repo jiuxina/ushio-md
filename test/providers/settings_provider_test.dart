@@ -30,6 +30,7 @@ void main() {
       expect(provider.autoSave, true);
       expect(provider.autoSaveInterval, 30);
       expect(provider.webdavUrl, isEmpty);
+      expect(provider.syncFolderName, 'Ushio-MD');
     });
 
     test('setThemeMode 应更新内存和持久化存储', () async {
@@ -62,9 +63,17 @@ void main() {
     test('setAutoSyncEnabled 应更新状态', () async {
       await provider.setAutoSyncEnabled(true);
       expect(provider.autoSyncEnabled, true);
-      
+
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool('auto_sync_enabled'), true);
+    });
+
+    test('setSyncFolderName 应更新状态', () async {
+      await provider.setSyncFolderName('MyFolder');
+      expect(provider.syncFolderName, 'MyFolder');
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('sync_folder_name'), 'MyFolder');
     });
   });
 }

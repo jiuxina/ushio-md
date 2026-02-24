@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../widgets/markdown_preview.dart';
-import '../../../../widgets/app_background.dart';
 import '../../../../services/export_service.dart';
 
 class FullscreenPreviewPage extends StatefulWidget {
@@ -157,12 +156,30 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
       ),
       body: RepaintBoundary(
         key: _previewKey,
-        child: AppBackground(
-          child: MarkdownPreview(
-            data: widget.controller.text,
-            settings: widget.settings,
-            onCheckboxChanged: widget.onCheckboxChanged,
-            baseDirectory: widget.filePath != null ? File(widget.filePath!).parent.path : null,
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: MarkdownPreview(
+              data: widget.controller.text,
+              settings: widget.settings,
+              onCheckboxChanged: widget.onCheckboxChanged,
+              baseDirectory: widget.filePath != null ? File(widget.filePath!).parent.path : null,
+            ),
           ),
         ),
       ),
