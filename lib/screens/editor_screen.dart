@@ -165,14 +165,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     for (int i = 0; i < lines.length; i++) {
      final line = lines[i];
      final trimmedLine = line.trim();
-      
+
      // 处理代码块标记
      if (trimmedLine.startsWith('```')) {
        inCodeBlock = !inCodeBlock;
        lineNumber++;
        continue;
      }
-      
+
      if (inCodeBlock) {
        lineNumber++;
        continue;
@@ -188,9 +188,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
            level: level,
            title: title,
            lineNumber: lineNumber,
+           key: GlobalKey(), // Create a unique key for this heading
          ));
        }
-     } 
+     }
      // 2. 处理下划线标题 (= 和 -)
      else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
        final nextLine = lines[i + 1].trim();
@@ -200,12 +201,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
              level: 1,
              title: trimmedLine,
              lineNumber: lineNumber,
+             key: GlobalKey(), // Create a unique key for this heading
            ));
          } else if (_h2UnderlineRegex.hasMatch(nextLine)) {
            items.add(TocItem(
              level: 2,
              title: trimmedLine,
              lineNumber: lineNumber,
+             key: GlobalKey(), // Create a unique key for this heading
            ));
          }
        }
@@ -247,22 +250,22 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         );
       }
     } else {
-      if (_previewScrollController.hasClients) {
-        // Improved positioning strategy for preview mode
-        final maxScroll = _previewScrollController.position.maxScrollExtent;
-        final viewportHeight = _previewScrollController.position.viewportDimension;
-
-        // Calculate a weighted position based on heading structure
-        double estimatedPosition = _estimatePreviewPosition(item.lineNumber, lines);
-
-        // Calculate target scroll to center the content
-        final targetScroll = (estimatedPosition - viewportHeight / 2).clamp(0.0, maxScroll);
-
-        _previewScrollController.animateTo(
-          targetScroll,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOutCubic,
-        );
+      // Use anchor-based scrolling for preview mode
+      if (item.key != null && item.key!.currentContext != null) {
+        // Wait a frame to ensure the widget is built
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            Scrollable.ensureVisible(
+              item.key!.currentContext!,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOutCubic,
+              alignment: 0.15, // Position heading at ~15% from top (roughly centered with some offset)
+            );
+          } catch (e) {
+            // Fallback: If anchor scrolling fails, do nothing
+            debugPrint('Anchor scrolling failed: $e');
+          }
+        });
       }
     }
 
@@ -275,58 +278,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       });
     });
-  }
-
-  /// Estimate the preview position for a given line number
-  /// Uses a resolution-independent proportional strategy
-  double _estimatePreviewPosition(int targetLine, List<String> lines) {
-    if (!_previewScrollController.hasClients || lines.isEmpty) {
-      return 0.0;
-    }
-
-    final maxScroll = _previewScrollController.position.maxScrollExtent;
-
-    // Base proportional position: where the target line is in the document
-    final baseRatio = targetLine / lines.length;
-
-    // Count headings before target to add weight adjustment
-    // Headings render larger and take more vertical space
-    int headingWeight = 0;
-    int totalHeadingWeight = 0;
-
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
-      int weight = 0;
-
-      if (line.startsWith('# ')) {
-        weight = 4; // H1 takes ~4x normal line space
-      } else if (line.startsWith('## ')) {
-        weight = 3; // H2 takes ~3x normal line space
-      } else if (line.startsWith('### ')) {
-        weight = 2; // H3 takes ~2x normal line space
-      } else if (line.startsWith('#### ') || line.startsWith('##### ') || line.startsWith('###### ')) {
-        weight = 1; // H4-H6 take ~1.5x normal line space
-      }
-
-      totalHeadingWeight += weight;
-      if (i < targetLine) {
-        headingWeight += weight;
-      }
-    }
-
-    // Adjust ratio based on heading distribution
-    // If headings are concentrated before target, scroll further
-    double adjustedRatio = baseRatio;
-    if (totalHeadingWeight > 0) {
-      final headingRatio = headingWeight / totalHeadingWeight;
-      // Blend base ratio with heading-weighted ratio (70% base, 30% heading-adjusted)
-      adjustedRatio = baseRatio * 0.7 + headingRatio * 0.3;
-    }
-
-    // Apply ratio to max scroll
-    final estimatedPosition = adjustedRatio * maxScroll;
-
-    return estimatedPosition;
   }
 
   /// 自动保存
@@ -1006,6 +957,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   Widget _buildPreviewPanel(SettingsProvider settings) {
+    // Build a map of line numbers to GlobalKeys from TOC items
+    final headingKeys = <int, GlobalKey>{};
+    for (final item in _tocItems) {
+      if (item.key != null) {
+        headingKeys[item.lineNumber] = item.key!;
+      }
+    }
+
     return Stack(
       children: [
         MarkdownPreview(
@@ -1014,6 +973,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           controller: _previewScrollController,
           onCheckboxChanged: _toggleCheckbox,
           baseDirectory: File(widget.filePath).parent.path,
+          headingKeys: headingKeys,
         ),
         if (_highlightedLine != null && _mode != EditorMode.edit)
           AnimatedBuilder(
