@@ -248,17 +248,18 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       }
     } else {
       if (_previewScrollController.hasClients) {
-        // Simple proportional positioning - mainstream approach
-        // This is the most reliable method used by mainstream markdown editors
+        // Mainstream approach: Simple proportional scroll
+        // Used by most markdown preview implementations
         final maxScroll = _previewScrollController.position.maxScrollExtent;
         final viewportHeight = _previewScrollController.position.viewportDimension;
 
-        // Calculate proportional position based on line number
+        // Direct proportional positioning
+        // This works because markdown rendering is generally proportional to source lines
         final ratio = lines.isEmpty ? 0.0 : item.lineNumber / lines.length;
-        final estimatedPosition = ratio * maxScroll;
 
-        // Center the target position in viewport
-        final targetScroll = (estimatedPosition - viewportHeight / 2).clamp(0.0, maxScroll);
+        // Apply ratio directly to scroll position, centering in viewport
+        final targetPosition = ratio * (maxScroll + viewportHeight) - viewportHeight / 2;
+        final targetScroll = targetPosition.clamp(0.0, maxScroll);
 
         _previewScrollController.animateTo(
           targetScroll,
