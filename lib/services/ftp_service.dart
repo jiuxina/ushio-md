@@ -180,7 +180,9 @@ class FTPService implements SyncServiceInterface {
           ? fullRemotePath
           : '$fullRemotePath/$remotePath';
 
-      final files = await _ftpClient!.listDirectoryContent(dirPath: path);
+      // Change to the directory before listing
+      await _ftpClient!.changeDirectory(path);
+      final files = await _ftpClient!.listDirectoryContent();
 
       await _ftpClient!.disconnect();
 
@@ -188,7 +190,7 @@ class FTPService implements SyncServiceInterface {
       return files.map((f) => RemoteFileInfo(
         name: f.name,
         path: path + '/' + f.name,
-        isDirectory: f.type == FTPEntryType.DIRECTORY,
+        isDirectory: f.type == FTPEntryType.dir,
         modifiedTime: f.modifyTime,
       )).toList();
     } catch (e) {
