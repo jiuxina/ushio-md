@@ -103,6 +103,9 @@ class SettingsProvider extends ChangeNotifier {
 
   // ==================== 云同步设置 ====================
 
+  /// 同步类型（webdav 或 ftp）
+  String _syncType = 'webdav';
+
   /// WebDAV 服务器地址
   String _webdavUrl = '';
 
@@ -112,11 +115,20 @@ class SettingsProvider extends ChangeNotifier {
   /// WebDAV 密码
   String _webdavPassword = '';
 
+  /// FTP 服务器 URL (格式: ftp://host:port)
+  String _ftpUrl = '';
+
+  /// FTP 用户名
+  String _ftpUsername = '';
+
+  /// FTP 密码
+  String _ftpPassword = '';
+
   /// 云端同步文件夹名称
   String _syncFolderName = 'Ushio-MD';
 
   /// 云端文件夹路径前缀（不含文件夹名称）
-  String _syncRemotePath = '';
+  String _syncRemotePath = '/storage/emulated/0/';
 
   /// 是否启用自动同步
   bool _autoSyncEnabled = false;
@@ -171,14 +183,71 @@ class SettingsProvider extends ChangeNotifier {
   String get codeFontFamily => _codeFontFamily;
   
   // 云同步 Getters
+  String get syncType => _syncType;
   String get webdavUrl => _webdavUrl;
   String get webdavUsername => _webdavUsername;
   String get webdavPassword => _webdavPassword;
+  String get ftpUrl => _ftpUrl;
+
+  /// 从 FTP URL 解析主机名
+  String get ftpHost {
+    try {
+      final url = _ftpUrl.trim();
+      if (url.isEmpty) return '';
+
+      // 移除 ftp:// 前缀和末尾斜杠
+      String cleanUrl = url;
+      if (cleanUrl.startsWith('ftp://')) {
+        cleanUrl = cleanUrl.substring(6);
+      }
+      cleanUrl = cleanUrl.replaceAll(RegExp(r'/+$'), '');
+
+      // 分离主机和端口
+      if (cleanUrl.contains(':')) {
+        return cleanUrl.split(':')[0];
+      }
+      return cleanUrl;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// 从 FTP URL 解析端口
+  int get ftpPort {
+    try {
+      final url = _ftpUrl.trim();
+      if (url.isEmpty) return 21;
+
+      // 移除 ftp:// 前缀和末尾斜杠
+      String cleanUrl = url;
+      if (cleanUrl.startsWith('ftp://')) {
+        cleanUrl = cleanUrl.substring(6);
+      }
+      cleanUrl = cleanUrl.replaceAll(RegExp(r'/+$'), '');
+
+      // 提取端口
+      if (cleanUrl.contains(':')) {
+        final parts = cleanUrl.split(':');
+        if (parts.length >= 2) {
+          return int.tryParse(parts[1]) ?? 21;
+        }
+      }
+      return 21;
+    } catch (e) {
+      return 21;
+    }
+  }
+
+  String get ftpUsername => _ftpUsername;
+  String get ftpPassword => _ftpPassword;
   String get syncFolderName => _syncFolderName;
   String get syncRemotePath => _syncRemotePath;
   bool get autoSyncEnabled => _autoSyncEnabled;
   DateTime? get lastSyncTime => _lastSyncTime;
+
   bool get isWebdavConfigured => _webdavUrl.isNotEmpty && _webdavUsername.isNotEmpty && _webdavPassword.isNotEmpty;
+  bool get isFtpConfigured => _ftpUrl.isNotEmpty && _ftpUsername.isNotEmpty && _ftpPassword.isNotEmpty;
+  bool get isSyncConfigured => _syncType == 'webdav' ? isWebdavConfigured : isFtpConfigured;
 
   // ==================== 初始化 ====================
 
@@ -225,17 +294,37 @@ class SettingsProvider extends ChangeNotifier {
     _codeFontFamily = prefs.getString('font_family_code') ?? 'JetBrains Mono'; // 代码块默认使用 JetBrains Mono 如果有
     
     // 云同步设置
+    _syncType = prefs.getString('sync_type') ?? 'webdav';
     _webdavUrl = prefs.getString('webdav_url') ?? '';
     _webdavUsername = prefs.getString('webdav_username') ?? '';
+
+    // FTP URL 设置（包含从旧格式的迁移逻辑）
+    _ftpUrl = prefs.getString('ftp_url') ?? '';
+    if (_ftpUrl.isEmpty) {
+      // 迁移旧格式：从 ftp_host 和 ftp_port 生成 URL
+      final oldHost = prefs.getString('ftp_host') ?? '';
+      final oldPort = prefs.getInt('ftp_port') ?? 21;
+      if (oldHost.isNotEmpty) {
+        _ftpUrl = 'ftp://$oldHost:$oldPort';
+        // 保存新格式
+        await prefs.setString('ftp_url', _ftpUrl);
+        // 清理旧数据
+        await prefs.remove('ftp_host');
+        await prefs.remove('ftp_port');
+      }
+    }
+
+    _ftpUsername = prefs.getString('ftp_username') ?? '';
     _syncFolderName = prefs.getString('sync_folder_name') ?? 'Ushio-MD';
-    _syncRemotePath = prefs.getString('sync_remote_path') ?? '';
+    _syncRemotePath = prefs.getString('sync_remote_path') ?? '/storage/emulated/0/';
     _autoSyncEnabled = prefs.getBool('auto_sync_enabled') ?? false;
     final lastSyncMs = prefs.getInt('last_sync_time');
     _lastSyncTime = lastSyncMs != null ? DateTime.fromMillisecondsSinceEpoch(lastSyncMs) : null;
-    
+
     // 从安全存储读取密码（包含迁移逻辑）
     _webdavPassword = await _secureStorage.read(key: 'webdav_password') ?? '';
-    
+    _ftpPassword = await _secureStorage.read(key: 'ftp_password') ?? '';
+
     // 迁移：如果安全存储中没有但 SharedPreferences 中有，则迁移
     if (_webdavPassword.isEmpty) {
       final oldPassword = prefs.getString('webdav_password');
@@ -495,6 +584,14 @@ class SettingsProvider extends ChangeNotifier {
 
   // ==================== 云同步设置方法 ====================
 
+  /// 设置同步类型
+  Future<void> setSyncType(String type) async {
+    _syncType = type;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('sync_type', type);
+    notifyListeners();
+  }
+
   /// 设置 WebDAV 服务器地址
   Future<void> setWebdavUrl(String url) async {
     _webdavUrl = url;
@@ -515,6 +612,32 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setWebdavPassword(String password) async {
     _webdavPassword = password;
     await _secureStorage.write(key: 'webdav_password', value: password);
+    notifyListeners();
+  }
+
+  /// 设置 FTP 服务器 URL
+  Future<void> setFtpUrl(String url) async {
+    // 规范化 URL：移除末尾的斜杠
+    String cleanUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
+
+    _ftpUrl = cleanUrl;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ftp_url', cleanUrl);
+    notifyListeners();
+  }
+
+  /// 设置 FTP 用户名
+  Future<void> setFtpUsername(String username) async {
+    _ftpUsername = username;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ftp_username', username);
+    notifyListeners();
+  }
+
+  /// 设置 FTP 密码（安全存储）
+  Future<void> setFtpPassword(String password) async {
+    _ftpPassword = password;
+    await _secureStorage.write(key: 'ftp_password', value: password);
     notifyListeners();
   }
 
