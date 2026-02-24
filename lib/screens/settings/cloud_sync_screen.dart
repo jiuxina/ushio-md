@@ -29,7 +29,8 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   final _urlController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+  final _folderNameController = TextEditingController();
+
   bool _isPasswordVisible = false;
   bool _isTesting = false;
   bool _isSyncing = false;
@@ -47,16 +48,18 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       webdavService: _webdavService,
       myFilesService: MyFilesService(),
     );
-    
+
     // 加载现有配置
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<SettingsProvider>();
       _urlController.text = settings.webdavUrl;
       _usernameController.text = settings.webdavUsername;
       _passwordController.text = settings.webdavPassword;
-      
+      _folderNameController.text = settings.syncFolderName;
+
       // 如果有配置，初始化服务
       if (settings.isWebdavConfigured) {
+        _webdavService.setRemoteWorkspaceName(settings.syncFolderName);
         _webdavService.initialize(WebDAVConfig(
           url: settings.webdavUrl,
           username: settings.webdavUsername,
@@ -71,6 +74,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _folderNameController.dispose();
     super.dispose();
   }
 
@@ -109,6 +113,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   }
 
   Widget _buildInfoCard() {
+    final settings = context.watch<SettingsProvider>();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -144,7 +149,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '将"我的文件"同步到云端 Ushio-MD 文件夹',
+                  '将"我的文件"同步到云端 ${settings.syncFolderName} 文件夹',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
@@ -224,6 +229,27 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           validator: (value) {
             if (value == null || value.isEmpty) {
               return '请输入密码';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _folderNameController,
+          decoration: InputDecoration(
+            labelText: '云端文件夹名称',
+            hintText: 'Ushio-MD',
+            prefixIcon: const Icon(Icons.folder),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return '请输入文件夹名称';
+            }
+            if (value.contains('/') || value.contains('\\')) {
+              return '文件夹名称不能包含斜杠';
             }
             return null;
           },
@@ -510,6 +536,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       _testResult = null;
     });
 
+    _webdavService.setRemoteWorkspaceName(_folderNameController.text.trim());
     _webdavService.initialize(WebDAVConfig(
       url: _urlController.text.trim(),
       username: _usernameController.text.trim(),
@@ -535,7 +562,9 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       username: _usernameController.text.trim(),
       password: _passwordController.text,
     );
+    await settings.setSyncFolderName(_folderNameController.text.trim());
 
+    _webdavService.setRemoteWorkspaceName(_folderNameController.text.trim());
     _webdavService.initialize(WebDAVConfig(
       url: _urlController.text.trim(),
       username: _usernameController.text.trim(),

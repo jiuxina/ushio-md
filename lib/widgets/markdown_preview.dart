@@ -170,7 +170,7 @@ class MarkdownPreview extends StatelessWidget {
       ),
       builders: {
         'code': CodeBlockBuilder(
-          isDark: isDark, 
+          isDark: isDark,
           fontSize: settings.fontSize,
           fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
         ),

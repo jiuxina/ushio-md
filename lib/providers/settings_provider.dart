@@ -99,19 +99,22 @@ class SettingsProvider extends ChangeNotifier {
   Locale _locale = const Locale('zh', 'CN');
 
   // ==================== 云同步设置 ====================
-  
+
   /// WebDAV 服务器地址
   String _webdavUrl = '';
-  
+
   /// WebDAV 用户名
   String _webdavUsername = '';
-  
+
   /// WebDAV 密码
   String _webdavPassword = '';
-  
+
+  /// 云端同步文件夹名称
+  String _syncFolderName = 'Ushio-MD';
+
   /// 是否启用自动同步
   bool _autoSyncEnabled = false;
-  
+
   /// 上次同步时间
   DateTime? _lastSyncTime;
 
@@ -164,6 +167,7 @@ class SettingsProvider extends ChangeNotifier {
   String get webdavUrl => _webdavUrl;
   String get webdavUsername => _webdavUsername;
   String get webdavPassword => _webdavPassword;
+  String get syncFolderName => _syncFolderName;
   bool get autoSyncEnabled => _autoSyncEnabled;
   DateTime? get lastSyncTime => _lastSyncTime;
   bool get isWebdavConfigured => _webdavUrl.isNotEmpty && _webdavUsername.isNotEmpty && _webdavPassword.isNotEmpty;
@@ -214,6 +218,7 @@ class SettingsProvider extends ChangeNotifier {
     // 云同步设置
     _webdavUrl = prefs.getString('webdav_url') ?? '';
     _webdavUsername = prefs.getString('webdav_username') ?? '';
+    _syncFolderName = prefs.getString('sync_folder_name') ?? 'Ushio-MD';
     _autoSyncEnabled = prefs.getBool('auto_sync_enabled') ?? false;
     final lastSyncMs = prefs.getInt('last_sync_time');
     _lastSyncTime = lastSyncMs != null ? DateTime.fromMillisecondsSinceEpoch(lastSyncMs) : null;
@@ -488,6 +493,14 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setWebdavPassword(String password) async {
     _webdavPassword = password;
     await _secureStorage.write(key: 'webdav_password', value: password);
+    notifyListeners();
+  }
+
+  /// 设置云端同步文件夹名称
+  Future<void> setSyncFolderName(String folderName) async {
+    _syncFolderName = folderName;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('sync_folder_name', folderName);
     notifyListeners();
   }
 

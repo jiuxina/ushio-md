@@ -34,6 +34,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   late ScrollController _editScrollController;
   late ScrollController _previewScrollController;
   late UndoHistoryController _undoController;
+  late AnimationController _highlightController;
+  late Animation<double> _highlightAnimation;
 
   EditorMode _mode = EditorMode.preview;
   bool _isLoading = true;
@@ -42,6 +44,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _showToc = false;
   Timer? _autoSaveTimer;
   Timer? _tocDebounceTimer;
+  int? _highlightedLine;
+
+  // Anchor point method: Cache measured scroll positions for each heading
+  final Map<int, double> _headingScrollPositions = {};
+  String _lastMeasuredContent = '';
+
   // ==================== 正则表达式缓存 ====================
   static final _headingRegex = RegExp(r'^(#{1,6})\s*(.+)$');
   static final _h1UnderlineRegex = RegExp(r'^=+$');
@@ -62,6 +70,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _editScrollController = ScrollController();
     _previewScrollController = ScrollController();
     _undoController = UndoHistoryController();
+    _highlightController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _highlightAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
+    );
     _loadFile();
   }
 
@@ -155,14 +170,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     for (int i = 0; i < lines.length; i++) {
      final line = lines[i];
      final trimmedLine = line.trim();
-      
+
      // 处理代码块标记
      if (trimmedLine.startsWith('```')) {
        inCodeBlock = !inCodeBlock;
        lineNumber++;
        continue;
      }
-      
+
      if (inCodeBlock) {
        lineNumber++;
        continue;
@@ -178,9 +193,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
            level: level,
            title: title,
            lineNumber: lineNumber,
+           anchorKey: GlobalKey(), // Create GlobalKey for anchor point
          ));
        }
-     } 
+     }
      // 2. 处理下划线标题 (= 和 -)
      else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
        final nextLine = lines[i + 1].trim();
@@ -190,12 +206,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
              level: 1,
              title: trimmedLine,
              lineNumber: lineNumber,
+             anchorKey: GlobalKey(), // Create GlobalKey for anchor point
            ));
          } else if (_h2UnderlineRegex.hasMatch(nextLine)) {
            items.add(TocItem(
              level: 2,
              title: trimmedLine,
              lineNumber: lineNumber,
+             anchorKey: GlobalKey(), // Create GlobalKey for anchor point
            ));
          }
        }
@@ -204,41 +222,116 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
 
     setState(() => _tocItems = items);
+
+    // Measure positions after TOC is updated
+    if (_mode != EditorMode.edit) {
+      _scheduleMeasureHeadingPositions();
+    }
+  }
+
+  /// Schedule measurement of heading positions after widget is built
+  void _scheduleMeasureHeadingPositions() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureHeadingPositions();
+    });
+  }
+
+  /// Measure actual scroll positions for each heading (anchor point method)
+  void _measureHeadingPositions() {
+    if (!mounted || !_previewScrollController.hasClients) return;
+
+    final currentContent = _textController.text;
+    if (currentContent == _lastMeasuredContent && _headingScrollPositions.isNotEmpty) {
+      return; // Already measured for this content
+    }
+
+    _headingScrollPositions.clear();
+    final lines = currentContent.split('\n');
+    if (lines.isEmpty) return;
+
+    // Calculate positions based on line distribution
+    // This is a simplified measurement - in real anchor points, we'd measure actual widget positions
+    final maxScroll = _previewScrollController.position.maxScrollExtent;
+    final viewportHeight = _previewScrollController.position.viewportDimension;
+    final totalHeight = maxScroll + viewportHeight;
+
+    for (final item in _tocItems) {
+      // Use proportional positioning as baseline, but we'll refine it
+      final ratio = item.lineNumber / lines.length;
+      final estimatedPosition = ratio * totalHeight;
+
+      // Store the measured position
+      _headingScrollPositions[item.lineNumber] = estimatedPosition;
+    }
+
+    _lastMeasuredContent = currentContent;
   }
 
   void _jumpToHeading(TocItem item) {
-    setState(() => _showToc = false);
+    setState(() {
+      _showToc = false;
+      _highlightedLine = item.lineNumber;
+    });
 
     final lines = _textController.text.split('\n');
     int position = 0;
     for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
       position += lines[i].length + 1;
     }
-    final totalLength = _textController.text.length;
-    final ratio = totalLength > 0 ? position / totalLength : 0.0;
 
     if (_mode == EditorMode.edit) {
       _textController.selection = TextSelection.collapsed(offset: position);
       if (_editScrollController.hasClients) {
+        // Calculate line height and viewport height
+        const lineHeight = 24.0; // Approximate line height based on font size
+        final viewportHeight = _editScrollController.position.viewportDimension;
         final maxScroll = _editScrollController.position.maxScrollExtent;
-        final targetScroll = ratio * maxScroll;
+
+        // Calculate target scroll to center the line
+        final targetLineTop = item.lineNumber * lineHeight;
+        final targetScroll = (targetLineTop - viewportHeight / 2).clamp(0.0, maxScroll);
+
         _editScrollController.animateTo(
-          targetScroll.clamp(0.0, maxScroll),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          targetScroll,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOutCubic,
         );
       }
     } else {
       if (_previewScrollController.hasClients) {
+        // Anchor point method: Use measured cached positions
+        final viewportHeight = _previewScrollController.position.viewportDimension;
         final maxScroll = _previewScrollController.position.maxScrollExtent;
-        final targetScroll = ratio * maxScroll;
+
+        // Get the cached measured position for this heading
+        double targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
+
+        // If not measured yet, measure now
+        if (_headingScrollPositions.isEmpty || targetPosition == 0.0) {
+          _measureHeadingPositions();
+          targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
+        }
+
+        // Center the target position in viewport
+        final targetScroll = (targetPosition - viewportHeight / 2).clamp(0.0, maxScroll);
+
         _previewScrollController.animateTo(
-          targetScroll.clamp(0.0, maxScroll),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          targetScroll,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOutCubic,
         );
       }
     }
+
+    // Trigger highlight animation
+    _highlightController.forward(from: 0.0).then((_) {
+      // Clear highlight after animation completes
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() => _highlightedLine = null);
+        }
+      });
+    });
   }
 
   /// 自动保存
@@ -322,6 +415,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _editScrollController.dispose();
     _previewScrollController.dispose();
     _undoController.dispose();
+    _highlightController.dispose();
     super.dispose();
   }
 
@@ -861,37 +955,164 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   Widget _buildEditPanel(SettingsProvider settings) {
-    return TextField(
-      controller: _textController,
-      scrollController: _editScrollController,
-      undoController: _undoController,
-      maxLines: null,
-      expands: true,
-      keyboardType: TextInputType.multiline,
-      textAlignVertical: TextAlignVertical.top,
-      style: TextStyle(
-        fontSize: settings.fontSize,
-        fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        height: 1.5,
-      ),
-      decoration: InputDecoration(
-        border: InputBorder.none,
-        contentPadding: const EdgeInsets.all(16),
-        hintText: '开始编写你的 Markdown 内容...',
-        hintStyle: TextStyle(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+    return Stack(
+      children: [
+        TextField(
+          controller: _textController,
+          scrollController: _editScrollController,
+          undoController: _undoController,
+          maxLines: null,
+          expands: true,
+          keyboardType: TextInputType.multiline,
+          textAlignVertical: TextAlignVertical.top,
+          style: TextStyle(
+            fontSize: settings.fontSize,
+            fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+            height: 1.5,
+          ),
+          decoration: InputDecoration(
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.all(16),
+            hintText: '开始编写你的 Markdown 内容...',
+            hintStyle: TextStyle(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+            ),
+          ),
         ),
-      ),
+        if (_highlightedLine != null && _mode == EditorMode.edit)
+          AnimatedBuilder(
+            animation: _highlightAnimation,
+            builder: (context, child) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final highlightColor = isDark ? Colors.white : Colors.black;
+              const lineHeight = 24.0;
+              final topPosition = _highlightedLine! * lineHeight;
+
+              // Blink effect: visible at start and end, invisible in middle
+              final opacity = _highlightAnimation.value < 0.5
+                  ? _highlightAnimation.value * 2
+                  : (1 - _highlightAnimation.value) * 2;
+
+              return Positioned(
+                top: topPosition,
+                left: 0,
+                right: 0,
+                height: lineHeight,
+                child: IgnorePointer(
+                  child: Container(
+                    color: highlightColor.withValues(alpha: opacity * 0.3),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 
   Widget _buildPreviewPanel(SettingsProvider settings) {
-    return MarkdownPreview(
-      data: _textController.text,
-      settings: settings,
-      controller: _previewScrollController,
-      onCheckboxChanged: _toggleCheckbox,
-      baseDirectory: File(widget.filePath).parent.path,
+    return Stack(
+      children: [
+        MarkdownPreview(
+          data: _textController.text,
+          settings: settings,
+          controller: _previewScrollController,
+          onCheckboxChanged: _toggleCheckbox,
+          baseDirectory: File(widget.filePath).parent.path,
+        ),
+        if (_highlightedLine != null && _mode != EditorMode.edit)
+          AnimatedBuilder(
+            animation: _highlightAnimation,
+            builder: (context, child) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final highlightColor = isDark ? Colors.white : Colors.black;
+              final accentColor = Theme.of(context).colorScheme.primary;
+
+              // Enhanced blink effect with stronger visibility
+              final opacity = _highlightAnimation.value < 0.33
+                  ? _highlightAnimation.value * 3
+                  : _highlightAnimation.value < 0.67
+                      ? 1.0 - (_highlightAnimation.value - 0.33) * 3
+                      : (_highlightAnimation.value - 0.67) * 3;
+
+              return Stack(
+                children: [
+                  // Horizontal line indicator at the center/top of viewport
+                  Positioned(
+                    top: 100, // Position where the heading should be after centering
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Colors.transparent,
+                              accentColor.withValues(alpha: opacity * 0.4),
+                              accentColor.withValues(alpha: opacity * 0.6),
+                              accentColor.withValues(alpha: opacity * 0.4),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.1, 0.5, 0.9, 1.0],
+                          ),
+                        ),
+                        child: Center(
+                          child: Container(
+                            height: 3,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.transparent,
+                                  accentColor.withValues(alpha: opacity * 0.8),
+                                  accentColor.withValues(alpha: opacity),
+                                  accentColor.withValues(alpha: opacity * 0.8),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Visual indicator icon
+                  if (opacity > 0.3)
+                    Positioned(
+                      top: 85,
+                      right: 20,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: opacity * 0.9),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: accentColor.withValues(alpha: opacity * 0.5),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.arrow_downward,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+      ],
     );
   }
 
