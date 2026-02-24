@@ -71,6 +71,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   final Map<int, double> _headingScrollPositions = {};
   String _lastMeasuredContent = '';
 
+  // ==================== 常量 ====================
+  /// Offset from top when jumping to a target position
+  static const _jumpTopOffset = 32.0;
+
   // ==================== 正则表达式缓存 ====================
   static final _headingRegex = RegExp(r'^(#{1,6})\s*(.+)$');
   static final _h1UnderlineRegex = RegExp(r'^=+$');
@@ -306,8 +310,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
 
     // Small offset from top to position the target slightly below the top edge
-    const topOffset = 32.0;
-
     if (_mode == EditorMode.edit) {
       _textController.selection = TextSelection.collapsed(offset: position);
       if (_editScrollController.hasClients) {
@@ -316,7 +318,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
         // Position target at top with small offset
         final targetLineTop = item.lineNumber * lineHeight;
-        final targetScroll = (targetLineTop - topOffset).clamp(0.0, maxScroll);
+        final targetScroll = (targetLineTop - _jumpTopOffset).clamp(0.0, maxScroll);
 
         _editScrollController.jumpTo(targetScroll);
       }
@@ -334,7 +336,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
 
         // Position target at top with small offset
-        final targetScroll = (targetPosition - topOffset).clamp(0.0, maxScroll);
+        final targetScroll = (targetPosition - _jumpTopOffset).clamp(0.0, maxScroll);
 
         _previewScrollController.jumpTo(targetScroll);
       }
@@ -514,8 +516,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             if (_editScrollController.hasClients) {
               final lines = _textController.text.substring(0, position).split('\n');
               final lineHeight = 24.0; 
-              const topOffset = 32.0;
-              final targetScroll = (lines.length * lineHeight - topOffset);
+              final targetScroll = (lines.length * lineHeight - _jumpTopOffset);
               _editScrollController.jumpTo(
                 targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
               );
@@ -1139,7 +1140,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () {
-                      if (_editingBlockIndex != null) _finishInlineEdit();
                       setState(() => _mode = EditorMode.edit);
                     }),
                     const SizedBox(height: 12),
@@ -1306,7 +1306,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 children: [
                   // Horizontal line indicator near the top of viewport
                   Positioned(
-                    top: 32, // Matches topOffset in _jumpToHeading
+                    top: _jumpTopOffset, // Matches _jumpTopOffset in _jumpToHeading
                     left: 0,
                     right: 0,
                     child: IgnorePointer(
@@ -1351,7 +1351,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   // Visual indicator icon
                   if (opacity > 0.3)
                     Positioned(
-                      top: 17, // Matches topOffset in _jumpToHeading
+                      top: _jumpTopOffset - 15, // Above the highlight indicator
                       right: 20,
                       child: IgnorePointer(
                         child: Container(
