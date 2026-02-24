@@ -129,6 +129,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   }
 
   Widget _buildWorkspaceInfo() {
+    final settings = context.watch<SettingsProvider>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -147,9 +148,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Ushio-MD 工作区',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                  Text(
+                    '${settings.workspaceName} 工作区',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -164,6 +165,17 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        // 工作区文件夹名称设置
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('工作区文件夹名称'),
+          subtitle: Text(settings.workspaceName),
+          trailing: TextButton(
+            onPressed: () => _showEditWorkspaceNameDialog(settings),
+            child: const Text('更改'),
+          ),
         ),
         const SizedBox(height: 12),
         Container(
@@ -294,6 +306,117 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               );
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditWorkspaceNameDialog(SettingsProvider settings) {
+    final controller = TextEditingController(text: settings.workspaceName);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.edit,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('更改工作区名称'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('输入新的工作区文件夹名称：'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Ushio-MD',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '注意：更改名称后，云端同步文件夹名称也会同步更新',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('名称不能为空')),
+                );
+                return;
+              }
+              if (newName.contains('/') || newName.contains('\\')) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('名称不能包含斜杠')),
+                );
+                return;
+              }
+              Navigator.pop(context);
+              await settings.setWorkspaceName(newName);
+              // 重新加载工作区路径
+              await _loadWorkspacePath();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check, color: Colors.green),
+                        const SizedBox(width: 12),
+                        Text('工作区名称已更新为 $newName'),
+                      ],
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+              }
             },
             child: const Text('确定'),
           ),
