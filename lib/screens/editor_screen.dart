@@ -248,14 +248,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       }
     } else {
       if (_previewScrollController.hasClients) {
-        // Use proportional positioning strategy for preview mode
+        // Simple proportional positioning - mainstream approach
+        // This is the most reliable method used by mainstream markdown editors
         final maxScroll = _previewScrollController.position.maxScrollExtent;
         final viewportHeight = _previewScrollController.position.viewportDimension;
 
-        // Calculate a weighted position based on heading structure
-        double estimatedPosition = _estimatePreviewPosition(item.lineNumber, lines);
+        // Calculate proportional position based on line number
+        final ratio = lines.isEmpty ? 0.0 : item.lineNumber / lines.length;
+        final estimatedPosition = ratio * maxScroll;
 
-        // Calculate target scroll to center the content
+        // Center the target position in viewport
         final targetScroll = (estimatedPosition - viewportHeight / 2).clamp(0.0, maxScroll);
 
         _previewScrollController.animateTo(
@@ -275,58 +277,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       });
     });
-  }
-
-  /// Estimate the preview position for a given line number
-  /// Uses a resolution-independent proportional strategy
-  double _estimatePreviewPosition(int targetLine, List<String> lines) {
-    if (!_previewScrollController.hasClients || lines.isEmpty) {
-      return 0.0;
-    }
-
-    final maxScroll = _previewScrollController.position.maxScrollExtent;
-
-    // Base proportional position: where the target line is in the document
-    final baseRatio = targetLine / lines.length;
-
-    // Count headings before target to add weight adjustment
-    // Headings render larger and take more vertical space
-    int headingWeight = 0;
-    int totalHeadingWeight = 0;
-
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
-      int weight = 0;
-
-      if (line.startsWith('# ')) {
-        weight = 4; // H1 takes ~4x normal line space
-      } else if (line.startsWith('## ')) {
-        weight = 3; // H2 takes ~3x normal line space
-      } else if (line.startsWith('### ')) {
-        weight = 2; // H3 takes ~2x normal line space
-      } else if (line.startsWith('#### ') || line.startsWith('##### ') || line.startsWith('###### ')) {
-        weight = 1; // H4-H6 take ~1.5x normal line space
-      }
-
-      totalHeadingWeight += weight;
-      if (i < targetLine) {
-        headingWeight += weight;
-      }
-    }
-
-    // Adjust ratio based on heading distribution
-    // If headings are concentrated before target, scroll further
-    double adjustedRatio = baseRatio;
-    if (totalHeadingWeight > 0) {
-      final headingRatio = headingWeight / totalHeadingWeight;
-      // Blend base ratio with heading-weighted ratio (70% base, 30% heading-adjusted)
-      adjustedRatio = baseRatio * 0.7 + headingRatio * 0.3;
-    }
-
-    // Apply ratio to max scroll
-    final estimatedPosition = adjustedRatio * maxScroll;
-
-    return estimatedPosition;
   }
 
   /// 自动保存
