@@ -209,7 +209,12 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
               title: const Text('新建 Markdown'),
               onTap: () {
                 Navigator.pop(context);
-                FileActions.showCreateFileInFolderDialog(context, widget.folderPath, context.read<FileProvider>());
+                FileActions.showCreateFileInFolderDialog(
+                  context,
+                  widget.folderPath,
+                  context.read<FileProvider>(),
+                  onRefresh: _loadFiles,
+                );
               },
             ),
             ListTile(

@@ -38,17 +38,27 @@ class MyFilesService {
   /// 获取工作区根路径
   ///
   /// 工作区位于应用私有目录下：Android/data/com.ushiomd/files/Ushio-MD
+  /// 或用户自定义的基础路径下
   Future<String> getWorkspacePath() async {
     if (_workspacePath != null) {
       return _workspacePath!;
     }
 
+    final workspaceName = getWorkspaceName();
+
+    // 如果用户设置了自定义基础路径，使用自定义路径
+    final customBasePath = _settingsProvider?.customWorkspaceBasePath;
+    if (customBasePath != null && customBasePath.isNotEmpty) {
+      _workspacePath = '$customBasePath${Platform.pathSeparator}$workspaceName';
+      return _workspacePath!;
+    }
+
+    // 否则使用默认的外部存储目录
     final externalDir = await getExternalStorageDirectory();
     if (externalDir == null) {
       throw Exception('无法获取外部存储目录');
     }
 
-    final workspaceName = getWorkspaceName();
     _workspacePath = '${externalDir.path}${Platform.pathSeparator}$workspaceName';
     return _workspacePath!;
   }
