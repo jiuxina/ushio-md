@@ -53,12 +53,50 @@ class WebDAVService {
   /// 云端工作区目录名称（可配置）
   String _remoteWorkspaceName = 'Ushio-MD';
 
+  /// 云端路径前缀（可配置）
+  String _remotePathPrefix = '';
+
   /// 获取当前工作区名称
   String get remoteWorkspaceName => _remoteWorkspaceName;
+
+  /// 获取当前路径前缀
+  String get remotePathPrefix => _remotePathPrefix;
 
   /// 设置工作区名称
   void setRemoteWorkspaceName(String name) {
     _remoteWorkspaceName = name;
+  }
+
+  /// 设置远程路径前缀
+  void setRemotePathPrefix(String prefix) {
+    _remotePathPrefix = prefix;
+  }
+
+  /// 获取完整的远程工作区路径（路径前缀 + 文件夹名称）
+  String getFullRemotePath() {
+    String fullPath = _remotePathPrefix.trim();
+
+    // 确保路径以 / 开头
+    if (fullPath.isNotEmpty && !fullPath.startsWith('/')) {
+      fullPath = '/$fullPath';
+    }
+
+    // 确保路径以 / 结尾（如果有路径前缀）
+    if (fullPath.isNotEmpty && !fullPath.endsWith('/')) {
+      fullPath += '/';
+    }
+
+    // 自动补齐文件夹名称（如果路径不以文件夹名称结尾）
+    if (!fullPath.endsWith('$_remoteWorkspaceName/') && !fullPath.endsWith(_remoteWorkspaceName)) {
+      fullPath += _remoteWorkspaceName;
+    }
+
+    // 如果没有路径前缀，直接返回 /文件夹名称
+    if (_remotePathPrefix.trim().isEmpty) {
+      return '/$_remoteWorkspaceName';
+    }
+
+    return fullPath;
   }
   
   /// 初始化 WebDAV 客户端
@@ -97,7 +135,8 @@ class WebDAVService {
     if (_client == null) return;
 
     try {
-      await _client!.mkdir('/$_remoteWorkspaceName');
+      final remotePath = getFullRemotePath();
+      await _client!.mkdir(remotePath);
     } catch (e) {
       // 目录可能已存在，忽略错误
       debugPrint('WebDAV 创建远程目录: $e');
@@ -111,9 +150,10 @@ class WebDAVService {
     if (_client == null) return null;
 
     try {
+      final fullRemotePath = getFullRemotePath();
       final path = remotePath.isEmpty
-          ? '/$_remoteWorkspaceName'
-          : '/$_remoteWorkspaceName/$remotePath';
+          ? fullRemotePath
+          : '$fullRemotePath/$remotePath';
 
       return await _client!.readDir(path);
     } catch (e) {
@@ -136,15 +176,16 @@ class WebDAVService {
         return false;
       }
 
-      final fullRemotePath = '/$_remoteWorkspaceName/$remotePath';
+      final fullRemotePath = getFullRemotePath();
+      final targetPath = '$fullRemotePath/$remotePath';
 
       // 确保父目录存在
-      final parentPath = fullRemotePath.substring(0, fullRemotePath.lastIndexOf('/'));
+      final parentPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
       await _ensureRemoteDir(parentPath);
 
       // 上传文件
-      await _client!.writeFromFile(localPath, fullRemotePath);
-      debugPrint('WebDAV 上传成功: $localPath -> $fullRemotePath');
+      await _client!.writeFromFile(localPath, targetPath);
+      debugPrint('WebDAV 上传成功: $localPath -> $targetPath');
       return true;
     } catch (e) {
       debugPrint('WebDAV 上传失败: $e');
@@ -160,15 +201,16 @@ class WebDAVService {
     if (_client == null) return false;
 
     try {
-      final fullRemotePath = '/$_remoteWorkspaceName/$remotePath';
+      final fullRemotePath = getFullRemotePath();
+      final sourcePath = '$fullRemotePath/$remotePath';
 
       // 确保本地父目录存在
       final localDir = localPath.substring(0, localPath.lastIndexOf(Platform.pathSeparator));
       await Directory(localDir).create(recursive: true);
 
       // 下载文件
-      await _client!.read2File(fullRemotePath, localPath);
-      debugPrint('WebDAV 下载成功: $fullRemotePath -> $localPath');
+      await _client!.read2File(sourcePath, localPath);
+      debugPrint('WebDAV 下载成功: $sourcePath -> $localPath');
       return true;
     } catch (e) {
       debugPrint('WebDAV 下载失败: $e');
@@ -181,9 +223,10 @@ class WebDAVService {
     if (_client == null) return false;
 
     try {
-      final fullRemotePath = '/$_remoteWorkspaceName/$remotePath';
-      await _client!.remove(fullRemotePath);
-      debugPrint('WebDAV 删除成功: $fullRemotePath');
+      final fullRemotePath = getFullRemotePath();
+      final targetPath = '$fullRemotePath/$remotePath';
+      await _client!.remove(targetPath);
+      debugPrint('WebDAV 删除成功: $targetPath');
       return true;
     } catch (e) {
       debugPrint('WebDAV 删除失败: $e');

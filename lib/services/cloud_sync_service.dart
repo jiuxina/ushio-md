@@ -383,7 +383,8 @@ class CloudSyncService {
   
   /// 获取远程文件相对路径
   String _getRemoteRelativePath(String remotePath) {
-    final prefix = '/${_webdavService.remoteWorkspaceName}/';
+    final fullRemotePath = _webdavService.getFullRemotePath();
+    final prefix = '$fullRemotePath/';
     if (remotePath.startsWith(prefix)) {
       return remotePath.substring(prefix.length);
     }

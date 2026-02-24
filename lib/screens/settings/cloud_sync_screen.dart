@@ -30,6 +30,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _folderNameController = TextEditingController();
+  final _remotePathController = TextEditingController();
 
   bool _isPasswordVisible = false;
   bool _isTesting = false;
@@ -56,10 +57,12 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       _usernameController.text = settings.webdavUsername;
       _passwordController.text = settings.webdavPassword;
       _folderNameController.text = settings.syncFolderName;
+      _remotePathController.text = settings.syncRemotePath;
 
       // 如果有配置，初始化服务
       if (settings.isWebdavConfigured) {
         _webdavService.setRemoteWorkspaceName(settings.syncFolderName);
+        _webdavService.setRemotePathPrefix(settings.syncRemotePath);
         _webdavService.initialize(WebDAVConfig(
           url: settings.webdavUrl,
           username: settings.webdavUsername,
@@ -75,6 +78,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _folderNameController.dispose();
+    _remotePathController.dispose();
     super.dispose();
   }
 
@@ -114,6 +118,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
 
   Widget _buildInfoCard() {
     final settings = context.watch<SettingsProvider>();
+    final fullPath = settings.getFullSyncPath();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -149,7 +154,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '将"我的文件"同步到云端 ${settings.syncFolderName} 文件夹',
+                  '将"我的文件"同步到云端 $fullPath 文件夹',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
@@ -253,6 +258,19 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
             }
             return null;
           },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _remotePathController,
+          decoration: InputDecoration(
+            labelText: '云端路径前缀（可选）',
+            hintText: '例如：/documents 或留空',
+            prefixIcon: const Icon(Icons.folder_open),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            helperText: '云端文件夹的完整路径会自动补齐为：路径前缀/${_folderNameController.text}',
+          ),
         ),
         const SizedBox(height: 20),
         Row(
@@ -537,6 +555,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     });
 
     _webdavService.setRemoteWorkspaceName(_folderNameController.text.trim());
+    _webdavService.setRemotePathPrefix(_remotePathController.text.trim());
     _webdavService.initialize(WebDAVConfig(
       url: _urlController.text.trim(),
       username: _usernameController.text.trim(),
@@ -563,8 +582,10 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       password: _passwordController.text,
     );
     await settings.setSyncFolderName(_folderNameController.text.trim());
+    await settings.setSyncRemotePath(_remotePathController.text.trim());
 
     _webdavService.setRemoteWorkspaceName(_folderNameController.text.trim());
+    _webdavService.setRemotePathPrefix(_remotePathController.text.trim());
     _webdavService.initialize(WebDAVConfig(
       url: _urlController.text.trim(),
       username: _usernameController.text.trim(),
