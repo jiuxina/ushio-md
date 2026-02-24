@@ -566,23 +566,30 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     // Handle local markdown file links
     if (href.endsWith('.md') || href.endsWith('.markdown')) {
-      final baseDir = File(widget.filePath).parent.path;
-      final targetPath = '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
-      final targetFile = File(targetPath);
-      if (targetFile.existsSync()) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => EditorScreen(filePath: targetPath),
-          ),
-        );
-        return;
+      // Sanitize: reject path traversal attempts
+      if (!href.contains('..')) {
+        final baseDir = File(widget.filePath).parent.path;
+        final targetPath = '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
+        final targetFile = File(targetPath);
+        if (targetFile.existsSync()) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => EditorScreen(filePath: targetPath),
+            ),
+          );
+          return;
+        }
       }
     }
 
     // Open external URLs in browser
     final uri = Uri.tryParse(href);
-    if (uri != null) {
-      launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      try {
+        launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        // Ignore launch failures
+      }
     }
   }
 

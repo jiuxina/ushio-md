@@ -64,9 +64,7 @@ class MarkdownPreview extends StatelessWidget {
     return Markdown(
       controller: controller,
       data: data,
-      onTapLink: onTapLink != null
-          ? (text, href, title) => onTapLink!(text, href, title)
-          : null,
+      onTapLink: onTapLink,
       selectable: true,
       padding: const EdgeInsets.all(16),
       styleSheet: MarkdownStyleSheet(
