@@ -18,8 +18,6 @@ class MarkdownPreview extends StatelessWidget {
   final Function(int, bool) onCheckboxChanged;
   /// Base directory for resolving relative image paths
   final String? baseDirectory;
-  /// Map of line numbers to GlobalKeys for heading anchors
-  final Map<int, GlobalKey>? headingKeys;
 
   const MarkdownPreview({
     super.key,
@@ -29,7 +27,6 @@ class MarkdownPreview extends StatelessWidget {
     this.controller,
     required this.onCheckboxChanged,
     this.baseDirectory,
-    this.headingKeys,
   });
 
   @override
@@ -178,12 +175,6 @@ class MarkdownPreview extends StatelessWidget {
           fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
         ),
         'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: settings.fontSize),
-        'h1': HeadingBuilder(headingKeys: headingKeys, data: data),
-        'h2': HeadingBuilder(headingKeys: headingKeys, data: data),
-        'h3': HeadingBuilder(headingKeys: headingKeys, data: data),
-        'h4': HeadingBuilder(headingKeys: headingKeys, data: data),
-        'h5': HeadingBuilder(headingKeys: headingKeys, data: data),
-        'h6': HeadingBuilder(headingKeys: headingKeys, data: data),
       },
       checkboxBuilder: (bool value) {
         final currentIndex = checkboxIndex++;
@@ -521,51 +512,5 @@ class GitHubAlertBuilder extends MarkdownElementBuilder {
         ],
       ),
     );
-  }
-}
-
-/// Heading builder that wraps headings with GlobalKeys for anchor-based scrolling
-class HeadingBuilder extends MarkdownElementBuilder {
-  final Map<int, GlobalKey>? headingKeys;
-  final String data;
-
-  HeadingBuilder({this.headingKeys, required this.data});
-
-  @override
-  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    // Get the text content of the heading
-    final headingText = element.textContent;
-
-    // Find the line number for this heading in the markdown data
-    // We need to match the heading text to find its line number
-    final lines = data.split('\n');
-    int? lineNumber;
-
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
-      // Check if this line contains the heading text
-      if (line.startsWith('#') && line.contains(headingText)) {
-        lineNumber = i;
-        break;
-      }
-      // Check for underline-style headings
-      if (i + 1 < lines.length && line == headingText) {
-        final nextLine = lines[i + 1].trim();
-        if (nextLine.startsWith('=') || nextLine.startsWith('-')) {
-          lineNumber = i;
-          break;
-        }
-      }
-    }
-
-    // If we found a matching line number and have a key for it, wrap with the key
-    if (lineNumber != null && headingKeys != null && headingKeys!.containsKey(lineNumber)) {
-      return Container(
-        key: headingKeys![lineNumber],
-        child: null, // Return null to use default rendering with the key
-      );
-    }
-
-    return null; // Use default rendering
   }
 }
