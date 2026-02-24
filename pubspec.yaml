@@ -65,7 +65,7 @@ dependencies:
   
   # Cloud sync (WebDAV & FTP)
   webdav_client: ^1.2.2
-  ftpconnect: ^1.1.1
+  ftpconnect: ^2.0.10
   
   # Native sharing
   share_plus: ^10.0.0
