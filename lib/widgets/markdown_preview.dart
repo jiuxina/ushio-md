@@ -18,6 +18,8 @@ class MarkdownPreview extends StatelessWidget {
   final Function(int, bool) onCheckboxChanged;
   /// Base directory for resolving relative image paths
   final String? baseDirectory;
+  /// Callback when a link is tapped
+  final void Function(String text, String? href, String title)? onTapLink;
 
   const MarkdownPreview({
     super.key,
@@ -27,6 +29,7 @@ class MarkdownPreview extends StatelessWidget {
     this.controller,
     required this.onCheckboxChanged,
     this.baseDirectory,
+    this.onTapLink,
   });
 
   @override
@@ -61,7 +64,9 @@ class MarkdownPreview extends StatelessWidget {
     return Markdown(
       controller: controller,
       data: data,
-
+      onTapLink: onTapLink != null
+          ? (text, href, title) => onTapLink!(text, href, title)
+          : null,
       selectable: true,
       padding: const EdgeInsets.all(16),
       styleSheet: MarkdownStyleSheet(
@@ -187,12 +192,15 @@ class MarkdownPreview extends StatelessWidget {
           activeColor: Theme.of(context).colorScheme.primary,
         );
       },
-      imageBuilder: (uri, title, alt) => _buildImage(uri, title, alt),
+      imageBuilder: (uri, title, alt) => Builder(
+        builder: (context) => _buildImage(context, uri, title, alt),
+      ),
     );
   }
 
   /// Build image widget with support for local and relative paths
-  Widget _buildImage(Uri uri, String? title, String? alt) {
+  /// Tap on image to show fullscreen preview
+  Widget _buildImage(BuildContext context, Uri uri, String? title, String? alt) {
     String imagePath = uri.toString();
     
     // Handle relative paths
@@ -206,33 +214,21 @@ class MarkdownPreview extends StatelessWidget {
       imagePath = imagePath.substring(7);
     }
     
+    Widget imageWidget;
+    
     // Check if it's a local file
     if (!imagePath.startsWith('http')) {
       final file = File(imagePath);
       if (file.existsSync()) {
-        return Image.file(
+        imageWidget = Image.file(
           file,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.broken_image, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(alt ?? '图片加载失败', style: const TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
+            return _buildImageError(alt ?? '图片加载失败');
           },
         );
       } else {
-        // File doesn't exist
+        // File doesn't exist - not tappable
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -250,29 +246,82 @@ class MarkdownPreview extends StatelessWidget {
           ),
         );
       }
+    } else {
+      // Network image
+      imageWidget = Image.network(
+        imagePath,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildImageError(alt ?? '网络图片加载失败');
+        },
+      );
     }
     
-    // Network image
-    return Image.network(
-      imagePath,
-      fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+    // Wrap in GestureDetector for fullscreen preview on tap
+    return GestureDetector(
+      onTap: () => _showFullscreenImage(context, imagePath, alt),
+      child: imageWidget,
+    );
+  }
+
+  Widget _buildImageError(String message) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.broken_image, color: Colors.grey),
+          const SizedBox(width: 8),
+          Text(message, style: const TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  /// Show fullscreen image preview dialog
+  void _showFullscreenImage(BuildContext context, String imagePath, String? alt) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              const Icon(Icons.broken_image, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(alt ?? '网络图片加载失败', style: const TextStyle(color: Colors.grey)),
+              InteractiveViewer(
+                child: imagePath.startsWith('http')
+                    ? Image.network(
+                        imagePath,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildImageError(alt ?? '图片加载失败'),
+                      )
+                    : Image.file(
+                        File(imagePath),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildImageError(alt ?? '图片加载失败'),
+                      ),
+              ),
+              Positioned(
+                top: 40,
+                right: 16,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

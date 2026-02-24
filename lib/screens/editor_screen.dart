@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/markdown_toolbar.dart';
@@ -557,6 +558,34 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
+  /// Handle link tap in preview
+  ///
+  /// Opens external URLs in browser, navigates to local markdown files
+  void _handleLinkTap(String text, String? href, String title) {
+    if (href == null || href.isEmpty) return;
+
+    // Handle local markdown file links
+    if (href.endsWith('.md') || href.endsWith('.markdown')) {
+      final baseDir = File(widget.filePath).parent.path;
+      final targetPath = '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
+      final targetFile = File(targetPath);
+      if (targetFile.existsSync()) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => EditorScreen(filePath: targetPath),
+          ),
+        );
+        return;
+      }
+    }
+
+    // Open external URLs in browser
+    final uri = Uri.tryParse(href);
+    if (uri != null) {
+      launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -627,7 +656,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   onSave: _saveFile,
                   onMore: _showMoreMenu,
                 ),
-                _buildModeSelector(),
                 if (!_isLoading && _error == null && _mode != EditorMode.preview)
                   MarkdownToolbar(
                     controller: _textController,
@@ -662,83 +690,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     return '$chars 字符 · $words 词';
   }
 
-  Widget _buildModeSelector() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          _buildModeButton(EditorMode.preview, '预览', Icons.visibility),
-          _buildModeButton(EditorMode.split, '分屏', Icons.vertical_split),
-          _buildModeButton(EditorMode.edit, '编辑', Icons.edit),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModeButton(EditorMode mode, String label, IconData icon) {
-    final isSelected = _mode == mode;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _mode = mode),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primary,
-                      Theme.of(context).colorScheme.secondary,
-                    ],
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected
-                    ? Colors.white
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected
-                      ? Colors.white
-                      : Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildContent() {
     if (_isLoading) {
@@ -822,28 +773,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     switch (_mode) {
       case EditorMode.edit:
-        return Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: _buildEditPanel(settings),
-          ),
-        );
-      case EditorMode.preview:
         return Stack(
           children: [
             Container(
@@ -864,7 +793,46 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: _buildPreviewPanel(settings),
+                child: _buildEditPanel(settings),
+              ),
+            ),
+            // Floating button to return to preview mode
+            Positioned(
+              right: 24,
+              bottom: 24,
+              child: _buildFloatingButton(
+                Icons.visibility,
+                Theme.of(context).colorScheme.primary,
+                () => setState(() => _mode = EditorMode.preview),
+              ),
+            ),
+          ],
+        );
+      case EditorMode.preview:
+        return Stack(
+          children: [
+            GestureDetector(
+              onDoubleTap: () => setState(() => _mode = EditorMode.edit),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: _buildPreviewPanel(settings),
+                ),
               ),
             ),
             Positioned(
@@ -873,6 +841,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () => setState(() => _mode = EditorMode.edit)),
+                  const SizedBox(height: 12),
                   _buildFloatingButton(Icons.search, Colors.teal, _showSearchDialog),
                   const SizedBox(height: 12),
                   _buildFloatingButton(Icons.fullscreen, Theme.of(context).colorScheme.secondary, _openFullscreenPreview),
@@ -1019,6 +989,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           controller: _previewScrollController,
           onCheckboxChanged: _toggleCheckbox,
           baseDirectory: File(widget.filePath).parent.path,
+          onTapLink: _handleLinkTap,
         ),
         if (_highlightedLine != null && _mode != EditorMode.edit)
           AnimatedBuilder(
