@@ -1,7 +1,7 @@
 // ============================================================================
-// WebDAV 服务
-// 
-// 封装 WebDAV 客户端操作，提供：
+// FTP 服务
+//
+// 封装 FTP 客户端操作，提供：
 // - 连接测试
 // - 文件上传/下载
 // - 目录列表
@@ -10,46 +10,51 @@
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:webdav_client/webdav_client.dart' as webdav;
+import 'package:ftpconnect/ftpconnect.dart';
 import 'sync_service_interface.dart';
 
-/// WebDAV 连接配置
-class WebDAVConfig {
-  final String url;
+/// FTP 连接配置
+class FTPConfig {
+  final String host;
+  final int port;
   final String username;
   final String password;
-  
-  const WebDAVConfig({
-    required this.url,
+
+  const FTPConfig({
+    required this.host,
+    this.port = 21,
     required this.username,
     required this.password,
   });
-  
+
   /// 检查配置是否完整
-  bool get isValid => url.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
-  
+  bool get isValid => host.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+
   /// 从 Map 创建配置
-  factory WebDAVConfig.fromMap(Map<String, dynamic> map) {
-    return WebDAVConfig(
-      url: map['url'] ?? '',
+  factory FTPConfig.fromMap(Map<String, dynamic> map) {
+    return FTPConfig(
+      host: map['host'] ?? '',
+      port: map['port'] ?? 21,
       username: map['username'] ?? '',
       password: map['password'] ?? '',
     );
   }
-  
+
   /// 转换为 Map
   Map<String, dynamic> toMap() {
     return {
-      'url': url,
+      'host': host,
+      'port': port,
       'username': username,
       'password': password,
     };
   }
 }
 
-/// WebDAV 服务类
-class WebDAVService implements SyncServiceInterface {
-  webdav.Client? _client;
+/// FTP 服务类
+class FTPService implements SyncServiceInterface {
+  FTPConnect? _ftpClient;
+  FTPConfig? _config;
 
   /// 云端工作区目录名称（可配置）
   @override
@@ -106,95 +111,113 @@ class WebDAVService implements SyncServiceInterface {
 
     return fullPath;
   }
-  
-  /// 初始化 WebDAV 客户端
-  void initialize(WebDAVConfig config) {
+
+  /// 初始化 FTP 客户端
+  void initialize(FTPConfig config) {
     if (!config.isValid) {
-      _client = null;
+      _ftpClient = null;
+      _config = null;
       return;
     }
-    
-    _client = webdav.newClient(
-      config.url,
+
+    _config = config;
+    _ftpClient = FTPConnect(
+      config.host,
+      port: config.port,
       user: config.username,
-      password: config.password,
-      debug: false,
+      pass: config.password,
     );
-    
-    // 设置公共请求头
-    _client!.setHeaders({'accept-charset': 'utf-8'});
   }
-  
+
   /// 测试连接
   @override
   Future<bool> testConnection() async {
-    if (_client == null) return false;
-    
+    if (_ftpClient == null) return false;
+
     try {
-      await _client!.ping();
+      await _ftpClient!.connect();
+      await _ftpClient!.disconnect();
       return true;
     } catch (e) {
-      debugPrint('WebDAV 连接测试失败: $e');
+      debugPrint('FTP 连接测试失败: $e');
       return false;
     }
   }
-  
+
   /// 确保远程工作区目录存在
   @override
   Future<void> ensureRemoteWorkspace() async {
-    if (_client == null) return;
+    if (_ftpClient == null) return;
 
     try {
       final remotePath = getFullRemotePath();
-      await _client!.mkdir(remotePath);
+      await _ftpClient!.connect();
+
+      // 递归创建目录路径
+      await _ensureRemoteDir(remotePath);
+
+      await _ftpClient!.disconnect();
     } catch (e) {
-      // 目录可能已存在，忽略错误
-      debugPrint('WebDAV 创建远程目录: $e');
+      debugPrint('FTP 创建远程目录失败: $e');
+      try {
+        await _ftpClient!.disconnect();
+      } catch (_) {}
     }
   }
-  
+
   /// 列出远程目录内容
   ///
   /// [remotePath] 远程路径（相对于工作区根目录）
   @override
   Future<List<RemoteFileInfo>?> listRemoteFiles({String remotePath = ''}) async {
-    if (_client == null) return null;
+    if (_ftpClient == null) return null;
 
     try {
+      await _ftpClient!.connect();
+
       final fullRemotePath = getFullRemotePath();
       final path = remotePath.isEmpty
           ? fullRemotePath
           : '$fullRemotePath/$remotePath';
 
-      final files = await _client!.readDir(path);
+      // Change to the directory before listing
+      await _ftpClient!.changeDirectory(path);
+      final files = await _ftpClient!.listDirectoryContent();
+
+      await _ftpClient!.disconnect();
 
       // 转换为通用格式
       return files.map((f) => RemoteFileInfo(
-        name: f.name ?? '',
-        path: f.path ?? '',
-        isDirectory: f.isDir ?? false,
-        modifiedTime: f.mTime,
+        name: f.name,
+        path: path + '/' + f.name,
+        isDirectory: f.type == FTPEntryType.dir,
+        modifiedTime: f.modifyTime,
       )).toList();
     } catch (e) {
-      debugPrint('WebDAV 列出目录失败: $e');
+      debugPrint('FTP 列出目录失败: $e');
+      try {
+        await _ftpClient!.disconnect();
+      } catch (_) {}
       return null;
     }
   }
-  
+
   /// 上传文件
   ///
   /// [localPath] 本地文件路径
   /// [remotePath] 远程文件路径（相对于工作区）
   @override
   Future<bool> uploadFile(String localPath, String remotePath) async {
-    if (_client == null) return false;
+    if (_ftpClient == null) return false;
 
     try {
       final file = File(localPath);
       if (!await file.exists()) {
-        debugPrint('WebDAV 上传失败：本地文件不存在 $localPath');
+        debugPrint('FTP 上传失败：本地文件不存在 $localPath');
         return false;
       }
+
+      await _ftpClient!.connect();
 
       final fullRemotePath = getFullRemotePath();
       final targetPath = '$fullRemotePath/$remotePath';
@@ -204,24 +227,36 @@ class WebDAVService implements SyncServiceInterface {
       await _ensureRemoteDir(parentPath);
 
       // 上传文件
-      await _client!.writeFromFile(localPath, targetPath);
-      debugPrint('WebDAV 上传成功: $localPath -> $targetPath');
-      return true;
+      final success = await _ftpClient!.uploadFile(file, sRemoteName: targetPath);
+
+      await _ftpClient!.disconnect();
+
+      if (success) {
+        debugPrint('FTP 上传成功: $localPath -> $targetPath');
+      } else {
+        debugPrint('FTP 上传失败: $localPath -> $targetPath');
+      }
+      return success;
     } catch (e) {
-      debugPrint('WebDAV 上传失败: $e');
+      debugPrint('FTP 上传失败: $e');
+      try {
+        await _ftpClient!.disconnect();
+      } catch (_) {}
       return false;
     }
   }
-  
+
   /// 下载文件
   ///
   /// [remotePath] 远程文件路径（相对于工作区）
   /// [localPath] 本地保存路径
   @override
   Future<bool> downloadFile(String remotePath, String localPath) async {
-    if (_client == null) return false;
+    if (_ftpClient == null) return false;
 
     try {
+      await _ftpClient!.connect();
+
       final fullRemotePath = getFullRemotePath();
       final sourcePath = '$fullRemotePath/$remotePath';
 
@@ -230,37 +265,60 @@ class WebDAVService implements SyncServiceInterface {
       await Directory(localDir).create(recursive: true);
 
       // 下载文件
-      await _client!.read2File(sourcePath, localPath);
-      debugPrint('WebDAV 下载成功: $sourcePath -> $localPath');
-      return true;
+      final success = await _ftpClient!.downloadFile(sourcePath, File(localPath));
+
+      await _ftpClient!.disconnect();
+
+      if (success) {
+        debugPrint('FTP 下载成功: $sourcePath -> $localPath');
+      } else {
+        debugPrint('FTP 下载失败: $sourcePath -> $localPath');
+      }
+      return success;
     } catch (e) {
-      debugPrint('WebDAV 下载失败: $e');
+      debugPrint('FTP 下载失败: $e');
+      try {
+        await _ftpClient!.disconnect();
+      } catch (_) {}
       return false;
     }
   }
-  
+
   /// 删除远程文件或目录
   @override
   Future<bool> deleteRemote(String remotePath) async {
-    if (_client == null) return false;
+    if (_ftpClient == null) return false;
 
     try {
+      await _ftpClient!.connect();
+
       final fullRemotePath = getFullRemotePath();
       final targetPath = '$fullRemotePath/$remotePath';
-      await _client!.remove(targetPath);
-      debugPrint('WebDAV 删除成功: $targetPath');
-      return true;
+
+      final success = await _ftpClient!.deleteFile(targetPath);
+
+      await _ftpClient!.disconnect();
+
+      if (success) {
+        debugPrint('FTP 删除成功: $targetPath');
+      } else {
+        debugPrint('FTP 删除失败: $targetPath');
+      }
+      return success;
     } catch (e) {
-      debugPrint('WebDAV 删除失败: $e');
+      debugPrint('FTP 删除失败: $e');
+      try {
+        await _ftpClient!.disconnect();
+      } catch (_) {}
       return false;
     }
   }
-  
+
   /// 获取远程文件信息
   @override
   Future<RemoteFileInfo?> getRemoteFileInfo(String remotePath) async {
-    if (_client == null) return null;
-    
+    if (_ftpClient == null) return null;
+
     try {
       final parentPath = remotePath.contains('/')
           ? remotePath.substring(0, remotePath.lastIndexOf('/'))
@@ -268,32 +326,35 @@ class WebDAVService implements SyncServiceInterface {
       final fileName = remotePath.contains('/')
           ? remotePath.substring(remotePath.lastIndexOf('/') + 1)
           : remotePath;
-      
+
       final files = await listRemoteFiles(remotePath: parentPath);
       return files?.firstWhere(
         (f) => f.name == fileName,
         orElse: () => throw Exception('文件不存在'),
       );
     } catch (e) {
+      debugPrint('FTP 获取文件信息失败: $e');
       return null;
     }
   }
-  
+
   // ==================== 私有方法 ====================
-  
+
   /// 确保远程目录存在（递归创建）
   Future<void> _ensureRemoteDir(String remotePath) async {
-    if (_client == null) return;
-    
+    if (_ftpClient == null) return;
+
     final parts = remotePath.split('/').where((p) => p.isNotEmpty).toList();
     String currentPath = '';
-    
+
     for (final part in parts) {
       currentPath += '/$part';
       try {
-        await _client!.mkdir(currentPath);
+        // 尝试创建目录，如果已存在会失败但不影响后续操作
+        await _ftpClient!.makeDirectory(currentPath);
       } catch (e) {
-        // 目录可能已存在
+        // 目录可能已存在，继续处理下一级
+        debugPrint('FTP 创建目录 $currentPath: $e');
       }
     }
   }
