@@ -81,15 +81,32 @@ class SyncPreview {
   final List<String> toUpload;      // 需要上传的文件（本地新增）
   final List<String> toDownload;    // 需要下载的文件（远程新增）
   final List<SyncConflict> conflicts; // 存在冲突的文件
-  
+
   const SyncPreview({
     this.toUpload = const [],
     this.toDownload = const [],
     this.conflicts = const [],
   });
-  
+
   bool get hasConflicts => conflicts.isNotEmpty;
   bool get isEmpty => toUpload.isEmpty && toDownload.isEmpty && conflicts.isEmpty;
+}
+
+/// 同步进度信息
+class SyncProgress {
+  final int totalFiles;
+  final int processedFiles;
+  final String currentFile;
+  final String operation; // 'upload' or 'download'
+
+  const SyncProgress({
+    required this.totalFiles,
+    required this.processedFiles,
+    required this.currentFile,
+    required this.operation,
+  });
+
+  double get percentage => totalFiles > 0 ? (processedFiles / totalFiles) * 100 : 0;
 }
 
 /// 云同步服务类
@@ -103,6 +120,9 @@ class CloudSyncService {
   /// 同步状态变化回调
   ValueNotifier<SyncStatus> statusNotifier = ValueNotifier(SyncStatus.idle);
 
+  /// 同步进度变化回调
+  ValueNotifier<SyncProgress?> progressNotifier = ValueNotifier(null);
+
   CloudSyncService({
     required SyncServiceInterface syncService,
     required MyFilesService myFilesService,
@@ -110,36 +130,42 @@ class CloudSyncService {
         _myFilesService = myFilesService;
   
   /// 执行全量同步
-  /// 
+  ///
   /// [resolvedConflicts] 用户已解决的冲突列表（可选）
   /// 如果没有提供，发现冲突时将跳过冲突文件
   Future<SyncResult> syncAll({List<SyncConflict>? resolvedConflicts}) async {
     if (_status == SyncStatus.syncing) {
       return SyncResult.failed('同步进行中，请稍候');
     }
-    
+
     _setStatus(SyncStatus.syncing);
-    
+    progressNotifier.value = null; // 重置进度
+
     try {
       // 测试连接
       if (!await _syncService.testConnection()) {
         _setStatus(SyncStatus.error);
+        progressNotifier.value = null;
         return SyncResult.failed('无法连接到远程服务器');
       }
 
       // 确保远程工作区存在
       await _syncService.ensureRemoteWorkspace();
-      
+
       int uploaded = 0;
       int downloaded = 0;
       int skipped = 0;
-      
+
       // 获取本地文件列表
       final localFiles = await _collectLocalFiles();
-      
+
       // 获取远程文件列表
       final remoteFiles = await _collectRemoteFiles();
-      
+
+      // 计算总文件数用于进度显示
+      int totalFiles = localFiles.length + remoteFiles.length;
+      int processedFiles = 0;
+
       // 构建已解决冲突的路径映射
       final resolvedMap = <String, ConflictResolution>{};
       if (resolvedConflicts != null) {
@@ -147,12 +173,21 @@ class CloudSyncService {
           resolvedMap[conflict.relativePath] = conflict.resolution;
         }
       }
-      
+
       // 同步本地到远程（上传新文件或更新的文件）
       for (final localFile in localFiles) {
         final relativePath = await _getRelativePath(localFile.path);
         final remoteFile = _findRemoteFile(remoteFiles, relativePath);
-        
+
+        // 更新进度
+        processedFiles++;
+        progressNotifier.value = SyncProgress(
+          totalFiles: totalFiles,
+          processedFiles: processedFiles,
+          currentFile: relativePath,
+          operation: 'upload',
+        );
+
         if (remoteFile == null) {
           // 远程不存在，上传
           if (await _syncService.uploadFile(localFile.path, relativePath)) {
@@ -162,7 +197,7 @@ class CloudSyncService {
           // 比较修改时间
           final localMtime = await localFile.lastModified();
           final remoteMtime = remoteFile.modifiedTime ?? DateTime.fromMillisecondsSinceEpoch(0);
-          
+
           // 检查是否有用户决定的冲突解决方案
           final resolution = resolvedMap[relativePath];
           if (resolution != null) {
@@ -212,6 +247,15 @@ class CloudSyncService {
         final relativePath = _getRemoteRelativePath(remoteFile.path);
         final localPath = '$workspacePath${Platform.pathSeparator}${relativePath.replaceAll('/', Platform.pathSeparator)}';
 
+        // 更新进度
+        processedFiles++;
+        progressNotifier.value = SyncProgress(
+          totalFiles: totalFiles,
+          processedFiles: processedFiles,
+          currentFile: relativePath,
+          operation: 'download',
+        );
+
         if (!await File(localPath).exists()) {
           // 本地不存在，下载
           if (await _syncService.downloadFile(relativePath, localPath)) {
@@ -219,8 +263,9 @@ class CloudSyncService {
           }
         }
       }
-      
+
       _setStatus(SyncStatus.success);
+      progressNotifier.value = null; // 清除进度
       return SyncResult(
         success: true,
         uploadedCount: uploaded,
@@ -230,6 +275,7 @@ class CloudSyncService {
     } catch (e) {
       debugPrint('CloudSync 同步失败: $e');
       _setStatus(SyncStatus.error);
+      progressNotifier.value = null; // 清除进度
       return SyncResult.failed('同步失败: $e');
     }
   }
