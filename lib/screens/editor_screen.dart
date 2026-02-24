@@ -287,36 +287,50 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       double accumulatedHeight = 0.0;
       final baseFontSize = context.read<SettingsProvider>().fontSize;
 
+      // Track if we're inside a code block
+      bool inCodeBlock = false;
+
       for (int i = 0; i < targetLine && i < lines.length; i++) {
         final line = lines[i].trim();
         double lineHeight;
 
-        // Estimate height based on markdown syntax
-        if (line.startsWith('# ')) {
+        // Check for code block delimiters
+        if (line.startsWith('```')) {
+          inCodeBlock = !inCodeBlock;
+          lineHeight = baseFontSize * 1.2;
+        } else if (inCodeBlock) {
+          // Inside code block - use monospace height
+          lineHeight = baseFontSize * 0.9 * 1.5;
+        } else if (line.startsWith('# ')) {
           // H1: fontSize * 2 with larger spacing
-          lineHeight = baseFontSize * 2 * 1.4 + 16;
+          lineHeight = baseFontSize * 2 * 1.4 + 24;
         } else if (line.startsWith('## ')) {
           // H2: fontSize * 1.5 with larger spacing
-          lineHeight = baseFontSize * 1.5 * 1.4 + 12;
+          lineHeight = baseFontSize * 1.5 * 1.4 + 20;
         } else if (line.startsWith('### ')) {
           // H3: fontSize * 1.25 with spacing
-          lineHeight = baseFontSize * 1.25 * 1.4 + 10;
+          lineHeight = baseFontSize * 1.25 * 1.4 + 16;
         } else if (line.startsWith('#### ') || line.startsWith('##### ') || line.startsWith('###### ')) {
           // H4-H6: fontSize * 1.1 or fontSize with spacing
-          lineHeight = baseFontSize * 1.1 * 1.4 + 8;
-        } else if (line.startsWith('```')) {
-          // Code block delimiter - minimal height
-          lineHeight = baseFontSize * 1.2;
+          lineHeight = baseFontSize * 1.1 * 1.4 + 12;
         } else if (line.isEmpty) {
           // Empty line - minimal spacing
-          lineHeight = baseFontSize * 0.5;
+          lineHeight = baseFontSize * 0.8;
         } else if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ') ||
                    line.startsWith('1. ') || line.startsWith('> ')) {
           // List items and blockquotes
-          lineHeight = baseFontSize * 1.6 + 4;
+          lineHeight = baseFontSize * 1.6 + 6;
+        } else if (line.startsWith('---') || line.startsWith('***') || line.startsWith('===')) {
+          // Horizontal rules - fixed height
+          lineHeight = 20;
+        } else if (line.startsWith('|')) {
+          // Table rows - larger height
+          lineHeight = baseFontSize * 1.6 + 8;
         } else {
-          // Regular paragraph text
-          lineHeight = baseFontSize * 1.6 + 2;
+          // Regular paragraph text - account for line wrapping potential
+          final estimatedCharsPerLine = 80;
+          final lineCount = (line.length / estimatedCharsPerLine).ceil().clamp(1, 5);
+          lineHeight = (baseFontSize * 1.6 + 2) * lineCount;
         }
 
         accumulatedHeight += lineHeight;
@@ -325,8 +339,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       // Add padding from markdown preview (16px top)
       accumulatedHeight += 16;
 
-      // Scale to actual scroll range
-      if (targetLine >= lines.length - 1) {
+      // Don't exceed max scroll
+      if (accumulatedHeight > maxScroll) {
         return maxScroll;
       }
 
@@ -1039,40 +1053,45 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
               return Stack(
                 children: [
-                  // Border flash effect
+                  // Horizontal line indicator at the center/top of viewport
                   Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: accentColor.withValues(alpha: opacity * 0.8),
-                            width: 4,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Center flash overlay for better visibility
-                  Positioned(
-                    top: 0,
+                    top: 100, // Position where the heading should be after centering
                     left: 0,
                     right: 0,
                     child: IgnorePointer(
                       child: Container(
-                        height: 100,
+                        height: 60,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
                             colors: [
-                              highlightColor.withValues(alpha: opacity * 0.3),
-                              highlightColor.withValues(alpha: 0.0),
+                              Colors.transparent,
+                              accentColor.withValues(alpha: opacity * 0.4),
+                              accentColor.withValues(alpha: opacity * 0.6),
+                              accentColor.withValues(alpha: opacity * 0.4),
+                              Colors.transparent,
                             ],
+                            stops: const [0.0, 0.1, 0.5, 0.9, 1.0],
+                          ),
+                        ),
+                        child: Center(
+                          child: Container(
+                            height: 3,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.transparent,
+                                  accentColor.withValues(alpha: opacity * 0.8),
+                                  accentColor.withValues(alpha: opacity),
+                                  accentColor.withValues(alpha: opacity * 0.8),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1081,7 +1100,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   // Visual indicator icon
                   if (opacity > 0.3)
                     Positioned(
-                      top: 20,
+                      top: 85,
                       right: 20,
                       child: IgnorePointer(
                         child: Container(
@@ -1098,9 +1117,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                             ],
                           ),
                           child: Icon(
-                            Icons.location_on,
+                            Icons.arrow_downward,
                             color: Colors.white,
-                            size: 24,
+                            size: 20,
                           ),
                         ),
                       ),
