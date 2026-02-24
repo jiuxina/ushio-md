@@ -49,9 +49,17 @@ class WebDAVConfig {
 /// WebDAV 服务类
 class WebDAVService {
   webdav.Client? _client;
-  
-  /// 云端工作区目录名称
-  static const String remoteWorkspaceName = 'Ushio-MD';
+
+  /// 云端工作区目录名称（可配置）
+  String _remoteWorkspaceName = 'Ushio-MD';
+
+  /// 获取当前工作区名称
+  String get remoteWorkspaceName => _remoteWorkspaceName;
+
+  /// 设置工作区名称
+  void setRemoteWorkspaceName(String name) {
+    _remoteWorkspaceName = name;
+  }
   
   /// 初始化 WebDAV 客户端
   void initialize(WebDAVConfig config) {
@@ -87,9 +95,9 @@ class WebDAVService {
   /// 确保远程工作区目录存在
   Future<void> ensureRemoteWorkspace() async {
     if (_client == null) return;
-    
+
     try {
-      await _client!.mkdir('/$remoteWorkspaceName');
+      await _client!.mkdir('/$_remoteWorkspaceName');
     } catch (e) {
       // 目录可能已存在，忽略错误
       debugPrint('WebDAV 创建远程目录: $e');
@@ -97,16 +105,16 @@ class WebDAVService {
   }
   
   /// 列出远程目录内容
-  /// 
+  ///
   /// [remotePath] 远程路径（相对于工作区根目录）
   Future<List<webdav.File>?> listRemoteFiles({String remotePath = ''}) async {
     if (_client == null) return null;
-    
+
     try {
-      final path = remotePath.isEmpty 
-          ? '/$remoteWorkspaceName' 
-          : '/$remoteWorkspaceName/$remotePath';
-      
+      final path = remotePath.isEmpty
+          ? '/$_remoteWorkspaceName'
+          : '/$_remoteWorkspaceName/$remotePath';
+
       return await _client!.readDir(path);
     } catch (e) {
       debugPrint('WebDAV 列出目录失败: $e');
@@ -115,25 +123,25 @@ class WebDAVService {
   }
   
   /// 上传文件
-  /// 
+  ///
   /// [localPath] 本地文件路径
   /// [remotePath] 远程文件路径（相对于工作区）
   Future<bool> uploadFile(String localPath, String remotePath) async {
     if (_client == null) return false;
-    
+
     try {
       final file = File(localPath);
       if (!await file.exists()) {
         debugPrint('WebDAV 上传失败：本地文件不存在 $localPath');
         return false;
       }
-      
-      final fullRemotePath = '/$remoteWorkspaceName/$remotePath';
-      
+
+      final fullRemotePath = '/$_remoteWorkspaceName/$remotePath';
+
       // 确保父目录存在
       final parentPath = fullRemotePath.substring(0, fullRemotePath.lastIndexOf('/'));
       await _ensureRemoteDir(parentPath);
-      
+
       // 上传文件
       await _client!.writeFromFile(localPath, fullRemotePath);
       debugPrint('WebDAV 上传成功: $localPath -> $fullRemotePath');
@@ -145,19 +153,19 @@ class WebDAVService {
   }
   
   /// 下载文件
-  /// 
+  ///
   /// [remotePath] 远程文件路径（相对于工作区）
   /// [localPath] 本地保存路径
   Future<bool> downloadFile(String remotePath, String localPath) async {
     if (_client == null) return false;
-    
+
     try {
-      final fullRemotePath = '/$remoteWorkspaceName/$remotePath';
-      
+      final fullRemotePath = '/$_remoteWorkspaceName/$remotePath';
+
       // 确保本地父目录存在
       final localDir = localPath.substring(0, localPath.lastIndexOf(Platform.pathSeparator));
       await Directory(localDir).create(recursive: true);
-      
+
       // 下载文件
       await _client!.read2File(fullRemotePath, localPath);
       debugPrint('WebDAV 下载成功: $fullRemotePath -> $localPath');
@@ -171,9 +179,9 @@ class WebDAVService {
   /// 删除远程文件或目录
   Future<bool> deleteRemote(String remotePath) async {
     if (_client == null) return false;
-    
+
     try {
-      final fullRemotePath = '/$remoteWorkspaceName/$remotePath';
+      final fullRemotePath = '/$_remoteWorkspaceName/$remotePath';
       await _client!.remove(fullRemotePath);
       debugPrint('WebDAV 删除成功: $fullRemotePath');
       return true;

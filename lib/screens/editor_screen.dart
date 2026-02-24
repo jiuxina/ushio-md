@@ -34,6 +34,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   late ScrollController _editScrollController;
   late ScrollController _previewScrollController;
   late UndoHistoryController _undoController;
+  late AnimationController _highlightController;
+  late Animation<double> _highlightAnimation;
 
   EditorMode _mode = EditorMode.preview;
   bool _isLoading = true;
@@ -42,6 +44,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _showToc = false;
   Timer? _autoSaveTimer;
   Timer? _tocDebounceTimer;
+  int? _highlightedLine;
   // ==================== 正则表达式缓存 ====================
   static final _headingRegex = RegExp(r'^(#{1,6})\s*(.+)$');
   static final _h1UnderlineRegex = RegExp(r'^=+$');
@@ -62,6 +65,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _editScrollController = ScrollController();
     _previewScrollController = ScrollController();
     _undoController = UndoHistoryController();
+    _highlightController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _highlightAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
+    );
     _loadFile();
   }
 
@@ -207,38 +217,62 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   void _jumpToHeading(TocItem item) {
-    setState(() => _showToc = false);
+    setState(() {
+      _showToc = false;
+      _highlightedLine = item.lineNumber;
+    });
 
     final lines = _textController.text.split('\n');
     int position = 0;
     for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
       position += lines[i].length + 1;
     }
-    final totalLength = _textController.text.length;
-    final ratio = totalLength > 0 ? position / totalLength : 0.0;
 
     if (_mode == EditorMode.edit) {
       _textController.selection = TextSelection.collapsed(offset: position);
       if (_editScrollController.hasClients) {
+        // Calculate line height and viewport height
+        const lineHeight = 24.0; // Approximate line height based on font size
+        final viewportHeight = _editScrollController.position.viewportDimension;
         final maxScroll = _editScrollController.position.maxScrollExtent;
-        final targetScroll = ratio * maxScroll;
+
+        // Calculate target scroll to center the line
+        final targetLineTop = item.lineNumber * lineHeight;
+        final targetScroll = (targetLineTop - viewportHeight / 2).clamp(0.0, maxScroll);
+
         _editScrollController.animateTo(
-          targetScroll.clamp(0.0, maxScroll),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          targetScroll,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOutCubic,
         );
       }
     } else {
       if (_previewScrollController.hasClients) {
+        final totalLength = _textController.text.length;
+        final ratio = totalLength > 0 ? position / totalLength : 0.0;
         final maxScroll = _previewScrollController.position.maxScrollExtent;
-        final targetScroll = ratio * maxScroll;
+        final viewportHeight = _previewScrollController.position.viewportDimension;
+
+        // Calculate target scroll to center the content
+        final targetScroll = (ratio * maxScroll - viewportHeight / 2).clamp(0.0, maxScroll);
+
         _previewScrollController.animateTo(
-          targetScroll.clamp(0.0, maxScroll),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          targetScroll,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOutCubic,
         );
       }
     }
+
+    // Trigger highlight animation
+    _highlightController.forward(from: 0.0).then((_) {
+      // Clear highlight after animation completes
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() => _highlightedLine = null);
+        }
+      });
+    });
   }
 
   /// 自动保存
@@ -322,6 +356,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _editScrollController.dispose();
     _previewScrollController.dispose();
     _undoController.dispose();
+    _highlightController.dispose();
     super.dispose();
   }
 
