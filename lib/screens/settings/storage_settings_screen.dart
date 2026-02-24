@@ -1,10 +1,11 @@
 // ============================================================================
 // 存储设置页面
-// 
+//
 // 管理缓存、清理历史记录等存储相关选项
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../providers/file_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -26,6 +27,12 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   void initState() {
     super.initState();
     _loadWorkspacePath();
+    // 设置 SettingsProvider 以便 MyFilesService 可以访问设置
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settings = context.read<SettingsProvider>();
+      _myFilesService.setSettingsProvider(settings);
+      _loadWorkspacePath();
+    });
   }
 
   Future<void> _loadWorkspacePath() async {
@@ -178,6 +185,31 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
           ),
         ),
         const SizedBox(height: 12),
+        // 基础路径自定义设置
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('自定义基础路径（高级）'),
+          subtitle: Text(
+            settings.customWorkspaceBasePath ?? '使用默认路径',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (settings.customWorkspaceBasePath != null)
+                TextButton(
+                  onPressed: () => _clearCustomBasePath(settings),
+                  child: const Text('重置'),
+                ),
+              TextButton(
+                onPressed: () => _showEditBasePathDialog(settings),
+                child: const Text('更改'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -190,7 +222,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '此目录中的文件会自动同步到云端',
+                  '工作区文件会自动同步到云端',
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.blue.shade700,
@@ -366,7 +398,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '注意：更改名称后，云端同步文件夹名称也会同步更新',
+                      '注意：更改名称后需要重新配置云同步',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.orange.shade700,
@@ -423,5 +455,161 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         ],
       ),
     );
+  }
+
+  void _showEditBasePathDialog(SettingsProvider settings) async {
+    // 获取默认路径用于显示
+    final externalDir = await getExternalStorageDirectory();
+    final defaultPath = externalDir?.path ?? '/storage/emulated/0/Android/data/com.ushiomd/files';
+
+    final controller = TextEditingController(
+      text: settings.customWorkspaceBasePath ?? '',
+    );
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.edit_location,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('自定义基础路径')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('输入自定义的基础路径：'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: defaultPath,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '默认路径：$defaultPath',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_outlined, color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '警告：更改基础路径将影响工作区位置，请确保路径存在且可访问',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final newPath = controller.text.trim();
+              Navigator.pop(context);
+              await settings.setCustomWorkspaceBasePath(
+                newPath.isEmpty ? null : newPath,
+              );
+              // 清除缓存并重新加载路径
+              _myFilesService.setSettingsProvider(settings);
+              await _loadWorkspacePath();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check, color: Colors.green),
+                        const SizedBox(width: 12),
+                        Text(newPath.isEmpty ? '已重置为默认路径' : '基础路径已更新'),
+                      ],
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+              }
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _clearCustomBasePath(SettingsProvider settings) async {
+    await settings.setCustomWorkspaceBasePath(null);
+    // 清除缓存并重新加载路径
+    _myFilesService.setSettingsProvider(settings);
+    await _loadWorkspacePath();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check, color: Colors.green),
+              SizedBox(width: 12),
+              Text('已重置为默认路径'),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 }

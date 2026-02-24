@@ -120,9 +120,13 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       _syncService = ftpService;
     }
 
+    // Create MyFilesService and set SettingsProvider to ensure it uses custom workspace base path
+    final myFilesService = MyFilesService();
+    myFilesService.setSettingsProvider(settings);
+
     _cloudSyncService = CloudSyncService(
       syncService: _syncService,
-      myFilesService: MyFilesService(),
+      myFilesService: myFilesService,
     );
   }
 
@@ -301,6 +305,8 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            helperText: '修改此名称将重命名云端文件夹（不会创建新文件夹）',
+            helperMaxLines: 2,
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
