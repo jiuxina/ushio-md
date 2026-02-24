@@ -58,12 +58,14 @@ class MarkdownPreview extends StatelessWidget {
     // 这里我们暂时只支持预设主题的切换，或者如果插件提供了 codeTheme 名字且我们在列表中，则切换。
     // 简化起见，目前仅支持 font 和 line-height 覆盖。
 
-    return Markdown(
-      controller: controller,
-      data: data,
+    // Wrap with SelectionArea to enable text selection while keeping checkboxes interactive
+    return SelectionArea(
+      child: Markdown(
+        controller: controller,
+        data: data,
 
-      selectable: false,
-      padding: const EdgeInsets.all(16),
+        selectable: false,
+        padding: const EdgeInsets.all(16),
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(
           fontSize: settings.fontSize, 
@@ -188,6 +190,7 @@ class MarkdownPreview extends StatelessWidget {
         );
       },
       imageBuilder: (uri, title, alt) => _buildImage(uri, title, alt),
+      ),
     );
   }
 
