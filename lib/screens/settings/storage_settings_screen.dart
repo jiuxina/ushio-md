@@ -537,7 +537,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_outline, color: Colors.orange, size: 18),
+                  const Icon(Icons.warning_outlined, color: Colors.orange, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
