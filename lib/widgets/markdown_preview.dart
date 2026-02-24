@@ -180,13 +180,17 @@ class MarkdownPreview extends StatelessWidget {
       },
       checkboxBuilder: (bool value) {
         final currentIndex = checkboxIndex++;
-        return Checkbox(
-          value: value,
-          onChanged: (newValue) {
-            onCheckboxChanged(currentIndex, newValue ?? false);
-            checkboxIndex = 0; // Reset logic might needed depending on rebuild
-          },
-          activeColor: Theme.of(context).colorScheme.primary,
+        // Wrap checkbox with SelectionContainer.disabled to exclude it from SelectionArea
+        // This allows the checkbox to be clickable while keeping text selection enabled
+        return SelectionContainer.disabled(
+          child: Checkbox(
+            value: value,
+            onChanged: (newValue) {
+              onCheckboxChanged(currentIndex, newValue ?? false);
+              checkboxIndex = 0; // Reset logic might needed depending on rebuild
+            },
+            activeColor: Theme.of(context).colorScheme.primary,
+          ),
         );
       },
       imageBuilder: (uri, title, alt) => _buildImage(uri, title, alt),
