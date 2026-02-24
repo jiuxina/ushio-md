@@ -57,6 +57,13 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   void initState() {
     super.initState();
 
+    // 初始化服务（先用默认配置初始化，避免late变量访问错误）
+    _syncService = WebDAVService();
+    _cloudSyncService = CloudSyncService(
+      syncService: _syncService,
+      myFilesService: MyFilesService(),
+    );
+
     // 加载现有配置
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<SettingsProvider>();
