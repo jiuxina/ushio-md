@@ -10,28 +10,45 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../providers/settings_provider.dart';
 
 /// "我的文件" 工作区服务
 class MyFilesService {
-  /// 工作区根目录名称
-  static const String workspaceName = 'Ushio-MD';
-  
+  /// 工作区根目录名称（默认值，可被 SettingsProvider 覆盖）
+  static const String defaultWorkspaceName = 'Ushio-MD';
+
+  /// SettingsProvider 引用（可选，用于获取自定义工作区名称）
+  SettingsProvider? _settingsProvider;
+
   /// 缓存的工作区路径
   String? _workspacePath;
-  
+
+  /// 设置 SettingsProvider
+  void setSettingsProvider(SettingsProvider provider) {
+    _settingsProvider = provider;
+    // 清除缓存，以便下次获取时使用新的设置
+    _workspacePath = null;
+  }
+
+  /// 获取工作区名称
+  String getWorkspaceName() {
+    return _settingsProvider?.workspaceName ?? defaultWorkspaceName;
+  }
+
   /// 获取工作区根路径
-  /// 
+  ///
   /// 工作区位于应用私有目录下：Android/data/com.ushiomd/files/Ushio-MD
   Future<String> getWorkspacePath() async {
     if (_workspacePath != null) {
       return _workspacePath!;
     }
-    
+
     final externalDir = await getExternalStorageDirectory();
     if (externalDir == null) {
       throw Exception('无法获取外部存储目录');
     }
-    
+
+    final workspaceName = getWorkspaceName();
     _workspacePath = '${externalDir.path}${Platform.pathSeparator}$workspaceName';
     return _workspacePath!;
   }
