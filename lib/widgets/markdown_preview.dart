@@ -62,7 +62,7 @@ class MarkdownPreview extends StatelessWidget {
       controller: controller,
       data: data,
 
-      selectable: true,
+      selectable: false,
       padding: const EdgeInsets.all(16),
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(
