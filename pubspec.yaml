@@ -63,8 +63,9 @@ dependencies:
     sdk: flutter
   markdown: ^7.3.0
   
-  # Cloud sync (WebDAV)
+  # Cloud sync (WebDAV & FTP)
   webdav_client: ^1.2.2
+  ftpconnect: ^1.1.1
   
   # Native sharing
   share_plus: ^10.0.0
