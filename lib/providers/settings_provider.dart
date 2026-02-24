@@ -64,7 +64,10 @@ class SettingsProvider extends ChangeNotifier {
   
   /// 默认目录路径
   String? _defaultDirectory;
-  
+
+  /// 工作区文件夹名称
+  String _workspaceName = 'Ushio-MD';
+
   // ==================== 背景设置 ====================
   
   /// 背景图片路径（null 表示无背景图）
@@ -112,6 +115,9 @@ class SettingsProvider extends ChangeNotifier {
   /// 云端同步文件夹名称
   String _syncFolderName = 'Ushio-MD';
 
+  /// 云端文件夹路径前缀（不含文件夹名称）
+  String _syncRemotePath = '';
+
   /// 是否启用自动同步
   bool _autoSyncEnabled = false;
 
@@ -143,6 +149,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get autoSave => _autoSave;
   int get autoSaveInterval => _autoSaveInterval;
   String? get defaultDirectory => _defaultDirectory;
+  String get workspaceName => _workspaceName;
   int get primaryColorIndex => _primaryColorIndex;
   Color get primaryColor => themeColors[_primaryColorIndex];
   String? get backgroundImagePath => _backgroundImagePath;
@@ -168,6 +175,7 @@ class SettingsProvider extends ChangeNotifier {
   String get webdavUsername => _webdavUsername;
   String get webdavPassword => _webdavPassword;
   String get syncFolderName => _syncFolderName;
+  String get syncRemotePath => _syncRemotePath;
   bool get autoSyncEnabled => _autoSyncEnabled;
   DateTime? get lastSyncTime => _lastSyncTime;
   bool get isWebdavConfigured => _webdavUrl.isNotEmpty && _webdavUsername.isNotEmpty && _webdavPassword.isNotEmpty;
@@ -188,7 +196,8 @@ class SettingsProvider extends ChangeNotifier {
     _autoSave = prefs.getBool('auto_save') ?? true;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
     _defaultDirectory = prefs.getString('default_directory');
-    
+    _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-MD';
+
     // 背景设置
     _backgroundImagePath = prefs.getString('background_image_path');
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
@@ -219,6 +228,7 @@ class SettingsProvider extends ChangeNotifier {
     _webdavUrl = prefs.getString('webdav_url') ?? '';
     _webdavUsername = prefs.getString('webdav_username') ?? '';
     _syncFolderName = prefs.getString('sync_folder_name') ?? 'Ushio-MD';
+    _syncRemotePath = prefs.getString('sync_remote_path') ?? '';
     _autoSyncEnabled = prefs.getBool('auto_sync_enabled') ?? false;
     final lastSyncMs = prefs.getInt('last_sync_time');
     _lastSyncTime = lastSyncMs != null ? DateTime.fromMillisecondsSinceEpoch(lastSyncMs) : null;
@@ -419,6 +429,18 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 设置工作区文件夹名称
+  Future<void> setWorkspaceName(String name) async {
+    _workspaceName = name;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('workspace_name', name);
+
+    // 同步更新云端文件夹名称
+    await setSyncFolderName(name);
+
+    notifyListeners();
+  }
+
   // ==================== 语言设置方法 ====================
 
   /// 设置应用语言
@@ -502,6 +524,31 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('sync_folder_name', folderName);
     notifyListeners();
+  }
+
+  /// 设置云端文件夹路径前缀
+  Future<void> setSyncRemotePath(String path) async {
+    _syncRemotePath = path;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('sync_remote_path', path);
+    notifyListeners();
+  }
+
+  /// 获取完整的云端文件夹路径（路径前缀 + 文件夹名称）
+  String getFullSyncPath() {
+    String fullPath = _syncRemotePath.trim();
+
+    // 确保路径以 / 结尾（如果有路径前缀）
+    if (fullPath.isNotEmpty && !fullPath.endsWith('/')) {
+      fullPath += '/';
+    }
+
+    // 自动补齐文件夹名称（如果路径不以文件夹名称结尾）
+    if (!fullPath.endsWith('$_syncFolderName/') && !fullPath.endsWith(_syncFolderName)) {
+      fullPath += _syncFolderName;
+    }
+
+    return fullPath;
   }
 
   /// 设置自动同步开关
