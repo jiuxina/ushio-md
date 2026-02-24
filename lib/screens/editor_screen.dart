@@ -305,28 +305,23 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       position += lines[i].length + 1;
     }
 
+    // Small offset from top to position the target slightly below the top edge
+    const topOffset = 32.0;
+
     if (_mode == EditorMode.edit) {
       _textController.selection = TextSelection.collapsed(offset: position);
       if (_editScrollController.hasClients) {
-        // Calculate line height and viewport height
-        const lineHeight = 24.0; // Approximate line height based on font size
-        final viewportHeight = _editScrollController.position.viewportDimension;
+        const lineHeight = 24.0;
         final maxScroll = _editScrollController.position.maxScrollExtent;
 
-        // Calculate target scroll to center the line
+        // Position target at top with small offset
         final targetLineTop = item.lineNumber * lineHeight;
-        final targetScroll = (targetLineTop - viewportHeight / 2).clamp(0.0, maxScroll);
+        final targetScroll = (targetLineTop - topOffset).clamp(0.0, maxScroll);
 
-        _editScrollController.animateTo(
-          targetScroll,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOutCubic,
-        );
+        _editScrollController.jumpTo(targetScroll);
       }
     } else {
       if (_previewScrollController.hasClients) {
-        // Anchor point method: Use measured cached positions
-        final viewportHeight = _previewScrollController.position.viewportDimension;
         final maxScroll = _previewScrollController.position.maxScrollExtent;
 
         // Get the cached measured position for this heading
@@ -338,14 +333,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
         }
 
-        // Center the target position in viewport
-        final targetScroll = (targetPosition - viewportHeight / 2).clamp(0.0, maxScroll);
+        // Position target at top with small offset
+        final targetScroll = (targetPosition - topOffset).clamp(0.0, maxScroll);
 
-        _previewScrollController.animateTo(
-          targetScroll,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOutCubic,
-        );
+        _previewScrollController.jumpTo(targetScroll);
       }
     }
 
@@ -523,11 +514,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             if (_editScrollController.hasClients) {
               final lines = _textController.text.substring(0, position).split('\n');
               final lineHeight = 24.0; 
-              final targetScroll = lines.length * lineHeight;
-              _editScrollController.animateTo(
+              const topOffset = 32.0;
+              final targetScroll = (lines.length * lineHeight - topOffset);
+              _editScrollController.jumpTo(
                 targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
               );
             }
           });
@@ -906,7 +896,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       },
       child: Scaffold(
-        resizeToAvoidBottomInset: _editingBlockIndex != null,
+        resizeToAvoidBottomInset: true,
         body: CallbackShortcuts(
           bindings: _buildShortcutBindings(),
           child: Stack(
@@ -963,6 +953,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   onSave: _saveFile,
                   onMore: _showMoreMenu,
                 ),
+                Expanded(child: _buildContent()),
+                // Toolbar at bottom (above keyboard when shown)
                 if (!_isLoading && _error == null && (_mode != EditorMode.preview || _editingBlockIndex != null))
                   MarkdownToolbar(
                     controller: _editingBlockIndex != null ? _inlineEditController : _textController,
@@ -970,7 +962,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     filePath: widget.filePath,
                     onSearchPressed: _showSearchDialog,
                   ),
-                Expanded(child: _buildContent()),
               ],
             ),
           ),
@@ -1139,25 +1130,23 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 child: _buildInlineEditablePreview(settings),
               ),
             ),
-            Positioned(
-              right: 24,
-              bottom: 24,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () {
-                    if (_editingBlockIndex != null) _finishInlineEdit();
-                    setState(() => _mode = EditorMode.edit);
-                  }),
-                  const SizedBox(height: 12),
-                  _buildFloatingButton(Icons.search, Colors.teal, _showSearchDialog),
-                  const SizedBox(height: 12),
-                  _buildFloatingButton(Icons.fullscreen, Theme.of(context).colorScheme.secondary, _openFullscreenPreview),
-                  const SizedBox(height: 12),
-                  _buildFloatingButton(Icons.list, Theme.of(context).colorScheme.primary, () => setState(() => _showToc = true)),
-                ],
+            // Hide floating buttons when inline editing is active
+            if (_editingBlockIndex == null)
+              Positioned(
+                right: 24,
+                bottom: 24,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () {
+                      if (_editingBlockIndex != null) _finishInlineEdit();
+                      setState(() => _mode = EditorMode.edit);
+                    }),
+                    const SizedBox(height: 12),
+                    _buildFloatingButton(Icons.list, Theme.of(context).colorScheme.primary, () => setState(() => _showToc = true)),
+                  ],
+                ),
               ),
-            ),
           ],
         );
       case EditorMode.split:
@@ -1315,9 +1304,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
               return Stack(
                 children: [
-                  // Horizontal line indicator at the center/top of viewport
+                  // Horizontal line indicator near the top of viewport
                   Positioned(
-                    top: 100, // Position where the heading should be after centering
+                    top: 32, // Matches topOffset in _jumpToHeading
                     left: 0,
                     right: 0,
                     child: IgnorePointer(
@@ -1362,7 +1351,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   // Visual indicator icon
                   if (opacity > 0.3)
                     Positioned(
-                      top: 85,
+                      top: 17, // Matches topOffset in _jumpToHeading
                       right: 20,
                       child: IgnorePointer(
                         child: Container(
@@ -1478,6 +1467,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               ),
             ),
             const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.search),
+              title: const Text('搜索'),
+              onTap: () {
+                Navigator.pop(context);
+                _showSearchDialog();
+              },
+            ),
              ListTile(
               leading: const Icon(Icons.fullscreen),
               title: const Text('全屏预览'),
