@@ -276,9 +276,24 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
 
     _headingScrollPositions.clear();
-    bool anyMeasured = false;
 
-    // Try to measure using anchor keys (accurate for visible/rendered headings)
+    final lines = currentContent.split('\n');
+    if (lines.isEmpty) return;
+
+    // Step 1: Populate ALL headings with proportional estimates as a baseline.
+    // This ensures every heading has a valid (non-zero) approximate position even
+    // when the ListView.builder hasn't rendered that item yet (lazy rendering).
+    final maxScroll = _previewScrollController.position.maxScrollExtent;
+    final viewportHeight = _previewScrollController.position.viewportDimension;
+    final totalHeight = maxScroll + viewportHeight;
+
+    for (final item in _tocItems) {
+      final ratio = lines.length > 0 ? item.lineNumber / lines.length : 0.0;
+      _headingScrollPositions[item.lineNumber] = ratio * totalHeight;
+    }
+
+    // Step 2: Override with accurate positions from anchor keys for headings that
+    // are currently rendered (visible in the lazy ListView.builder viewport).
     try {
       final scrollViewContext = _previewScrollController.position.context.storageContext;
       final scrollViewBox = scrollViewContext.findRenderObject() as RenderBox?;
@@ -296,25 +311,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           final absolutePosition = _previewScrollController.offset + posInScrollView;
 
           _headingScrollPositions[item.lineNumber] = absolutePosition;
-          anyMeasured = true;
         }
       }
     } catch (_) {}
-
-    if (!anyMeasured) {
-      // Fall back to proportional estimation when anchor keys are not available
-      final lines = currentContent.split('\n');
-      if (lines.isEmpty) return;
-
-      final maxScroll = _previewScrollController.position.maxScrollExtent;
-      final viewportHeight = _previewScrollController.position.viewportDimension;
-      final totalHeight = maxScroll + viewportHeight;
-
-      for (final item in _tocItems) {
-        final ratio = item.lineNumber / lines.length;
-        _headingScrollPositions[item.lineNumber] = ratio * totalHeight;
-      }
-    }
 
     _lastMeasuredContent = currentContent;
   }
@@ -355,7 +354,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           final maxScroll = _previewScrollController.position.maxScrollExtent;
           double targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
 
-          if (_headingScrollPositions.isEmpty || targetPosition == 0.0) {
+          if (_headingScrollPositions.isEmpty) {
             _measureHeadingPositions();
             targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
           }
