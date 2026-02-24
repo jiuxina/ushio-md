@@ -278,76 +278,55 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   /// Estimate the preview position for a given line number
-  /// This accounts for different markdown element sizes
+  /// Uses a resolution-independent proportional strategy
   double _estimatePreviewPosition(int targetLine, List<String> lines) {
-    if (_previewScrollController.hasClients) {
-      final maxScroll = _previewScrollController.position.maxScrollExtent;
-
-      // Base estimate on weighted line heights
-      double accumulatedHeight = 0.0;
-      final baseFontSize = context.read<SettingsProvider>().fontSize;
-
-      // Track if we're inside a code block
-      bool inCodeBlock = false;
-
-      for (int i = 0; i < targetLine && i < lines.length; i++) {
-        final line = lines[i].trim();
-        double lineHeight;
-
-        // Check for code block delimiters
-        if (line.startsWith('```')) {
-          inCodeBlock = !inCodeBlock;
-          lineHeight = baseFontSize * 1.2;
-        } else if (inCodeBlock) {
-          // Inside code block - use monospace height
-          lineHeight = baseFontSize * 0.9 * 1.5;
-        } else if (line.startsWith('# ')) {
-          // H1: fontSize * 2 with larger spacing
-          lineHeight = baseFontSize * 2 * 1.4 + 24;
-        } else if (line.startsWith('## ')) {
-          // H2: fontSize * 1.5 with larger spacing
-          lineHeight = baseFontSize * 1.5 * 1.4 + 20;
-        } else if (line.startsWith('### ')) {
-          // H3: fontSize * 1.25 with spacing
-          lineHeight = baseFontSize * 1.25 * 1.4 + 16;
-        } else if (line.startsWith('#### ') || line.startsWith('##### ') || line.startsWith('###### ')) {
-          // H4-H6: fontSize * 1.1 or fontSize with spacing
-          lineHeight = baseFontSize * 1.1 * 1.4 + 12;
-        } else if (line.isEmpty) {
-          // Empty line - minimal spacing
-          lineHeight = baseFontSize * 0.8;
-        } else if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ') ||
-                   line.startsWith('1. ') || line.startsWith('> ')) {
-          // List items and blockquotes
-          lineHeight = baseFontSize * 1.6 + 6;
-        } else if (line.startsWith('---') || line.startsWith('***') || line.startsWith('===')) {
-          // Horizontal rules - fixed height
-          lineHeight = 20;
-        } else if (line.startsWith('|')) {
-          // Table rows - larger height
-          lineHeight = baseFontSize * 1.6 + 8;
-        } else {
-          // Regular paragraph text - account for line wrapping potential
-          final estimatedCharsPerLine = 80;
-          final lineCount = (line.length / estimatedCharsPerLine).ceil().clamp(1, 5);
-          lineHeight = (baseFontSize * 1.6 + 2) * lineCount;
-        }
-
-        accumulatedHeight += lineHeight;
-      }
-
-      // Add padding from markdown preview (16px top)
-      accumulatedHeight += 16;
-
-      // Don't exceed max scroll
-      if (accumulatedHeight > maxScroll) {
-        return maxScroll;
-      }
-
-      return accumulatedHeight;
+    if (!_previewScrollController.hasClients || lines.isEmpty) {
+      return 0.0;
     }
 
-    return 0.0;
+    final maxScroll = _previewScrollController.position.maxScrollExtent;
+
+    // Base proportional position: where the target line is in the document
+    final baseRatio = targetLine / lines.length;
+
+    // Count headings before target to add weight adjustment
+    // Headings render larger and take more vertical space
+    int headingWeight = 0;
+    int totalHeadingWeight = 0;
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].trim();
+      int weight = 0;
+
+      if (line.startsWith('# ')) {
+        weight = 4; // H1 takes ~4x normal line space
+      } else if (line.startsWith('## ')) {
+        weight = 3; // H2 takes ~3x normal line space
+      } else if (line.startsWith('### ')) {
+        weight = 2; // H3 takes ~2x normal line space
+      } else if (line.startsWith('#### ') || line.startsWith('##### ') || line.startsWith('###### ')) {
+        weight = 1; // H4-H6 take ~1.5x normal line space
+      }
+
+      totalHeadingWeight += weight;
+      if (i < targetLine) {
+        headingWeight += weight;
+      }
+    }
+
+    // Adjust ratio based on heading distribution
+    // If headings are concentrated before target, scroll further
+    double adjustedRatio = baseRatio;
+    if (totalHeadingWeight > 0) {
+      final headingRatio = headingWeight / totalHeadingWeight;
+      // Blend base ratio with heading-weighted ratio (70% base, 30% heading-adjusted)
+      adjustedRatio = baseRatio * 0.7 + headingRatio * 0.3;
+    }
+
+    // Apply ratio to max scroll
+    final estimatedPosition = adjustedRatio * maxScroll;
+
+    return estimatedPosition;
   }
 
   /// 自动保存
