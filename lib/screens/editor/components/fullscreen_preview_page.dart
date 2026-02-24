@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
@@ -25,7 +26,6 @@ class FullscreenPreviewPage extends StatefulWidget {
 }
 
 class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
-  final GlobalKey _previewKey = GlobalKey();
   bool _isExporting = false;
   
   @override
@@ -45,6 +45,10 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     setState(() {});
   }
   
+  /// Share the full document content as a long image.
+  ///
+  /// Renders the entire markdown content off-screen using an [OverlayEntry] so
+  /// the image is not clipped to the current viewport height.
   Future<void> _shareAsImage() async {
     if (_isExporting) return;
     
@@ -61,12 +65,60 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
       ),
     );
     
+    final screenWidth = MediaQuery.of(context).size.width;
+    final captureKey = GlobalKey();
+    final baseDir = widget.filePath != null ? File(widget.filePath!).parent.path : null;
+    // Snapshot settings to avoid using context inside the overlay builder
+    final settings = widget.settings;
+    final markdownData = widget.controller.text;
+    final surface = Theme.of(context).colorScheme.surface;
+
+    // Insert a full-height (unconstrained) markdown render into the overlay.
+    // Positioned off-screen to the left so it is rendered but not visible.
+    late OverlayEntry overlayEntry;
+    overlayEntry = OverlayEntry(
+      builder: (ctx) => Positioned(
+        left: -screenWidth,
+        top: 0,
+        width: screenWidth,
+        child: Material(
+          color: surface,
+          child: RepaintBoundary(
+            key: captureKey,
+            child: Container(
+              color: surface,
+              padding: const EdgeInsets.all(16),
+              child: MarkdownPreview(
+                data: markdownData,
+                settings: settings,
+                shrinkWrap: true,
+                onCheckboxChanged: (_, __) {},
+                baseDirectory: baseDir,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    Overlay.of(context).insert(overlayEntry);
+    
+    // Wait for the overlay widget to be fully laid out and painted.
+    // Use addPostFrameCallback with a Completer to reliably wait for the next frame.
+    final frameCompleter = Completer<void>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!frameCompleter.isCompleted) frameCompleter.complete();
+    });
+    await frameCompleter.future;
+    
     final fileName = widget.fileName.replaceAll('.md', '').replaceAll('.markdown', '');
-    final success = await ExportService.captureAndShareAsImage(_previewKey, fileName);
+    final success = await ExportService.captureAndShareAsImage(captureKey, fileName);
+    
+    overlayEntry.remove();
     
     if (mounted) {
       setState(() => _isExporting = false);
@@ -154,32 +206,29 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: RepaintBoundary(
-        key: _previewKey,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
+      body: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: MarkdownPreview(
-              data: widget.controller.text,
-              settings: widget.settings,
-              onCheckboxChanged: widget.onCheckboxChanged,
-              baseDirectory: widget.filePath != null ? File(widget.filePath!).parent.path : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: MarkdownPreview(
+            data: widget.controller.text,
+            settings: widget.settings,
+            onCheckboxChanged: widget.onCheckboxChanged,
+            baseDirectory: widget.filePath != null ? File(widget.filePath!).parent.path : null,
           ),
         ),
       ),
