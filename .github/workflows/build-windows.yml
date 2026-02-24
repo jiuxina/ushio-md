@@ -1,0 +1,104 @@
+name: Build Windows Self-Extracting EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write   # required to upload assets to GitHub Releases
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Extract version from pubspec.yaml
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Get-Content pubspec.yaml |
+                Select-String '^\s*version:\s*(.+)\+').Matches[0].Groups[1].Value.Trim()
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Create NSIS installer script
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.VERSION }}"
+          $nsis = @"
+          Unicode true
+          !define APP_NAME    "Ushio MD"
+          !define APP_VERSION "$version"
+          !define APP_EXE     "mdreader.exe"
+
+          Name "`${APP_NAME} `${APP_VERSION}"
+          OutFile "ushio-md-v`${APP_VERSION}-windows-x64-setup.exe"
+          InstallDir "`$LOCALAPPDATA\Ushio MD"
+          RequestExecutionLevel user
+          SetCompressor /SOLID lzma
+
+          Page directory
+          Page instfiles
+
+          Section "Install"
+            SetOutPath "`$INSTDIR"
+            File /r "build\windows\x64\runner\Release\*.*"
+            CreateShortcut "`$DESKTOP\`${APP_NAME}.lnk" "`$INSTDIR\`${APP_EXE}"
+            WriteUninstaller "`$INSTDIR\uninstall.exe"
+          SectionEnd
+
+          Section "Uninstall"
+            Delete "`$DESKTOP\`${APP_NAME}.lnk"
+            Delete "`$INSTDIR\uninstall.exe"
+            RMDir /r "`$INSTDIR"
+          SectionEnd
+          "@
+          # Remove leading whitespace so NSIS parses the file correctly
+          $nsis = ($nsis -split "`n" | ForEach-Object { $_.TrimStart() }) -join "`n"
+          Set-Content -Path "installer.nsi" -Value $nsis -Encoding UTF8
+
+      - name: Compile NSIS installer
+        shell: pwsh
+        run: |
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          & $makensis installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Set artifact name
+        id: sfx
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.VERSION }}"
+          $name = "ushio-md-v$version-windows-x64-setup.exe"
+          "SFX_NAME=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ushio-md-windows-setup
+          path: ${{ steps.sfx.outputs.SFX_NAME }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.sfx.outputs.SFX_NAME }}
+          generate_release_notes: true
