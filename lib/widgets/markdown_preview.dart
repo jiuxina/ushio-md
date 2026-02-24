@@ -22,6 +22,8 @@ class MarkdownPreview extends StatelessWidget {
   final void Function(String text, String? href, String title)? onTapLink;
   /// If true, use MarkdownBody (non-scrollable) instead of Markdown (scrollable)
   final bool shrinkWrap;
+  /// Anchor keys for headings: maps heading text to GlobalKey for scroll position measurement
+  final Map<String, GlobalKey>? headingAnchorKeys;
 
   const MarkdownPreview({
     super.key,
@@ -33,6 +35,7 @@ class MarkdownPreview extends StatelessWidget {
     this.baseDirectory,
     this.onTapLink,
     this.shrinkWrap = false,
+    this.headingAnchorKeys,
   });
 
   @override
@@ -172,6 +175,14 @@ class MarkdownPreview extends StatelessWidget {
       ),
       'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: settings.fontSize),
     };
+
+    // Add heading anchor builders when anchor keys are provided
+    if (headingAnchorKeys != null && headingAnchorKeys!.isNotEmpty) {
+      final anchorBuilder = HeadingAnchorBuilder(headingAnchorKeys!);
+      for (final tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']) {
+        builders[tag] = anchorBuilder;
+      }
+    }
 
     Widget checkboxBuilderFn(bool value) {
       final currentIndex = checkboxIndex++;
@@ -578,6 +589,34 @@ class GitHubAlertBuilder extends MarkdownElementBuilder {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Wraps heading elements with their anchor GlobalKey for scroll position measurement.
+///
+/// Maps heading text to the corresponding [GlobalKey] so that after rendering,
+/// callers can call [GlobalKey.currentContext] to measure the rendered position.
+class HeadingAnchorBuilder extends MarkdownElementBuilder {
+  final Map<String, GlobalKey> anchorKeys;
+
+  HeadingAnchorBuilder(this.anchorKeys);
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final headingTags = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
+    if (!headingTags.contains(element.tag)) return null;
+
+    final headingText = element.textContent.trim();
+    final key = anchorKeys[headingText];
+    if (key == null) return null;
+
+    // Return heading text with anchor key for position measurement.
+    // The key on this widget enables callers to find the heading's scroll position.
+    return Text(
+      headingText,
+      key: key,
+      style: preferredStyle,
     );
   }
 }

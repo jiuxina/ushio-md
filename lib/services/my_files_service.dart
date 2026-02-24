@@ -275,8 +275,9 @@ class MyFilesService {
     // 复制图片
     await imageFile.copy(targetPath);
     
-    // 返回相对路径
-    final relativePath = 'images${Platform.pathSeparator}$imageName';
+    // 返回相对路径（使用实际写入的文件名，而非原始文件名）
+    final actualName = targetPath.split(Platform.pathSeparator).last;
+    final relativePath = 'images${Platform.pathSeparator}$actualName';
     return relativePath.replaceAll(Platform.pathSeparator, '/');
   }
   
