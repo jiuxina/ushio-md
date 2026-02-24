@@ -663,7 +663,12 @@ class FileActions {
 
   }
 
-  static Future<void> showCreateFileInFolderDialog(BuildContext context, String folderPath, FileProvider fileProvider) async {
+  static Future<void> showCreateFileInFolderDialog(
+    BuildContext context,
+    String folderPath,
+    FileProvider fileProvider, {
+    VoidCallback? onRefresh,
+  }) async {
     final nameController = TextEditingController();
 
     final result = await showDialog<String>(
@@ -696,12 +701,14 @@ class FileActions {
     if (result != null && result.isNotEmpty) {
       final file = await fileProvider.createFile(folderPath, result);
       if (file != null && context.mounted) {
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => EditorScreen(filePath: file.path),
           ),
         );
+        // Trigger refresh after returning from editor
+        onRefresh?.call();
       }
     }
   }
