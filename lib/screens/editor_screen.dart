@@ -276,22 +276,44 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
 
     _headingScrollPositions.clear();
-    final lines = currentContent.split('\n');
-    if (lines.isEmpty) return;
+    bool anyMeasured = false;
 
-    // Calculate positions based on line distribution
-    // This is a simplified measurement - in real anchor points, we'd measure actual widget positions
-    final maxScroll = _previewScrollController.position.maxScrollExtent;
-    final viewportHeight = _previewScrollController.position.viewportDimension;
-    final totalHeight = maxScroll + viewportHeight;
+    // Try to measure using anchor keys (accurate for visible/rendered headings)
+    try {
+      final scrollViewContext = _previewScrollController.position.context.storageContext;
+      final scrollViewBox = scrollViewContext.findRenderObject() as RenderBox?;
 
-    for (final item in _tocItems) {
-      // Use proportional positioning as baseline, but we'll refine it
-      final ratio = item.lineNumber / lines.length;
-      final estimatedPosition = ratio * totalHeight;
+      if (scrollViewBox != null) {
+        for (final item in _tocItems) {
+          final ctx = item.anchorKey?.currentContext;
+          if (ctx == null) continue;
+          final renderBox = ctx.findRenderObject() as RenderBox?;
+          if (renderBox == null || !renderBox.hasSize) continue;
 
-      // Store the measured position
-      _headingScrollPositions[item.lineNumber] = estimatedPosition;
+          final globalPos = renderBox.localToGlobal(Offset.zero);
+          final scrollViewGlobalPos = scrollViewBox.localToGlobal(Offset.zero);
+          final posInScrollView = globalPos.dy - scrollViewGlobalPos.dy;
+          final absolutePosition = _previewScrollController.offset + posInScrollView;
+
+          _headingScrollPositions[item.lineNumber] = absolutePosition;
+          anyMeasured = true;
+        }
+      }
+    } catch (_) {}
+
+    if (!anyMeasured) {
+      // Fall back to proportional estimation when anchor keys are not available
+      final lines = currentContent.split('\n');
+      if (lines.isEmpty) return;
+
+      final maxScroll = _previewScrollController.position.maxScrollExtent;
+      final viewportHeight = _previewScrollController.position.viewportDimension;
+      final totalHeight = maxScroll + viewportHeight;
+
+      for (final item in _tocItems) {
+        final ratio = item.lineNumber / lines.length;
+        _headingScrollPositions[item.lineNumber] = ratio * totalHeight;
+      }
     }
 
     _lastMeasuredContent = currentContent;
@@ -324,21 +346,34 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       }
     } else {
       if (_previewScrollController.hasClients) {
-        final maxScroll = _previewScrollController.position.maxScrollExtent;
+        // First: try to jump using the anchor key (accurate when heading is rendered)
+        final keyScroll = _computeHeadingScrollFromKey(item);
+        if (keyScroll != null) {
+          _previewScrollController.jumpTo(keyScroll);
+        } else {
+          // Fall back to cached estimated position
+          final maxScroll = _previewScrollController.position.maxScrollExtent;
+          double targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
 
-        // Get the cached measured position for this heading
-        double targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
+          if (_headingScrollPositions.isEmpty || targetPosition == 0.0) {
+            _measureHeadingPositions();
+            targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
+          }
 
-        // If not measured yet, measure now
-        if (_headingScrollPositions.isEmpty || targetPosition == 0.0) {
-          _measureHeadingPositions();
-          targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
+          final targetScroll = (targetPosition - _jumpTopOffset).clamp(0.0, maxScroll);
+          _previewScrollController.jumpTo(targetScroll);
         }
 
-        // Position target at top with small offset
-        final targetScroll = (targetPosition - _jumpTopOffset).clamp(0.0, maxScroll);
-
-        _previewScrollController.jumpTo(targetScroll);
+        // Second pass: after the initial jump renders nearby content,
+        // fine-adjust using the anchor key if it becomes available
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _previewScrollController.hasClients) {
+            final refined = _computeHeadingScrollFromKey(item);
+            if (refined != null) {
+              _previewScrollController.jumpTo(refined);
+            }
+          }
+        });
       }
     }
 
@@ -351,6 +386,36 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       });
     });
+  }
+
+  /// Compute the target scroll position using the TocItem's anchor key.
+  ///
+  /// Returns null if the anchor key is not currently attached to a rendered widget.
+  double? _computeHeadingScrollFromKey(TocItem item) {
+    final context = item.anchorKey?.currentContext;
+    if (context == null) return null;
+
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return null;
+
+    try {
+      final scrollViewContext = _previewScrollController.position.context.storageContext;
+      final scrollViewBox = scrollViewContext.findRenderObject() as RenderBox?;
+      if (scrollViewBox == null) return null;
+
+      final globalPos = renderBox.localToGlobal(Offset.zero);
+      final scrollViewGlobalPos = scrollViewBox.localToGlobal(Offset.zero);
+
+      // posInScrollView = how far the heading is below the current viewport top
+      final posInScrollView = globalPos.dy - scrollViewGlobalPos.dy;
+      // absolutePosition = scroll offset at which the heading sits in the full content
+      final absolutePosition = _previewScrollController.offset + posInScrollView;
+      final maxScroll = _previewScrollController.position.maxScrollExtent;
+
+      return (absolutePosition - _jumpTopOffset).clamp(0.0, maxScroll);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 自动保存
@@ -764,6 +829,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     final blocks = _parseBlocks(_textController.text);
 
+    // Build a map from line number → anchor key for heading blocks
+    final headingKeys = <int, GlobalKey>{};
+    for (final item in _tocItems) {
+      if (item.anchorKey != null) {
+        headingKeys[item.lineNumber] = item.anchorKey!;
+      }
+    }
+
     // Pre-compute checkbox offsets for each block
     final checkboxOffsets = <int>[0];
     for (int b = 0; b < blocks.length - 1; b++) {
@@ -793,8 +866,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
 
         final checkboxOffset = index < checkboxOffsets.length ? checkboxOffsets[index] : 0;
+        final anchorKey = headingKeys[block.startLine];
 
-        return GestureDetector(
+        final blockWidget = GestureDetector(
           onDoubleTap: _editingBlockIndex == null
               ? () => _startInlineEdit(index, blocks)
               : null,
@@ -809,6 +883,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             onTapLink: _handleLinkTap,
           ),
         );
+
+        // Wrap heading blocks with their anchor key for accurate scroll position measurement
+        if (anchorKey != null) {
+          return Container(key: anchorKey, child: blockWidget);
+        }
+        return blockWidget;
       },
     );
   }
@@ -1276,6 +1356,22 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   Widget _buildPreviewPanel(SettingsProvider settings) {
+    // Build heading anchor keys map for accurate scroll position measurement.
+    // Keys use stripped text (no inline markdown) to match element.textContent from the builder.
+    final headingAnchorKeys = <String, GlobalKey>{};
+    for (final item in _tocItems) {
+      if (item.anchorKey != null) {
+        // Strip common inline markdown to match element.textContent in HeadingAnchorBuilder
+        final strippedTitle = item.title
+            .replaceAll(RegExp(r'\*+([^*]+)\*+'), r'$1')
+            .replaceAll(RegExp(r'_+([^_]+)_+'), r'$1')
+            .replaceAll(RegExp(r'`([^`]+)`'), r'$1')
+            .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
+            .trim();
+        headingAnchorKeys[strippedTitle] = item.anchorKey!;
+      }
+    }
+
     return Stack(
       children: [
         MarkdownPreview(
@@ -1285,6 +1381,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           onCheckboxChanged: _toggleCheckbox,
           baseDirectory: File(widget.filePath).parent.path,
           onTapLink: _handleLinkTap,
+          headingAnchorKeys: headingAnchorKeys.isNotEmpty ? headingAnchorKeys : null,
         ),
         if (_highlightedLine != null && _mode != EditorMode.edit)
           AnimatedBuilder(
