@@ -896,37 +896,102 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   Widget _buildEditPanel(SettingsProvider settings) {
-    return TextField(
-      controller: _textController,
-      scrollController: _editScrollController,
-      undoController: _undoController,
-      maxLines: null,
-      expands: true,
-      keyboardType: TextInputType.multiline,
-      textAlignVertical: TextAlignVertical.top,
-      style: TextStyle(
-        fontSize: settings.fontSize,
-        fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
-        height: 1.5,
-      ),
-      decoration: InputDecoration(
-        border: InputBorder.none,
-        contentPadding: const EdgeInsets.all(16),
-        hintText: '开始编写你的 Markdown 内容...',
-        hintStyle: TextStyle(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+    return Stack(
+      children: [
+        TextField(
+          controller: _textController,
+          scrollController: _editScrollController,
+          undoController: _undoController,
+          maxLines: null,
+          expands: true,
+          keyboardType: TextInputType.multiline,
+          textAlignVertical: TextAlignVertical.top,
+          style: TextStyle(
+            fontSize: settings.fontSize,
+            fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+            height: 1.5,
+          ),
+          decoration: InputDecoration(
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.all(16),
+            hintText: '开始编写你的 Markdown 内容...',
+            hintStyle: TextStyle(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+            ),
+          ),
         ),
-      ),
+        if (_highlightedLine != null && _mode == EditorMode.edit)
+          AnimatedBuilder(
+            animation: _highlightAnimation,
+            builder: (context, child) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final highlightColor = isDark ? Colors.white : Colors.black;
+              const lineHeight = 24.0;
+              final topPosition = _highlightedLine! * lineHeight;
+
+              // Blink effect: visible at start and end, invisible in middle
+              final opacity = _highlightAnimation.value < 0.5
+                  ? _highlightAnimation.value * 2
+                  : (1 - _highlightAnimation.value) * 2;
+
+              return Positioned(
+                top: topPosition,
+                left: 0,
+                right: 0,
+                height: lineHeight,
+                child: IgnorePointer(
+                  child: Container(
+                    color: highlightColor.withValues(alpha: opacity * 0.3),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 
   Widget _buildPreviewPanel(SettingsProvider settings) {
-    return MarkdownPreview(
-      data: _textController.text,
-      settings: settings,
-      controller: _previewScrollController,
-      onCheckboxChanged: _toggleCheckbox,
-      baseDirectory: File(widget.filePath).parent.path,
+    return Stack(
+      children: [
+        MarkdownPreview(
+          data: _textController.text,
+          settings: settings,
+          controller: _previewScrollController,
+          onCheckboxChanged: _toggleCheckbox,
+          baseDirectory: File(widget.filePath).parent.path,
+        ),
+        if (_highlightedLine != null && _mode != EditorMode.edit)
+          AnimatedBuilder(
+            animation: _highlightAnimation,
+            builder: (context, child) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final highlightColor = isDark ? Colors.white : Colors.black;
+
+              // Blink effect: visible at start and end, invisible in middle
+              final opacity = _highlightAnimation.value < 0.5
+                  ? _highlightAnimation.value * 2
+                  : (1 - _highlightAnimation.value) * 2;
+
+              return Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: highlightColor.withValues(alpha: opacity * 0.5),
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 
