@@ -248,13 +248,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       }
     } else {
       if (_previewScrollController.hasClients) {
-        final totalLength = _textController.text.length;
-        final ratio = totalLength > 0 ? position / totalLength : 0.0;
+        // Improved positioning strategy for preview mode
         final maxScroll = _previewScrollController.position.maxScrollExtent;
         final viewportHeight = _previewScrollController.position.viewportDimension;
 
+        // Calculate a weighted position based on heading structure
+        double estimatedPosition = _estimatePreviewPosition(item.lineNumber, lines);
+
         // Calculate target scroll to center the content
-        final targetScroll = (ratio * maxScroll - viewportHeight / 2).clamp(0.0, maxScroll);
+        final targetScroll = (estimatedPosition - viewportHeight / 2).clamp(0.0, maxScroll);
 
         _previewScrollController.animateTo(
           targetScroll,
@@ -273,6 +275,65 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         }
       });
     });
+  }
+
+  /// Estimate the preview position for a given line number
+  /// This accounts for different markdown element sizes
+  double _estimatePreviewPosition(int targetLine, List<String> lines) {
+    if (_previewScrollController.hasClients) {
+      final maxScroll = _previewScrollController.position.maxScrollExtent;
+
+      // Base estimate on weighted line heights
+      double accumulatedHeight = 0.0;
+      final baseFontSize = context.read<SettingsProvider>().fontSize;
+
+      for (int i = 0; i < targetLine && i < lines.length; i++) {
+        final line = lines[i].trim();
+        double lineHeight;
+
+        // Estimate height based on markdown syntax
+        if (line.startsWith('# ')) {
+          // H1: fontSize * 2 with larger spacing
+          lineHeight = baseFontSize * 2 * 1.4 + 16;
+        } else if (line.startsWith('## ')) {
+          // H2: fontSize * 1.5 with larger spacing
+          lineHeight = baseFontSize * 1.5 * 1.4 + 12;
+        } else if (line.startsWith('### ')) {
+          // H3: fontSize * 1.25 with spacing
+          lineHeight = baseFontSize * 1.25 * 1.4 + 10;
+        } else if (line.startsWith('#### ') || line.startsWith('##### ') || line.startsWith('###### ')) {
+          // H4-H6: fontSize * 1.1 or fontSize with spacing
+          lineHeight = baseFontSize * 1.1 * 1.4 + 8;
+        } else if (line.startsWith('```')) {
+          // Code block delimiter - minimal height
+          lineHeight = baseFontSize * 1.2;
+        } else if (line.isEmpty) {
+          // Empty line - minimal spacing
+          lineHeight = baseFontSize * 0.5;
+        } else if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ') ||
+                   line.startsWith('1. ') || line.startsWith('> ')) {
+          // List items and blockquotes
+          lineHeight = baseFontSize * 1.6 + 4;
+        } else {
+          // Regular paragraph text
+          lineHeight = baseFontSize * 1.6 + 2;
+        }
+
+        accumulatedHeight += lineHeight;
+      }
+
+      // Add padding from markdown preview (16px top)
+      accumulatedHeight += 16;
+
+      // Scale to actual scroll range
+      if (targetLine >= lines.length - 1) {
+        return maxScroll;
+      }
+
+      return accumulatedHeight;
+    }
+
+    return 0.0;
   }
 
   /// 自动保存
@@ -967,27 +1028,84 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             builder: (context, child) {
               final isDark = Theme.of(context).brightness == Brightness.dark;
               final highlightColor = isDark ? Colors.white : Colors.black;
+              final accentColor = Theme.of(context).colorScheme.primary;
 
-              // Blink effect: visible at start and end, invisible in middle
-              final opacity = _highlightAnimation.value < 0.5
-                  ? _highlightAnimation.value * 2
-                  : (1 - _highlightAnimation.value) * 2;
+              // Enhanced blink effect with stronger visibility
+              final opacity = _highlightAnimation.value < 0.33
+                  ? _highlightAnimation.value * 3
+                  : _highlightAnimation.value < 0.67
+                      ? 1.0 - (_highlightAnimation.value - 0.33) * 3
+                      : (_highlightAnimation.value - 0.67) * 3;
 
-              return Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: highlightColor.withValues(alpha: opacity * 0.5),
-                        width: 3,
+              return Stack(
+                children: [
+                  // Border flash effect
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: accentColor.withValues(alpha: opacity * 0.8),
+                            width: 4,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  // Center flash overlay for better visibility
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              highlightColor.withValues(alpha: opacity * 0.3),
+                              highlightColor.withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Visual indicator icon
+                  if (opacity > 0.3)
+                    Positioned(
+                      top: 20,
+                      right: 20,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: opacity * 0.9),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: accentColor.withValues(alpha: opacity * 0.5),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.location_on,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
           ),
