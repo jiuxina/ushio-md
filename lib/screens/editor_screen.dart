@@ -1249,12 +1249,11 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           AnimatedBuilder(
             animation: _highlightAnimation,
             builder: (context, child) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final highlightColor = isDark ? Colors.white : Colors.black;
+              final accentColor = Theme.of(context).colorScheme.primary;
               const lineHeight = 24.0;
               final topPosition = _highlightedLine! * lineHeight;
 
-              // Blink effect: visible at start and end, invisible in middle
+              // Single flash: fade in then fade out
               final opacity = _highlightAnimation.value < 0.5
                   ? _highlightAnimation.value * 2
                   : (1 - _highlightAnimation.value) * 2;
@@ -1266,7 +1265,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 height: lineHeight,
                 child: IgnorePointer(
                   child: Container(
-                    color: highlightColor.withValues(alpha: opacity * 0.3),
+                    color: accentColor.withValues(alpha: opacity * 0.35),
                   ),
                 ),
               );
@@ -1291,91 +1290,31 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           AnimatedBuilder(
             animation: _highlightAnimation,
             builder: (context, child) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final highlightColor = isDark ? Colors.white : Colors.black;
               final accentColor = Theme.of(context).colorScheme.primary;
 
-              // Enhanced blink effect with stronger visibility
-              final opacity = _highlightAnimation.value < 0.33
-                  ? _highlightAnimation.value * 3
-                  : _highlightAnimation.value < 0.67
-                      ? 1.0 - (_highlightAnimation.value - 0.33) * 3
-                      : (_highlightAnimation.value - 0.67) * 3;
+              // Single flash: fade in then fade out
+              final opacity = _highlightAnimation.value < 0.5
+                  ? _highlightAnimation.value * 2
+                  : (1 - _highlightAnimation.value) * 2;
 
-              return Stack(
-                children: [
-                  // Horizontal line indicator near the top of viewport
-                  Positioned(
-                    top: _jumpTopOffset, // Matches _jumpTopOffset in _jumpToHeading
-                    left: 0,
-                    right: 0,
-                    child: IgnorePointer(
-                      child: Container(
-                        height: 60,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              Colors.transparent,
-                              accentColor.withValues(alpha: opacity * 0.4),
-                              accentColor.withValues(alpha: opacity * 0.6),
-                              accentColor.withValues(alpha: opacity * 0.4),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.1, 0.5, 0.9, 1.0],
-                          ),
-                        ),
-                        child: Center(
-                          child: Container(
-                            height: 3,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [
-                                  Colors.transparent,
-                                  accentColor.withValues(alpha: opacity * 0.8),
-                                  accentColor.withValues(alpha: opacity),
-                                  accentColor.withValues(alpha: opacity * 0.8),
-                                  Colors.transparent,
-                                ],
-                                stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
-                              ),
-                            ),
-                          ),
+              return Positioned(
+                top: _jumpTopOffset,
+                left: 0,
+                right: 0,
+                height: 40,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: opacity * 0.35),
+                      border: Border(
+                        bottom: BorderSide(
+                          color: accentColor.withValues(alpha: opacity * 0.6),
+                          width: 2,
                         ),
                       ),
                     ),
                   ),
-                  // Visual indicator icon
-                  if (opacity > 0.3)
-                    Positioned(
-                      top: _jumpTopOffset - 15, // Above the highlight indicator
-                      right: 20,
-                      child: IgnorePointer(
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: accentColor.withValues(alpha: opacity * 0.9),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: accentColor.withValues(alpha: opacity * 0.5),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.arrow_downward,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               );
             },
           ),
