@@ -18,6 +18,10 @@ class MarkdownPreview extends StatelessWidget {
   final Function(int, bool) onCheckboxChanged;
   /// Base directory for resolving relative image paths
   final String? baseDirectory;
+  /// Callback when a link is tapped
+  final void Function(String text, String? href, String title)? onTapLink;
+  /// If true, use MarkdownBody (non-scrollable) instead of Markdown (scrollable)
+  final bool shrinkWrap;
 
   const MarkdownPreview({
     super.key,
@@ -27,6 +31,8 @@ class MarkdownPreview extends StatelessWidget {
     this.controller,
     required this.onCheckboxChanged,
     this.baseDirectory,
+    this.onTapLink,
+    this.shrinkWrap = false,
   });
 
   @override
@@ -52,147 +58,167 @@ class MarkdownPreview extends StatelessWidget {
     // 最终使用的样式值
     final fontFamily = pluginFontFamily ?? (settings.editorFontFamily == 'System' ? null : settings.editorFontFamily);
     final lineHeight = pluginLineHeight ?? 1.6;
-    // 注意: codeTheme 映射比较复杂, 这里简单处理或忽略，依然依赖 SettingsProvider 的设置
-    // 如果插件提供了 codeTheme，理想情况下应该找到对应的 Map<String, TextStyle>
-    // 但 flutter_highlight 的主题是编译时确定的 Map。
-    // 这里我们暂时只支持预设主题的切换，或者如果插件提供了 codeTheme 名字且我们在列表中，则切换。
-    // 简化起见，目前仅支持 font 和 line-height 覆盖。
+
+    final styleSheet = MarkdownStyleSheet(
+      p: TextStyle(
+        fontSize: settings.fontSize, 
+        height: lineHeight,
+        fontFamily: fontFamily,
+      ),
+      h1: TextStyle(
+        fontSize: settings.fontSize * 2,
+        fontWeight: FontWeight.bold,
+        height: 1.4,
+        fontFamily: fontFamily,
+      ),
+      h2: TextStyle(
+        fontSize: settings.fontSize * 1.5,
+        fontWeight: FontWeight.bold,
+        height: 1.4,
+        fontFamily: fontFamily,
+      ),
+      h3: TextStyle(
+        fontSize: settings.fontSize * 1.25,
+        fontWeight: FontWeight.w600,
+        height: 1.4,
+        fontFamily: fontFamily,
+      ),
+      h4: TextStyle(
+        fontSize: settings.fontSize * 1.1,
+        fontWeight: FontWeight.w600,
+        fontFamily: fontFamily,
+      ),
+      h5: TextStyle(
+        fontSize: settings.fontSize,
+        fontWeight: FontWeight.w600,
+        fontFamily: fontFamily,
+      ),
+      h6: TextStyle(
+        fontSize: settings.fontSize * 0.9,
+        fontWeight: FontWeight.w600,
+        fontFamily: fontFamily,
+      ),
+      code: TextStyle(
+        backgroundColor: isDark 
+            ? const Color(0xFF2d2d2d) 
+            : const Color(0xFFf5f5f5),
+        fontFamily: settings.codeFontFamily == 'System' ? 'monospace' : settings.codeFontFamily,
+        fontSize: settings.fontSize * 0.9,
+        color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: isDark 
+            ? const Color(0xFF1e1e1e) 
+            : const Color(0xFFf8f8f8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark 
+              ? const Color(0xFF3d3d3d) 
+              : const Color(0xFFe0e0e0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      codeblockPadding: const EdgeInsets.all(16),
+      blockquoteDecoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 4,
+          ),
+        ),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+      ),
+      blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      listBullet: TextStyle(
+        color: Theme.of(context).colorScheme.primary,
+        fontFamily: fontFamily,
+      ),
+      horizontalRuleDecoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).dividerColor,
+            width: 1,
+          ),
+        ),
+      ),
+      tableHead: TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: settings.fontSize,
+        fontFamily: fontFamily,
+      ),
+      tableBody: TextStyle(
+        fontSize: settings.fontSize,
+        fontFamily: fontFamily,
+      ),
+      tableBorder: TableBorder.all(
+        color: Theme.of(context).dividerColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      tableCellsPadding: const EdgeInsets.all(8),
+      tableHeadAlign: TextAlign.center,
+    );
+
+    final builders = <String, MarkdownElementBuilder>{
+      'code': CodeBlockBuilder(
+        isDark: isDark,
+        fontSize: settings.fontSize,
+        fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
+      ),
+      'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: settings.fontSize),
+    };
+
+    Widget checkboxBuilderFn(bool value) {
+      final currentIndex = checkboxIndex++;
+      return Checkbox(
+        value: value,
+        onChanged: (newValue) {
+          onCheckboxChanged(currentIndex, newValue ?? false);
+          checkboxIndex = 0;
+        },
+        activeColor: Theme.of(context).colorScheme.primary,
+      );
+    }
+
+    Widget imageBuilderFn(Uri uri, String? title, String? alt) {
+      return Builder(
+        builder: (context) => _buildImage(context, uri, title, alt),
+      );
+    }
+
+    if (shrinkWrap) {
+      return MarkdownBody(
+        data: data,
+        onTapLink: onTapLink,
+        selectable: true,
+        styleSheet: styleSheet,
+        builders: builders,
+        checkboxBuilder: checkboxBuilderFn,
+        imageBuilder: imageBuilderFn,
+      );
+    }
 
     return Markdown(
       controller: controller,
       data: data,
-
+      onTapLink: onTapLink,
       selectable: true,
       padding: const EdgeInsets.all(16),
-      styleSheet: MarkdownStyleSheet(
-        p: TextStyle(
-          fontSize: settings.fontSize, 
-          height: lineHeight,
-          fontFamily: fontFamily,
-        ),
-        h1: TextStyle(
-          fontSize: settings.fontSize * 2,
-          fontWeight: FontWeight.bold,
-          height: 1.4,
-          fontFamily: fontFamily,
-        ),
-        h2: TextStyle(
-          fontSize: settings.fontSize * 1.5,
-          fontWeight: FontWeight.bold,
-          height: 1.4,
-          fontFamily: fontFamily,
-        ),
-        h3: TextStyle(
-          fontSize: settings.fontSize * 1.25,
-          fontWeight: FontWeight.w600,
-          height: 1.4,
-          fontFamily: fontFamily,
-        ),
-        h4: TextStyle(
-          fontSize: settings.fontSize * 1.1,
-          fontWeight: FontWeight.w600,
-          fontFamily: fontFamily,
-        ),
-        h5: TextStyle(
-          fontSize: settings.fontSize,
-          fontWeight: FontWeight.w600,
-          fontFamily: fontFamily,
-        ),
-        h6: TextStyle(
-          fontSize: settings.fontSize * 0.9,
-          fontWeight: FontWeight.w600,
-          fontFamily: fontFamily,
-        ),
-        code: TextStyle(
-          backgroundColor: isDark 
-              ? const Color(0xFF2d2d2d) 
-              : const Color(0xFFf5f5f5),
-          fontFamily: settings.codeFontFamily == 'System' ? 'monospace' : settings.codeFontFamily,
-          fontSize: settings.fontSize * 0.9,
-          color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
-        ),
-        codeblockDecoration: BoxDecoration(
-          color: isDark 
-              ? const Color(0xFF1e1e1e) 
-              : const Color(0xFFf8f8f8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark 
-                ? const Color(0xFF3d3d3d) 
-                : const Color(0xFFe0e0e0),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        codeblockPadding: const EdgeInsets.all(16),
-        blockquoteDecoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(
-              color: Theme.of(context).colorScheme.primary,
-              width: 4,
-            ),
-          ),
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-        ),
-        blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        listBullet: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          fontFamily: fontFamily,
-        ),
-        horizontalRuleDecoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 1,
-            ),
-          ),
-        ),
-        tableHead: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: settings.fontSize,
-          fontFamily: fontFamily,
-        ),
-        tableBody: TextStyle(
-          fontSize: settings.fontSize,
-          fontFamily: fontFamily,
-        ),
-        tableBorder: TableBorder.all(
-          color: Theme.of(context).dividerColor,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        tableCellsPadding: const EdgeInsets.all(8),
-        tableHeadAlign: TextAlign.center,
-      ),
-      builders: {
-        'code': CodeBlockBuilder(
-          isDark: isDark,
-          fontSize: settings.fontSize,
-          fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
-        ),
-        'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: settings.fontSize),
-      },
-      checkboxBuilder: (bool value) {
-        final currentIndex = checkboxIndex++;
-        return Checkbox(
-          value: value,
-          onChanged: (newValue) {
-            onCheckboxChanged(currentIndex, newValue ?? false);
-            checkboxIndex = 0; // Reset logic might needed depending on rebuild
-          },
-          activeColor: Theme.of(context).colorScheme.primary,
-        );
-      },
-      imageBuilder: (uri, title, alt) => _buildImage(uri, title, alt),
+      styleSheet: styleSheet,
+      builders: builders,
+      checkboxBuilder: checkboxBuilderFn,
+      imageBuilder: imageBuilderFn,
     );
   }
 
   /// Build image widget with support for local and relative paths
-  Widget _buildImage(Uri uri, String? title, String? alt) {
+  /// Tap on image to show fullscreen preview
+  Widget _buildImage(BuildContext context, Uri uri, String? title, String? alt) {
     String imagePath = uri.toString();
     
     // Handle relative paths
@@ -206,33 +232,21 @@ class MarkdownPreview extends StatelessWidget {
       imagePath = imagePath.substring(7);
     }
     
+    Widget imageWidget;
+    
     // Check if it's a local file
     if (!imagePath.startsWith('http')) {
       final file = File(imagePath);
       if (file.existsSync()) {
-        return Image.file(
+        imageWidget = Image.file(
           file,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.broken_image, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(alt ?? '图片加载失败', style: const TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
+            return _buildImageError(alt ?? '图片加载失败');
           },
         );
       } else {
-        // File doesn't exist
+        // File doesn't exist - not tappable
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -250,29 +264,82 @@ class MarkdownPreview extends StatelessWidget {
           ),
         );
       }
+    } else {
+      // Network image
+      imageWidget = Image.network(
+        imagePath,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildImageError(alt ?? '网络图片加载失败');
+        },
+      );
     }
     
-    // Network image
-    return Image.network(
-      imagePath,
-      fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+    // Wrap in GestureDetector for fullscreen preview on tap
+    return GestureDetector(
+      onTap: () => _showFullscreenImage(context, imagePath, alt),
+      child: imageWidget,
+    );
+  }
+
+  Widget _buildImageError(String message) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.broken_image, color: Colors.grey),
+          const SizedBox(width: 8),
+          Text(message, style: const TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  /// Show fullscreen image preview dialog
+  void _showFullscreenImage(BuildContext context, String imagePath, String? alt) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              const Icon(Icons.broken_image, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(alt ?? '网络图片加载失败', style: const TextStyle(color: Colors.grey)),
+              InteractiveViewer(
+                child: imagePath.startsWith('http')
+                    ? Image.network(
+                        imagePath,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildImageError(alt ?? '图片加载失败'),
+                      )
+                    : Image.file(
+                        File(imagePath),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildImageError(alt ?? '图片加载失败'),
+                      ),
+              ),
+              Positioned(
+                top: 40,
+                right: 16,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
