@@ -35,8 +35,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   final _webdavPasswordController = TextEditingController();
 
   // FTP 控制器
-  final _ftpHostController = TextEditingController();
-  final _ftpPortController = TextEditingController();
+  final _ftpUrlController = TextEditingController();
   final _ftpUsernameController = TextEditingController();
   final _ftpPasswordController = TextEditingController();
 
@@ -71,8 +70,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       _webdavPasswordController.text = settings.webdavPassword;
 
       // 加载 FTP 配置
-      _ftpHostController.text = settings.ftpHost;
-      _ftpPortController.text = settings.ftpPort.toString();
+      _ftpUrlController.text = settings.ftpUrl;
       _ftpUsernameController.text = settings.ftpUsername;
       _ftpPasswordController.text = settings.ftpPassword;
 
@@ -126,8 +124,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     _urlController.dispose();
     _webdavUsernameController.dispose();
     _webdavPasswordController.dispose();
-    _ftpHostController.dispose();
-    _ftpPortController.dispose();
+    _ftpUrlController.dispose();
     _ftpUsernameController.dispose();
     _ftpPasswordController.dispose();
     _folderNameController.dispose();
@@ -291,12 +288,12 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           controller: _remotePathController,
           decoration: InputDecoration(
             labelText: '云端路径前缀（可选）',
-            hintText: '例如：/documents 或留空',
+            hintText: '例如：/storage/emulated/0/ 或 /documents/',
             prefixIcon: const Icon(Icons.folder_open),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            helperText: '云端文件夹的完整路径会自动补齐为：路径前缀/${_folderNameController.text}',
+            helperText: '云端文件夹的完整路径会自动补齐为：路径前缀${_folderNameController.text}',
           ),
         ),
         const SizedBox(height: 20),
@@ -438,41 +435,40 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   List<Widget> _buildFTPFields() {
     return [
       TextFormField(
-        controller: _ftpHostController,
+        controller: _ftpUrlController,
         decoration: InputDecoration(
           labelText: 'FTP 服务器地址',
-          hintText: 'ftp.example.com',
+          hintText: 'ftp://192.168.124.6:2121',
           prefixIcon: const Icon(Icons.dns),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          helperText: '格式：ftp://主机:端口',
         ),
+        keyboardType: TextInputType.url,
         validator: (value) {
           if (value == null || value.isEmpty) {
-            return '请输入服务器地址';
+            return '请输入FTP服务器地址';
           }
-          return null;
-        },
-      ),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _ftpPortController,
-        decoration: InputDecoration(
-          labelText: '端口',
-          hintText: '21',
-          prefixIcon: const Icon(Icons.numbers),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        keyboardType: TextInputType.number,
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return '请输入端口';
+          // 验证格式
+          final trimmed = value.trim();
+          if (!trimmed.startsWith('ftp://')) {
+            return '地址应以 ftp:// 开头';
           }
-          final port = int.tryParse(value);
-          if (port == null || port < 1 || port > 65535) {
-            return '请输入有效的端口号 (1-65535)';
+          // 尝试解析主机和端口
+          String cleanUrl = trimmed.substring(6).replaceAll(RegExp(r'/+$'), '');
+          if (cleanUrl.isEmpty) {
+            return '请输入有效的主机地址';
+          }
+          if (cleanUrl.contains(':')) {
+            final parts = cleanUrl.split(':');
+            if (parts.length != 2) {
+              return '格式错误，应为 ftp://主机:端口';
+            }
+            final port = int.tryParse(parts[1]);
+            if (port == null || port < 1 || port > 65535) {
+              return '端口号应在 1-65535 之间';
+            }
           }
           return null;
         },
@@ -747,9 +743,30 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
         password: _webdavPasswordController.text,
       ));
     } else {
+      // 解析 FTP URL
+      final ftpUrl = _ftpUrlController.text.trim();
+      String host = '';
+      int port = 21;
+
+      if (ftpUrl.isNotEmpty) {
+        String cleanUrl = ftpUrl;
+        if (cleanUrl.startsWith('ftp://')) {
+          cleanUrl = cleanUrl.substring(6);
+        }
+        cleanUrl = cleanUrl.replaceAll(RegExp(r'/+$'), '');
+
+        if (cleanUrl.contains(':')) {
+          final parts = cleanUrl.split(':');
+          host = parts[0];
+          port = int.tryParse(parts[1]) ?? 21;
+        } else {
+          host = cleanUrl;
+        }
+      }
+
       (_syncService as FTPService).initialize(FTPConfig(
-        host: _ftpHostController.text.trim(),
-        port: int.tryParse(_ftpPortController.text.trim()) ?? 21,
+        host: host,
+        port: port,
         username: _ftpUsernameController.text.trim(),
         password: _ftpPasswordController.text,
       ));
@@ -779,8 +796,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       await settings.setWebdavUsername(_webdavUsernameController.text.trim());
       await settings.setWebdavPassword(_webdavPasswordController.text);
     } else {
-      await settings.setFtpHost(_ftpHostController.text.trim());
-      await settings.setFtpPort(int.tryParse(_ftpPortController.text.trim()) ?? 21);
+      await settings.setFtpUrl(_ftpUrlController.text.trim());
       await settings.setFtpUsername(_ftpUsernameController.text.trim());
       await settings.setFtpPassword(_ftpPasswordController.text);
     }
