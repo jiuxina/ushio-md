@@ -120,9 +120,13 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       _syncService = ftpService;
     }
 
+    // Create MyFilesService and set SettingsProvider to ensure it uses custom workspace base path
+    final myFilesService = MyFilesService();
+    myFilesService.setSettingsProvider(settings);
+
     _cloudSyncService = CloudSyncService(
       syncService: _syncService,
-      myFilesService: MyFilesService(),
+      myFilesService: myFilesService,
     );
   }
 
