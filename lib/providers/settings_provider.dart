@@ -538,8 +538,13 @@ class SettingsProvider extends ChangeNotifier {
   String getFullSyncPath() {
     String fullPath = _syncRemotePath.trim();
 
-    // 确保路径以 / 结尾（如果有路径前缀）
-    if (fullPath.isNotEmpty && !fullPath.endsWith('/')) {
+    // 如果没有路径前缀，直接返回文件夹名称
+    if (fullPath.isEmpty) {
+      return _syncFolderName;
+    }
+
+    // 确保路径以 / 结尾
+    if (!fullPath.endsWith('/')) {
       fullPath += '/';
     }
 
