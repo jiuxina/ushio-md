@@ -15,6 +15,7 @@ import 'main/components/permission_screen.dart';
 import 'editor_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/navigation_extension.dart';
+import '../services/update_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -96,6 +97,39 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     await fileProvider.initialize();
     await settingsProvider.initialize();
     if (mounted) setState(() {});
+
+    // 延迟2秒后检查更新（避免阻塞启动流程）
+    if (settingsProvider.autoCheckUpdate) {
+      Future.delayed(const Duration(seconds: 2), _checkUpdateOnStartup);
+    }
+  }
+
+  /// 启动时静默检查更新，有新版本时显示底部提示条
+  Future<void> _checkUpdateOnStartup() async {
+    if (!mounted) return;
+    try {
+      final updateInfo = await UpdateService.checkForUpdate(AppConstants.appVersion);
+      if (!mounted) return;
+      if (updateInfo != null && updateInfo.hasUpdate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('发现新版本 ${updateInfo.latestVersion}，可前往关于页面更新'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: '查看',
+              onPressed: () {
+                // 切换到设置tab
+                _switchTab(3);
+              },
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      // 静默忽略网络错误
+    }
   }
 
   void _switchTab(int index) {

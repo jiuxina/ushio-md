@@ -99,6 +99,11 @@ class SettingsProvider extends ChangeNotifier {
   /// 是否全局显示（false 则仅在非编辑器区域显示）
   bool _particleGlobal = true;
   
+  // ==================== 更新设置 ====================
+  
+  /// 是否在启动时自动检查更新（默认开启）
+  bool _autoCheckUpdate = true;
+
   // ==================== 语言设置 ====================
   
   /// 当前语言环境（默认中文）
@@ -173,6 +178,8 @@ class SettingsProvider extends ChangeNotifier {
   double get backgroundBlur => _backgroundBlur;
   double get backgroundOverlayOpacity => _backgroundOverlayOpacity;
   
+  bool get autoCheckUpdate => _autoCheckUpdate;
+
   // 粒子效果 Getters
   bool get particleEnabled => _particleEnabled;
   String get particleType => _particleType;
@@ -287,6 +294,9 @@ class SettingsProvider extends ChangeNotifier {
     // 语言设置
     final localeCode = prefs.getString('locale') ?? 'zh';
     _locale = localeCode == 'en' ? const Locale('en', 'US') : const Locale('zh', 'CN');
+
+    // 更新设置
+    _autoCheckUpdate = prefs.getBool('auto_check_update') ?? true;
     
     // 夜间主题和字体设置
     _darkThemeIndex = prefs.getInt('dark_theme_index') ?? 0;
@@ -550,6 +560,16 @@ class SettingsProvider extends ChangeNotifier {
     _locale = locale;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('locale', locale.languageCode);
+    notifyListeners();
+  }
+
+  // ==================== 更新设置方法 ====================
+
+  /// 设置启动时是否自动检查更新
+  Future<void> setAutoCheckUpdate(bool value) async {
+    _autoCheckUpdate = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_check_update', value);
     notifyListeners();
   }
 

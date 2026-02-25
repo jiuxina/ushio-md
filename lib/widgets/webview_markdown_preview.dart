@@ -417,7 +417,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 <style>
 $fontFaces
 *{box-sizing:border-box}
-body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word;touch-action:manipulation}
+body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word}
 h1,h2,h3,h4,h5,h6{color:$hColor;font-weight:bold;line-height:1.4;margin:1em 0 0.5em;border-radius:4px}
 h1{font-size:${fs * 2}px;border-bottom:2px solid $hrColor;padding-bottom:0.3em}
 h2{font-size:${fs * 1.5}px;border-bottom:1px solid $hrColor;padding-bottom:0.2em}
@@ -564,11 +564,13 @@ $body
       _commitEdit(true);
     }
   });
-  // Double-tap: start in-place editing
-  document.addEventListener('dblclick', function(e) {
-    e.preventDefault();
+  // Double-tap / dblclick: start in-place editing
+  // On Android WebView, touch-action:manipulation or OS-level double-tap-zoom
+  // can suppress the synthetic dblclick event, so we also detect double-tap
+  // manually via touchend (two touches within 300ms on the same element).
+  function _handleDoubleTap(target) {
     // Check for table cell first (traverse up from target)
-    var node = e.target;
+    var node = target;
     while (node && node !== document.body) {
       if (node.tagName === 'TD' || node.tagName === 'TH') {
         var table = node;
@@ -584,9 +586,9 @@ $body
       }
       node = node.parentElement || node.parentNode;
     }
-    // Block element – use parentElement for reliable traversal on mobile
+    // Block element – traverse up to nearest editable block
     var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE'];
-    var el = e.target;
+    var el = target;
     while (el && el !== document.body && blockTags.indexOf(el.tagName) === -1) {
       el = el.parentElement || el.parentNode;
     }
@@ -597,7 +599,30 @@ $body
     window.flutter_inappwebview.callHandler('getMarkdown', 'block', 0, 0, 0, innerText).then(function(md) {
       _startEdit(el, key, md);
     });
+  }
+  // Desktop: native dblclick
+  document.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    _handleDoubleTap(e.target);
   });
+  // Mobile: manual double-tap via touchend (two taps ≤300ms apart, ≤30px apart)
+  var _lastTap = null;
+  document.addEventListener('touchend', function(e) {
+    // Ignore if currently editing
+    if (_ie) return;
+    var touch = e.changedTouches[0];
+    var now = Date.now();
+    var target = document.elementFromPoint(touch.clientX, touch.clientY) || e.target;
+    if (_lastTap && now - _lastTap.t < 300 &&
+        Math.abs(touch.clientX - _lastTap.x) < 30 &&
+        Math.abs(touch.clientY - _lastTap.y) < 30) {
+      e.preventDefault();
+      _handleDoubleTap(target);
+      _lastTap = null;
+    } else {
+      _lastTap = { t: now, x: touch.clientX, y: touch.clientY };
+    }
+  }, { passive: false });
 
   // ── GitHub Alerts ────────────────────────────────────────────────────
   var alertMap = {
