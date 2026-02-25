@@ -96,12 +96,9 @@ void main() {
       await tester.pumpAndSettle();
       
       // Verify Content
-      // Editor starts in Preview mode by default (check line 38 of EditorScreen)
-      // So we should find text in MarkdownPreview
-      expect(find.textContaining('Hello World'), findsOneWidget);
-      
-      // Verify Header Title
-      // EditorHeader removes extension
+      // Editor now uses WebView for markdown rendering; text content lives inside
+      // the WebView and is not part of the Flutter widget tree, so we verify the
+      // header (file name) instead of the rendered markdown text.
       expect(find.text('note'), findsOneWidget);
     });
     
