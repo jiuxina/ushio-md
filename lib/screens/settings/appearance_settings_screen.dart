@@ -99,11 +99,42 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 _buildSection('粒子效果', Icons.auto_awesome, [
                   _buildParticleSettings(settings),
                 ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection('底部导航栏', Icons.tab_rounded, [
+                  _buildTabBarOpacitySlider(settings),
+                ]),
               ],
             );
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildTabBarOpacitySlider(SettingsProvider settings) {
+    return Row(
+      children: [
+        const Text('透明度'),
+        Expanded(
+          child: Slider(
+            value: settings.tabBarOpacity,
+            min: 0.1,
+            max: 1.0,
+            divisions: 18,
+            label: '${(settings.tabBarOpacity * 100).round()}%',
+            onChanged: (value) => settings.setTabBarOpacity(value),
+          ),
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(
+            '${(settings.tabBarOpacity * 100).round()}%',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
     );
   }
 
