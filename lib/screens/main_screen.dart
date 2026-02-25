@@ -12,7 +12,7 @@ import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
 import 'main/tabs/settings_tab.dart';
 import 'main/components/permission_screen.dart';
-import 'editor_screen.dart';
+import '../utils/file_import_helper.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/navigation_extension.dart';
 import '../services/update_service.dart';
@@ -72,19 +72,15 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     
     // 确保文件存在
     if (File(path).existsSync()) {
-      // 添加到最近文件并打开编辑器
-      // 需要在下一帧执行，确保上下文准备好
+      // 使用 FileImportHelper 处理外部文件，让用户选择直接打开或导入
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         
         final fileProvider = context.read<FileProvider>();
-        fileProvider.addToRecentFiles(path);
-        
-        Navigator.push(
+        FileImportHelper.openFile(
           context,
-          MaterialPageRoute(
-            builder: (context) => EditorScreen(filePath: path),
-          ),
+          path,
+          onFileOpened: () => fileProvider.addToRecentFiles(path),
         );
       });
     }

@@ -92,7 +92,7 @@ class FileImportHelper {
         return false;
       }
     } else {
-      // 用户选择仅查看（不导入）
+      // 用户选择直接打开（在源文件上编辑）
       if (context.mounted) {
         _navigateToEditor(context, filePath, onFileOpened);
       }
@@ -134,12 +134,12 @@ class _ImportDialog extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              Icons.folder_copy,
+              Icons.file_open,
               color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(width: 12),
-          const Flexible(child: Text('导入到我的文件？')),
+          const Flexible(child: Text('打开外部文件')),
         ],
       ),
       content: Column(
@@ -147,10 +147,33 @@ class _ImportDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '文件 "$fileName" 是外部文件。',
+            '文件 "$fileName" 是外部文件，请选择打开方式：',
             style: const TextStyle(fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.edit_note, color: Colors.green, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '直接打开：在源文件上编辑，保存直接写入原文件',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -159,11 +182,11 @@ class _ImportDialog extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                const Icon(Icons.folder_copy, color: Colors.blue, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '导入到"我的文件"后，文件将被云同步备份',
+                    '导入副本：复制到"我的文件"，不影响源文件',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.blue.shade700,
@@ -180,14 +203,15 @@ class _ImportDialog extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        OutlinedButton(
-          onPressed: () => Navigator.pop(context, 'view'),
-          child: const Text('仅查看'),
-        ),
-        FilledButton.icon(
+        OutlinedButton.icon(
           onPressed: () => Navigator.pop(context, 'import'),
           icon: const Icon(Icons.folder_copy, size: 18),
-          label: const Text('导入'),
+          label: const Text('导入副本'),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.pop(context, 'view'),
+          icon: const Icon(Icons.edit_note, size: 18),
+          label: const Text('直接打开'),
         ),
       ],
     );
