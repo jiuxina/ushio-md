@@ -585,12 +585,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         .replaceAll(RegExp(r'_{1,3}([^_]+)_{1,3}'), r'$1')
         .replaceAll(RegExp(r'`+([^`]+)`+'), r'$1')
         .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
+        .replaceAll(RegExp(r'==([^=]+)=='), r'$1')
         .replaceAll(RegExp(r'!\[[^\]]*\]\([^\)]*\)'), '')
         .replaceAll(RegExp(r'\[([^\]]*)\]\([^\)]*\)'), r'$1')
         .replaceAll(RegExp(r'^#+\s*', multiLine: true), '')
         .replaceAll(RegExp(r'^[-*+]\s+', multiLine: true), '')
         .replaceAll(RegExp(r'^\d+\.\s+', multiLine: true), '')
-        .replaceAll(RegExp(r'^\s*>\s*', multiLine: true), '')
+        // Strip ALL leading blockquote markers (handles nested > > > lines)
+        .replaceAll(RegExp(r'^\s*(>\s*)+', multiLine: true), '')
         .trim()
         .toLowerCase();
   }
