@@ -6,6 +6,7 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
+import '../widgets/app_background.dart';
 import 'main/tabs/home_tab.dart';
 import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
@@ -124,10 +125,14 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           return PermissionScreen(fileProvider: fileProvider);
         }
 
-        return Scaffold(
-          body: _buildBody(fileProvider),
-          bottomNavigationBar: _buildBottomNav(),
-          drawer: _buildDrawer(),
+        return AppBackground(
+          wrapWithSafeArea: false,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: _buildBody(fileProvider),
+            bottomNavigationBar: _buildBottomNav(),
+            drawer: _buildDrawer(),
+          ),
         );
       },
     );

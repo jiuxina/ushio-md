@@ -42,13 +42,16 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('外观设置'),
-        centerTitle: true,
-      ),
-      body: AppBackground(
-        child: Consumer<SettingsProvider>(
+    return AppBackground(
+      wrapWithSafeArea: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: const Text('外观设置'),
+          centerTitle: true,
+        ),
+        body: Consumer<SettingsProvider>(
           builder: (context, settings, child) {
             return ListView(
               padding: const EdgeInsets.all(20),

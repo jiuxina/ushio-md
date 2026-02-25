@@ -369,6 +369,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _textController.dispose();
     _editScrollController.dispose();
     _undoController.dispose();
+    _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
     _inlineEditController.dispose();
     _inlineEditFocusNode.dispose();
     _highlightController.dispose();
@@ -711,8 +712,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     );
   }
 
-  /// Build the inline editor widget for a block
+  /// Build the inline editor widget for a block.
+  ///
+  /// No confirm/cancel buttons – tapping outside the field (focus-lost) saves
+  /// the change; pressing Enter on a single-line block also saves.
   Widget _buildBlockEditor(_MarkdownBlock block, SettingsProvider settings) {
+    // Auto-save when the field loses focus (user tapped elsewhere)
+    _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
+    _inlineEditFocusNode.addListener(_onInlineEditFocusChanged);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
@@ -723,63 +731,36 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           width: 2,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _inlineEditController,
-            focusNode: _inlineEditFocusNode,
-            maxLines: block.isMultiLine ? null : 1,
-            keyboardType: block.isMultiLine ? TextInputType.multiline : TextInputType.text,
-            onSubmitted: block.isMultiLine ? null : (_) => _finishInlineEdit(),
-            style: TextStyle(
-              fontSize: settings.fontSize,
-              fontFamily: settings.editorFontFamily == 'System'
-                  ? (block.content.trimLeft().startsWith('```') ? 'monospace' : null)
-                  : settings.editorFontFamily,
-              height: 1.5,
-            ),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-              hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
-              hintStyle: TextStyle(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-              ),
-            ),
+      child: TextField(
+        controller: _inlineEditController,
+        focusNode: _inlineEditFocusNode,
+        maxLines: block.isMultiLine ? null : 1,
+        keyboardType: block.isMultiLine ? TextInputType.multiline : TextInputType.text,
+        onSubmitted: block.isMultiLine ? null : (_) => _finishInlineEdit(),
+        style: TextStyle(
+          fontSize: settings.fontSize,
+          fontFamily: settings.editorFontFamily == 'System'
+              ? (block.content.trimLeft().startsWith('```') ? 'monospace' : null)
+              : settings.editorFontFamily,
+          height: 1.5,
+        ),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(12),
+          hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
+          hintStyle: TextStyle(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  onPressed: _cancelInlineEdit,
-                  icon: const Icon(Icons.close, size: 16),
-                  label: const Text('取消'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _finishInlineEdit,
-                  icon: const Icon(Icons.check, size: 16),
-                  label: const Text('完成'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  /// Save inline edit when the text field loses focus (user tapped outside).
+  void _onInlineEditFocusChanged() {
+    if (!_inlineEditFocusNode.hasFocus && _editingBlockIndex != null) {
+      _finishInlineEdit();
+    }
   }
 
   @override

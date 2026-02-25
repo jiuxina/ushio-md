@@ -172,7 +172,7 @@ class MarkdownToolbar extends StatelessWidget {
               _ToolbarButton(
                 icon: Icons.table_chart,
                 tooltip: '表格',
-                onPressed: () => _insertTable(),
+                onPressed: () => _showTableDialog(context),
               ),
             ],
           ),
@@ -636,18 +636,137 @@ class MarkdownToolbar extends StatelessWidget {
     }
   }
 
-  void _insertTable() {
+  Future<void> _showTableDialog(BuildContext context) async {
+    int rows = 2;
+    int cols = 3;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.table_chart, color: Colors.blue),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('插入表格'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('行数'),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove),
+                            onPressed: rows > 1 ? () => setDialogState(() => rows--) : null,
+                            iconSize: 20,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          ),
+                          SizedBox(
+                            width: 32,
+                            child: Text(
+                              '$rows',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: rows < 20 ? () => setDialogState(() => rows++) : null,
+                            iconSize: 20,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('列数'),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove),
+                            onPressed: cols > 1 ? () => setDialogState(() => cols--) : null,
+                            iconSize: 20,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          ),
+                          SizedBox(
+                            width: 32,
+                            child: Text(
+                              '$cols',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: cols < 10 ? () => setDialogState(() => cols++) : null,
+                            iconSize: 20,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('取消'),
+                ),
+                FilledButton.icon(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('插入'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      _insertTable(rows: rows, cols: cols);
+    }
+  }
+
+  void _insertTable({int rows = 2, int cols = 3}) {
     final text = controller.text;
     final selection = controller.selection;
 
-    const table = '''
+    // Header row
+    final header = '| ${List.generate(cols, (i) => '列${i + 1}').join(' | ')} |';
+    // Separator row
+    final separator = '| ${List.generate(cols, (_) => '-----').join(' | ')} |';
+    // Data rows
+    final dataRow = '| ${List.generate(cols, (_) => '内容').join(' | ')} |';
+    final dataRows = List.generate(rows, (_) => dataRow).join('\n');
 
-| 列1 | 列2 | 列3 |
-|-----|-----|-----|
-| 内容 | 内容 | 内容 |
-| 内容 | 内容 | 内容 |
+    final table = '\n$header\n$separator\n$dataRows\n\n';
 
-''';
     controller.text = text.substring(0, selection.start) +
         table +
         text.substring(selection.end);

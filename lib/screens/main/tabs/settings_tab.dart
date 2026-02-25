@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/plugin_provider.dart';
-import '../../../widgets/app_background.dart';
 import '../../../utils/constants.dart';
 import '../../settings/appearance_settings_screen.dart';
 import '../../settings/editor_settings_screen.dart';
@@ -23,10 +22,9 @@ class SettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, child) {
-          return ListView(
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, child) {
+        return ListView(
             padding: const EdgeInsets.all(20),
             children: [
               _buildSettingsHeader(context),
@@ -110,8 +108,7 @@ class SettingsTab extends StatelessWidget {
             ],
           );
         },
-      ),
-    );
+      );
   }
 
   Widget _buildSettingsHeader(BuildContext context) {

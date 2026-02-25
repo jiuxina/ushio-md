@@ -23,13 +23,16 @@ class _AboutScreenState extends State<AboutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('关于'),
-        centerTitle: true,
-      ),
-      body: AppBackground(
-        child: ListView(
+    return AppBackground(
+      wrapWithSafeArea: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: const Text('关于'),
+          centerTitle: true,
+        ),
+        body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             _buildAppInfo(),
