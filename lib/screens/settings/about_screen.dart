@@ -5,11 +5,13 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../utils/constants.dart';
 import '../../services/update_service.dart';
 import '../../widgets/app_background.dart';
+import '../../providers/settings_provider.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -23,13 +25,16 @@ class _AboutScreenState extends State<AboutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('关于'),
-        centerTitle: true,
-      ),
-      body: AppBackground(
-        child: ListView(
+    return AppBackground(
+      wrapWithSafeArea: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: const Text('关于'),
+          centerTitle: true,
+        ),
+        body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             _buildAppInfo(),
@@ -44,6 +49,7 @@ class _AboutScreenState extends State<AboutScreen> {
             ]),
             const SizedBox(height: 16),
             _buildSection('更新', Icons.system_update, [
+              _buildAutoCheckToggle(),
               _buildCheckUpdateButton(),
             ]),
           ],
@@ -182,6 +188,25 @@ class _AboutScreenState extends State<AboutScreen> {
       ),
       trailing: const Icon(Icons.open_in_new, size: 18),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildAutoCheckToggle() {
+    final settings = context.watch<SettingsProvider>();
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      secondary: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(Icons.update_outlined, color: Theme.of(context).colorScheme.primary),
+      ),
+      title: const Text('启动时自动检查更新'),
+      subtitle: const Text('有新版本时显示提示'),
+      value: settings.autoCheckUpdate,
+      onChanged: (v) => settings.setAutoCheckUpdate(v),
     );
   }
 

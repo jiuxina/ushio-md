@@ -6,6 +6,7 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
+import '../widgets/app_background.dart';
 import 'main/tabs/home_tab.dart';
 import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
@@ -14,6 +15,7 @@ import 'main/components/permission_screen.dart';
 import 'editor_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/navigation_extension.dart';
+import '../services/update_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -95,6 +97,39 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     await fileProvider.initialize();
     await settingsProvider.initialize();
     if (mounted) setState(() {});
+
+    // 延迟2秒后检查更新（避免阻塞启动流程）
+    if (settingsProvider.autoCheckUpdate) {
+      Future.delayed(const Duration(seconds: 2), _checkUpdateOnStartup);
+    }
+  }
+
+  /// 启动时静默检查更新，有新版本时显示底部提示条
+  Future<void> _checkUpdateOnStartup() async {
+    if (!mounted) return;
+    try {
+      final updateInfo = await UpdateService.checkForUpdate(AppConstants.appVersion);
+      if (!mounted) return;
+      if (updateInfo != null && updateInfo.hasUpdate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('发现新版本 ${updateInfo.latestVersion}，可前往关于页面更新'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: '查看',
+              onPressed: () {
+                // 切换到设置tab
+                _switchTab(3);
+              },
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      // 静默忽略网络错误
+    }
   }
 
   void _switchTab(int index) {
@@ -124,41 +159,54 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           return PermissionScreen(fileProvider: fileProvider);
         }
 
-        return Scaffold(
-          body: _buildBody(fileProvider),
-          bottomNavigationBar: _buildBottomNav(),
-          drawer: _buildDrawer(),
+        return AppBackground(
+          wrapWithSafeArea: false,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: _buildBody(fileProvider),
+            bottomNavigationBar: _buildBottomNav(),
+            drawer: _buildDrawer(),
+          ),
         );
       },
     );
   }
 
   Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface
+                  .withValues(alpha: settings.tabBarOpacity),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildNavItem(0, Icons.home_rounded, '首页'),
+                    _buildNavItem(1, Icons.folder_special_rounded, '我的文件'),
+                    _buildNavItem(2, Icons.history_rounded, '历史'),
+                    _buildNavItem(3, Icons.settings_rounded, '设置'),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(0, Icons.home_rounded, '首页'),
-              _buildNavItem(1, Icons.folder_special_rounded, '我的文件'),
-              _buildNavItem(2, Icons.history_rounded, '历史'),
-              _buildNavItem(3, Icons.settings_rounded, '设置'),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 

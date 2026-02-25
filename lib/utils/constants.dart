@@ -71,7 +71,7 @@ class AppConstants {
   static const String appName = '汐';
   
   /// 版本号
-  static const String appVersion = '1.2.2';
+  static const String appVersion = '1.3.0';
   
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';

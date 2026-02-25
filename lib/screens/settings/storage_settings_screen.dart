@@ -44,13 +44,16 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('存储设置'),
-        centerTitle: true,
-      ),
-      body: AppBackground(
-        child: Consumer<FileProvider>(
+    return AppBackground(
+      wrapWithSafeArea: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: const Text('存储设置'),
+          centerTitle: true,
+        ),
+        body: Consumer<FileProvider>(
           builder: (context, fileProvider, child) {
             return ListView(
               padding: const EdgeInsets.all(20),
