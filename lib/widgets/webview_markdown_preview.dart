@@ -487,14 +487,16 @@ $body
   });
 
   // ── Checkbox handler ─────────────────────────────────────────────────
+  // Use a bubbling (non-capturing) listener so the browser toggles the
+  // checkbox BEFORE this handler fires.  e.target.checked is then the NEW
+  // state, which is what we want to persist to Flutter.
   document.addEventListener('click', function(e){
     if(e.target.tagName === 'INPUT' && e.target.type === 'checkbox'){
-      e.stopPropagation();
       var boxes = document.querySelectorAll('input[type="checkbox"]');
       var idx = Array.from(boxes).indexOf(e.target);
       window.flutter_inappwebview.callHandler('onCheckboxChange', idx, e.target.checked);
     }
-  }, true);
+  });
 
   // ── In-place editing ─────────────────────────────────────────────────
   // Tracks the currently-edited element and its key so we can commit changes.
@@ -569,6 +571,14 @@ $body
   // can suppress the synthetic dblclick event, so we also detect double-tap
   // manually via touchend (two touches within 300ms on the same element).
   function _handleDoubleTap(target) {
+    // Skip interactive elements: links, images, checkboxes, buttons, media
+    var check = target;
+    while (check && check !== document.body) {
+      var tag = check.tagName;
+      if (tag === 'A' || tag === 'IMG' || tag === 'INPUT' ||
+          tag === 'BUTTON' || tag === 'VIDEO' || tag === 'AUDIO') return;
+      check = check.parentElement || check.parentNode;
+    }
     // Check for table cell first (traverse up from target)
     var node = target;
     while (node && node !== document.body) {
@@ -605,19 +615,20 @@ $body
     e.preventDefault();
     _handleDoubleTap(e.target);
   });
-  // Mobile: manual double-tap via touchend (two taps ≤300ms apart, ≤30px apart)
+  // Mobile: detect double-tap via touchstart (fires before browser zoom/click
+  // processing). passive:false lets us call e.preventDefault() to cancel the
+  // double-tap-zoom gesture AND the subsequent synthetic click event, which
+  // makes double-tap editing reliable across all Android WebView versions.
   var _lastTap = null;
-  document.addEventListener('touchend', function(e) {
-    // Ignore if currently editing
+  document.addEventListener('touchstart', function(e) {
     if (_ie) return;
-    var touch = e.changedTouches[0];
+    var touch = e.touches[0];
     var now = Date.now();
-    var target = document.elementFromPoint(touch.clientX, touch.clientY) || e.target;
-    if (_lastTap && now - _lastTap.t < 300 &&
-        Math.abs(touch.clientX - _lastTap.x) < 30 &&
-        Math.abs(touch.clientY - _lastTap.y) < 30) {
+    if (_lastTap && now - _lastTap.t < 400 &&
+        Math.abs(touch.clientX - _lastTap.x) < 40 &&
+        Math.abs(touch.clientY - _lastTap.y) < 40) {
       e.preventDefault();
-      _handleDoubleTap(target);
+      _handleDoubleTap(e.target);
       _lastTap = null;
     } else {
       _lastTap = { t: now, x: touch.clientX, y: touch.clientY };

@@ -173,31 +173,40 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface
+                  .withValues(alpha: settings.tabBarOpacity),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildNavItem(0, Icons.home_rounded, '首页'),
+                    _buildNavItem(1, Icons.folder_special_rounded, '我的文件'),
+                    _buildNavItem(2, Icons.history_rounded, '历史'),
+                    _buildNavItem(3, Icons.settings_rounded, '设置'),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(0, Icons.home_rounded, '首页'),
-              _buildNavItem(1, Icons.folder_special_rounded, '我的文件'),
-              _buildNavItem(2, Icons.history_rounded, '历史'),
-              _buildNavItem(3, Icons.settings_rounded, '设置'),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
