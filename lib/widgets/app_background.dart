@@ -36,10 +36,15 @@ class AppBackground extends StatelessWidget {
     if (showParticles) {
       particleLayer = Positioned.fill(
         child: IgnorePointer(
-          child: ParticleEffectWidget(
-            particleType: settings.particleType,
-            speed: settings.particleSpeed,
+          // TickerMode(enabled:true) overrides the route system's ticker-pause
+          // so particles keep animating smoothly during route push/pop transitions.
+          child: TickerMode(
             enabled: true,
+            child: ParticleEffectWidget(
+              particleType: settings.particleType,
+              speed: settings.particleSpeed,
+              enabled: true,
+            ),
           ),
         ),
       );
