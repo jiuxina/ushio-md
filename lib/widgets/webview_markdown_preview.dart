@@ -301,6 +301,17 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
       htmlBody = htmlBody.replaceAll('<!-- MATHBLOCK$i -->', mathBlocks[i]);
     }
 
+    // 3b. Convert soft line breaks inside <p> tags to <br> so that single
+    //     newlines in the markdown source are rendered as actual line breaks
+    //     (e.g. "__bold__\n*italic*" displays on two separate lines).
+    htmlBody = htmlBody.replaceAllMapped(
+      RegExp(r'<p>([\s\S]*?)</p>'),
+      (m) {
+        final inner = m.group(1)!.replaceAll('\n', '<br>\n');
+        return '<p>$inner</p>';
+      },
+    );
+
     // 4. Add sequential id="heading-N" to every heading tag for TOC navigation
     int headingIdx = 0;
     final withIds = htmlBody.replaceAllMapped(
