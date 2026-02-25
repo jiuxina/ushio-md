@@ -43,6 +43,7 @@ class _MyFilesTabState extends State<MyFilesTab> {
     return FolderBrowserScreen(
       folderPath: _rootPath!,
       showBackButton: false,
+      title: '我的文件',
     );
   }
 }

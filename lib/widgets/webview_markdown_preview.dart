@@ -100,8 +100,17 @@ class WebViewMarkdownPreview extends StatefulWidget {
   final String? baseDirectory;
   final void Function(String text, String? href, String title)? onTapLink;
   final Function(int index, bool value) onCheckboxChanged;
-  final void Function(String blockText)? onDoubleTapBlock;
-  final void Function(int tableIdx, int rowIdx, int colIdx, String cellText)? onDoubleTapCell;
+  /// Return the raw markdown source for an edit request.
+  ///
+  /// [type] is `'cell'` or `'block'`.
+  /// For cells: [p1]=tableIdx, [p2]=rowIdx, [p3]=colIdx, [extra]=''.
+  /// For blocks: [p1]=0, [p2]=0, [p3]=0, [extra]=innerText of the element.
+  final String? Function(String type, int p1, int p2, int p3, String extra)? onGetMarkdown;
+  /// Called when the user finishes an in-place edit.
+  ///
+  /// [key] encodes the target: `'cell:ti:ri:ci'` or `'block:<innerText>'`.
+  /// [newText] is the edited raw markdown text.
+  final void Function(String key, String newText)? onInPlaceEdit;
   final MarkdownWebViewController? controller;
 
   const WebViewMarkdownPreview({
@@ -113,8 +122,8 @@ class WebViewMarkdownPreview extends StatefulWidget {
     this.baseDirectory,
     this.onTapLink,
     required this.onCheckboxChanged,
-    this.onDoubleTapBlock,
-    this.onDoubleTapCell,
+    this.onGetMarkdown,
+    this.onInPlaceEdit,
     this.controller,
   });
 
@@ -144,6 +153,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
         oldWidget.fontFamily != widget.fontFamily) {
       if (_suppressNextReload) {
         _suppressNextReload = false;
+        _debounceTimer?.cancel(); // prevent any pending reload from firing
         return;
       }
       _debounceTimer?.cancel();
@@ -376,38 +386,95 @@ $body
     }
   });
 
-  // ── Double-tap handler (block / cell editing) ─────────────────────────
-  document.addEventListener('dblclick', function(e){
+  // ── In-place editing ─────────────────────────────────────────────────
+  // Tracks the currently-edited element and its key so we can commit changes.
+  var _ie = null; // { el, key, origHtml }
+  function _startEdit(el, key, rawMd) {
+    if (_ie) _commitEdit(true);
+    _ie = { el: el, key: key, origHtml: el.innerHTML };
+    el.textContent = rawMd || el.textContent;
+    el.setAttribute('contenteditable', 'true');
+    el.style.outline = '2px solid #4a90d9';
+    el.style.borderRadius = '4px';
+    el.style.fontFamily = 'monospace,sans-serif';
+    el.style.background = 'rgba(74,144,217,0.08)';
+    el.style.whiteSpace = 'pre-wrap';
+    el.focus();
+    // Place cursor at end
+    var r = document.createRange(), s = window.getSelection();
+    r.selectNodeContents(el); r.collapse(false);
+    s.removeAllRanges(); s.addRange(r);
+  }
+  function _commitEdit(send) {
+    if (!_ie) return;
+    var el = _ie.el, key = _ie.key, newText = el.textContent;
+    _ie = null;
+    el.setAttribute('contenteditable', 'false');
+    el.style.outline = '';
+    el.style.borderRadius = '';
+    el.style.fontFamily = '';
+    el.style.background = '';
+    el.style.whiteSpace = '';
+    if (send !== false && newText.trim()) {
+      window.flutter_inappwebview.callHandler('onInPlaceEdit', key, newText);
+    }
+  }
+  // Commit on focus-out
+  document.addEventListener('focusout', function(e) {
+    if (_ie && e.target === _ie.el) {
+      setTimeout(_commitEdit, 50); // slight delay to let keydown fire first
+    }
+  }, true);
+  // Enter=commit (single-line); Shift+Enter=newline; Escape=cancel
+  document.addEventListener('keydown', function(e) {
+    if (!_ie) return;
+    var isMl = (_ie.el.tagName === 'PRE' || _ie.el.tagName === 'BLOCKQUOTE');
+    if (e.key === 'Escape') {
+      _ie.el.innerHTML = _ie.origHtml;
+      var savedIe = _ie; _ie = null;
+      savedIe.el.setAttribute('contenteditable', 'false');
+      savedIe.el.style.outline = '';
+      savedIe.el.style.borderRadius = '';
+      savedIe.el.style.fontFamily = '';
+      savedIe.el.style.background = '';
+      savedIe.el.style.whiteSpace = '';
+      e.preventDefault();
+    } else if (e.key === 'Enter' && !isMl && !e.shiftKey) {
+      e.preventDefault();
+      _commitEdit(true);
+    }
+  });
+  // Double-tap: start in-place editing
+  document.addEventListener('dblclick', function(e) {
     e.preventDefault();
     // Check for table cell first
-    var cell = e.target;
-    while(cell && cell !== document.body){
-      if(cell.tagName === 'TD' || cell.tagName === 'TH'){
-        var table = cell;
-        while(table && table.tagName !== 'TABLE') table = table.parentNode;
-        var allTables = Array.from(document.querySelectorAll('table'));
-        var tableIdx = allTables.indexOf(table);
-        var allRows = Array.from(table.querySelectorAll('tr'));
-        var row = cell.parentNode;
-        var rowIdx = allRows.indexOf(row);
-        var cells = Array.from(row.querySelectorAll('td,th'));
-        var colIdx = cells.indexOf(cell);
-        window.flutter_inappwebview.callHandler(
-          'onDoubleTapCell', tableIdx, rowIdx, colIdx,
-          (cell.textContent || '').trim());
+    var node = e.target;
+    while (node && node !== document.body) {
+      if (node.tagName === 'TD' || node.tagName === 'TH') {
+        var table = node;
+        while (table && table.tagName !== 'TABLE') table = table.parentNode;
+        var ti = Array.from(document.querySelectorAll('table')).indexOf(table);
+        var ri = Array.from(table.querySelectorAll('tr')).indexOf(node.parentNode);
+        var ci = Array.from(node.parentNode.querySelectorAll('td,th')).indexOf(node);
+        var key = 'cell:' + ti + ':' + ri + ':' + ci;
+        window.flutter_inappwebview.callHandler('getMarkdown', 'cell', ti, ri, ci, '').then(function(md) {
+          _startEdit(node, key, md);
+        });
         return;
       }
-      cell = cell.parentNode;
+      node = node.parentNode;
     }
     // Block element
+    var blockSel = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre';
     var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE'];
     var el = e.target;
-    while(el && el !== document.body && blockTags.indexOf(el.tagName) === -1){
-      el = el.parentNode;
-    }
-    if(el && blockTags.indexOf(el.tagName) !== -1){
-      window.flutter_inappwebview.callHandler(
-        'onDoubleTapBlock', (el.innerText || el.textContent || '').trim());
+    while (el && el !== document.body && blockTags.indexOf(el.tagName) === -1) el = el.parentNode;
+    if (el && blockTags.indexOf(el.tagName) !== -1) {
+      var innerText = (el.innerText || el.textContent || '').trim();
+      var key = 'block:' + innerText.substring(0, 80);
+      window.flutter_inappwebview.callHandler('getMarkdown', 'block', 0, 0, 0, innerText).then(function(md) {
+        _startEdit(el, key, md);
+      });
     }
   });
 
@@ -493,27 +560,26 @@ $body
           },
         );
 
-        // Block double-tap handler
+        // getMarkdown – JS requests raw markdown source for in-place editing
         controller.addJavaScriptHandler(
-          handlerName: 'onDoubleTapBlock',
+          handlerName: 'getMarkdown',
           callback: (args) {
-            if (args.isNotEmpty) {
-              widget.onDoubleTapBlock?.call(args[0].toString());
-            }
-            return null;
+            if (args.isEmpty) return '';
+            final type = args[0].toString();
+            final p1 = int.tryParse(args[1].toString()) ?? 0;
+            final p2 = int.tryParse(args[2].toString()) ?? 0;
+            final p3 = int.tryParse(args[3].toString()) ?? 0;
+            final extra = args.length > 4 ? args[4].toString() : '';
+            return widget.onGetMarkdown?.call(type, p1, p2, p3, extra) ?? '';
           },
         );
 
-        // Table cell double-tap handler
+        // onInPlaceEdit – user finished in-place edit
         controller.addJavaScriptHandler(
-          handlerName: 'onDoubleTapCell',
+          handlerName: 'onInPlaceEdit',
           callback: (args) {
-            if (args.length >= 4) {
-              final tableIdx = int.tryParse(args[0].toString()) ?? 0;
-              final rowIdx   = int.tryParse(args[1].toString()) ?? 0;
-              final colIdx   = int.tryParse(args[2].toString()) ?? 0;
-              final cellText = args[3].toString();
-              widget.onDoubleTapCell?.call(tableIdx, rowIdx, colIdx, cellText);
+            if (args.length >= 2) {
+              widget.onInPlaceEdit?.call(args[0].toString(), args[1].toString());
             }
             return null;
           },

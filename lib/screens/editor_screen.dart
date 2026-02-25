@@ -65,6 +65,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _isModified = false;
   bool _isSaving = false;
   bool _showToc = false;
+  bool _hidePlatformViews = false; // hide WebView during pop transition
   Timer? _autoSaveTimer;
   Timer? _tocDebounceTimer;
   int? _highlightedLine;
@@ -566,7 +567,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   // ==================== Block Parsing & Inline Editing ====================
 
-  // ── Double-tap handlers (issues #4 & #5) ─────────────────────────────
+  // ── In-place editing helpers ──────────────────────────────────────────
 
   /// Strip markdown formatting from text so it can be compared to HTML
   /// innerText returned by the WebView.
@@ -586,134 +587,96 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         .toLowerCase();
   }
 
-  /// Called when the user double-taps a text block in the WebView.
-  void _handleDoubleTapBlock(String htmlText) {
-    if (!mounted) return;
+  /// Returns the raw markdown source for a table cell (for in-place editing).
+  String _getCellMarkdown(int tableIdx, int rowIdx, int colIdx) {
     final blocks = _parseBlocks(_textController.text);
-    final normalizedHtml = _stripMarkdown(htmlText);
+    final tableBlocks =
+        blocks.where((b) => b.isMultiLine && b.content.contains('|')).toList();
+    if (tableIdx >= tableBlocks.length) return '';
+    final tableLines = tableBlocks[tableIdx]
+        .content
+        .split('\n')
+        .where((l) => l.trim().isNotEmpty)
+        .toList();
+    if (rowIdx >= tableLines.length) return '';
+    final parts = tableLines[rowIdx].split('|');
+    final idx = colIdx + 1;
+    if (idx >= parts.length) return '';
+    return parts[idx].trim();
+  }
 
+  /// Returns the raw markdown source for the block whose rendered innerText
+  /// best matches [innerText].
+  String _getBlockMarkdown(String innerText) {
+    final blocks = _parseBlocks(_textController.text);
+    final normalizedHtml = _stripMarkdown(innerText);
     int bestIndex = -1;
     int bestLen = 0;
     for (int i = 0; i < blocks.length; i++) {
       final norm = _stripMarkdown(blocks[i].content);
       if (norm.isEmpty) continue;
-      final shorter = norm.length <= normalizedHtml.length ? norm : normalizedHtml;
-      final longer  = norm.length >  normalizedHtml.length ? norm : normalizedHtml;
+      final shorter =
+          norm.length <= normalizedHtml.length ? norm : normalizedHtml;
+      final longer =
+          norm.length > normalizedHtml.length ? norm : normalizedHtml;
       if (longer.contains(shorter) && shorter.length > bestLen) {
-        bestLen   = shorter.length;
+        bestLen = shorter.length;
         bestIndex = i;
       }
     }
-    if (bestIndex >= 0) {
-      _showBlockEditorSheet(bestIndex, blocks);
-    }
+    return bestIndex >= 0 ? blocks[bestIndex].content : innerText;
   }
 
-  /// Called when the user double-taps a table cell in the WebView.
-  void _handleDoubleTapCell(int tableIdx, int rowIdx, int colIdx, String cellText) {
+  /// Callback for `onGetMarkdown` from [WebViewMarkdownPreview].
+  String _handleGetMarkdown(
+      String type, int p1, int p2, int p3, String extra) {
+    if (type == 'cell') return _getCellMarkdown(p1, p2, p3);
+    return _getBlockMarkdown(extra);
+  }
+
+  /// Apply an in-place edit committed by the WebView contenteditable.
+  ///
+  /// [key] is either `'cell:ti:ri:ci'` or `'block:<innerText prefix>'`.
+  /// [newText] is the raw markdown the user typed.
+  void _applyInPlaceEdit(String key, String newText) {
     if (!mounted) return;
-    final blocks = _parseBlocks(_textController.text);
-    // Tables are multi-line blocks containing '|' characters
-    final tableBlocks = blocks
-        .where((b) => b.isMultiLine && b.content.contains('|'))
-        .toList();
-    if (tableIdx >= tableBlocks.length) return;
-    final tableBlock = tableBlocks[tableIdx];
-
-    // The cell content from the markdown (before HTML rendering may trim it)
-    final tableLines = tableBlock.content
-        .split('\n')
-        .where((l) => l.trim().isNotEmpty)
-        .toList();
-    if (rowIdx >= tableLines.length) return;
-    final rowLine = tableLines[rowIdx];
-    final parts = rowLine.split('|');
-    // For "| cell0 | cell1 |" parts = ['', ' cell0 ', ' cell1 ', '']
-    final cellPartIdx = colIdx + 1;
-    if (cellPartIdx >= parts.length) return;
-    final currentCell = parts[cellPartIdx].trim();
-
-    _inlineEditController.text = currentCell;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) {
-        return Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Icon(Icons.table_chart,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text('编辑单元格',
-                        style: Theme.of(context).textTheme.titleSmall),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _inlineEditController,
-                  maxLines: 1,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.all(12),
-                    hintText: '单元格内容',
-                  ),
-                  onSubmitted: (_) {
-                    Navigator.pop(sheetCtx);
-                    _applyCellEdit(tableBlock, rowIdx, colIdx);
-                  },
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(sheetCtx),
-                      child: const Text('取消'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () {
-                        Navigator.pop(sheetCtx);
-                        _applyCellEdit(tableBlock, rowIdx, colIdx);
-                      },
-                      child: const Text('完成'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    if (key.startsWith('cell:')) {
+      final parts = key.split(':');
+      if (parts.length < 4) return;
+      final ti = int.tryParse(parts[1]) ?? 0;
+      final ri = int.tryParse(parts[2]) ?? 0;
+      final ci = int.tryParse(parts[3]) ?? 0;
+      final blocks = _parseBlocks(_textController.text);
+      final tableBlocks = blocks
+          .where((b) => b.isMultiLine && b.content.contains('|'))
+          .toList();
+      if (ti >= tableBlocks.length) return;
+      _inlineEditController.text = newText;
+      _applyCellEdit(tableBlocks[ti], ri, ci);
+    } else if (key.startsWith('block:')) {
+      // key = 'block:' + first 80 chars of innerText → fuzzy-find block
+      final innerText = key.substring('block:'.length);
+      final blocks = _parseBlocks(_textController.text);
+      final normalized = _stripMarkdown(innerText);
+      int bestIndex = -1;
+      int bestLen = 0;
+      for (int i = 0; i < blocks.length; i++) {
+        final norm = _stripMarkdown(blocks[i].content);
+        if (norm.isEmpty) continue;
+        final shorter =
+            norm.length <= normalized.length ? norm : normalized;
+        final longer =
+            norm.length > normalized.length ? norm : normalized;
+        if (longer.contains(shorter) && shorter.length > bestLen) {
+          bestLen = shorter.length;
+          bestIndex = i;
+        }
+      }
+      if (bestIndex >= 0) {
+        _inlineEditController.text = newText;
+        _applyBlockEdit(bestIndex, blocks);
+      }
+    }
   }
 
   /// Apply an edited cell back into the markdown text.
@@ -742,87 +705,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         _isModified = true;
       });
     }
-  }
-
-  /// Show a bottom-sheet editor for the block at [blockIndex].
-  void _showBlockEditorSheet(int blockIndex, List<_MarkdownBlock> blocks) {
-    final block = blocks[blockIndex];
-    _inlineEditController.text = block.content;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) {
-        return Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline
-                        .withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                TextField(
-                  controller: _inlineEditController,
-                  maxLines: block.isMultiLine ? null : 1,
-                  minLines: block.isMultiLine ? 3 : 1,
-                  keyboardType: block.isMultiLine
-                      ? TextInputType.multiline
-                      : TextInputType.text,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.all(12),
-                    hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
-                  ),
-                  onSubmitted: block.isMultiLine
-                      ? null
-                      : (_) {
-                          Navigator.pop(sheetCtx);
-                          _applyBlockEdit(blockIndex, blocks);
-                        },
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(sheetCtx),
-                      child: const Text('取消'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () {
-                        Navigator.pop(sheetCtx);
-                        _applyBlockEdit(blockIndex, blocks);
-                      },
-                      child: const Text('完成'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   /// Apply the block editor result back into the full document.
@@ -989,6 +871,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
+    if (_hidePlatformViews) return const SizedBox.expand();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return WebViewMarkdownPreview(
       data: _textController.text,
@@ -999,8 +882,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
-      onDoubleTapBlock: _handleDoubleTapBlock,
-      onDoubleTapCell: _handleDoubleTapCell,
+      onGetMarkdown: _handleGetMarkdown,
+      onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
     );
   }
@@ -1061,9 +944,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     return PopScope(
       canPop: !_isModified,
       onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          // Clear the WebView platform surface immediately so the native view
+          // doesn't linger as a ghost during the route-pop animation.
+          if (mounted) setState(() => _hidePlatformViews = true);
+          return;
+        }
         if (!didPop) {
           final shouldPop = await _onWillPop();
           if (shouldPop && context.mounted) {
+            setState(() => _hidePlatformViews = true);
             Navigator.of(context).pop();
           }
         }
@@ -1449,6 +1339,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   /// Build the WebView-based preview panel for EditorMode.split.
   Widget _buildPreviewPanel(SettingsProvider settings) {
+    if (_hidePlatformViews) return const SizedBox.expand();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return WebViewMarkdownPreview(
       data: _textController.text,
@@ -1459,8 +1350,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
-      onDoubleTapBlock: _handleDoubleTapBlock,
-      onDoubleTapCell: _handleDoubleTapCell,
+      onGetMarkdown: _handleGetMarkdown,
+      onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
     );
   }
