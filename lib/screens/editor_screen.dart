@@ -575,6 +575,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   /// innerText returned by the WebView.
   String _stripMarkdown(String text) {
     return text
+        // Strip fenced code block opening/closing lines (```lang or ```)
+        .replaceAll(RegExp(r'^```[^\n]*\n?', multiLine: true), '')
+        .replaceAll(RegExp(r'^~~~[^\n]*\n?', multiLine: true), '')
+        // Strip GitHub Alert markers [!NOTE] etc.
+        .replaceAll(RegExp(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*',
+                           multiLine: true, caseSensitive: false), '')
         .replaceAll(RegExp(r'\*{1,3}([^*]+)\*{1,3}'), r'$1')
         .replaceAll(RegExp(r'_{1,3}([^_]+)_{1,3}'), r'$1')
         .replaceAll(RegExp(r'`+([^`]+)`+'), r'$1')
@@ -898,6 +904,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     if (_hidePlatformViews) return const SizedBox.expand();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = _themeSchemeColors(settings);
+    final safeBottom = MediaQuery.of(context).padding.bottom;
     return WebViewMarkdownPreview(
       data: _textController.text,
       isDark: isDark,
@@ -913,6 +920,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       onGetMarkdown: _handleGetMarkdown,
       onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
+      bottomPadding: safeBottom,
     );
   }
 
@@ -1028,6 +1036,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         fit: StackFit.expand,
         children: [
           SafeArea(
+            bottom: false,
             child: Column(
               children: [
                 EditorHeader(
@@ -1048,15 +1057,26 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   onSave: _saveFile,
                   onMore: _showMoreMenu,
                 ),
-                Expanded(child: _buildContent()),
-                // Toolbar at bottom (above keyboard when shown)
-                if (!_isLoading && _error == null && (_mode != EditorMode.preview || _editingBlockIndex != null))
-                  MarkdownToolbar(
-                    controller: _editingBlockIndex != null ? _inlineEditController : _textController,
-                    undoController: _editingBlockIndex != null ? null : _undoController,
-                    filePath: widget.filePath,
-                    onSearchPressed: _showSearchDialog,
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: _buildContent()),
+                      // Toolbar floats at the bottom of the content area
+                      if (!_isLoading && _error == null && (_mode != EditorMode.preview || _editingBlockIndex != null))
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: MarkdownToolbar(
+                            controller: _editingBlockIndex != null ? _inlineEditController : _textController,
+                            undoController: _editingBlockIndex != null ? null : _undoController,
+                            filePath: widget.filePath,
+                            onSearchPressed: _showSearchDialog,
+                          ),
+                        ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),
@@ -1175,7 +1195,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           child: Container(
             color: Theme.of(context).colorScheme.surface,
-            child: _buildEditPanel(settings),
+            child: _buildEditPanel(settings, toolbarPadding: 56),
           ),
         );
       case EditorMode.preview:
@@ -1283,7 +1303,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
-  Widget _buildEditPanel(SettingsProvider settings) {
+  Widget _buildEditPanel(SettingsProvider settings, {double toolbarPadding = 0}) {
     return Stack(
       children: [
         TextField(
@@ -1301,7 +1321,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           ),
           decoration: InputDecoration(
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.all(16),
+            contentPadding: EdgeInsets.fromLTRB(16, 16, 16, 16 + toolbarPadding),
             hintText: '开始编写你的 Markdown 内容...',
             hintStyle: TextStyle(
               color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
