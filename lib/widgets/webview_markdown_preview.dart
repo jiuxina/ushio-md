@@ -111,6 +111,9 @@ class WebViewMarkdownPreview extends StatefulWidget {
   final String? Function(String type, int p1, int p2, int p3, String extra)? onGetMarkdown;
   final void Function(String key, String newText)? onInPlaceEdit;
   final MarkdownWebViewController? controller;
+  /// Extra bottom padding (pixels) added to the HTML body to prevent content
+  /// being obscured by a floating toolbar or the system navigation bar.
+  final double bottomPadding;
 
   const WebViewMarkdownPreview({
     super.key,
@@ -127,6 +130,7 @@ class WebViewMarkdownPreview extends StatefulWidget {
     this.onGetMarkdown,
     this.onInPlaceEdit,
     this.controller,
+    this.bottomPadding = 0,
   });
 
   @override
@@ -406,7 +410,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 <style>
 $fontFaces
 *{box-sizing:border-box}
-body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px;margin:0;word-wrap:break-word;overflow-wrap:break-word}
+body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word}
 h1,h2,h3,h4,h5,h6{color:$hColor;font-weight:bold;line-height:1.4;margin:1em 0 0.5em;border-radius:4px}
 h1{font-size:${fs * 2}px;border-bottom:2px solid $hrColor;padding-bottom:0.3em}
 h2{font-size:${fs * 1.5}px;border-bottom:1px solid $hrColor;padding-bottom:0.2em}
@@ -567,7 +571,8 @@ $body
     var el = e.target;
     while (el && el !== document.body && blockTags.indexOf(el.tagName) === -1) el = el.parentNode;
     if (el && blockTags.indexOf(el.tagName) !== -1) {
-      var innerText = (el.innerText || el.textContent || '').trim();
+      // For BLOCKQUOTE, prefer the pre-transform raw text stored in data-md-src
+      var innerText = el.dataset.mdSrc || (el.innerText || el.textContent || '').trim();
       var key = 'block:' + innerText.substring(0, 80);
       window.flutter_inappwebview.callHandler('getMarkdown', 'block', 0, 0, 0, innerText).then(function(md) {
         _startEdit(el, key, md);
@@ -585,6 +590,7 @@ $body
   };
   document.querySelectorAll('blockquote').forEach(function(bq){
     var txt = bq.innerText || '';
+    bq.dataset.mdSrc = txt.trim(); // save raw text before any transformation
     var m = txt.match(/^\\s*\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]/i);
     if(m){
       var cfg = alertMap[m[1].toUpperCase()];
