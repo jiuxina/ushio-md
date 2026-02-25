@@ -30,6 +30,7 @@ class MarkdownWebViewController {
   /// already correct in the WebView (e.g. after a checkbox toggle).
   void suppressNextReload() {
     _state?._suppressNextReload = true;
+    _state?._debounceTimer?.cancel(); // also kill any pending reload immediately
   }
 
   /// Scroll to heading number [headingIndex] (0-based, in document order).
@@ -282,6 +283,12 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
       },
     );
 
+    // 1b. ==highlight== → <mark>text</mark>  (before markdown parsing)
+    src = src.replaceAllMapped(
+      RegExp(r'==([^=\n]+)=='),
+      (m) => '<mark>${m.group(1)}</mark>',
+    );
+
     // 2. Markdown → HTML (GitHub Flavoured Markdown)
     var htmlBody = md.markdownToHtml(
       src,
@@ -410,7 +417,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 <style>
 $fontFaces
 *{box-sizing:border-box}
-body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word}
+body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word;touch-action:manipulation}
 h1,h2,h3,h4,h5,h6{color:$hColor;font-weight:bold;line-height:1.4;margin:1em 0 0.5em;border-radius:4px}
 h1{font-size:${fs * 2}px;border-bottom:2px solid $hrColor;padding-bottom:0.3em}
 h2{font-size:${fs * 1.5}px;border-bottom:1px solid $hrColor;padding-bottom:0.2em}
@@ -425,13 +432,14 @@ pre code{background:none;color:$codeColor;padding:0;border-radius:0;font-size:${
 blockquote{border-left:4px solid $bqBorder;background:$bqBg;margin:1em 0;padding:8px 8px 8px 16px;border-radius:0 4px 4px 0}
 blockquote p{margin:0}
 table{border-collapse:collapse;width:100%;margin:1em 0;border-radius:6px;overflow:hidden}
-th,td{border:1px solid $tblBorder;padding:8px 12px;text-align:left}
+th,td{border:1px solid $tblBorder;padding:8px 12px}
 th{background:$tblHeadBg;font-weight:bold}
 img{max-width:100%;height:auto;display:block;margin:0.5em auto;border-radius:4px}
 ul,ol{padding-left:1.5em;margin:0.5em 0}li{margin:0.3em 0}
 input[type="checkbox"]{margin-right:6px;width:${fs * 0.9}px;height:${fs * 0.9}px;vertical-align:middle;cursor:pointer}
 hr{border:none;border-top:1px solid $hrColor;margin:1.5em 0}
 del{color:$delColor}
+mark{background:rgba(255,220,0,0.5);border-radius:2px;padding:0 2px}
 /* Code language badge */
 pre{position:relative}
 pre[data-language]::before{content:attr(data-language);position:absolute;top:6px;right:12px;font-size:${fs * 0.75}px;color:${dark ? '#888' : '#aaa'};font-family:$monoFont;text-transform:uppercase;letter-spacing:0.05em;user-select:none;pointer-events:none}
@@ -479,21 +487,29 @@ $body
   });
 
   // ── Checkbox handler ─────────────────────────────────────────────────
-  document.addEventListener('change', function(e){
+  document.addEventListener('click', function(e){
     if(e.target.tagName === 'INPUT' && e.target.type === 'checkbox'){
+      e.stopPropagation();
       var boxes = document.querySelectorAll('input[type="checkbox"]');
       var idx = Array.from(boxes).indexOf(e.target);
       window.flutter_inappwebview.callHandler('onCheckboxChange', idx, e.target.checked);
     }
-  });
+  }, true);
 
   // ── In-place editing ─────────────────────────────────────────────────
   // Tracks the currently-edited element and its key so we can commit changes.
-  var _ie = null; // { el, key, origHtml }
+  var _ie = null; // { el, key, origHtml, prefix }
   function _startEdit(el, key, rawMd) {
     if (_ie) _commitEdit(true);
-    _ie = { el: el, key: key, origHtml: el.innerHTML };
-    el.textContent = rawMd || el.textContent;
+    var displayText = rawMd || el.textContent;
+    var prefix = '';
+    if (el.tagName === 'LI') {
+      // Strip the markdown list prefix so it isn't doubled by the CSS counter
+      var pm = displayText.match(/^(\s*(?:\d+\.|-|\*|\+)\s*)/);
+      if (pm) { prefix = pm[1]; displayText = displayText.slice(pm[0].length); }
+    }
+    _ie = { el: el, key: key, origHtml: el.innerHTML, prefix: prefix };
+    el.textContent = displayText;
     el.setAttribute('contenteditable', 'true');
     el.style.outline = '2px solid #4a90d9';
     el.style.borderRadius = '4px';
@@ -508,16 +524,19 @@ $body
   }
   function _commitEdit(send) {
     if (!_ie) return;
-    var el = _ie.el, key = _ie.key, newText = el.textContent;
-    _ie = null;
-    el.setAttribute('contenteditable', 'false');
-    el.style.outline = '';
-    el.style.borderRadius = '';
-    el.style.fontFamily = '';
-    el.style.background = '';
-    el.style.whiteSpace = '';
+    var ie = _ie; _ie = null;
+    var newText = (ie.prefix || '') + ie.el.textContent;
+    // Restore original HTML immediately so no raw markdown is visible while
+    // the 300 ms debounce reloads the WebView with updated content.
+    ie.el.innerHTML = ie.origHtml;
+    ie.el.setAttribute('contenteditable', 'false');
+    ie.el.style.outline = '';
+    ie.el.style.borderRadius = '';
+    ie.el.style.fontFamily = '';
+    ie.el.style.background = '';
+    ie.el.style.whiteSpace = '';
     if (send !== false && newText.trim()) {
-      window.flutter_inappwebview.callHandler('onInPlaceEdit', key, newText);
+      window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
     }
   }
   // Commit on focus-out
@@ -548,36 +567,36 @@ $body
   // Double-tap: start in-place editing
   document.addEventListener('dblclick', function(e) {
     e.preventDefault();
-    // Check for table cell first
+    // Check for table cell first (traverse up from target)
     var node = e.target;
     while (node && node !== document.body) {
       if (node.tagName === 'TD' || node.tagName === 'TH') {
         var table = node;
-        while (table && table.tagName !== 'TABLE') table = table.parentNode;
+        while (table && table.tagName !== 'TABLE') table = table.parentElement || table.parentNode;
         var ti = Array.from(document.querySelectorAll('table')).indexOf(table);
-        var ri = Array.from(table.querySelectorAll('tr')).indexOf(node.parentNode);
-        var ci = Array.from(node.parentNode.querySelectorAll('td,th')).indexOf(node);
+        var ri = Array.from(table.querySelectorAll('tr')).indexOf(node.parentElement || node.parentNode);
+        var ci = Array.from((node.parentElement || node.parentNode).querySelectorAll('td,th')).indexOf(node);
         var key = 'cell:' + ti + ':' + ri + ':' + ci;
         window.flutter_inappwebview.callHandler('getMarkdown', 'cell', ti, ri, ci, '').then(function(md) {
           _startEdit(node, key, md);
         });
         return;
       }
-      node = node.parentNode;
+      node = node.parentElement || node.parentNode;
     }
-    // Block element
-    var blockSel = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre';
+    // Block element – use parentElement for reliable traversal on mobile
     var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE'];
     var el = e.target;
-    while (el && el !== document.body && blockTags.indexOf(el.tagName) === -1) el = el.parentNode;
-    if (el && blockTags.indexOf(el.tagName) !== -1) {
-      // For BLOCKQUOTE, prefer the pre-transform raw text stored in data-md-src
-      var innerText = el.dataset.mdSrc || (el.innerText || el.textContent || '').trim();
-      var key = 'block:' + innerText.substring(0, 80);
-      window.flutter_inappwebview.callHandler('getMarkdown', 'block', 0, 0, 0, innerText).then(function(md) {
-        _startEdit(el, key, md);
-      });
+    while (el && el !== document.body && blockTags.indexOf(el.tagName) === -1) {
+      el = el.parentElement || el.parentNode;
     }
+    if (!el || el === document.body || blockTags.indexOf(el.tagName) === -1) return;
+    // For BLOCKQUOTE, prefer the pre-transform raw text stored in data-md-src
+    var innerText = el.dataset.mdSrc || (el.innerText || el.textContent || '').trim();
+    var key = 'block:' + innerText.substring(0, 80);
+    window.flutter_inappwebview.callHandler('getMarkdown', 'block', 0, 0, 0, innerText).then(function(md) {
+      _startEdit(el, key, md);
+    });
   });
 
   // ── GitHub Alerts ────────────────────────────────────────────────────
