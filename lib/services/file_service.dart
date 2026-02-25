@@ -82,12 +82,83 @@ class FileService {
   /// 
   /// 支持的扩展名：.md, .markdown, .txt
   /// 返回选中文件的路径，取消则返回 null
+  /// 
+  /// 在 Android 上，file_picker 可能返回缓存副本而非原始文件路径。
+  /// 此方法会尝试从 content URI 解析原始路径，以便"直接打开"时
+  /// 编辑和保存操作作用于源文件而非临时副本。
   Future<String?> pickMarkdownFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['md', 'markdown', 'txt'],
     );
-    return result?.files.single.path;
+
+    if (result == null) return null;
+
+    final file = result.files.single;
+    final path = file.path;
+
+    if (path == null) return null;
+
+    // Android 的 file_picker 可能返回缓存副本（路径含 /cache/）
+    // 尝试从 content URI 解析原始文件路径
+    if (Platform.isAndroid && path.contains('/cache/')) {
+      final resolved = _resolveAndroidOriginalPath(file.identifier, file.name);
+      if (resolved != null) {
+        debugPrint('FileService: 解析到原始路径 $resolved (缓存路径: $path)');
+        return resolved;
+      }
+    }
+
+    return path;
+  }
+
+  /// 尝试从 Android content URI 解析原始文件路径
+  ///
+  /// 支持的 content provider：
+  /// - ExternalStorageProvider（本地存储文件）
+  /// - DownloadsProvider（下载目录文件）
+  /// 
+  /// 解析失败时返回 null，调用方应使用缓存路径作为回退
+  String? _resolveAndroidOriginalPath(String? contentUri, String fileName) {
+    if (contentUri == null || contentUri.isEmpty) return null;
+
+    try {
+      final uri = Uri.parse(contentUri);
+      final externalRoot =
+          Platform.environment['EXTERNAL_STORAGE'] ?? '/storage/emulated/0';
+
+      // ExternalStorageProvider:
+      // content://com.android.externalstorage.documents/document/primary:Documents/note.md
+      if (uri.authority == 'com.android.externalstorage.documents') {
+        final pathSegment = Uri.decodeComponent(uri.pathSegments.last);
+        final colonIndex = pathSegment.indexOf(':');
+        if (colonIndex >= 0) {
+          final storageId = pathSegment.substring(0, colonIndex);
+          final relativePath = pathSegment.substring(colonIndex + 1);
+          final basePath =
+              storageId == 'primary' ? externalRoot : '/storage/$storageId';
+          final fullPath = '$basePath${Platform.pathSeparator}$relativePath';
+          if (File(fullPath).existsSync()) {
+            return fullPath;
+          }
+        }
+      }
+
+      // DownloadsProvider:
+      // content://com.android.providers.downloads.documents/document/...
+      if (uri.authority == 'com.android.providers.downloads.documents') {
+        for (final dir in ['Download', 'Downloads']) {
+          final path = '$externalRoot/$dir/$fileName';
+          if (File(path).existsSync()) {
+            return path;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('FileService: 解析原始路径失败: $e');
+    }
+
+    return null;
   }
 
   // ==================== 目录遍历 ====================
