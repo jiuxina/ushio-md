@@ -7,19 +7,30 @@ import 'package:markdown/markdown.dart' as md;
 /// Controller for the WebView-based markdown preview.
 ///
 /// Exposes [scrollToHeading] to navigate to a heading by its sequential index
-/// in the rendered document.
+/// in the rendered document, [scrollToText] to jump to a text match, and
+/// [suppressNextReload] to skip the next content reload (e.g. after a
+/// checkbox toggle that is already reflected in the WebView).
 class MarkdownWebViewController {
   InAppWebViewController? _webViewController;
+  _WebViewMarkdownPreviewState? _state;
 
   void _attach(InAppWebViewController controller) {
     _webViewController = controller;
   }
 
-  /// Scroll to heading number [headingIndex] (0-based, in document order).
+  void _attachState(_WebViewMarkdownPreviewState state) {
+    _state = state;
+  }
+
+  /// Suppress the next content reload triggered by [didUpdateWidget].
   ///
-  /// [topOffset] pixels are scrolled back from the heading to leave a gap
-  /// at the top of the viewport (default 32 px, matching [_jumpTopOffset]).
-  /// The heading is also briefly flashed to indicate the navigation target.
+  /// Call this before updating the underlying data when the visual state is
+  /// already correct in the WebView (e.g. after a checkbox toggle).
+  void suppressNextReload() {
+    _state?._suppressNextReload = true;
+  }
+
+  /// Scroll to heading number [headingIndex] (0-based, in document order).
   Future<void> scrollToHeading(int headingIndex,
       {double topOffset = 32.0}) async {
     await _webViewController?.evaluateJavascript(source: '''
@@ -30,6 +41,39 @@ class MarkdownWebViewController {
         window.scrollBy(0, -$topOffset);
         el.classList.add('heading-flash');
         setTimeout(function() { el.classList.remove('heading-flash'); }, 700);
+      })();
+    ''');
+  }
+
+  /// Scroll the WebView to the first occurrence of [text], with a brief
+  /// highlight so the user can see the match.
+  Future<void> scrollToText(String text) async {
+    if (text.isEmpty) return;
+    // Escape single quotes and backslashes for the JS string literal
+    final escaped = text
+        .replaceAll('\\', '\\\\')
+        .replaceAll("'", "\\'")
+        .replaceAll('\n', ' ');
+    await _webViewController?.evaluateJavascript(source: '''
+      (function() {
+        var search = '$escaped'.trim();
+        if (!search) return;
+        var walker = document.createTreeWalker(
+          document.body, NodeFilter.SHOW_TEXT, null, false);
+        var node;
+        while ((node = walker.nextNode())) {
+          var idx = node.nodeValue ? node.nodeValue.indexOf(search) : -1;
+          if (idx !== -1) {
+            var el = node.parentElement;
+            if (el) {
+              el.scrollIntoView({block: 'center'});
+              var orig = el.style.backgroundColor;
+              el.style.backgroundColor = 'rgba(255,200,0,0.5)';
+              setTimeout(function() { el.style.backgroundColor = orig; }, 1200);
+            }
+            return;
+          }
+        }
       })();
     ''');
   }
@@ -56,6 +100,8 @@ class WebViewMarkdownPreview extends StatefulWidget {
   final String? baseDirectory;
   final void Function(String text, String? href, String title)? onTapLink;
   final Function(int index, bool value) onCheckboxChanged;
+  final void Function(String blockText)? onDoubleTapBlock;
+  final void Function(int tableIdx, int rowIdx, int colIdx, String cellText)? onDoubleTapCell;
   final MarkdownWebViewController? controller;
 
   const WebViewMarkdownPreview({
@@ -67,6 +113,8 @@ class WebViewMarkdownPreview extends StatefulWidget {
     this.baseDirectory,
     this.onTapLink,
     required this.onCheckboxChanged,
+    this.onDoubleTapBlock,
+    this.onDoubleTapCell,
     this.controller,
   });
 
@@ -78,6 +126,8 @@ class WebViewMarkdownPreview extends StatefulWidget {
 class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
   InAppWebViewController? _webViewController;
   Timer? _debounceTimer;
+  bool _suppressNextReload = false;
+  double _savedScrollY = 0;
 
   @override
   void dispose() {
@@ -92,15 +142,26 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
         oldWidget.isDark != widget.isDark ||
         oldWidget.fontSize != widget.fontSize ||
         oldWidget.fontFamily != widget.fontFamily) {
-      // Debounce to avoid reloading on every keystroke in split mode
+      if (_suppressNextReload) {
+        _suppressNextReload = false;
+        return;
+      }
       _debounceTimer?.cancel();
       _debounceTimer =
           Timer(const Duration(milliseconds: 300), _loadContent);
     }
   }
 
-  void _loadContent() {
+  void _loadContent() async {
     if (_webViewController == null) return;
+    // Save scroll position so we can restore it after the reload
+    try {
+      final result = await _webViewController!
+          .evaluateJavascript(source: 'window.scrollY');
+      _savedScrollY = double.tryParse(result?.toString() ?? '0') ?? 0;
+    } catch (_) {
+      _savedScrollY = 0;
+    }
     final html = _buildHtml();
     final baseUrl = _makeBaseUrl();
     _webViewController!.loadData(
@@ -315,6 +376,41 @@ $body
     }
   });
 
+  // ── Double-tap handler (block / cell editing) ─────────────────────────
+  document.addEventListener('dblclick', function(e){
+    e.preventDefault();
+    // Check for table cell first
+    var cell = e.target;
+    while(cell && cell !== document.body){
+      if(cell.tagName === 'TD' || cell.tagName === 'TH'){
+        var table = cell;
+        while(table && table.tagName !== 'TABLE') table = table.parentNode;
+        var allTables = Array.from(document.querySelectorAll('table'));
+        var tableIdx = allTables.indexOf(table);
+        var allRows = Array.from(table.querySelectorAll('tr'));
+        var row = cell.parentNode;
+        var rowIdx = allRows.indexOf(row);
+        var cells = Array.from(row.querySelectorAll('td,th'));
+        var colIdx = cells.indexOf(cell);
+        window.flutter_inappwebview.callHandler(
+          'onDoubleTapCell', tableIdx, rowIdx, colIdx,
+          (cell.textContent || '').trim());
+        return;
+      }
+      cell = cell.parentNode;
+    }
+    // Block element
+    var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE'];
+    var el = e.target;
+    while(el && el !== document.body && blockTags.indexOf(el.tagName) === -1){
+      el = el.parentNode;
+    }
+    if(el && blockTags.indexOf(el.tagName) !== -1){
+      window.flutter_inappwebview.callHandler(
+        'onDoubleTapBlock', (el.innerText || el.textContent || '').trim());
+    }
+  });
+
   // ── GitHub Alerts ────────────────────────────────────────────────────
   var alertMap = {
     'NOTE':      {cls:'gh-alert-note',      icon:'ℹ️', label:'Note'},
@@ -367,6 +463,7 @@ $body
       onWebViewCreated: (controller) {
         _webViewController = controller;
         widget.controller?._attach(controller);
+        widget.controller?._attachState(this);
 
         // Link tap handler
         controller.addJavaScriptHandler(
@@ -395,9 +492,42 @@ $body
             return null;
           },
         );
+
+        // Block double-tap handler
+        controller.addJavaScriptHandler(
+          handlerName: 'onDoubleTapBlock',
+          callback: (args) {
+            if (args.isNotEmpty) {
+              widget.onDoubleTapBlock?.call(args[0].toString());
+            }
+            return null;
+          },
+        );
+
+        // Table cell double-tap handler
+        controller.addJavaScriptHandler(
+          handlerName: 'onDoubleTapCell',
+          callback: (args) {
+            if (args.length >= 4) {
+              final tableIdx = int.tryParse(args[0].toString()) ?? 0;
+              final rowIdx   = int.tryParse(args[1].toString()) ?? 0;
+              final colIdx   = int.tryParse(args[2].toString()) ?? 0;
+              final cellText = args[3].toString();
+              widget.onDoubleTapCell?.call(tableIdx, rowIdx, colIdx, cellText);
+            }
+            return null;
+          },
+        );
+      },
+      onLoadStop: (controller, url) async {
+        // Restore scroll position after page reload
+        if (_savedScrollY > 0) {
+          await controller.evaluateJavascript(
+              source: 'window.scrollTo(0, $_savedScrollY)');
+          _savedScrollY = 0;
+        }
       },
       shouldOverrideUrlLoading: (controller, navigationAction) async {
-        // All navigation is handled by the link tap JS handler above
         return NavigationActionPolicy.CANCEL;
       },
     );

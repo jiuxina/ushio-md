@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/file_provider.dart';
@@ -8,7 +7,7 @@ import '../../models/file_sort_option.dart';
 import '../../services/folder_sort_service.dart';
 import '../../utils/file_actions.dart';
 import '../../widgets/empty_state.dart';
-import '../../widgets/particle_effect_widget.dart';
+import '../../widgets/app_background.dart';
 import 'folder/components/folder_browser_header.dart';
 import 'folder/components/file_tile.dart';
 
@@ -267,10 +266,8 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final folderName = widget.folderPath.split(Platform.pathSeparator).last;
-    
-    // Title Override Logic
+
     String displayName;
     if (widget.title != null) {
       displayName = widget.title!;
@@ -280,93 +277,61 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
       displayName = folderName;
     }
 
-    return Consumer<SettingsProvider>(
-      builder: (context, settings, _) {
-        BoxDecoration backgroundDecoration;
-        if (settings.backgroundImagePath != null && File(settings.backgroundImagePath!).existsSync()) {
-          backgroundDecoration = BoxDecoration(
-            image: DecorationImage(
-              image: FileImage(File(settings.backgroundImagePath!)),
-              fit: BoxFit.cover,
-            ),
-          );
-        } else {
-          backgroundDecoration = BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [const Color(0xFF1a1a2e), const Color(0xFF16213e), const Color(0xFF0f0f23)]
-                  : [const Color(0xFFf8f9ff), const Color(0xFFf0f4ff), const Color(0xFFe8eeff)],
-            ),
-          );
-        }
-
-        return Scaffold(
-          body: Container(
-            decoration: backgroundDecoration,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: settings.backgroundEffect == 'blur' ? settings.backgroundBlur : 0,
-                sigmaY: settings.backgroundEffect == 'blur' ? settings.backgroundBlur : 0,
-              ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  SafeArea(
-                    child: Column(
-                      children: [
-                        FolderBrowserHeader(
-                          folderName: displayName,
-                          fileCount: _entities.length,
-                          isSearching: _isSearching,
-                          onSearchToggle: () {
-                            setState(() {
-                              if (_isSearching) {
-                                _isSearching = false;
-                                _searchController.clear();
-                              } else {
-                                _isSearching = true;
-                              }
-                            });
-                          },
-                          searchController: _searchController,
-                          onSearchChanged: (value) => setState(() {}),
-                          sortOption: _sortOption,
-                          onSortChanged: (option) async {
-                            setState(() => _sortOption = option);
-                            await _sortService.saveSortOption(widget.folderPath, option.index);
-                            _sortFiles();
-                          },
-                          onBack: widget.showBackButton ? () => Navigator.pop(context) : null,
-                          showImages: _showImages,
-                          onImageToggle: () {
-                            setState(() => _showImages = !_showImages);
-                            _loadFiles(); // 重新加载以过滤/显示图片
-                          },
-                          onNewItem: _showNewItemMenu,
-                        ),
-                        Expanded(child: _buildContent()),
-                      ],
-                    ),
-                  ),
-                  // 粒子效果层（全局模式时显示）
-                  if (settings.particleEnabled && settings.particleGlobal)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: ParticleEffectWidget(
-                          particleType: settings.particleType,
-                          speed: settings.particleSpeed,
-                          enabled: true,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+    // Core content – shared between tab and standalone modes.
+    final content = SafeArea(
+      child: Column(
+        children: [
+          FolderBrowserHeader(
+            folderName: displayName,
+            fileCount: _entities.length,
+            isSearching: _isSearching,
+            onSearchToggle: () {
+              setState(() {
+                if (_isSearching) {
+                  _isSearching = false;
+                  _searchController.clear();
+                } else {
+                  _isSearching = true;
+                }
+              });
+            },
+            searchController: _searchController,
+            onSearchChanged: (value) => setState(() {}),
+            sortOption: _sortOption,
+            onSortChanged: (option) async {
+              setState(() => _sortOption = option);
+              await _sortService.saveSortOption(widget.folderPath, option.index);
+              _sortFiles();
+            },
+            onBack: widget.showBackButton ? () => Navigator.pop(context) : null,
+            showImages: _showImages,
+            onImageToggle: () {
+              setState(() => _showImages = !_showImages);
+              _loadFiles();
+            },
+            onNewItem: _showNewItemMenu,
           ),
-        );
-      }
+          Expanded(child: _buildContent()),
+        ],
+      ),
+    );
+
+    if (!widget.showBackButton) {
+      // Tab mode: no own background – the parent AppBackground provides it.
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: content,
+      );
+    }
+
+    // Standalone (pushed) mode: wrap with AppBackground so the screen has a
+    // consistent background when opened as a subfolder navigation target.
+    return AppBackground(
+      wrapWithSafeArea: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: content,
+      ),
     );
   }
 
