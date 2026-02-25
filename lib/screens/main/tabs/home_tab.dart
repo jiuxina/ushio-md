@@ -22,7 +22,9 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return SafeArea(
+      bottom: false,
+      child: Column(
       children: [
         _buildHomeHeader(),
         Expanded(
@@ -54,6 +56,7 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
       ],
+      ),
     );
   }
 

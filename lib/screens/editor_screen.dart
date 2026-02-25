@@ -441,23 +441,33 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         text: _textController.text,
         onMatchSelected: (position, length) {
           Navigator.pop(context);
-          setState(() => _mode = EditorMode.edit);
-          
-          Future.delayed(const Duration(milliseconds: 100), () {
-            _textController.selection = TextSelection(
-              baseOffset: position,
-              extentOffset: position + length,
-            );
-            
-            if (_editScrollController.hasClients) {
-              final lines = _textController.text.substring(0, position).split('\n');
-              final lineHeight = 24.0; 
-              final targetScroll = (lines.length * lineHeight - _jumpTopOffset);
-              _editScrollController.jumpTo(
-                targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
+
+          if (_mode == EditorMode.edit) {
+            // Edit mode: select text and scroll the editor
+            Future.delayed(const Duration(milliseconds: 100), () {
+              _textController.selection = TextSelection(
+                baseOffset: position,
+                extentOffset: position + length,
               );
-            }
-          });
+
+              if (_editScrollController.hasClients) {
+                final lines =
+                    _textController.text.substring(0, position).split('\n');
+                const lineHeight = 24.0;
+                final targetScroll =
+                    (lines.length * lineHeight - _jumpTopOffset);
+                _editScrollController.jumpTo(
+                  targetScroll
+                      .clamp(0.0, _editScrollController.position.maxScrollExtent),
+                );
+              }
+            });
+          } else {
+            // Preview / split mode: scroll the WebView to the matched text
+            final end = (position + length).clamp(0, _textController.text.length);
+            final matchText = _textController.text.substring(position, end);
+            _previewWebViewController.scrollToText(matchText);
+          }
         },
       ),
     );
@@ -478,42 +488,44 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   /// 切换复选框状态
-  /// 
-  /// [index] 复选框在文档中的索引（第几个复选框）
-  /// [newValue] 新的选中状态
+  ///
+  /// The WebView's HTML checkbox state is already correct immediately on user
+  /// tap, so we suppress the next content reload and just update the underlying
+  /// text for persistence.
   void _toggleCheckbox(int index, bool newValue) {
     final text = _textController.text;
     final lines = text.split('\n');
     int checkboxCount = 0;
-    
+    bool changed = false;
+
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
       final uncheckedMatch = _uncheckedBoxRegex.firstMatch(line);
       final checkedMatch = _checkedBoxRegex.firstMatch(line);
-      
+
       if (uncheckedMatch != null || checkedMatch != null) {
         if (checkboxCount == index) {
-          if (newValue) {
-            if (uncheckedMatch != null) {
-              lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
-            }
-          } else {
-            if (checkedMatch != null) {
-              lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
-            }
+          if (newValue && uncheckedMatch != null) {
+            lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
+            changed = true;
+          } else if (!newValue && checkedMatch != null) {
+            lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
+            changed = true;
           }
           break;
         }
         checkboxCount++;
       }
     }
-    
-    final newText = lines.join('\n');
-    if (newText != text) {
-      setState(() {
-        _textController.text = newText;
-        _isModified = true;
-      });
+
+    if (changed) {
+      // Suppress the next WebView reload – the HTML checkbox is already correct.
+      _previewWebViewController.suppressNextReload();
+      final newText = lines.join('\n');
+      _textController.removeListener(_onTextChanged);
+      _textController.text = newText;
+      _textController.addListener(_onTextChanged);
+      setState(() => _isModified = true);
     }
   }
 
@@ -553,6 +565,285 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   // ==================== Block Parsing & Inline Editing ====================
+
+  // ── Double-tap handlers (issues #4 & #5) ─────────────────────────────
+
+  /// Strip markdown formatting from text so it can be compared to HTML
+  /// innerText returned by the WebView.
+  String _stripMarkdown(String text) {
+    return text
+        .replaceAll(RegExp(r'\*{1,3}([^*]+)\*{1,3}'), r'$1')
+        .replaceAll(RegExp(r'_{1,3}([^_]+)_{1,3}'), r'$1')
+        .replaceAll(RegExp(r'`+([^`]+)`+'), r'$1')
+        .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
+        .replaceAll(RegExp(r'!\[[^\]]*\]\([^\)]*\)'), '')
+        .replaceAll(RegExp(r'\[([^\]]*)\]\([^\)]*\)'), r'$1')
+        .replaceAll(RegExp(r'^#+\s*', multiLine: true), '')
+        .replaceAll(RegExp(r'^[-*+]\s+', multiLine: true), '')
+        .replaceAll(RegExp(r'^\d+\.\s+', multiLine: true), '')
+        .replaceAll(RegExp(r'^\s*>\s*', multiLine: true), '')
+        .trim()
+        .toLowerCase();
+  }
+
+  /// Called when the user double-taps a text block in the WebView.
+  void _handleDoubleTapBlock(String htmlText) {
+    if (!mounted) return;
+    final blocks = _parseBlocks(_textController.text);
+    final normalizedHtml = _stripMarkdown(htmlText);
+
+    int bestIndex = -1;
+    int bestLen = 0;
+    for (int i = 0; i < blocks.length; i++) {
+      final norm = _stripMarkdown(blocks[i].content);
+      if (norm.isEmpty) continue;
+      final shorter = norm.length <= normalizedHtml.length ? norm : normalizedHtml;
+      final longer  = norm.length >  normalizedHtml.length ? norm : normalizedHtml;
+      if (longer.contains(shorter) && shorter.length > bestLen) {
+        bestLen   = shorter.length;
+        bestIndex = i;
+      }
+    }
+    if (bestIndex >= 0) {
+      _showBlockEditorSheet(bestIndex, blocks);
+    }
+  }
+
+  /// Called when the user double-taps a table cell in the WebView.
+  void _handleDoubleTapCell(int tableIdx, int rowIdx, int colIdx, String cellText) {
+    if (!mounted) return;
+    final blocks = _parseBlocks(_textController.text);
+    // Tables are multi-line blocks containing '|' characters
+    final tableBlocks = blocks
+        .where((b) => b.isMultiLine && b.content.contains('|'))
+        .toList();
+    if (tableIdx >= tableBlocks.length) return;
+    final tableBlock = tableBlocks[tableIdx];
+
+    // The cell content from the markdown (before HTML rendering may trim it)
+    final tableLines = tableBlock.content
+        .split('\n')
+        .where((l) => l.trim().isNotEmpty)
+        .toList();
+    if (rowIdx >= tableLines.length) return;
+    final rowLine = tableLines[rowIdx];
+    final parts = rowLine.split('|');
+    // For "| cell0 | cell1 |" parts = ['', ' cell0 ', ' cell1 ', '']
+    final cellPartIdx = colIdx + 1;
+    if (cellPartIdx >= parts.length) return;
+    final currentCell = parts[cellPartIdx].trim();
+
+    _inlineEditController.text = currentCell;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Icon(Icons.table_chart,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text('编辑单元格',
+                        style: Theme.of(context).textTheme.titleSmall),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _inlineEditController,
+                  maxLines: 1,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.all(12),
+                    hintText: '单元格内容',
+                  ),
+                  onSubmitted: (_) {
+                    Navigator.pop(sheetCtx);
+                    _applyCellEdit(tableBlock, rowIdx, colIdx);
+                  },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetCtx),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.pop(sheetCtx);
+                        _applyCellEdit(tableBlock, rowIdx, colIdx);
+                      },
+                      child: const Text('完成'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Apply an edited cell back into the markdown text.
+  void _applyCellEdit(_MarkdownBlock tableBlock, int rowIdx, int colIdx) {
+    final allLines = _textController.text.split('\n');
+    int tableRowCounter = 0;
+    for (int i = tableBlock.startLine;
+        i <= tableBlock.endLine && i < allLines.length;
+        i++) {
+      if (allLines[i].trim().isEmpty) continue;
+      if (tableRowCounter == rowIdx) {
+        final parts = allLines[i].split('|');
+        final cellPartIdx = colIdx + 1;
+        if (cellPartIdx < parts.length) {
+          parts[cellPartIdx] = ' ${_inlineEditController.text} ';
+          allLines[i] = parts.join('|');
+        }
+        break;
+      }
+      tableRowCounter++;
+    }
+    final newText = allLines.join('\n');
+    if (newText != _textController.text) {
+      setState(() {
+        _textController.text = newText;
+        _isModified = true;
+      });
+    }
+  }
+
+  /// Show a bottom-sheet editor for the block at [blockIndex].
+  void _showBlockEditorSheet(int blockIndex, List<_MarkdownBlock> blocks) {
+    final block = blocks[blockIndex];
+    _inlineEditController.text = block.content;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                TextField(
+                  controller: _inlineEditController,
+                  maxLines: block.isMultiLine ? null : 1,
+                  minLines: block.isMultiLine ? 3 : 1,
+                  keyboardType: block.isMultiLine
+                      ? TextInputType.multiline
+                      : TextInputType.text,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.all(12),
+                    hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
+                  ),
+                  onSubmitted: block.isMultiLine
+                      ? null
+                      : (_) {
+                          Navigator.pop(sheetCtx);
+                          _applyBlockEdit(blockIndex, blocks);
+                        },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetCtx),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.pop(sheetCtx);
+                        _applyBlockEdit(blockIndex, blocks);
+                      },
+                      child: const Text('完成'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Apply the block editor result back into the full document.
+  void _applyBlockEdit(int blockIndex, List<_MarkdownBlock> blocks) {
+    if (blockIndex >= blocks.length) return;
+    final block = blocks[blockIndex];
+    final lines = _textController.text.split('\n');
+    final editedLines = _inlineEditController.text.split('\n');
+    final newLines = <String>[
+      ...lines.sublist(0, block.startLine),
+      ...editedLines,
+      if (block.endLine + 1 < lines.length) ...lines.sublist(block.endLine + 1),
+    ];
+    final newText = newLines.join('\n');
+    if (newText != _textController.text) {
+      setState(() {
+        _textController.text = newText;
+        _isModified = true;
+      });
+    }
+  }
 
   /// Parse markdown text into logical blocks for inline editing.
   /// Code blocks, tables, and blockquotes are grouped as multi-line blocks.
@@ -708,6 +999,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
+      onDoubleTapBlock: _handleDoubleTapBlock,
+      onDoubleTapCell: _handleDoubleTapCell,
       controller: _previewWebViewController,
     );
   }
@@ -1166,6 +1459,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
+      onDoubleTapBlock: _handleDoubleTapBlock,
+      onDoubleTapCell: _handleDoubleTapCell,
       controller: _previewWebViewController,
     );
   }

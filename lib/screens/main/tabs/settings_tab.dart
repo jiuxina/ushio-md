@@ -22,9 +22,11 @@ class SettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SettingsProvider>(
-      builder: (context, settings, child) {
-        return ListView(
+    return SafeArea(
+      bottom: false,
+      child: Consumer<SettingsProvider>(
+        builder: (context, settings, child) {
+          return ListView(
             padding: const EdgeInsets.all(20),
             children: [
               _buildSettingsHeader(context),
@@ -108,7 +110,8 @@ class SettingsTab extends StatelessWidget {
             ],
           );
         },
-      );
+      ),
+    );
   }
 
   Widget _buildSettingsHeader(BuildContext context) {

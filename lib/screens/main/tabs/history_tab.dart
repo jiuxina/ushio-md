@@ -31,11 +31,14 @@ class _HistoryTabState extends State<HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildHeader(),
-        Expanded(child: _buildContent()),
-      ],
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          _buildHeader(),
+          Expanded(child: _buildContent()),
+        ],
+      ),
     );
   }
 
