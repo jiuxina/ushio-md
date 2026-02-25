@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../widgets/markdown_preview.dart';
+import '../../../../widgets/webview_markdown_preview.dart';
 import '../../../../services/export_service.dart';
 
 class FullscreenPreviewPage extends StatefulWidget {
@@ -224,11 +225,16 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: MarkdownPreview(
+          child: WebViewMarkdownPreview(
             data: widget.controller.text,
-            settings: widget.settings,
+            isDark: Theme.of(context).brightness == Brightness.dark,
+            fontSize: widget.settings.fontSize,
+            fontFamily: widget.settings.editorFontFamily == 'System'
+                ? null
+                : widget.settings.editorFontFamily,
             onCheckboxChanged: widget.onCheckboxChanged,
-            baseDirectory: widget.filePath != null ? File(widget.filePath!).parent.path : null,
+            baseDirectory:
+                widget.filePath != null ? File(widget.filePath!).parent.path : null,
           ),
         ),
       ),

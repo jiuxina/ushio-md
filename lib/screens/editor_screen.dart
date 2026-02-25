@@ -7,7 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/markdown_toolbar.dart';
-import '../widgets/markdown_preview.dart';
+import '../widgets/webview_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
@@ -48,12 +48,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _isAutoCompleting = false;
   late TextEditingController _textController;
   late ScrollController _editScrollController;
-  late ScrollController _previewScrollController;
   late UndoHistoryController _undoController;
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
 
-  // Inline editing state
+  // WebView controller for heading navigation in preview/split modes
+  final _previewWebViewController = MarkdownWebViewController();
+
+  // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
   late TextEditingController _inlineEditController;
   late FocusNode _inlineEditFocusNode;
@@ -66,10 +68,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   Timer? _autoSaveTimer;
   Timer? _tocDebounceTimer;
   int? _highlightedLine;
-
-  // Anchor point method: Cache measured scroll positions for each heading
-  final Map<int, double> _headingScrollPositions = {};
-  String _lastMeasuredContent = '';
 
   // ==================== 常量 ====================
   /// Offset from top when jumping to a target position
@@ -96,7 +94,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     super.initState();
     _textController = TextEditingController();
     _editScrollController = ScrollController();
-    _previewScrollController = ScrollController();
     _undoController = UndoHistoryController();
     _inlineEditController = TextEditingController();
     _inlineEditFocusNode = FocusNode();
@@ -252,173 +249,48 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
 
     setState(() => _tocItems = items);
-
-    // Measure positions after TOC is updated
-    if (_mode != EditorMode.edit) {
-      _scheduleMeasureHeadingPositions();
-    }
-  }
-
-  /// Schedule measurement of heading positions after widget is built
-  void _scheduleMeasureHeadingPositions() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _measureHeadingPositions();
-    });
-  }
-
-  /// Measure actual scroll positions for each heading (anchor point method)
-  void _measureHeadingPositions() {
-    if (!mounted || !_previewScrollController.hasClients) return;
-
-    final currentContent = _textController.text;
-    if (currentContent == _lastMeasuredContent && _headingScrollPositions.isNotEmpty) {
-      return; // Already measured for this content
-    }
-
-    _headingScrollPositions.clear();
-
-    final lines = currentContent.split('\n');
-    if (lines.isEmpty) return;
-
-    // Step 1: Populate ALL headings with proportional estimates as a baseline.
-    // This ensures every heading has a valid (non-zero) approximate position even
-    // when the ListView.builder hasn't rendered that item yet (lazy rendering).
-    final maxScroll = _previewScrollController.position.maxScrollExtent;
-    final viewportHeight = _previewScrollController.position.viewportDimension;
-    final totalHeight = maxScroll + viewportHeight;
-
-    for (final item in _tocItems) {
-      final ratio = lines.length > 0 ? item.lineNumber / lines.length : 0.0;
-      _headingScrollPositions[item.lineNumber] = ratio * totalHeight;
-    }
-
-    // Step 2: Override with accurate positions from anchor keys for headings that
-    // are currently rendered (visible in the lazy ListView.builder viewport).
-    try {
-      final scrollViewContext = _previewScrollController.position.context.storageContext;
-      final scrollViewBox = scrollViewContext.findRenderObject() as RenderBox?;
-
-      if (scrollViewBox != null) {
-        for (final item in _tocItems) {
-          final ctx = item.anchorKey?.currentContext;
-          if (ctx == null) continue;
-          final renderBox = ctx.findRenderObject() as RenderBox?;
-          if (renderBox == null || !renderBox.hasSize) continue;
-
-          final globalPos = renderBox.localToGlobal(Offset.zero);
-          final scrollViewGlobalPos = scrollViewBox.localToGlobal(Offset.zero);
-          final posInScrollView = globalPos.dy - scrollViewGlobalPos.dy;
-          final absolutePosition = _previewScrollController.offset + posInScrollView;
-
-          _headingScrollPositions[item.lineNumber] = absolutePosition;
-        }
-      }
-    } catch (_) {}
-
-    _lastMeasuredContent = currentContent;
   }
 
   void _jumpToHeading(TocItem item) {
     setState(() {
       _showToc = false;
-      _highlightedLine = item.lineNumber;
     });
 
-    final lines = _textController.text.split('\n');
-    int position = 0;
-    for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
-      position += lines[i].length + 1;
-    }
-
-    // Small offset from top to position the target slightly below the top edge
     if (_mode == EditorMode.edit) {
+      // Scroll the text editor to the target line
+      setState(() => _highlightedLine = item.lineNumber);
+      final lines = _textController.text.split('\n');
+      int position = 0;
+      for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
+        position += lines[i].length + 1;
+      }
       _textController.selection = TextSelection.collapsed(offset: position);
       if (_editScrollController.hasClients) {
         const lineHeight = 24.0;
         final maxScroll = _editScrollController.position.maxScrollExtent;
-
-        // Position target at top with small offset
-        final targetLineTop = item.lineNumber * lineHeight;
-        final targetScroll = (targetLineTop - _jumpTopOffset).clamp(0.0, maxScroll);
-
+        final targetScroll =
+            (item.lineNumber * lineHeight - _jumpTopOffset).clamp(0.0, maxScroll);
         _editScrollController.jumpTo(targetScroll);
       }
-    } else {
-      if (_previewScrollController.hasClients) {
-        // First: try to jump using the anchor key (accurate when heading is rendered)
-        final keyScroll = _computeHeadingScrollFromKey(item);
-        if (keyScroll != null) {
-          _previewScrollController.jumpTo(keyScroll);
-        } else {
-          // Fall back to cached estimated position
-          final maxScroll = _previewScrollController.position.maxScrollExtent;
-          double targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
-
-          if (_headingScrollPositions.isEmpty) {
-            _measureHeadingPositions();
-            targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
-          }
-
-          final targetScroll = (targetPosition - _jumpTopOffset).clamp(0.0, maxScroll);
-          _previewScrollController.jumpTo(targetScroll);
-        }
-
-        // Second pass: after the initial jump renders nearby content,
-        // fine-adjust using the anchor key if it becomes available
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _previewScrollController.hasClients) {
-            final refined = _computeHeadingScrollFromKey(item);
-            if (refined != null) {
-              _previewScrollController.jumpTo(refined);
-            }
-          }
+      // Trigger Flutter-side highlight flash for edit mode
+      _highlightController.forward(from: 0.0).then((_) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) setState(() => _highlightedLine = null);
         });
-      }
-    }
-
-    // Trigger highlight animation
-    _highlightController.forward(from: 0.0).then((_) {
-      // Clear highlight after animation completes
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          setState(() => _highlightedLine = null);
-        }
       });
-    });
-  }
-
-  /// Compute the target scroll position using the TocItem's anchor key.
-  ///
-  /// Returns null if the anchor key is not currently attached to a rendered widget.
-  double? _computeHeadingScrollFromKey(TocItem item) {
-    final context = item.anchorKey?.currentContext;
-    if (context == null) return null;
-
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return null;
-
-    try {
-      final scrollViewContext = _previewScrollController.position.context.storageContext;
-      final scrollViewBox = scrollViewContext.findRenderObject() as RenderBox?;
-      if (scrollViewBox == null) return null;
-
-      final globalPos = renderBox.localToGlobal(Offset.zero);
-      final scrollViewGlobalPos = scrollViewBox.localToGlobal(Offset.zero);
-
-      // posInScrollView = how far the heading is below the current viewport top
-      final posInScrollView = globalPos.dy - scrollViewGlobalPos.dy;
-      // absolutePosition = scroll offset at which the heading sits in the full content
-      final absolutePosition = _previewScrollController.offset + posInScrollView;
-      final maxScroll = _previewScrollController.position.maxScrollExtent;
-
-      return (absolutePosition - _jumpTopOffset).clamp(0.0, maxScroll);
-    } catch (_) {
-      return null;
+    } else {
+      // WebView preview/split mode — scroll via JavaScript.
+      // The JS also handles the visual flash on the target heading.
+      final headingIndex = _tocItems.indexOf(item);
+      if (headingIndex >= 0) {
+        _previewWebViewController.scrollToHeading(headingIndex,
+            topOffset: _jumpTopOffset);
+      }
     }
   }
 
   /// 自动保存
-  /// 
+  ///
   /// 仅在内容有修改且未在保存中时触发
   Future<void> _autoSave() async {
     if (_isModified && !_isSaving) {
@@ -427,7 +299,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   /// 保存文件
-  /// 
+  ///
   /// [showSnackbar] 是否显示保存结果提示
   Future<void> _saveFile({bool showSnackbar = true}) async {
     if (_isSaving) return;
@@ -496,7 +368,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _tocDebounceTimer?.cancel();
     _textController.dispose();
     _editScrollController.dispose();
-    _previewScrollController.dispose();
     _undoController.dispose();
     _inlineEditController.dispose();
     _inlineEditFocusNode.dispose();
@@ -824,71 +695,19 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     setState(() => _editingBlockIndex = null);
   }
 
-  /// Build the inline-editable preview with block-based rendering
+  /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
-    final blocks = _parseBlocks(_textController.text);
-
-    // Build a map from line number → anchor key for heading blocks
-    final headingKeys = <int, GlobalKey>{};
-    for (final item in _tocItems) {
-      if (item.anchorKey != null) {
-        headingKeys[item.lineNumber] = item.anchorKey!;
-      }
-    }
-
-    // Pre-compute checkbox offsets for each block
-    final checkboxOffsets = <int>[0];
-    for (int b = 0; b < blocks.length - 1; b++) {
-      checkboxOffsets.add(checkboxOffsets.last + _countCheckboxesInText(blocks[b].content));
-    }
-
-    return ListView.builder(
-      controller: _previewScrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: blocks.length,
-      itemBuilder: (context, index) {
-        final block = blocks[index];
-
-        // Currently editing this block
-        if (index == _editingBlockIndex) {
-          return _buildBlockEditor(block, settings);
-        }
-
-        // Empty line: render as spacer
-        if (block.content.trim().isEmpty) {
-          return GestureDetector(
-            onDoubleTap: _editingBlockIndex == null
-                ? () => _startInlineEdit(index, blocks)
-                : null,
-            child: const SizedBox(height: 8),
-          );
-        }
-
-        final checkboxOffset = index < checkboxOffsets.length ? checkboxOffsets[index] : 0;
-        final anchorKey = headingKeys[block.startLine];
-
-        final blockWidget = GestureDetector(
-          onDoubleTap: _editingBlockIndex == null
-              ? () => _startInlineEdit(index, blocks)
-              : null,
-          child: MarkdownPreview(
-            data: block.content,
-            settings: settings,
-            shrinkWrap: true,
-            onCheckboxChanged: (localIdx, value) {
-              _toggleCheckbox(checkboxOffset + localIdx, value);
-            },
-            baseDirectory: File(widget.filePath).parent.path,
-            onTapLink: _handleLinkTap,
-          ),
-        );
-
-        // Wrap heading blocks with their anchor key for accurate scroll position measurement
-        if (anchorKey != null) {
-          return Container(key: anchorKey, child: blockWidget);
-        }
-        return blockWidget;
-      },
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return WebViewMarkdownPreview(
+      data: _textController.text,
+      isDark: isDark,
+      fontSize: settings.fontSize,
+      fontFamily:
+          settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      baseDirectory: File(widget.filePath).parent.path,
+      onTapLink: _handleLinkTap,
+      onCheckboxChanged: _toggleCheckbox,
+      controller: _previewWebViewController,
     );
   }
 
@@ -1354,67 +1173,19 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     );
   }
 
+  /// Build the WebView-based preview panel for EditorMode.split.
   Widget _buildPreviewPanel(SettingsProvider settings) {
-    // Build heading anchor keys map for accurate scroll position measurement.
-    // Keys use stripped text (no inline markdown) to match element.textContent from the builder.
-    final headingAnchorKeys = <String, GlobalKey>{};
-    for (final item in _tocItems) {
-      if (item.anchorKey != null) {
-        // Strip common inline markdown to match element.textContent in HeadingAnchorBuilder
-        final strippedTitle = item.title
-            .replaceAll(RegExp(r'\*+([^*]+)\*+'), r'$1')
-            .replaceAll(RegExp(r'_+([^_]+)_+'), r'$1')
-            .replaceAll(RegExp(r'`([^`]+)`'), r'$1')
-            .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
-            .trim();
-        headingAnchorKeys[strippedTitle] = item.anchorKey!;
-      }
-    }
-
-    return Stack(
-      children: [
-        MarkdownPreview(
-          data: _textController.text,
-          settings: settings,
-          controller: _previewScrollController,
-          onCheckboxChanged: _toggleCheckbox,
-          baseDirectory: File(widget.filePath).parent.path,
-          onTapLink: _handleLinkTap,
-          headingAnchorKeys: headingAnchorKeys.isNotEmpty ? headingAnchorKeys : null,
-        ),
-        if (_highlightedLine != null && _mode != EditorMode.edit)
-          AnimatedBuilder(
-            animation: _highlightAnimation,
-            builder: (context, child) {
-              final accentColor = Theme.of(context).colorScheme.primary;
-
-              // Single flash: fade in then fade out
-              final opacity = _highlightAnimation.value < 0.5
-                  ? _highlightAnimation.value * 2
-                  : (1 - _highlightAnimation.value) * 2;
-
-              return Positioned(
-                top: _jumpTopOffset,
-                left: 0,
-                right: 0,
-                height: 40,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: opacity * 0.35),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: accentColor.withValues(alpha: opacity * 0.6),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return WebViewMarkdownPreview(
+      data: _textController.text,
+      isDark: isDark,
+      fontSize: settings.fontSize,
+      fontFamily:
+          settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      baseDirectory: File(widget.filePath).parent.path,
+      onTapLink: _handleLinkTap,
+      onCheckboxChanged: _toggleCheckbox,
+      controller: _previewWebViewController,
     );
   }
 

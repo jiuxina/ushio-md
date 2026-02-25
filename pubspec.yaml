@@ -38,6 +38,9 @@ dependencies:
   # Markdown rendering
   flutter_markdown_plus: ^1.0.7
   
+  # WebView for markdown preview
+  flutter_inappwebview: ^6.0.0
+  
   # Syntax highlighting
   flutter_highlight: ^0.7.0
   
