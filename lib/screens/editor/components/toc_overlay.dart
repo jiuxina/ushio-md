@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/toc_item.dart';
 
-class TocOverlay extends StatelessWidget {
+class TocOverlay extends StatefulWidget {
   final List<TocItem> items;
   final VoidCallback onClose;
   final Function(TocItem) onJumpToHeading;
@@ -14,14 +14,46 @@ class TocOverlay extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
+  State<TocOverlay> createState() => _TocOverlayState();
+}
+
+class _TocOverlayState extends State<TocOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _isClosing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
       duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Plays the exit animation and then notifies the parent to remove the overlay.
+  void _startClose() {
+    if (_isClosing) return;
+    setState(() => _isClosing = true);
+    _controller.reverse().then((_) {
+      if (mounted) widget.onClose();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final value = _controller.value;
         return GestureDetector(
-          onTap: onClose,
+          onTap: _startClose,
           child: Container(
             color: Colors.black.withValues(alpha: 0.5 * value), // 背景淡入
             child: Align(
@@ -85,14 +117,14 @@ class TocOverlay extends StatelessWidget {
                                 const Spacer(),
                                 IconButton(
                                   icon: const Icon(Icons.close),
-                                  onPressed: onClose,
+                                  onPressed: _startClose,
                                 ),
                               ],
                             ),
                           ),
                           // TOC items
                           Expanded(
-                            child: items.isEmpty
+                            child: widget.items.isEmpty
                                 ? Center(
                                     child: Text(
                                       '没有找到标题',
@@ -103,9 +135,9 @@ class TocOverlay extends StatelessWidget {
                                   )
                                 : ListView.builder(
                                     padding: const EdgeInsets.all(16),
-                                    itemCount: items.length,
+                                    itemCount: widget.items.length,
                                     itemBuilder: (context, index) {
-                                      final item = items[index];
+                                      final item = widget.items[index];
                                       return _buildTocItem(context, item);
                                     },
                                   ),
@@ -141,7 +173,7 @@ class TocOverlay extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => onJumpToHeading(item),
+          onTap: () => widget.onJumpToHeading(item),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(

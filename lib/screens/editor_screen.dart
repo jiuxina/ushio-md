@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -1063,10 +1064,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           if (settings.particleEnabled && settings.particleGlobal)
             Positioned.fill(
               child: IgnorePointer(
-                child: ParticleEffectWidget(
-                  particleType: settings.particleType,
-                  speed: settings.particleSpeed,
+                child: TickerMode(
                   enabled: true,
+                  child: ParticleEffectWidget(
+                    particleType: settings.particleType,
+                    speed: settings.particleSpeed,
+                    enabled: true,
+                  ),
                 ),
               ),
             ),
@@ -1165,18 +1169,23 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     switch (_mode) {
       case EditorMode.edit:
-        // Edge-to-edge: no left/right/bottom margin or border.
-        return Container(
-          margin: const EdgeInsets.only(top: 8),
-          color: Theme.of(context).colorScheme.surface,
-          child: _buildEditPanel(settings),
+        // Top rounded corners at AppBar junction; clip ensures rounded corners
+        // are visible on the WebView (platform view).
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Container(
+            color: Theme.of(context).colorScheme.surface,
+            child: _buildEditPanel(settings),
+          ),
         );
       case EditorMode.preview:
-        // Edge-to-edge: no left/right/bottom margin or border.
-        return Container(
-          margin: const EdgeInsets.only(top: 8),
-          color: Theme.of(context).colorScheme.surface,
-          child: _buildInlineEditablePreview(settings),
+        // Top rounded corners at AppBar junction.
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Container(
+            color: Theme.of(context).colorScheme.surface,
+            child: _buildInlineEditablePreview(settings),
+          ),
         );
       case EditorMode.split:
         return Padding(
@@ -1220,43 +1229,51 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
-  /// Floating action buttons that stay fixed at the bottom-right corner of the
-  /// screen, unaffected by the keyboard (they are positioned in the top-level
-  /// Stack, not inside the Scaffold body that resizes for the IME).
+  /// Floating action buttons that stay as fixed as possible at the
+  /// bottom-right corner of the screen. The viewInsets compensation formula
+  /// minimises vertical movement when the keyboard appears/disappears.
   Widget _buildFixedFloatingButtons() {
-    // Bottom offset: respect the device's safe-area (status-bar / nav-bar) but
-    // ignore the keyboard inset, so the buttons don't jump when the IME appears.
-    final bottomInset = MediaQuery.of(context).padding.bottom + 24.0;
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
 
     switch (_mode) {
       case EditorMode.edit:
+        // Keep button above the 56 px toolbar + 16 px gap.
+        // Compensate for body shrinkage so the button stays as close as
+        // possible to its natural position on screen.
+        final editBottom =
+            math.max(56.0 + 16.0, safeBottom + 56.0 + 16.0 - viewInsets);
         return Positioned(
           right: 24,
-          bottom: bottomInset,
-          child: _buildFloatingButton(
-            Icons.visibility,
-            Theme.of(context).colorScheme.primary,
-            () => setState(() => _mode = EditorMode.preview),
+          bottom: editBottom,
+          child: _AnimatedFAB(
+            icon: Icons.visibility,
+            color: Theme.of(context).colorScheme.primary,
+            onTap: () => setState(() => _mode = EditorMode.preview),
           ),
         );
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
+        // Keep buttons at a fixed visual position from the screen bottom.
+        final previewBottom =
+            math.max(8.0, safeBottom + 24.0 - viewInsets);
         return Positioned(
           right: 24,
-          bottom: bottomInset,
+          bottom: previewBottom,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildFloatingButton(
-                Icons.edit,
-                Theme.of(context).colorScheme.tertiary,
-                () => setState(() => _mode = EditorMode.edit),
+              _AnimatedFAB(
+                icon: Icons.edit,
+                color: Theme.of(context).colorScheme.tertiary,
+                onTap: () => setState(() => _mode = EditorMode.edit),
               ),
               const SizedBox(height: 12),
-              _buildFloatingButton(
-                Icons.list,
-                Theme.of(context).colorScheme.primary,
-                () => setState(() => _showToc = true),
+              _AnimatedFAB(
+                icon: Icons.list,
+                color: Theme.of(context).colorScheme.primary,
+                // Double-tap (second press) closes TOC if already open.
+                onTap: () => setState(() => _showToc = !_showToc),
               ),
             ],
           ),
@@ -1264,35 +1281,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       case EditorMode.split:
         return const SizedBox.shrink();
     }
-  }
-
-  Widget _buildFloatingButton(IconData icon, Color color, VoidCallback onTap, {bool mini = false}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(mini ? 12 : 16),
-        onTap: onTap,
-        child: Container(
-          padding: EdgeInsets.all(mini ? 10 : 14),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(mini ? 12 : 16),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: mini ? 18 : 24,
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildEditPanel(SettingsProvider settings) {
@@ -1502,6 +1490,66 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             }),
             const SizedBox(height: 16),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Animated Floating Action Button
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// A floating action button with a scale-down press animation and a colour
+/// glow shadow that intensifies when pressed.
+class _AnimatedFAB extends StatefulWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AnimatedFAB({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedFAB> createState() => _AnimatedFABState();
+}
+
+class _AnimatedFABState extends State<_AnimatedFAB> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.85 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _pressed
+                ? widget.color.withValues(alpha: 0.85)
+                : widget.color,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: _pressed ? 0.6 : 0.4),
+                blurRadius: _pressed ? 18 : 12,
+                offset: _pressed ? const Offset(0, 2) : const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(widget.icon, color: Colors.white, size: 24),
         ),
       ),
     );
