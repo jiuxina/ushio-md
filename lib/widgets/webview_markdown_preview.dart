@@ -97,19 +97,16 @@ class WebViewMarkdownPreview extends StatefulWidget {
   final bool isDark;
   final double fontSize;
   final String? fontFamily;
+  /// Override background color (from the selected theme scheme).
+  final Color? bgColor;
+  /// Override foreground/text color (from the selected theme scheme).
+  final Color? fgColor;
+  /// Font family used in code blocks.
+  final String? codeFont;
   final String? baseDirectory;
   final void Function(String text, String? href, String title)? onTapLink;
   final Function(int index, bool value) onCheckboxChanged;
-  /// Return the raw markdown source for an edit request.
-  ///
-  /// [type] is `'cell'` or `'block'`.
-  /// For cells: [p1]=tableIdx, [p2]=rowIdx, [p3]=colIdx, [extra]=''.
-  /// For blocks: [p1]=0, [p2]=0, [p3]=0, [extra]=innerText of the element.
   final String? Function(String type, int p1, int p2, int p3, String extra)? onGetMarkdown;
-  /// Called when the user finishes an in-place edit.
-  ///
-  /// [key] encodes the target: `'cell:ti:ri:ci'` or `'block:<innerText>'`.
-  /// [newText] is the edited raw markdown text.
   final void Function(String key, String newText)? onInPlaceEdit;
   final MarkdownWebViewController? controller;
 
@@ -119,6 +116,9 @@ class WebViewMarkdownPreview extends StatefulWidget {
     required this.isDark,
     required this.fontSize,
     this.fontFamily,
+    this.bgColor,
+    this.fgColor,
+    this.codeFont,
     this.baseDirectory,
     this.onTapLink,
     required this.onCheckboxChanged,
@@ -150,7 +150,10 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     if (oldWidget.data != widget.data ||
         oldWidget.isDark != widget.isDark ||
         oldWidget.fontSize != widget.fontSize ||
-        oldWidget.fontFamily != widget.fontFamily) {
+        oldWidget.fontFamily != widget.fontFamily ||
+        oldWidget.bgColor != widget.bgColor ||
+        oldWidget.fgColor != widget.fgColor ||
+        oldWidget.codeFont != widget.codeFont) {
       if (_suppressNextReload) {
         _suppressNextReload = false;
         _debounceTimer?.cancel(); // prevent any pending reload from firing
@@ -270,6 +273,12 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     return _wrapHtml(processed);
   }
 
+  /// Convert a Flutter [Color] to a CSS hex string (e.g. `#1a1a2e`).
+  String _hex(Color c) =>
+      '#${c.red.toRadixString(16).padLeft(2, '0')}'
+      '${c.green.toRadixString(16).padLeft(2, '0')}'
+      '${c.blue.toRadixString(16).padLeft(2, '0')}';
+
   /// Wrap [body] in a full HTML document with inline CSS and JS.
   String _wrapHtml(String body) {
     final dark = widget.isDark;
@@ -277,8 +286,13 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     final ff = widget.fontFamily;
 
     // ── Colour palette ────────────────────────────────────────────────────
-    final bg = dark ? '#1a1a2e' : '#ffffff';
-    final fg = dark ? '#e0e0e0' : '#1a1a1a';
+    // Use theme-scheme colours when provided, otherwise fall back to defaults.
+    final bg = widget.bgColor != null
+        ? _hex(widget.bgColor!)
+        : (dark ? '#1a1a2e' : '#ffffff');
+    final fg = widget.fgColor != null
+        ? _hex(widget.fgColor!)
+        : (dark ? '#e0e0e0' : '#1a1a1a');
     final hColor = dark ? '#ffffff' : '#111111';
     final codeBg = dark ? '#282c34' : '#f5f5f5';
     final codeColor = dark ? '#abb2bf' : '#333333';
@@ -298,8 +312,10 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     final bodyFont = ff != null
         ? '"$ff", system-ui, -apple-system, sans-serif'
         : 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    const monoFont =
-        'JetBrains Mono, Consolas, Monaco, "Courier New", monospace';
+    final cf = widget.codeFont;
+    final monoFont = cf != null && cf != 'System'
+        ? '"$cf", JetBrains Mono, Consolas, Monaco, "Courier New", monospace'
+        : 'JetBrains Mono, Consolas, Monaco, "Courier New", monospace';
 
     // ── Heading flash animation ───────────────────────────────────────────
     final flashKf = dark
@@ -337,10 +353,13 @@ th,td{border:1px solid $tblBorder;padding:8px 12px;text-align:left}
 th{background:$tblHeadBg;font-weight:bold}
 img{max-width:100%;height:auto;display:block;margin:0.5em auto;border-radius:4px}
 ul,ol{padding-left:1.5em;margin:0.5em 0}li{margin:0.3em 0}
-input[type="checkbox"]{margin-right:6px}
+input[type="checkbox"]{margin-right:6px;width:${fs * 0.9}px;height:${fs * 0.9}px;vertical-align:middle;cursor:pointer}
 hr{border:none;border-top:1px solid $hrColor;margin:1.5em 0}
 del{color:$delColor}
-/* Math */
+/* Code language badge */
+pre{position:relative}
+pre[data-language]::before{content:attr(data-language);position:absolute;top:6px;right:12px;font-size:${fs * 0.75}px;color:${dark ? '#888' : '#aaa'};font-family:$monoFont;text-transform:uppercase;letter-spacing:0.05em;user-select:none;pointer-events:none}
+
 .math-block{overflow-x:auto;padding:8px 0;margin:1em 0;text-align:center}
 .math-inline{display:inline}
 .katex-display{overflow-x:auto;overflow-y:hidden;padding:4px 0}
@@ -365,6 +384,12 @@ del{color:$delColor}
 $body
 <script>
 (function(){
+  // ── Code language badges ─────────────────────────────────────────────
+  document.querySelectorAll('pre code').forEach(function(code) {
+    var m = code.className.match(/language-([\\w+\\-]+)/);
+    if (m) code.parentNode.setAttribute('data-language', m[1]);
+  });
+
   // ── Link handler ────────────────────────────────────────────────────────
   document.addEventListener('click', function(e){
     var t = e.target;
