@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:path_provider/path_provider.dart';
 
 /// Controller for the WebView-based markdown preview.
 ///
@@ -137,6 +139,60 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
   Timer? _debounceTimer;
   bool _suppressNextReload = false;
   double _savedScrollY = 0;
+
+  // ── Static font-file cache (extracted once, shared across all instances) ──
+  static final Map<String, String> _fontFilePaths = {};
+  static Completer<void>? _fontCompleter;
+  bool _webViewReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureFontsExtracted();
+  }
+
+  /// Extract bundled font files to a temp directory once and cache their paths.
+  ///
+  /// After extraction completes, reload the WebView (if already created) so it
+  /// picks up the @font-face rules that reference the extracted files.
+  Future<void> _ensureFontsExtracted() async {
+    if (_fontCompleter != null) {
+      // Already in progress or done – wait, then trigger reload if needed.
+      await _fontCompleter!.future.catchError((_) {});
+      _triggerFontReload();
+      return;
+    }
+    _fontCompleter = Completer<void>();
+    try {
+      final dir = await getTemporaryDirectory();
+      const assets = [
+        'assets/fonts/NotoSansSC-Regular.ttf',
+        'assets/fonts/JetBrainsMono-Regular.ttf',
+      ];
+      for (final asset in assets) {
+        final filename = asset.split('/').last;
+        final file = File('${dir.path}/$filename');
+        if (!file.existsSync()) {
+          final data = await rootBundle.load(asset);
+          await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
+        }
+        _fontFilePaths[asset] = file.path;
+      }
+      _fontCompleter!.complete();
+    } catch (e) {
+      // If extraction fails, complete with no error so the app still works.
+      if (!_fontCompleter!.isCompleted) _fontCompleter!.complete();
+    }
+    if (mounted) _triggerFontReload();
+  }
+
+  /// Reload the WebView content with @font-face rules once both the WebView
+  /// and the font files are ready.
+  void _triggerFontReload() {
+    if (_webViewReady && (_fontCompleter?.isCompleted ?? false)) {
+      _loadContent();
+    }
+  }
 
   @override
   void dispose() {
@@ -322,6 +378,21 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
         ? '@keyframes hflash { 0%{background:transparent} 20%{background:rgba(100,180,255,0.35)} 100%{background:transparent} }'
         : '@keyframes hflash { 0%{background:transparent} 20%{background:rgba(0,122,255,0.25)} 100%{background:transparent} }';
 
+    // ── @font-face rules (use extracted temp-dir files via file:// URI) ─────
+    String fontFaces = '';
+    void addFontFace(String family, String assetKey) {
+      final path = _fontFilePaths[assetKey];
+      if (path == null) return;
+      final uri = Platform.isWindows
+          ? 'file:///${path.replaceAll('\\', '/')}'
+          : 'file://$path';
+      fontFaces +=
+          "@font-face{font-family:'$family';src:url('$uri') format('truetype');"
+          "font-weight:normal;font-style:normal;}\n";
+    }
+    addFontFace('Noto Sans SC', 'assets/fonts/NotoSansSC-Regular.ttf');
+    addFontFace('JetBrains Mono', 'assets/fonts/JetBrainsMono-Regular.ttf');
+
     return '''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -333,6 +404,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
   onload="renderMathInElement(document.body,{delimiters:[{left:'\$\$',right:'\$\$',display:true},{left:'\$',right:'\$',display:false},{left:'\\\\(',right:'\\\\)',display:false},{left:'\\\\[',right:'\\\\]',display:true}],throwOnError:false});"></script>
 <style>
+$fontFaces
 *{box-sizing:border-box}
 body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px;margin:0;word-wrap:break-word;overflow-wrap:break-word}
 h1,h2,h3,h4,h5,h6{color:$hColor;font-weight:bold;line-height:1.4;margin:1em 0 0.5em;border-radius:4px}
@@ -554,8 +626,14 @@ $body
       ),
       onWebViewCreated: (controller) {
         _webViewController = controller;
+        _webViewReady = true;
         widget.controller?._attach(controller);
         widget.controller?._attachState(this);
+
+        // Trigger a reload now that the WebView is ready (fonts may already be
+        // extracted); if not yet extracted, _triggerFontReload will be called
+        // from _ensureFontsExtracted when extraction completes.
+        _triggerFontReload();
 
         // Link tap handler
         controller.addJavaScriptHandler(
