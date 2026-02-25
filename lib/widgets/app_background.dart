@@ -11,10 +11,15 @@ class AppBackground extends StatelessWidget {
   /// 是否在编辑器区域（用于判断是否显示粒子效果）
   final bool isEditor;
 
+  /// 是否用 SafeArea 包裹子控件。当子控件是 Scaffold 时应设为 false，
+  /// 避免与 Scaffold 的内建安全区域处理产生双重内边距。
+  final bool wrapWithSafeArea;
+
   const AppBackground({
     super.key,
     required this.child,
     this.isEditor = false,
+    this.wrapWithSafeArea = true,
   });
 
   @override
@@ -31,10 +36,15 @@ class AppBackground extends StatelessWidget {
     if (showParticles) {
       particleLayer = Positioned.fill(
         child: IgnorePointer(
-          child: ParticleEffectWidget(
-            particleType: settings.particleType,
-            speed: settings.particleSpeed,
+          // TickerMode(enabled:true) overrides the route system's ticker-pause
+          // so particles keep animating smoothly during route push/pop transitions.
+          child: TickerMode(
             enabled: true,
+            child: ParticleEffectWidget(
+              particleType: settings.particleType,
+              speed: settings.particleSpeed,
+              enabled: true,
+            ),
           ),
         ),
       );
@@ -61,7 +71,7 @@ class AppBackground extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          SafeArea(child: child),
+          wrapWithSafeArea ? SafeArea(child: child) : child,
           if (particleLayer != null) particleLayer,
         ],
       ),
@@ -100,7 +110,7 @@ class AppBackground extends StatelessWidget {
                     ? Colors.black.withValues(alpha: settings.backgroundOverlayOpacity)
                     : Colors.white.withValues(alpha: settings.backgroundOverlayOpacity),
               ),
-            SafeArea(child: child),
+            wrapWithSafeArea ? SafeArea(child: child) : child,
             // 粒子效果层
             if (particleLayer != null) particleLayer,
           ],

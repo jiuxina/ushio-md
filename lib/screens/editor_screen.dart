@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/constants.dart';
 import '../widgets/markdown_toolbar.dart';
-import '../widgets/markdown_preview.dart';
+import '../widgets/webview_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
@@ -48,12 +50,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _isAutoCompleting = false;
   late TextEditingController _textController;
   late ScrollController _editScrollController;
-  late ScrollController _previewScrollController;
   late UndoHistoryController _undoController;
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
 
-  // Inline editing state
+  // WebView controller for heading navigation in preview/split modes
+  final _previewWebViewController = MarkdownWebViewController();
+
+  // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
   late TextEditingController _inlineEditController;
   late FocusNode _inlineEditFocusNode;
@@ -63,13 +67,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   bool _isModified = false;
   bool _isSaving = false;
   bool _showToc = false;
+  bool _hidePlatformViews = false; // hide WebView during pop transition
   Timer? _autoSaveTimer;
   Timer? _tocDebounceTimer;
   int? _highlightedLine;
-
-  // Anchor point method: Cache measured scroll positions for each heading
-  final Map<int, double> _headingScrollPositions = {};
-  String _lastMeasuredContent = '';
 
   // ==================== 常量 ====================
   /// Offset from top when jumping to a target position
@@ -96,7 +97,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     super.initState();
     _textController = TextEditingController();
     _editScrollController = ScrollController();
-    _previewScrollController = ScrollController();
     _undoController = UndoHistoryController();
     _inlineEditController = TextEditingController();
     _inlineEditFocusNode = FocusNode();
@@ -252,173 +252,48 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
 
     setState(() => _tocItems = items);
-
-    // Measure positions after TOC is updated
-    if (_mode != EditorMode.edit) {
-      _scheduleMeasureHeadingPositions();
-    }
-  }
-
-  /// Schedule measurement of heading positions after widget is built
-  void _scheduleMeasureHeadingPositions() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _measureHeadingPositions();
-    });
-  }
-
-  /// Measure actual scroll positions for each heading (anchor point method)
-  void _measureHeadingPositions() {
-    if (!mounted || !_previewScrollController.hasClients) return;
-
-    final currentContent = _textController.text;
-    if (currentContent == _lastMeasuredContent && _headingScrollPositions.isNotEmpty) {
-      return; // Already measured for this content
-    }
-
-    _headingScrollPositions.clear();
-
-    final lines = currentContent.split('\n');
-    if (lines.isEmpty) return;
-
-    // Step 1: Populate ALL headings with proportional estimates as a baseline.
-    // This ensures every heading has a valid (non-zero) approximate position even
-    // when the ListView.builder hasn't rendered that item yet (lazy rendering).
-    final maxScroll = _previewScrollController.position.maxScrollExtent;
-    final viewportHeight = _previewScrollController.position.viewportDimension;
-    final totalHeight = maxScroll + viewportHeight;
-
-    for (final item in _tocItems) {
-      final ratio = lines.length > 0 ? item.lineNumber / lines.length : 0.0;
-      _headingScrollPositions[item.lineNumber] = ratio * totalHeight;
-    }
-
-    // Step 2: Override with accurate positions from anchor keys for headings that
-    // are currently rendered (visible in the lazy ListView.builder viewport).
-    try {
-      final scrollViewContext = _previewScrollController.position.context.storageContext;
-      final scrollViewBox = scrollViewContext.findRenderObject() as RenderBox?;
-
-      if (scrollViewBox != null) {
-        for (final item in _tocItems) {
-          final ctx = item.anchorKey?.currentContext;
-          if (ctx == null) continue;
-          final renderBox = ctx.findRenderObject() as RenderBox?;
-          if (renderBox == null || !renderBox.hasSize) continue;
-
-          final globalPos = renderBox.localToGlobal(Offset.zero);
-          final scrollViewGlobalPos = scrollViewBox.localToGlobal(Offset.zero);
-          final posInScrollView = globalPos.dy - scrollViewGlobalPos.dy;
-          final absolutePosition = _previewScrollController.offset + posInScrollView;
-
-          _headingScrollPositions[item.lineNumber] = absolutePosition;
-        }
-      }
-    } catch (_) {}
-
-    _lastMeasuredContent = currentContent;
   }
 
   void _jumpToHeading(TocItem item) {
     setState(() {
       _showToc = false;
-      _highlightedLine = item.lineNumber;
     });
 
-    final lines = _textController.text.split('\n');
-    int position = 0;
-    for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
-      position += lines[i].length + 1;
-    }
-
-    // Small offset from top to position the target slightly below the top edge
     if (_mode == EditorMode.edit) {
+      // Scroll the text editor to the target line
+      setState(() => _highlightedLine = item.lineNumber);
+      final lines = _textController.text.split('\n');
+      int position = 0;
+      for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
+        position += lines[i].length + 1;
+      }
       _textController.selection = TextSelection.collapsed(offset: position);
       if (_editScrollController.hasClients) {
         const lineHeight = 24.0;
         final maxScroll = _editScrollController.position.maxScrollExtent;
-
-        // Position target at top with small offset
-        final targetLineTop = item.lineNumber * lineHeight;
-        final targetScroll = (targetLineTop - _jumpTopOffset).clamp(0.0, maxScroll);
-
+        final targetScroll =
+            (item.lineNumber * lineHeight - _jumpTopOffset).clamp(0.0, maxScroll);
         _editScrollController.jumpTo(targetScroll);
       }
-    } else {
-      if (_previewScrollController.hasClients) {
-        // First: try to jump using the anchor key (accurate when heading is rendered)
-        final keyScroll = _computeHeadingScrollFromKey(item);
-        if (keyScroll != null) {
-          _previewScrollController.jumpTo(keyScroll);
-        } else {
-          // Fall back to cached estimated position
-          final maxScroll = _previewScrollController.position.maxScrollExtent;
-          double targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
-
-          if (_headingScrollPositions.isEmpty) {
-            _measureHeadingPositions();
-            targetPosition = _headingScrollPositions[item.lineNumber] ?? 0.0;
-          }
-
-          final targetScroll = (targetPosition - _jumpTopOffset).clamp(0.0, maxScroll);
-          _previewScrollController.jumpTo(targetScroll);
-        }
-
-        // Second pass: after the initial jump renders nearby content,
-        // fine-adjust using the anchor key if it becomes available
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _previewScrollController.hasClients) {
-            final refined = _computeHeadingScrollFromKey(item);
-            if (refined != null) {
-              _previewScrollController.jumpTo(refined);
-            }
-          }
+      // Trigger Flutter-side highlight flash for edit mode
+      _highlightController.forward(from: 0.0).then((_) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) setState(() => _highlightedLine = null);
         });
-      }
-    }
-
-    // Trigger highlight animation
-    _highlightController.forward(from: 0.0).then((_) {
-      // Clear highlight after animation completes
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          setState(() => _highlightedLine = null);
-        }
       });
-    });
-  }
-
-  /// Compute the target scroll position using the TocItem's anchor key.
-  ///
-  /// Returns null if the anchor key is not currently attached to a rendered widget.
-  double? _computeHeadingScrollFromKey(TocItem item) {
-    final context = item.anchorKey?.currentContext;
-    if (context == null) return null;
-
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return null;
-
-    try {
-      final scrollViewContext = _previewScrollController.position.context.storageContext;
-      final scrollViewBox = scrollViewContext.findRenderObject() as RenderBox?;
-      if (scrollViewBox == null) return null;
-
-      final globalPos = renderBox.localToGlobal(Offset.zero);
-      final scrollViewGlobalPos = scrollViewBox.localToGlobal(Offset.zero);
-
-      // posInScrollView = how far the heading is below the current viewport top
-      final posInScrollView = globalPos.dy - scrollViewGlobalPos.dy;
-      // absolutePosition = scroll offset at which the heading sits in the full content
-      final absolutePosition = _previewScrollController.offset + posInScrollView;
-      final maxScroll = _previewScrollController.position.maxScrollExtent;
-
-      return (absolutePosition - _jumpTopOffset).clamp(0.0, maxScroll);
-    } catch (_) {
-      return null;
+    } else {
+      // WebView preview/split mode — scroll via JavaScript.
+      // The JS also handles the visual flash on the target heading.
+      final headingIndex = _tocItems.indexOf(item);
+      if (headingIndex >= 0) {
+        _previewWebViewController.scrollToHeading(headingIndex,
+            topOffset: _jumpTopOffset);
+      }
     }
   }
 
   /// 自动保存
-  /// 
+  ///
   /// 仅在内容有修改且未在保存中时触发
   Future<void> _autoSave() async {
     if (_isModified && !_isSaving) {
@@ -427,7 +302,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   /// 保存文件
-  /// 
+  ///
   /// [showSnackbar] 是否显示保存结果提示
   Future<void> _saveFile({bool showSnackbar = true}) async {
     if (_isSaving) return;
@@ -496,8 +371,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     _tocDebounceTimer?.cancel();
     _textController.dispose();
     _editScrollController.dispose();
-    _previewScrollController.dispose();
     _undoController.dispose();
+    _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
     _inlineEditController.dispose();
     _inlineEditFocusNode.dispose();
     _highlightController.dispose();
@@ -569,23 +444,33 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         text: _textController.text,
         onMatchSelected: (position, length) {
           Navigator.pop(context);
-          setState(() => _mode = EditorMode.edit);
-          
-          Future.delayed(const Duration(milliseconds: 100), () {
-            _textController.selection = TextSelection(
-              baseOffset: position,
-              extentOffset: position + length,
-            );
-            
-            if (_editScrollController.hasClients) {
-              final lines = _textController.text.substring(0, position).split('\n');
-              final lineHeight = 24.0; 
-              final targetScroll = (lines.length * lineHeight - _jumpTopOffset);
-              _editScrollController.jumpTo(
-                targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
+
+          if (_mode == EditorMode.edit) {
+            // Edit mode: select text and scroll the editor
+            Future.delayed(const Duration(milliseconds: 100), () {
+              _textController.selection = TextSelection(
+                baseOffset: position,
+                extentOffset: position + length,
               );
-            }
-          });
+
+              if (_editScrollController.hasClients) {
+                final lines =
+                    _textController.text.substring(0, position).split('\n');
+                const lineHeight = 24.0;
+                final targetScroll =
+                    (lines.length * lineHeight - _jumpTopOffset);
+                _editScrollController.jumpTo(
+                  targetScroll
+                      .clamp(0.0, _editScrollController.position.maxScrollExtent),
+                );
+              }
+            });
+          } else {
+            // Preview / split mode: scroll the WebView to the matched text
+            final end = (position + length).clamp(0, _textController.text.length);
+            final matchText = _textController.text.substring(position, end);
+            _previewWebViewController.scrollToText(matchText);
+          }
         },
       ),
     );
@@ -606,42 +491,44 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   /// 切换复选框状态
-  /// 
-  /// [index] 复选框在文档中的索引（第几个复选框）
-  /// [newValue] 新的选中状态
+  ///
+  /// The WebView's HTML checkbox state is already correct immediately on user
+  /// tap, so we suppress the next content reload and just update the underlying
+  /// text for persistence.
   void _toggleCheckbox(int index, bool newValue) {
     final text = _textController.text;
     final lines = text.split('\n');
     int checkboxCount = 0;
-    
+    bool changed = false;
+
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
       final uncheckedMatch = _uncheckedBoxRegex.firstMatch(line);
       final checkedMatch = _checkedBoxRegex.firstMatch(line);
-      
+
       if (uncheckedMatch != null || checkedMatch != null) {
         if (checkboxCount == index) {
-          if (newValue) {
-            if (uncheckedMatch != null) {
-              lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
-            }
-          } else {
-            if (checkedMatch != null) {
-              lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
-            }
+          if (newValue && uncheckedMatch != null) {
+            lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
+            changed = true;
+          } else if (!newValue && checkedMatch != null) {
+            lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
+            changed = true;
           }
           break;
         }
         checkboxCount++;
       }
     }
-    
-    final newText = lines.join('\n');
-    if (newText != text) {
-      setState(() {
-        _textController.text = newText;
-        _isModified = true;
-      });
+
+    if (changed) {
+      // Suppress the next WebView reload – the HTML checkbox is already correct.
+      _previewWebViewController.suppressNextReload();
+      final newText = lines.join('\n');
+      _textController.removeListener(_onTextChanged);
+      _textController.text = newText;
+      _textController.addListener(_onTextChanged);
+      setState(() => _isModified = true);
     }
   }
 
@@ -681,6 +568,180 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   // ==================== Block Parsing & Inline Editing ====================
+
+  // ── In-place editing helpers ──────────────────────────────────────────
+
+  /// Strip markdown formatting from text so it can be compared to HTML
+  /// innerText returned by the WebView.
+  String _stripMarkdown(String text) {
+    return text
+        // Strip fenced code block opening/closing lines (```lang or ```)
+        .replaceAll(RegExp(r'^```[^\n]*\n?', multiLine: true), '')
+        .replaceAll(RegExp(r'^~~~[^\n]*\n?', multiLine: true), '')
+        // Strip GitHub Alert markers [!NOTE] etc.
+        .replaceAll(RegExp(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*',
+                           multiLine: true, caseSensitive: false), '')
+        .replaceAll(RegExp(r'\*{1,3}([^*]+)\*{1,3}'), r'$1')
+        .replaceAll(RegExp(r'_{1,3}([^_]+)_{1,3}'), r'$1')
+        .replaceAll(RegExp(r'`+([^`]+)`+'), r'$1')
+        .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
+        .replaceAll(RegExp(r'==([^=]+)=='), r'$1')
+        .replaceAll(RegExp(r'!\[[^\]]*\]\([^\)]*\)'), '')
+        .replaceAll(RegExp(r'\[([^\]]*)\]\([^\)]*\)'), r'$1')
+        .replaceAll(RegExp(r'^#+\s*', multiLine: true), '')
+        .replaceAll(RegExp(r'^[-*+]\s+', multiLine: true), '')
+        .replaceAll(RegExp(r'^\d+\.\s+', multiLine: true), '')
+        // Strip ALL leading blockquote markers (handles nested > > > lines)
+        .replaceAll(RegExp(r'^\s*(>\s*)+', multiLine: true), '')
+        .trim()
+        .toLowerCase();
+  }
+
+  /// Returns the raw markdown source for a table cell (for in-place editing).
+  String _getCellMarkdown(int tableIdx, int rowIdx, int colIdx) {
+    final blocks = _parseBlocks(_textController.text);
+    final tableBlocks =
+        blocks.where((b) => b.isMultiLine && b.content.contains('|')).toList();
+    if (tableIdx >= tableBlocks.length) return '';
+    // Skip separator rows (lines that consist only of |, -, :, and spaces)
+    final _sepRow = RegExp(r'^[\|\s\-:]+$');
+    final tableLines = tableBlocks[tableIdx]
+        .content
+        .split('\n')
+        .where((l) => l.trim().isNotEmpty && !_sepRow.hasMatch(l.trim()))
+        .toList();
+    if (rowIdx >= tableLines.length) return '';
+    final parts = tableLines[rowIdx].split('|');
+    final idx = colIdx + 1;
+    if (idx >= parts.length) return '';
+    return parts[idx].trim();
+  }
+
+  /// Returns the raw markdown source for the block whose rendered innerText
+  /// best matches [innerText].
+  String _getBlockMarkdown(String innerText) {
+    final blocks = _parseBlocks(_textController.text);
+    final normalizedHtml = _stripMarkdown(innerText);
+    int bestIndex = -1;
+    int bestLen = 0;
+    for (int i = 0; i < blocks.length; i++) {
+      final norm = _stripMarkdown(blocks[i].content);
+      if (norm.isEmpty) continue;
+      final shorter =
+          norm.length <= normalizedHtml.length ? norm : normalizedHtml;
+      final longer =
+          norm.length > normalizedHtml.length ? norm : normalizedHtml;
+      if (longer.contains(shorter) && shorter.length > bestLen) {
+        bestLen = shorter.length;
+        bestIndex = i;
+      }
+    }
+    return bestIndex >= 0 ? blocks[bestIndex].content : innerText;
+  }
+
+  /// Callback for `onGetMarkdown` from [WebViewMarkdownPreview].
+  String _handleGetMarkdown(
+      String type, int p1, int p2, int p3, String extra) {
+    if (type == 'cell') return _getCellMarkdown(p1, p2, p3);
+    return _getBlockMarkdown(extra);
+  }
+
+  /// Apply an in-place edit committed by the WebView contenteditable.
+  ///
+  /// [key] is either `'cell:ti:ri:ci'` or `'block:<innerText prefix>'`.
+  /// [newText] is the raw markdown the user typed.
+  void _applyInPlaceEdit(String key, String newText) {
+    if (!mounted) return;
+    if (key.startsWith('cell:')) {
+      final parts = key.split(':');
+      if (parts.length < 4) return;
+      final ti = int.tryParse(parts[1]) ?? 0;
+      final ri = int.tryParse(parts[2]) ?? 0;
+      final ci = int.tryParse(parts[3]) ?? 0;
+      final blocks = _parseBlocks(_textController.text);
+      final tableBlocks = blocks
+          .where((b) => b.isMultiLine && b.content.contains('|'))
+          .toList();
+      if (ti >= tableBlocks.length) return;
+      _inlineEditController.text = newText;
+      _applyCellEdit(tableBlocks[ti], ri, ci);
+    } else if (key.startsWith('block:')) {
+      // key = 'block:' + first 80 chars of innerText → fuzzy-find block
+      final innerText = key.substring('block:'.length);
+      final blocks = _parseBlocks(_textController.text);
+      final normalized = _stripMarkdown(innerText);
+      int bestIndex = -1;
+      int bestLen = 0;
+      for (int i = 0; i < blocks.length; i++) {
+        final norm = _stripMarkdown(blocks[i].content);
+        if (norm.isEmpty) continue;
+        final shorter =
+            norm.length <= normalized.length ? norm : normalized;
+        final longer =
+            norm.length > normalized.length ? norm : normalized;
+        if (longer.contains(shorter) && shorter.length > bestLen) {
+          bestLen = shorter.length;
+          bestIndex = i;
+        }
+      }
+      if (bestIndex >= 0) {
+        _inlineEditController.text = newText;
+        _applyBlockEdit(bestIndex, blocks);
+      }
+    }
+  }
+
+  /// Apply an edited cell back into the markdown text.
+  void _applyCellEdit(_MarkdownBlock tableBlock, int rowIdx, int colIdx) {
+    final allLines = _textController.text.split('\n');
+    // Skip separator rows (lines that consist only of |, -, :, and spaces)
+    final _sepRow = RegExp(r'^[\|\s\-:]+$');
+    int tableRowCounter = 0;
+    for (int i = tableBlock.startLine;
+        i <= tableBlock.endLine && i < allLines.length;
+        i++) {
+      final trimmed = allLines[i].trim();
+      if (trimmed.isEmpty) continue;
+      if (_sepRow.hasMatch(trimmed)) continue; // skip separator
+      if (tableRowCounter == rowIdx) {
+        final parts = allLines[i].split('|');
+        final cellPartIdx = colIdx + 1;
+        if (cellPartIdx < parts.length) {
+          parts[cellPartIdx] = ' ${_inlineEditController.text} ';
+          allLines[i] = parts.join('|');
+        }
+        break;
+      }
+      tableRowCounter++;
+    }
+    final newText = allLines.join('\n');
+    if (newText != _textController.text) {
+      setState(() {
+        _textController.text = newText;
+        _isModified = true;
+      });
+    }
+  }
+
+  /// Apply the block editor result back into the full document.
+  void _applyBlockEdit(int blockIndex, List<_MarkdownBlock> blocks) {
+    if (blockIndex >= blocks.length) return;
+    final block = blocks[blockIndex];
+    final lines = _textController.text.split('\n');
+    final editedLines = _inlineEditController.text.split('\n');
+    final newLines = <String>[
+      ...lines.sublist(0, block.startLine),
+      ...editedLines,
+      if (block.endLine + 1 < lines.length) ...lines.sublist(block.endLine + 1),
+    ];
+    final newText = newLines.join('\n');
+    if (newText != _textController.text) {
+      setState(() {
+        _textController.text = newText;
+        _isModified = true;
+      });
+    }
+  }
 
   /// Parse markdown text into logical blocks for inline editing.
   /// Code blocks, tables, and blockquotes are grouped as multi-line blocks.
@@ -824,76 +885,56 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     setState(() => _editingBlockIndex = null);
   }
 
-  /// Build the inline-editable preview with block-based rendering
+  /// Return the background and foreground colors for the active theme scheme.
+  ({Color bg, Color fg}) _themeSchemeColors(SettingsProvider settings) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      final schemes = AppConstants.darkThemeSchemes;
+      final idx = settings.darkThemeIndex.clamp(0, schemes.length - 1);
+      final s = schemes[idx];
+      return (bg: s.background, fg: s.text);
+    } else {
+      final schemes = AppConstants.lightThemeSchemes;
+      final idx = settings.lightThemeIndex.clamp(0, schemes.length - 1);
+      final s = schemes[idx];
+      return (bg: s.background, fg: s.text);
+    }
+  }
+
+  /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
-    final blocks = _parseBlocks(_textController.text);
-
-    // Build a map from line number → anchor key for heading blocks
-    final headingKeys = <int, GlobalKey>{};
-    for (final item in _tocItems) {
-      if (item.anchorKey != null) {
-        headingKeys[item.lineNumber] = item.anchorKey!;
-      }
-    }
-
-    // Pre-compute checkbox offsets for each block
-    final checkboxOffsets = <int>[0];
-    for (int b = 0; b < blocks.length - 1; b++) {
-      checkboxOffsets.add(checkboxOffsets.last + _countCheckboxesInText(blocks[b].content));
-    }
-
-    return ListView.builder(
-      controller: _previewScrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: blocks.length,
-      itemBuilder: (context, index) {
-        final block = blocks[index];
-
-        // Currently editing this block
-        if (index == _editingBlockIndex) {
-          return _buildBlockEditor(block, settings);
-        }
-
-        // Empty line: render as spacer
-        if (block.content.trim().isEmpty) {
-          return GestureDetector(
-            onDoubleTap: _editingBlockIndex == null
-                ? () => _startInlineEdit(index, blocks)
-                : null,
-            child: const SizedBox(height: 8),
-          );
-        }
-
-        final checkboxOffset = index < checkboxOffsets.length ? checkboxOffsets[index] : 0;
-        final anchorKey = headingKeys[block.startLine];
-
-        final blockWidget = GestureDetector(
-          onDoubleTap: _editingBlockIndex == null
-              ? () => _startInlineEdit(index, blocks)
-              : null,
-          child: MarkdownPreview(
-            data: block.content,
-            settings: settings,
-            shrinkWrap: true,
-            onCheckboxChanged: (localIdx, value) {
-              _toggleCheckbox(checkboxOffset + localIdx, value);
-            },
-            baseDirectory: File(widget.filePath).parent.path,
-            onTapLink: _handleLinkTap,
-          ),
-        );
-
-        // Wrap heading blocks with their anchor key for accurate scroll position measurement
-        if (anchorKey != null) {
-          return Container(key: anchorKey, child: blockWidget);
-        }
-        return blockWidget;
-      },
+    if (_hidePlatformViews) return const SizedBox.expand();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _themeSchemeColors(settings);
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return WebViewMarkdownPreview(
+      data: _textController.text,
+      isDark: isDark,
+      fontSize: settings.fontSize,
+      fontFamily:
+          settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      bgColor: colors.bg,
+      fgColor: colors.fg,
+      codeFont: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
+      baseDirectory: File(widget.filePath).parent.path,
+      onTapLink: _handleLinkTap,
+      onCheckboxChanged: _toggleCheckbox,
+      onGetMarkdown: _handleGetMarkdown,
+      onInPlaceEdit: _applyInPlaceEdit,
+      controller: _previewWebViewController,
+      bottomPadding: safeBottom,
     );
   }
 
-  /// Build the inline editor widget for a block
+  /// Build the inline editor widget for a block.
+  ///
+  /// No confirm/cancel buttons – tapping outside the field (focus-lost) saves
+  /// the change; pressing Enter on a single-line block also saves.
   Widget _buildBlockEditor(_MarkdownBlock block, SettingsProvider settings) {
+    // Auto-save when the field loses focus (user tapped elsewhere)
+    _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
+    _inlineEditFocusNode.addListener(_onInlineEditFocusChanged);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
@@ -904,63 +945,36 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           width: 2,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _inlineEditController,
-            focusNode: _inlineEditFocusNode,
-            maxLines: block.isMultiLine ? null : 1,
-            keyboardType: block.isMultiLine ? TextInputType.multiline : TextInputType.text,
-            onSubmitted: block.isMultiLine ? null : (_) => _finishInlineEdit(),
-            style: TextStyle(
-              fontSize: settings.fontSize,
-              fontFamily: settings.editorFontFamily == 'System'
-                  ? (block.content.trimLeft().startsWith('```') ? 'monospace' : null)
-                  : settings.editorFontFamily,
-              height: 1.5,
-            ),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-              hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
-              hintStyle: TextStyle(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-              ),
-            ),
+      child: TextField(
+        controller: _inlineEditController,
+        focusNode: _inlineEditFocusNode,
+        maxLines: block.isMultiLine ? null : 1,
+        keyboardType: block.isMultiLine ? TextInputType.multiline : TextInputType.text,
+        onSubmitted: block.isMultiLine ? null : (_) => _finishInlineEdit(),
+        style: TextStyle(
+          fontSize: settings.fontSize,
+          fontFamily: settings.editorFontFamily == 'System'
+              ? (block.content.trimLeft().startsWith('```') ? 'monospace' : null)
+              : settings.editorFontFamily,
+          height: 1.5,
+        ),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(12),
+          hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
+          hintStyle: TextStyle(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  onPressed: _cancelInlineEdit,
-                  icon: const Icon(Icons.close, size: 16),
-                  label: const Text('取消'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: _finishInlineEdit,
-                  icon: const Icon(Icons.check, size: 16),
-                  label: const Text('完成'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  /// Save inline edit when the text field loses focus (user tapped outside).
+  void _onInlineEditFocusChanged() {
+    if (!_inlineEditFocusNode.hasFocus && _editingBlockIndex != null) {
+      _finishInlineEdit();
+    }
   }
 
   @override
@@ -968,9 +982,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     return PopScope(
       canPop: !_isModified,
       onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          // Clear the WebView platform surface immediately so the native view
+          // doesn't linger as a ghost during the route-pop animation.
+          if (mounted) setState(() => _hidePlatformViews = true);
+          return;
+        }
         if (!didPop) {
           final shouldPop = await _onWillPop();
           if (shouldPop && context.mounted) {
+            setState(() => _hidePlatformViews = true);
             Navigator.of(context).pop();
           }
         }
@@ -982,12 +1003,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           child: Stack(
             children: [
               _buildBody(),
-            if (_showToc) 
-              TocOverlay(
-                items: _tocItems,
-                onClose: () => setState(() => _showToc = false),
-                onJumpToHeading: _jumpToHeading,
-              ),
+              if (_showToc)
+                TocOverlay(
+                  items: _tocItems,
+                  onClose: () => setState(() => _showToc = false),
+                  onJumpToHeading: _jumpToHeading,
+                ),
+              // Floating buttons – positioned relative to the full screen so
+              // they stay fixed even when the keyboard is shown.
+              if (!_isLoading && _error == null)
+                _buildFixedFloatingButtons(),
             ],
           ),
         ),
@@ -1013,6 +1038,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         fit: StackFit.expand,
         children: [
           SafeArea(
+            bottom: false,
             child: Column(
               children: [
                 EditorHeader(
@@ -1033,15 +1059,26 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                   onSave: _saveFile,
                   onMore: _showMoreMenu,
                 ),
-                Expanded(child: _buildContent()),
-                // Toolbar at bottom (above keyboard when shown)
-                if (!_isLoading && _error == null && (_mode != EditorMode.preview || _editingBlockIndex != null))
-                  MarkdownToolbar(
-                    controller: _editingBlockIndex != null ? _inlineEditController : _textController,
-                    undoController: _editingBlockIndex != null ? null : _undoController,
-                    filePath: widget.filePath,
-                    onSearchPressed: _showSearchDialog,
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: _buildContent()),
+                      // Toolbar floats at the bottom of the content area
+                      if (!_isLoading && _error == null && (_mode != EditorMode.preview || _editingBlockIndex != null))
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: MarkdownToolbar(
+                            controller: _editingBlockIndex != null ? _inlineEditController : _textController,
+                            undoController: _editingBlockIndex != null ? null : _undoController,
+                            filePath: widget.filePath,
+                            onSearchPressed: _showSearchDialog,
+                          ),
+                        ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),
@@ -1049,10 +1086,13 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           if (settings.particleEnabled && settings.particleGlobal)
             Positioned.fill(
               child: IgnorePointer(
-                child: ParticleEffectWidget(
-                  particleType: settings.particleType,
-                  speed: settings.particleSpeed,
+                child: TickerMode(
                   enabled: true,
+                  child: ParticleEffectWidget(
+                    particleType: settings.particleType,
+                    speed: settings.particleSpeed,
+                    enabled: true,
+                  ),
                 ),
               ),
             ),
@@ -1151,82 +1191,23 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     switch (_mode) {
       case EditorMode.edit:
-        return Stack(
-          children: [
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: _buildEditPanel(settings),
-              ),
-            ),
-            // Floating button to return to preview mode
-            Positioned(
-              right: 24,
-              bottom: 24,
-              child: _buildFloatingButton(
-                Icons.visibility,
-                Theme.of(context).colorScheme.primary,
-                () => setState(() => _mode = EditorMode.preview),
-              ),
-            ),
-          ],
+        // Top rounded corners at AppBar junction; clip ensures rounded corners
+        // are visible on the WebView (platform view).
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Container(
+            color: Theme.of(context).colorScheme.surface,
+            child: _buildEditPanel(settings, toolbarPadding: 56),
+          ),
         );
       case EditorMode.preview:
-        return Stack(
-          children: [
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: _buildInlineEditablePreview(settings),
-              ),
-            ),
-            // Hide floating buttons when inline editing is active
-            if (_editingBlockIndex == null)
-              Positioned(
-                right: 24,
-                bottom: 24,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () {
-                      setState(() => _mode = EditorMode.edit);
-                    }),
-                    const SizedBox(height: 12),
-                    _buildFloatingButton(Icons.list, Theme.of(context).colorScheme.primary, () => setState(() => _showToc = true)),
-                  ],
-                ),
-              ),
-          ],
+        // Top rounded corners at AppBar junction.
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Container(
+            color: Theme.of(context).colorScheme.surface,
+            child: _buildInlineEditablePreview(settings),
+          ),
         );
       case EditorMode.split:
         return Padding(
@@ -1270,36 +1251,61 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
-  Widget _buildFloatingButton(IconData icon, Color color, VoidCallback onTap, {bool mini = false}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(mini ? 12 : 16),
-        onTap: onTap,
-        child: Container(
-          padding: EdgeInsets.all(mini ? 10 : 14),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(mini ? 12 : 16),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+  /// Floating action buttons that stay as fixed as possible at the
+  /// bottom-right corner of the screen. The viewInsets compensation formula
+  /// minimises vertical movement when the keyboard appears/disappears.
+  Widget _buildFixedFloatingButtons() {
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+
+    switch (_mode) {
+      case EditorMode.edit:
+        // Keep button above the 56 px toolbar + 16 px gap.
+        // Compensate for body shrinkage so the button stays as close as
+        // possible to its natural position on screen.
+        final editBottom =
+            math.max(56.0 + 16.0, safeBottom + 56.0 + 16.0 - viewInsets);
+        return Positioned(
+          right: 24,
+          bottom: editBottom,
+          child: _AnimatedFAB(
+            icon: Icons.visibility,
+            color: Theme.of(context).colorScheme.primary,
+            onTap: () => setState(() => _mode = EditorMode.preview),
+          ),
+        );
+      case EditorMode.preview:
+        if (_editingBlockIndex != null) return const SizedBox.shrink();
+        // Keep buttons at a fixed visual position from the screen bottom.
+        final previewBottom =
+            math.max(8.0, safeBottom + 24.0 - viewInsets);
+        return Positioned(
+          right: 24,
+          bottom: previewBottom,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _AnimatedFAB(
+                icon: Icons.edit,
+                color: Theme.of(context).colorScheme.tertiary,
+                onTap: () => setState(() => _mode = EditorMode.edit),
+              ),
+              const SizedBox(height: 12),
+              _AnimatedFAB(
+                icon: Icons.list,
+                color: Theme.of(context).colorScheme.primary,
+                // Double-tap (second press) closes TOC if already open.
+                onTap: () => setState(() => _showToc = !_showToc),
               ),
             ],
           ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: mini ? 18 : 24,
-          ),
-        ),
-      ),
-    );
+        );
+      case EditorMode.split:
+        return const SizedBox.shrink();
+    }
   }
 
-  Widget _buildEditPanel(SettingsProvider settings) {
+  Widget _buildEditPanel(SettingsProvider settings, {double toolbarPadding = 0}) {
     return Stack(
       children: [
         TextField(
@@ -1317,7 +1323,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           ),
           decoration: InputDecoration(
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.all(16),
+            contentPadding: EdgeInsets.fromLTRB(16, 16, 16, 16 + toolbarPadding),
             hintText: '开始编写你的 Markdown 内容...',
             hintStyle: TextStyle(
               color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
@@ -1354,67 +1360,26 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     );
   }
 
+  /// Build the WebView-based preview panel for EditorMode.split.
   Widget _buildPreviewPanel(SettingsProvider settings) {
-    // Build heading anchor keys map for accurate scroll position measurement.
-    // Keys use stripped text (no inline markdown) to match element.textContent from the builder.
-    final headingAnchorKeys = <String, GlobalKey>{};
-    for (final item in _tocItems) {
-      if (item.anchorKey != null) {
-        // Strip common inline markdown to match element.textContent in HeadingAnchorBuilder
-        final strippedTitle = item.title
-            .replaceAll(RegExp(r'\*+([^*]+)\*+'), r'$1')
-            .replaceAll(RegExp(r'_+([^_]+)_+'), r'$1')
-            .replaceAll(RegExp(r'`([^`]+)`'), r'$1')
-            .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
-            .trim();
-        headingAnchorKeys[strippedTitle] = item.anchorKey!;
-      }
-    }
-
-    return Stack(
-      children: [
-        MarkdownPreview(
-          data: _textController.text,
-          settings: settings,
-          controller: _previewScrollController,
-          onCheckboxChanged: _toggleCheckbox,
-          baseDirectory: File(widget.filePath).parent.path,
-          onTapLink: _handleLinkTap,
-          headingAnchorKeys: headingAnchorKeys.isNotEmpty ? headingAnchorKeys : null,
-        ),
-        if (_highlightedLine != null && _mode != EditorMode.edit)
-          AnimatedBuilder(
-            animation: _highlightAnimation,
-            builder: (context, child) {
-              final accentColor = Theme.of(context).colorScheme.primary;
-
-              // Single flash: fade in then fade out
-              final opacity = _highlightAnimation.value < 0.5
-                  ? _highlightAnimation.value * 2
-                  : (1 - _highlightAnimation.value) * 2;
-
-              return Positioned(
-                top: _jumpTopOffset,
-                left: 0,
-                right: 0,
-                height: 40,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: opacity * 0.35),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: accentColor.withValues(alpha: opacity * 0.6),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
+    if (_hidePlatformViews) return const SizedBox.expand();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _themeSchemeColors(settings);
+    return WebViewMarkdownPreview(
+      data: _textController.text,
+      isDark: isDark,
+      fontSize: settings.fontSize,
+      fontFamily:
+          settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      bgColor: colors.bg,
+      fgColor: colors.fg,
+      codeFont: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
+      baseDirectory: File(widget.filePath).parent.path,
+      onTapLink: _handleLinkTap,
+      onCheckboxChanged: _toggleCheckbox,
+      onGetMarkdown: _handleGetMarkdown,
+      onInPlaceEdit: _applyInPlaceEdit,
+      controller: _previewWebViewController,
     );
   }
 
@@ -1547,6 +1512,66 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             }),
             const SizedBox(height: 16),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Animated Floating Action Button
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// A floating action button with a scale-down press animation and a colour
+/// glow shadow that intensifies when pressed.
+class _AnimatedFAB extends StatefulWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AnimatedFAB({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedFAB> createState() => _AnimatedFABState();
+}
+
+class _AnimatedFABState extends State<_AnimatedFAB> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.85 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _pressed
+                ? widget.color.withValues(alpha: 0.85)
+                : widget.color,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: _pressed ? 0.6 : 0.4),
+                blurRadius: _pressed ? 18 : 12,
+                offset: _pressed ? const Offset(0, 2) : const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(widget.icon, color: Colors.white, size: 24),
         ),
       ),
     );

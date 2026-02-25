@@ -42,13 +42,16 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('外观设置'),
-        centerTitle: true,
-      ),
-      body: AppBackground(
-        child: Consumer<SettingsProvider>(
+    return AppBackground(
+      wrapWithSafeArea: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: const Text('外观设置'),
+          centerTitle: true,
+        ),
+        body: Consumer<SettingsProvider>(
           builder: (context, settings, child) {
             return ListView(
               padding: const EdgeInsets.all(20),
@@ -96,11 +99,42 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 _buildSection('粒子效果', Icons.auto_awesome, [
                   _buildParticleSettings(settings),
                 ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection('底部导航栏', Icons.tab_rounded, [
+                  _buildTabBarOpacitySlider(settings),
+                ]),
               ],
             );
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildTabBarOpacitySlider(SettingsProvider settings) {
+    return Row(
+      children: [
+        const Text('透明度'),
+        Expanded(
+          child: Slider(
+            value: settings.tabBarOpacity,
+            min: 0.1,
+            max: 1.0,
+            divisions: 18,
+            label: '${(settings.tabBarOpacity * 100).round()}%',
+            onChanged: (value) => settings.setTabBarOpacity(value),
+          ),
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(
+            '${(settings.tabBarOpacity * 100).round()}%',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
     );
   }
 

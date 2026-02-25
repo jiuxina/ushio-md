@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/plugin_provider.dart';
-import '../../../widgets/app_background.dart';
 import '../../../utils/constants.dart';
 import '../../settings/appearance_settings_screen.dart';
 import '../../settings/editor_settings_screen.dart';
@@ -23,7 +22,8 @@ class SettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
+    return SafeArea(
+      bottom: false,
       child: Consumer<SettingsProvider>(
         builder: (context, settings, child) {
           return ListView(

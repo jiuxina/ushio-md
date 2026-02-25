@@ -7,9 +7,6 @@ import '../../../../plugins/extensions/widget_extension.dart';
 import '../../../../utils/constants.dart';
 import '../../../../utils/file_actions.dart';
 
-// HomeTab calls QuickActions. QuickActions uses FileImportHelper. But HomeTab itself doesn't.
-// But QuickActions is imported.
-import '../../../widgets/app_background.dart';
 import '../components/quick_actions.dart';
 import '../../folder/components/file_tile.dart';
 
@@ -25,39 +22,40 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
+    return SafeArea(
+      bottom: false,
       child: Column(
-        children: [
-          _buildHomeHeader(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => widget.fileProvider.refresh(),
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  ..._buildPluginWidgets(),
-                  QuickActions(fileProvider: widget.fileProvider),
-                  
-                  // Pinned files section
-                  if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _buildSectionHeader('置顶文件', Icons.push_pin),
-                    const SizedBox(height: 12),
-                    _buildPinnedFilesList(),
-                  ],
-                  
-                  // Pinned folders section
-                  if (widget.fileProvider.pinnedFolders.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _buildSectionHeader('置顶文件夹', Icons.folder_special),
-                    const SizedBox(height: 12),
-                    _buildPinnedFoldersList(),
-                  ],
+      children: [
+        _buildHomeHeader(),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () => widget.fileProvider.refresh(),
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                ..._buildPluginWidgets(),
+                QuickActions(fileProvider: widget.fileProvider),
+                
+                // Pinned files section
+                if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('置顶文件', Icons.push_pin),
+                  const SizedBox(height: 12),
+                  _buildPinnedFilesList(),
                 ],
-              ),
+                
+                // Pinned folders section
+                if (widget.fileProvider.pinnedFolders.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('置顶文件夹', Icons.folder_special),
+                  const SizedBox(height: 12),
+                  _buildPinnedFoldersList(),
+                ],
+              ],
             ),
           ),
-        ],
+        ),
+      ],
       ),
     );
   }

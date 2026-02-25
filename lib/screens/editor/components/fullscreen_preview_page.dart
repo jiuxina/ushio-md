@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
+import '../../../../utils/constants.dart';
 import '../../../../widgets/markdown_preview.dart';
+import '../../../../widgets/webview_markdown_preview.dart';
 import '../../../../services/export_service.dart';
 
 class FullscreenPreviewPage extends StatefulWidget {
@@ -224,12 +226,37 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: MarkdownPreview(
-            data: widget.controller.text,
-            settings: widget.settings,
-            onCheckboxChanged: widget.onCheckboxChanged,
-            baseDirectory: widget.filePath != null ? File(widget.filePath!).parent.path : null,
-          ),
+          child: Builder(builder: (ctx) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            Color bg, fg;
+            if (isDark) {
+              final schemes = AppConstants.darkThemeSchemes;
+              final idx = widget.settings.darkThemeIndex.clamp(0, schemes.length - 1);
+              bg = schemes[idx].background;
+              fg = schemes[idx].text;
+            } else {
+              final schemes = AppConstants.lightThemeSchemes;
+              final idx = widget.settings.lightThemeIndex.clamp(0, schemes.length - 1);
+              bg = schemes[idx].background;
+              fg = schemes[idx].text;
+            }
+            return WebViewMarkdownPreview(
+              data: widget.controller.text,
+              isDark: isDark,
+              fontSize: widget.settings.fontSize,
+              fontFamily: widget.settings.editorFontFamily == 'System'
+                  ? null
+                  : widget.settings.editorFontFamily,
+              bgColor: bg,
+              fgColor: fg,
+              codeFont: widget.settings.codeFontFamily == 'System'
+                  ? null
+                  : widget.settings.codeFontFamily,
+              onCheckboxChanged: widget.onCheckboxChanged,
+              baseDirectory:
+                  widget.filePath != null ? File(widget.filePath!).parent.path : null,
+            );
+          }),
         ),
       ),
     );

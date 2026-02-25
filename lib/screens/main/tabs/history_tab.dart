@@ -9,7 +9,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../providers/file_provider.dart';
-import '../../../widgets/app_background.dart';
 import '../../../widgets/empty_state.dart';
 
 import '../../../utils/file_actions.dart';
@@ -32,7 +31,8 @@ class _HistoryTabState extends State<HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    return AppBackground(
+    return SafeArea(
+      bottom: false,
       child: Column(
         children: [
           _buildHeader(),
