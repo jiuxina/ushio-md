@@ -96,6 +96,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen>
   @override
   Widget build(BuildContext context) {
     return AppBackground(
+      wrapWithSafeArea: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(

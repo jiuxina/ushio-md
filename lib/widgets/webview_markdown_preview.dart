@@ -123,13 +123,43 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 
   /// Convert Markdown [widget.data] to a complete HTML document string.
   String _buildHtml() {
-    // 1. Markdown → HTML (GitHub Flavoured Markdown)
-    final htmlBody = md.markdownToHtml(
-      widget.data,
+    // 1. Protect math expressions before markdown parsing so the parser does
+    //    not mangle $ or $$ delimiters.
+    // Replace $$...$$ (block math) and $...$ (inline math) with placeholders.
+    final mathBlocks = <String>[];
+    var src = widget.data;
+
+    // Block math  $$...$$  (may span multiple lines)
+    src = src.replaceAllMapped(
+      RegExp(r'\$\$([\s\S]+?)\$\$', multiLine: true),
+      (m) {
+        final idx = mathBlocks.length;
+        mathBlocks.add('<div class="math-block">\\[${m.group(1)}\\]</div>');
+        return '\n<!-- MATHBLOCK$idx -->\n';
+      },
+    );
+    // Inline math  $...$  (single line, no nesting)
+    src = src.replaceAllMapped(
+      RegExp(r'(?<!\$)\$(?!\$)([^\n\$]+?)\$(?!\$)'),
+      (m) {
+        final idx = mathBlocks.length;
+        mathBlocks.add('<span class="math-inline">\\(${m.group(1)}\\)</span>');
+        return '<!-- MATHBLOCK$idx -->';
+      },
+    );
+
+    // 2. Markdown → HTML (GitHub Flavoured Markdown)
+    var htmlBody = md.markdownToHtml(
+      src,
       extensionSet: md.ExtensionSet.gitHubFlavored,
     );
 
-    // 2. Add sequential id="heading-N" to every heading tag for TOC navigation
+    // 3. Restore math placeholders
+    for (int i = 0; i < mathBlocks.length; i++) {
+      htmlBody = htmlBody.replaceAll('<!-- MATHBLOCK$i -->', mathBlocks[i]);
+    }
+
+    // 4. Add sequential id="heading-N" to every heading tag for TOC navigation
     int headingIdx = 0;
     final withIds = htmlBody.replaceAllMapped(
       RegExp(r'<(h[1-6])(\s[^>]*)?>'),
@@ -140,13 +170,33 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
       },
     );
 
-    // 3. Make task-list checkboxes interactive (remove the `disabled` attr)
-    final interactive = withIds.replaceAll(
+    // 5. Make task-list checkboxes interactive (remove the `disabled` attr)
+    var processed = withIds.replaceAll(
       RegExp(r'<input\s+type="checkbox"\s+disabled'),
       '<input type="checkbox"',
     );
 
-    return _wrapHtml(interactive);
+    // 6. Convert <img> tags whose src ends in a video extension to <video>
+    processed = processed.replaceAllMapped(
+      RegExp(r'<img\s[^>]*src="([^"]*\.(mp4|webm|mov|avi|mkv))"[^>]*>',
+          caseSensitive: false),
+      (m) {
+        final src = m.group(1)!;
+        return '<video controls class="media-player"><source src="$src">您的浏览器不支持视频播放。</video>';
+      },
+    );
+
+    // 7. Convert <img> tags whose src ends in an audio extension to <audio>
+    processed = processed.replaceAllMapped(
+      RegExp(r'<img\s[^>]*src="([^"]*\.(mp3|wav|ogg|aac|flac|m4a))"[^>]*>',
+          caseSensitive: false),
+      (m) {
+        final src = m.group(1)!;
+        return '<audio controls class="media-player"><source src="$src">您的浏览器不支持音频播放。</audio>';
+      },
+    );
+
+    return _wrapHtml(processed);
   }
 
   /// Wrap [body] in a full HTML document with inline CSS and JS.
@@ -190,6 +240,11 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=yes">
+<!-- KaTeX for math rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'\\$\\$',right:'\\$\\$',display:true},{left:'\\$',right:'\\$',display:false},{left:'\\\\(',right:'\\\\)',display:false},{left:'\\\\[',right:'\\\\]',display:true}],throwOnError:false});"></script>
 <style>
 *{box-sizing:border-box}
 body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px;margin:0;word-wrap:break-word;overflow-wrap:break-word}
@@ -214,6 +269,12 @@ ul,ol{padding-left:1.5em;margin:0.5em 0}li{margin:0.3em 0}
 input[type="checkbox"]{margin-right:6px}
 hr{border:none;border-top:1px solid $hrColor;margin:1.5em 0}
 del{color:$delColor}
+/* Math */
+.math-block{overflow-x:auto;padding:8px 0;margin:1em 0;text-align:center}
+.math-inline{display:inline}
+.katex-display{overflow-x:auto;overflow-y:hidden;padding:4px 0}
+/* Media players */
+.media-player{width:100%;max-width:100%;border-radius:8px;margin:0.5em auto;display:block;background:#000}
 /* GitHub Alerts */
 .gh-alert{border-radius:6px;padding:12px;margin:1em 0}
 .gh-alert-title{font-weight:bold;margin-bottom:6px;display:flex;align-items:center;gap:6px}
@@ -301,7 +362,7 @@ $body
         allowFileAccess: true,
         supportZoom: true,
         useShouldOverrideUrlLoading: true,
-        mediaPlaybackRequiresUserGesture: true,
+        mediaPlaybackRequiresUserGesture: false,
       ),
       onWebViewCreated: (controller) {
         _webViewController = controller;

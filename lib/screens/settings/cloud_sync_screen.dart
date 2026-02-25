@@ -166,13 +166,16 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           );
         }
       },
-      child: Scaffold(
-      appBar: AppBar(
-        title: const Text('云同步'),
-        centerTitle: true,
-      ),
-      body: AppBackground(
-        child: Consumer<SettingsProvider>(
+      child: AppBackground(
+        wrapWithSafeArea: false,
+        child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          title: const Text('云同步'),
+          centerTitle: true,
+        ),
+        body: Consumer<SettingsProvider>(
           builder: (context, settings, child) {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -195,7 +198,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           },
         ),
       ),
-    ),
+      ),
     );
   }
 
