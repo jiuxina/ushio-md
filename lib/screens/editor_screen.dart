@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/constants.dart';
 import '../widgets/markdown_toolbar.dart';
 import '../widgets/webview_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
@@ -593,10 +594,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     final tableBlocks =
         blocks.where((b) => b.isMultiLine && b.content.contains('|')).toList();
     if (tableIdx >= tableBlocks.length) return '';
+    // Skip separator rows (lines that consist only of |, -, :, and spaces)
+    final _sepRow = RegExp(r'^[\|\s\-:]+$');
     final tableLines = tableBlocks[tableIdx]
         .content
         .split('\n')
-        .where((l) => l.trim().isNotEmpty)
+        .where((l) => l.trim().isNotEmpty && !_sepRow.hasMatch(l.trim()))
         .toList();
     if (rowIdx >= tableLines.length) return '';
     final parts = tableLines[rowIdx].split('|');
@@ -682,11 +685,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   /// Apply an edited cell back into the markdown text.
   void _applyCellEdit(_MarkdownBlock tableBlock, int rowIdx, int colIdx) {
     final allLines = _textController.text.split('\n');
+    // Skip separator rows (lines that consist only of |, -, :, and spaces)
+    final _sepRow = RegExp(r'^[\|\s\-:]+$');
     int tableRowCounter = 0;
     for (int i = tableBlock.startLine;
         i <= tableBlock.endLine && i < allLines.length;
         i++) {
-      if (allLines[i].trim().isEmpty) continue;
+      final trimmed = allLines[i].trim();
+      if (trimmed.isEmpty) continue;
+      if (_sepRow.hasMatch(trimmed)) continue; // skip separator
       if (tableRowCounter == rowIdx) {
         final parts = allLines[i].split('|');
         final cellPartIdx = colIdx + 1;
@@ -869,16 +876,36 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     setState(() => _editingBlockIndex = null);
   }
 
+  /// Return the background and foreground colors for the active theme scheme.
+  ({Color bg, Color fg}) _themeSchemeColors(SettingsProvider settings) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      final schemes = AppConstants.darkThemeSchemes;
+      final idx = settings.darkThemeIndex.clamp(0, schemes.length - 1);
+      final s = schemes[idx];
+      return (bg: s.background, fg: s.text);
+    } else {
+      final schemes = AppConstants.lightThemeSchemes;
+      final idx = settings.lightThemeIndex.clamp(0, schemes.length - 1);
+      final s = schemes[idx];
+      return (bg: s.background, fg: s.text);
+    }
+  }
+
   /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _themeSchemeColors(settings);
     return WebViewMarkdownPreview(
       data: _textController.text,
       isDark: isDark,
       fontSize: settings.fontSize,
       fontFamily:
           settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      bgColor: colors.bg,
+      fgColor: colors.fg,
+      codeFont: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
@@ -1341,12 +1368,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   Widget _buildPreviewPanel(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _themeSchemeColors(settings);
     return WebViewMarkdownPreview(
       data: _textController.text,
       isDark: isDark,
       fontSize: settings.fontSize,
       fontFamily:
           settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      bgColor: colors.bg,
+      fgColor: colors.fg,
+      codeFont: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
