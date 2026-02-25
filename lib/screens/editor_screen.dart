@@ -992,12 +992,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           child: Stack(
             children: [
               _buildBody(),
-            if (_showToc) 
-              TocOverlay(
-                items: _tocItems,
-                onClose: () => setState(() => _showToc = false),
-                onJumpToHeading: _jumpToHeading,
-              ),
+              if (_showToc)
+                TocOverlay(
+                  items: _tocItems,
+                  onClose: () => setState(() => _showToc = false),
+                  onJumpToHeading: _jumpToHeading,
+                ),
+              // Floating buttons – positioned relative to the full screen so
+              // they stay fixed even when the keyboard is shown.
+              if (!_isLoading && _error == null)
+                _buildFixedFloatingButtons(),
             ],
           ),
         ),
@@ -1161,82 +1165,18 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     switch (_mode) {
       case EditorMode.edit:
-        return Stack(
-          children: [
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: _buildEditPanel(settings),
-              ),
-            ),
-            // Floating button to return to preview mode
-            Positioned(
-              right: 24,
-              bottom: 24,
-              child: _buildFloatingButton(
-                Icons.visibility,
-                Theme.of(context).colorScheme.primary,
-                () => setState(() => _mode = EditorMode.preview),
-              ),
-            ),
-          ],
+        // Edge-to-edge: no left/right/bottom margin or border.
+        return Container(
+          margin: const EdgeInsets.only(top: 8),
+          color: Theme.of(context).colorScheme.surface,
+          child: _buildEditPanel(settings),
         );
       case EditorMode.preview:
-        return Stack(
-          children: [
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: _buildInlineEditablePreview(settings),
-              ),
-            ),
-            // Hide floating buttons when inline editing is active
-            if (_editingBlockIndex == null)
-              Positioned(
-                right: 24,
-                bottom: 24,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildFloatingButton(Icons.edit, Theme.of(context).colorScheme.tertiary, () {
-                      setState(() => _mode = EditorMode.edit);
-                    }),
-                    const SizedBox(height: 12),
-                    _buildFloatingButton(Icons.list, Theme.of(context).colorScheme.primary, () => setState(() => _showToc = true)),
-                  ],
-                ),
-              ),
-          ],
+        // Edge-to-edge: no left/right/bottom margin or border.
+        return Container(
+          margin: const EdgeInsets.only(top: 8),
+          color: Theme.of(context).colorScheme.surface,
+          child: _buildInlineEditablePreview(settings),
         );
       case EditorMode.split:
         return Padding(
@@ -1277,6 +1217,52 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             ],
           ),
         );
+    }
+  }
+
+  /// Floating action buttons that stay fixed at the bottom-right corner of the
+  /// screen, unaffected by the keyboard (they are positioned in the top-level
+  /// Stack, not inside the Scaffold body that resizes for the IME).
+  Widget _buildFixedFloatingButtons() {
+    // Bottom offset: respect the device's safe-area (status-bar / nav-bar) but
+    // ignore the keyboard inset, so the buttons don't jump when the IME appears.
+    final bottomInset = MediaQuery.of(context).padding.bottom + 24.0;
+
+    switch (_mode) {
+      case EditorMode.edit:
+        return Positioned(
+          right: 24,
+          bottom: bottomInset,
+          child: _buildFloatingButton(
+            Icons.visibility,
+            Theme.of(context).colorScheme.primary,
+            () => setState(() => _mode = EditorMode.preview),
+          ),
+        );
+      case EditorMode.preview:
+        if (_editingBlockIndex != null) return const SizedBox.shrink();
+        return Positioned(
+          right: 24,
+          bottom: bottomInset,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildFloatingButton(
+                Icons.edit,
+                Theme.of(context).colorScheme.tertiary,
+                () => setState(() => _mode = EditorMode.edit),
+              ),
+              const SizedBox(height: 12),
+              _buildFloatingButton(
+                Icons.list,
+                Theme.of(context).colorScheme.primary,
+                () => setState(() => _showToc = true),
+              ),
+            ],
+          ),
+        );
+      case EditorMode.split:
+        return const SizedBox.shrink();
     }
   }
 
