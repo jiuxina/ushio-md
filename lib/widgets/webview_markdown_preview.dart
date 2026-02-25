@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -351,6 +352,9 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     final dark = widget.isDark;
     final fs = widget.fontSize;
     final ff = widget.fontFamily;
+    // Raw markdown embedded as JS variable so in-place editing can look up
+    // block/cell content synchronously without a Dart↔JS bridge round-trip.
+    final rawMdJson = jsonEncode(widget.data);
 
     // ── Colour palette ────────────────────────────────────────────────────
     // Use theme-scheme colours when provided, otherwise fall back to defaults.
@@ -417,7 +421,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 <style>
 $fontFaces
 *{box-sizing:border-box}
-body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word}
+body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word;touch-action:manipulation}
 h1,h2,h3,h4,h5,h6{color:$hColor;font-weight:bold;line-height:1.4;margin:1em 0 0.5em;border-radius:4px}
 h1{font-size:${fs * 2}px;border-bottom:2px solid $hrColor;padding-bottom:0.3em}
 h2{font-size:${fs * 1.5}px;border-bottom:1px solid $hrColor;padding-bottom:0.2em}
@@ -468,46 +472,105 @@ pre[data-language]::before{content:attr(data-language);position:absolute;top:6px
 $body
 <script>
 (function(){
-  // ── Code language badges ─────────────────────────────────────────────
+  // ── Embedded raw markdown (JSON-encoded by Dart) ──────────────────────
+  var __rawMd = $rawMdJson;
+
+  // ── Code language badges ──────────────────────────────────────────────
   document.querySelectorAll('pre code').forEach(function(code) {
     var m = code.className.match(/language-([\\w+\\-]+)/);
     if (m) code.parentNode.setAttribute('data-language', m[1]);
   });
 
-  // ── Link handler ────────────────────────────────────────────────────────
-  document.addEventListener('click', function(e){
-    var t = e.target;
-    while(t && t.tagName !== 'A') t = t.parentNode;
-    if(t && t.tagName === 'A'){
-      e.preventDefault();
-      var href = t.getAttribute('href') || '';
-      var text = t.textContent || '';
-      window.flutter_inappwebview.callHandler('onLinkTap', text, href, '');
-    }
-  });
+  // ── Markdown marker stripping (block ↔ innerText matching) ───────────
+  function _stripMd(t) {
+    return t
+      .replace(/^```[^\\n]*\$/gm, '').replace(/^~~~[^\\n]*\$/gm, '')
+      .replace(/^\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]\\s*/gim, '')
+      .replace(/\\*{1,3}([^*\\n]+)\\*{1,3}/g, '\$1')
+      .replace(/_{1,3}([^_\\n]+)_{1,3}/g, '\$1')
+      .replace(/`+([^`\\n]+)`+/g, '\$1')
+      .replace(/~~([^~\\n]+)~~/g, '\$1')
+      .replace(/==([^=\\n]+)==/g, '\$1')
+      .replace(/!\\[[^\\]]*\\]\\([^)]*\\)/g, '')
+      .replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '\$1')
+      .replace(/^#{1,6}\\s+/gm, '').replace(/^[-*+]\\s+/gm, '')
+      .replace(/^\\d+\\.\\s+/gm, '').replace(/^\\s*(>\\s*)+/gm, '')
+      .trim().toLowerCase();
+  }
 
-  // ── Checkbox handler ─────────────────────────────────────────────────
-  // Use a bubbling (non-capturing) listener so the browser toggles the
-  // checkbox BEFORE this handler fires.  e.target.checked is then the NEW
-  // state, which is what we want to persist to Flutter.
-  document.addEventListener('click', function(e){
-    if(e.target.tagName === 'INPUT' && e.target.type === 'checkbox'){
-      var boxes = document.querySelectorAll('input[type="checkbox"]');
-      var idx = Array.from(boxes).indexOf(e.target);
-      window.flutter_inappwebview.callHandler('onCheckboxChange', idx, e.target.checked);
+  // ── Parse raw markdown into logical blocks (mirrors Dart _parseBlocks) ─
+  function _parseRawBlocks() {
+    var lines = __rawMd.split('\\n'), blocks = [], i = 0;
+    while (i < lines.length) {
+      var t = lines[i].trim();
+      if (/^\\s*```/.test(t) || /^\\s*~~~/.test(t)) {
+        var fm = t.match(/^\\s*(`{3}|~{3})/), fence = fm ? fm[1] : '```';
+        var end = i + 1;
+        while (end < lines.length && lines[end].trim().indexOf(fence) === -1) end++;
+        if (end < lines.length) end++;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
+      }
+      if (/^\\s*\\|/.test(lines[i]) && i + 1 < lines.length && /^\\s*\\|/.test(lines[i + 1])) {
+        var end = i;
+        while (end < lines.length && /^\\s*\\|/.test(lines[end])) end++;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
+      }
+      if (/^\\s*>/.test(t)) {
+        var end = i;
+        while (end < lines.length && /^\\s*>/.test(lines[end].trim())) end++;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
+      }
+      if (t) blocks.push(lines[i]);
+      i++;
     }
-  });
+    return blocks;
+  }
 
-  // ── In-place editing ─────────────────────────────────────────────────
-  // Tracks the currently-edited element and its key so we can commit changes.
-  var _ie = null; // { el, key, origHtml, prefix }
+  // ── Get raw markdown matching the rendered innerText of a block ────────
+  function _getBlockMd(innerText) {
+    var search = innerText.trim().toLowerCase().replace(/\\s+/g, ' ').slice(0, 100);
+    if (!search) return innerText;
+    var blocks = _parseRawBlocks(), best = '', score = 0;
+    for (var b = 0; b < blocks.length; b++) {
+      var s = _stripMd(blocks[b]).replace(/\\s+/g, ' ');
+      if (!s) continue;
+      var sh = s.length <= search.length ? s : search;
+      var lo = s.length > search.length ? s : search;
+      if (lo.indexOf(sh) !== -1 && sh.length > score) { score = sh.length; best = blocks[b]; }
+    }
+    return best || innerText;
+  }
+
+  // ── Get raw markdown for a specific table cell ────────────────────────
+  function _getCellMd(ti, ri, ci) {
+    var sep = /^[\\|\\s\\-:]+\$/, lines = __rawMd.split('\\n');
+    var tIdx = 0, inT = false, rows = [];
+    for (var i = 0; i <= lines.length; i++) {
+      var line = i < lines.length ? lines[i] : '', t = line.trim();
+      if (/^\\s*\\|/.test(line) && t) {
+        if (!inT) { inT = true; rows = []; }
+        if (!sep.test(t)) rows.push(line);
+      } else {
+        if (inT) {
+          if (tIdx === ti) {
+            if (ri < rows.length) { var p = rows[ri].split('|'); return ci+1<p.length ? p[ci+1].trim() : ''; }
+            return '';
+          }
+          tIdx++; inT = false; rows = [];
+        }
+      }
+    }
+    return '';
+  }
+
+  // ── In-place editing ──────────────────────────────────────────────────
+  var _ie = null;
   function _startEdit(el, key, rawMd) {
     if (_ie) _commitEdit(true);
     var displayText = rawMd || el.textContent;
     var prefix = '';
-    if (el.tagName === 'LI') {
-      // Strip the markdown list prefix so it isn't doubled by the CSS counter
-      var pm = displayText.match(/^(\s*(?:\d+\.|-|\*|\+)\s*)/);
+    if ((el.tagName || '').toUpperCase() === 'LI') {
+      var pm = displayText.match(/^(\\s*(?:\\d+\\.|-|\\*|\\+)\\s*)/);
       if (pm) { prefix = pm[1]; displayText = displayText.slice(pm[0].length); }
     }
     _ie = { el: el, key: key, origHtml: el.innerHTML, prefix: prefix };
@@ -519,7 +582,6 @@ $body
     el.style.background = 'rgba(74,144,217,0.08)';
     el.style.whiteSpace = 'pre-wrap';
     el.focus();
-    // Place cursor at end
     var r = document.createRange(), s = window.getSelection();
     r.selectNodeContents(el); r.collapse(false);
     s.removeAllRanges(); s.addRange(r);
@@ -528,114 +590,69 @@ $body
     if (!_ie) return;
     var ie = _ie; _ie = null;
     var newText = (ie.prefix || '') + ie.el.textContent;
-    // Restore original HTML immediately so no raw markdown is visible while
-    // the 300 ms debounce reloads the WebView with updated content.
     ie.el.innerHTML = ie.origHtml;
     ie.el.setAttribute('contenteditable', 'false');
-    ie.el.style.outline = '';
-    ie.el.style.borderRadius = '';
-    ie.el.style.fontFamily = '';
-    ie.el.style.background = '';
-    ie.el.style.whiteSpace = '';
+    ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.fontFamily =
+      ie.el.style.background = ie.el.style.whiteSpace = '';
     if (send !== false && newText.trim()) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
     }
   }
-  // Commit on focus-out
   document.addEventListener('focusout', function(e) {
-    if (_ie && e.target === _ie.el) {
-      setTimeout(_commitEdit, 50); // slight delay to let keydown fire first
-    }
+    if (_ie && e.target === _ie.el) setTimeout(_commitEdit, 50);
   }, true);
-  // Enter=commit (single-line); Shift+Enter=newline; Escape=cancel
   document.addEventListener('keydown', function(e) {
     if (!_ie) return;
-    var isMl = (_ie.el.tagName === 'PRE' || _ie.el.tagName === 'BLOCKQUOTE');
+    var isMl = ['PRE','BLOCKQUOTE'].indexOf((_ie.el.tagName||'').toUpperCase()) !== -1;
     if (e.key === 'Escape') {
       _ie.el.innerHTML = _ie.origHtml;
-      var savedIe = _ie; _ie = null;
-      savedIe.el.setAttribute('contenteditable', 'false');
-      savedIe.el.style.outline = '';
-      savedIe.el.style.borderRadius = '';
-      savedIe.el.style.fontFamily = '';
-      savedIe.el.style.background = '';
-      savedIe.el.style.whiteSpace = '';
+      var s = _ie; _ie = null;
+      s.el.setAttribute('contenteditable','false');
+      s.el.style.outline = s.el.style.borderRadius = s.el.style.fontFamily =
+        s.el.style.background = s.el.style.whiteSpace = '';
       e.preventDefault();
     } else if (e.key === 'Enter' && !isMl && !e.shiftKey) {
-      e.preventDefault();
-      _commitEdit(true);
+      e.preventDefault(); _commitEdit(true);
     }
   });
-  // Double-tap / dblclick: start in-place editing
-  // On Android WebView, touch-action:manipulation or OS-level double-tap-zoom
-  // can suppress the synthetic dblclick event, so we also detect double-tap
-  // manually via touchend (two touches within 300ms on the same element).
+
+  // ── Double-tap handler ────────────────────────────────────────────────
   function _handleDoubleTap(target) {
-    // Skip interactive elements: links, images, checkboxes, buttons, media
+    if (!target) return;
     var check = target;
     while (check && check !== document.body) {
-      var tag = check.tagName;
-      if (tag === 'A' || tag === 'IMG' || tag === 'INPUT' ||
-          tag === 'BUTTON' || tag === 'VIDEO' || tag === 'AUDIO') return;
+      var tag = (check.tagName || '').toUpperCase();
+      if (tag==='A'||tag==='IMG'||tag==='INPUT'||tag==='BUTTON'||tag==='VIDEO'||tag==='AUDIO') return;
       check = check.parentElement || check.parentNode;
     }
-    // Check for table cell first (traverse up from target)
+    // Table cell?
     var node = target;
     while (node && node !== document.body) {
-      if (node.tagName === 'TD' || node.tagName === 'TH') {
+      var ntag = (node.tagName || '').toUpperCase();
+      if (ntag === 'TD' || ntag === 'TH') {
         var table = node;
-        while (table && table.tagName !== 'TABLE') table = table.parentElement || table.parentNode;
+        while (table && (table.tagName||'').toUpperCase() !== 'TABLE') table = table.parentElement;
         var ti = Array.from(document.querySelectorAll('table')).indexOf(table);
-        var ri = Array.from(table.querySelectorAll('tr')).indexOf(node.parentElement || node.parentNode);
-        var ci = Array.from((node.parentElement || node.parentNode).querySelectorAll('td,th')).indexOf(node);
-        var key = 'cell:' + ti + ':' + ri + ':' + ci;
-        window.flutter_inappwebview.callHandler('getMarkdown', 'cell', ti, ri, ci, '').then(function(md) {
-          _startEdit(node, key, md);
-        });
+        var row = node.parentElement || node.parentNode;
+        var ri = Array.from(table.querySelectorAll('tr')).indexOf(row);
+        var ci = Array.from(row.querySelectorAll('td,th')).indexOf(node);
+        _startEdit(node, 'cell:'+ti+':'+ri+':'+ci, _getCellMd(ti,ri,ci)||node.textContent.trim());
         return;
       }
       node = node.parentElement || node.parentNode;
     }
-    // Block element – traverse up to nearest editable block
+    // Block element?
     var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE'];
     var el = target;
-    while (el && el !== document.body && blockTags.indexOf(el.tagName) === -1) {
+    while (el && el !== document.body && blockTags.indexOf((el.tagName||'').toUpperCase()) === -1) {
       el = el.parentElement || el.parentNode;
     }
-    if (!el || el === document.body || blockTags.indexOf(el.tagName) === -1) return;
-    // For BLOCKQUOTE, prefer the pre-transform raw text stored in data-md-src
-    var innerText = el.dataset.mdSrc || (el.innerText || el.textContent || '').trim();
-    var key = 'block:' + innerText.substring(0, 80);
-    window.flutter_inappwebview.callHandler('getMarkdown', 'block', 0, 0, 0, innerText).then(function(md) {
-      _startEdit(el, key, md);
-    });
+    if (!el || el === document.body) return;
+    var innerText = (el.dataset && el.dataset.mdSrc) || (el.innerText||el.textContent||'').trim();
+    _startEdit(el, 'block:'+innerText.slice(0,80), _getBlockMd(innerText));
   }
-  // Desktop: native dblclick
-  document.addEventListener('dblclick', function(e) {
-    e.preventDefault();
-    _handleDoubleTap(e.target);
-  });
-  // Mobile: detect double-tap via touchstart (fires before browser zoom/click
-  // processing). passive:false lets us call e.preventDefault() to cancel the
-  // double-tap-zoom gesture AND the subsequent synthetic click event, which
-  // makes double-tap editing reliable across all Android WebView versions.
-  var _lastTap = null;
-  document.addEventListener('touchstart', function(e) {
-    if (_ie) return;
-    var touch = e.touches[0];
-    var now = Date.now();
-    if (_lastTap && now - _lastTap.t < 400 &&
-        Math.abs(touch.clientX - _lastTap.x) < 40 &&
-        Math.abs(touch.clientY - _lastTap.y) < 40) {
-      e.preventDefault();
-      _handleDoubleTap(e.target);
-      _lastTap = null;
-    } else {
-      _lastTap = { t: now, x: touch.clientX, y: touch.clientY };
-    }
-  }, { passive: false });
 
-  // ── GitHub Alerts ────────────────────────────────────────────────────
+  // ── GitHub Alerts ─────────────────────────────────────────────────────
   var alertMap = {
     'NOTE':      {cls:'gh-alert-note',      icon:'ℹ️', label:'Note'},
     'TIP':       {cls:'gh-alert-tip',       icon:'💡', label:'Tip'},
@@ -645,7 +662,7 @@ $body
   };
   document.querySelectorAll('blockquote').forEach(function(bq){
     var txt = bq.innerText || '';
-    bq.dataset.mdSrc = txt.trim(); // save raw text before any transformation
+    bq.dataset.mdSrc = txt.trim();
     var m = txt.match(/^\\s*\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]/i);
     if(m){
       var cfg = alertMap[m[1].toUpperCase()];
@@ -653,10 +670,52 @@ $body
         var content = txt.replace(/^\\s*\\[!\\w+\\]\\s*\\n?/, '').trim();
         bq.className = 'gh-alert ' + cfg.cls;
         bq.innerHTML =
-          '<div class="gh-alert-title">' + cfg.icon + ' ' + cfg.label + '</div>' +
-          '<div>' + content.replace(/\\n/g,'<br>') + '</div>';
+          '<div class="gh-alert-title">'+cfg.icon+' '+cfg.label+'</div>'+
+          '<div>'+content.replace(/\\n/g,'<br>')+'</div>';
       }
     }
+  });
+
+  // ── Unified click handler (links + checkboxes + double-tap counter) ───
+  // touch-action:manipulation on body disables native double-tap zoom but
+  // also suppresses the synthetic dblclick on Android WebView. However,
+  // both click events for a double-tap are always delivered, so counting
+  // 2 click events within 350 ms is a reliable cross-platform approach.
+  var _dblTap = { count: 0, target: null, timer: null };
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    // Link: walk up to A ancestor
+    var lnk = t;
+    while (lnk && lnk !== document.body && (lnk.tagName||'').toUpperCase() !== 'A') lnk = lnk.parentElement;
+    if (lnk && (lnk.tagName||'').toUpperCase() === 'A') {
+      e.preventDefault();
+      window.flutter_inappwebview.callHandler('onLinkTap', lnk.textContent, lnk.getAttribute('href')||'', '');
+      return;
+    }
+    // Checkbox
+    if ((t.tagName||'').toUpperCase() === 'INPUT' && t.type === 'checkbox') {
+      var boxes = document.querySelectorAll('input[type="checkbox"]');
+      window.flutter_inappwebview.callHandler('onCheckboxChange', Array.from(boxes).indexOf(t), t.checked);
+      return;
+    }
+    // Double-tap counter
+    if (_ie) return;
+    _dblTap.count++; _dblTap.target = t;
+    if (_dblTap.timer) clearTimeout(_dblTap.timer);
+    if (_dblTap.count >= 2) {
+      _dblTap.count = 0;
+      _handleDoubleTap(_dblTap.target);
+    } else {
+      _dblTap.timer = setTimeout(function() { _dblTap.count = 0; }, 350);
+    }
+  });
+  // Desktop fast-path: native dblclick (returns early if click-counter already started editing)
+  document.addEventListener('dblclick', function(e) {
+    if (_ie) return;
+    if (_dblTap.timer) { clearTimeout(_dblTap.timer); _dblTap.timer = null; }
+    _dblTap.count = 0;
+    e.preventDefault();
+    _handleDoubleTap(e.target);
   });
 })();
 </script>
