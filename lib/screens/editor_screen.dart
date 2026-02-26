@@ -46,7 +46,8 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMixin {
+class _EditorScreenState extends State<EditorScreen>
+    with TickerProviderStateMixin {
   bool _isAutoCompleting = false;
   late TextEditingController _textController;
   late ScrollController _editScrollController;
@@ -146,36 +147,43 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
     _tocDebounceTimer?.cancel();
     _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
-    
+
     // 自动补全处理
     if (!_isAutoCompleting) {
       final text = _textController.text;
       final selection = _textController.selection;
       if (!selection.isValid || selection.start != selection.end) return;
-      
+
       final pluginProvider = context.read<PluginProvider>();
       for (final ext in pluginProvider.getEditorExtensions()) {
         for (final rule in ext.autoCompleteRules) {
           if (rule.trigger.isEmpty) continue;
-          
+
           if (selection.start >= rule.trigger.length) {
-            final beforeCursor = text.substring(selection.start - rule.trigger.length, selection.start);
+            final beforeCursor = text.substring(
+              selection.start - rule.trigger.length,
+              selection.start,
+            );
             if (beforeCursor == rule.trigger) {
               _isAutoCompleting = true;
-              
+
               final newText = text.replaceRange(
-                selection.start - rule.trigger.length, 
-                selection.start, 
-                rule.completion
+                selection.start - rule.trigger.length,
+                selection.start,
+                rule.completion,
               );
-              
-              final newSelectionOffset = selection.start - rule.trigger.length + rule.completion.length + rule.cursorOffset;
-              
+
+              final newSelectionOffset =
+                  selection.start -
+                  rule.trigger.length +
+                  rule.completion.length +
+                  rule.cursorOffset;
+
               _textController.value = TextEditingValue(
                 text: newText,
                 selection: TextSelection.collapsed(offset: newSelectionOffset),
               );
-              
+
               _isAutoCompleting = false;
               return;
             }
@@ -186,7 +194,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   /// 更新目录结构
-  /// 
+  ///
   /// 解析 Markdown 文本，提取标题（# 或 =/-）结构
   /// 仅在非代码块区域进行解析
   void _updateToc() {
@@ -198,57 +206,63 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
     // 预编译 pattern 避免循环中重复创建
     for (int i = 0; i < lines.length; i++) {
-     final line = lines[i];
-     final trimmedLine = line.trim();
+      final line = lines[i];
+      final trimmedLine = line.trim();
 
-     // 处理代码块标记
-     if (trimmedLine.startsWith('```')) {
-       inCodeBlock = !inCodeBlock;
-       lineNumber++;
-       continue;
-     }
+      // 处理代码块标记
+      if (trimmedLine.startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        lineNumber++;
+        continue;
+      }
 
-     if (inCodeBlock) {
-       lineNumber++;
-       continue;
-     }
+      if (inCodeBlock) {
+        lineNumber++;
+        continue;
+      }
 
-     // 1. 处理 # 标题
-     if (trimmedLine.startsWith('#')) {
-       final match = _headingRegex.firstMatch(trimmedLine);
-       if (match != null) {
-         final level = match.group(1)!.length;
-         final title = match.group(2)!.trim();
-         items.add(TocItem(
-           level: level,
-           title: title,
-           lineNumber: lineNumber,
-           anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-         ));
-       }
-     }
-     // 2. 处理下划线标题 (= 和 -)
-     else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
-       final nextLine = lines[i + 1].trim();
-       if (nextLine.isNotEmpty) {
-         if (_h1UnderlineRegex.hasMatch(nextLine)) {
-           items.add(TocItem(
-             level: 1,
-             title: trimmedLine,
-             lineNumber: lineNumber,
-             anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-           ));
-         } else if (_h2UnderlineRegex.hasMatch(nextLine)) {
-           items.add(TocItem(
-             level: 2,
-             title: trimmedLine,
-             lineNumber: lineNumber,
-             anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-           ));
-         }
-       }
-     }
-     lineNumber++;
+      // 1. 处理 # 标题
+      if (trimmedLine.startsWith('#')) {
+        final match = _headingRegex.firstMatch(trimmedLine);
+        if (match != null) {
+          final level = match.group(1)!.length;
+          final title = match.group(2)!.trim();
+          items.add(
+            TocItem(
+              level: level,
+              title: title,
+              lineNumber: lineNumber,
+              anchorKey: GlobalKey(), // Create GlobalKey for anchor point
+            ),
+          );
+        }
+      }
+      // 2. 处理下划线标题 (= 和 -)
+      else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
+        final nextLine = lines[i + 1].trim();
+        if (nextLine.isNotEmpty) {
+          if (_h1UnderlineRegex.hasMatch(nextLine)) {
+            items.add(
+              TocItem(
+                level: 1,
+                title: trimmedLine,
+                lineNumber: lineNumber,
+                anchorKey: GlobalKey(), // Create GlobalKey for anchor point
+              ),
+            );
+          } else if (_h2UnderlineRegex.hasMatch(nextLine)) {
+            items.add(
+              TocItem(
+                level: 2,
+                title: trimmedLine,
+                lineNumber: lineNumber,
+                anchorKey: GlobalKey(), // Create GlobalKey for anchor point
+              ),
+            );
+          }
+        }
+      }
+      lineNumber++;
     }
 
     setState(() => _tocItems = items);
@@ -271,8 +285,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       if (_editScrollController.hasClients) {
         const lineHeight = 24.0;
         final maxScroll = _editScrollController.position.maxScrollExtent;
-        final targetScroll =
-            (item.lineNumber * lineHeight - _jumpTopOffset).clamp(0.0, maxScroll);
+        final targetScroll = (item.lineNumber * lineHeight - _jumpTopOffset)
+            .clamp(0.0, maxScroll);
         _editScrollController.jumpTo(targetScroll);
       }
       // Trigger Flutter-side highlight flash for edit mode
@@ -286,8 +300,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       // The JS also handles the visual flash on the target heading.
       final headingIndex = _tocItems.indexOf(item);
       if (headingIndex >= 0) {
-        _previewWebViewController.scrollToHeading(headingIndex,
-            topOffset: _jumpTopOffset);
+        _previewWebViewController.scrollToHeading(
+          headingIndex,
+          topOffset: _jumpTopOffset,
+        );
       }
     }
   }
@@ -390,9 +406,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Container(
@@ -454,20 +468,26 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               );
 
               if (_editScrollController.hasClients) {
-                final lines =
-                    _textController.text.substring(0, position).split('\n');
+                final lines = _textController.text
+                    .substring(0, position)
+                    .split('\n');
                 const lineHeight = 24.0;
                 final targetScroll =
                     (lines.length * lineHeight - _jumpTopOffset);
                 _editScrollController.jumpTo(
-                  targetScroll
-                      .clamp(0.0, _editScrollController.position.maxScrollExtent),
+                  targetScroll.clamp(
+                    0.0,
+                    _editScrollController.position.maxScrollExtent,
+                  ),
                 );
               }
             });
           } else {
             // Preview / split mode: scroll the WebView to the matched text
-            final end = (position + length).clamp(0, _textController.text.length);
+            final end = (position + length).clamp(
+              0,
+              _textController.text.length,
+            );
             final matchText = _textController.text.substring(position, end);
             _previewWebViewController.scrollToText(matchText);
           }
@@ -509,7 +529,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       if (uncheckedMatch != null || checkedMatch != null) {
         if (checkboxCount == index) {
           if (newValue && uncheckedMatch != null) {
-            lines[i] = '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
+            lines[i] =
+                '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
             changed = true;
           } else if (!newValue && checkedMatch != null) {
             lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
@@ -543,7 +564,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       // Sanitize: reject path traversal attempts
       if (!href.contains('..')) {
         final baseDir = File(widget.filePath).parent.path;
-        final targetPath = '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
+        final targetPath =
+            '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
         final targetFile = File(targetPath);
         if (targetFile.existsSync()) {
           Navigator.of(context).push(
@@ -579,8 +601,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         .replaceAll(RegExp(r'^```[^\n]*\n?', multiLine: true), '')
         .replaceAll(RegExp(r'^~~~[^\n]*\n?', multiLine: true), '')
         // Strip GitHub Alert markers [!NOTE] etc.
-        .replaceAll(RegExp(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*',
-                           multiLine: true, caseSensitive: false), '')
+        .replaceAll(
+          RegExp(
+            r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*',
+            multiLine: true,
+            caseSensitive: false,
+          ),
+          '',
+        )
         .replaceAll(RegExp(r'\*{1,3}([^*]+)\*{1,3}'), r'$1')
         .replaceAll(RegExp(r'_{1,3}([^_]+)_{1,3}'), r'$1')
         .replaceAll(RegExp(r'`+([^`]+)`+'), r'$1')
@@ -600,15 +628,15 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   /// Returns the raw markdown source for a table cell (for in-place editing).
   String _getCellMarkdown(int tableIdx, int rowIdx, int colIdx) {
     final blocks = _parseBlocks(_textController.text);
-    final tableBlocks =
-        blocks.where((b) => b.isMultiLine && b.content.contains('|')).toList();
+    final tableBlocks = blocks
+        .where((b) => b.isMultiLine && b.content.contains('|'))
+        .toList();
     if (tableIdx >= tableBlocks.length) return '';
     // Skip separator rows (lines that consist only of |, -, :, and spaces)
-    final _sepRow = RegExp(r'^[\|\s\-:]+$');
-    final tableLines = tableBlocks[tableIdx]
-        .content
+    final sepRow = RegExp(r'^[\|\s\-:]+$');
+    final tableLines = tableBlocks[tableIdx].content
         .split('\n')
-        .where((l) => l.trim().isNotEmpty && !_sepRow.hasMatch(l.trim()))
+        .where((l) => l.trim().isNotEmpty && !sepRow.hasMatch(l.trim()))
         .toList();
     if (rowIdx >= tableLines.length) return '';
     final parts = tableLines[rowIdx].split('|');
@@ -627,10 +655,12 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     for (int i = 0; i < blocks.length; i++) {
       final norm = _stripMarkdown(blocks[i].content);
       if (norm.isEmpty) continue;
-      final shorter =
-          norm.length <= normalizedHtml.length ? norm : normalizedHtml;
-      final longer =
-          norm.length > normalizedHtml.length ? norm : normalizedHtml;
+      final shorter = norm.length <= normalizedHtml.length
+          ? norm
+          : normalizedHtml;
+      final longer = norm.length > normalizedHtml.length
+          ? norm
+          : normalizedHtml;
       if (longer.contains(shorter) && shorter.length > bestLen) {
         bestLen = shorter.length;
         bestIndex = i;
@@ -640,8 +670,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   }
 
   /// Callback for `onGetMarkdown` from [WebViewMarkdownPreview].
-  String _handleGetMarkdown(
-      String type, int p1, int p2, int p3, String extra) {
+  String _handleGetMarkdown(String type, int p1, int p2, int p3, String extra) {
     if (type == 'cell') return _getCellMarkdown(p1, p2, p3);
     return _getBlockMarkdown(extra);
   }
@@ -675,10 +704,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       for (int i = 0; i < blocks.length; i++) {
         final norm = _stripMarkdown(blocks[i].content);
         if (norm.isEmpty) continue;
-        final shorter =
-            norm.length <= normalized.length ? norm : normalized;
-        final longer =
-            norm.length > normalized.length ? norm : normalized;
+        final shorter = norm.length <= normalized.length ? norm : normalized;
+        final longer = norm.length > normalized.length ? norm : normalized;
         if (longer.contains(shorter) && shorter.length > bestLen) {
           bestLen = shorter.length;
           bestIndex = i;
@@ -695,14 +722,16 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   void _applyCellEdit(_MarkdownBlock tableBlock, int rowIdx, int colIdx) {
     final allLines = _textController.text.split('\n');
     // Skip separator rows (lines that consist only of |, -, :, and spaces)
-    final _sepRow = RegExp(r'^[\|\s\-:]+$');
+    final sepRow = RegExp(r'^[\|\s\-:]+$');
     int tableRowCounter = 0;
-    for (int i = tableBlock.startLine;
-        i <= tableBlock.endLine && i < allLines.length;
-        i++) {
+    for (
+      int i = tableBlock.startLine;
+      i <= tableBlock.endLine && i < allLines.length;
+      i++
+    ) {
       final trimmed = allLines[i].trim();
       if (trimmed.isEmpty) continue;
-      if (_sepRow.hasMatch(trimmed)) continue; // skip separator
+      if (sepRow.hasMatch(trimmed)) continue; // skip separator
       if (tableRowCounter == rowIdx) {
         final parts = allLines[i].split('|');
         final cellPartIdx = colIdx + 1;
@@ -758,32 +787,40 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       // Code block: ``` to ```
       if (_codeBlockStartRegex.hasMatch(trimmed)) {
         int end = i + 1;
-        while (end < lines.length && !_codeBlockStartRegex.hasMatch(lines[end].trim())) {
+        while (end < lines.length &&
+            !_codeBlockStartRegex.hasMatch(lines[end].trim())) {
           end++;
         }
         if (end < lines.length) end++; // include closing ```
-        blocks.add(_MarkdownBlock(
-          startLine: i,
-          endLine: end - 1,
-          content: lines.sublist(i, end).join('\n'),
-          isMultiLine: true,
-        ));
+        blocks.add(
+          _MarkdownBlock(
+            startLine: i,
+            endLine: end - 1,
+            content: lines.sublist(i, end).join('\n'),
+            isMultiLine: true,
+          ),
+        );
         i = end;
         continue;
       }
 
       // Table: contiguous | lines (need at least 2 rows)
-      if (_tableRowRegex.hasMatch(trimmed) && i + 1 < lines.length && _tableRowRegex.hasMatch(lines[i + 1].trim())) {
+      if (_tableRowRegex.hasMatch(trimmed) &&
+          i + 1 < lines.length &&
+          _tableRowRegex.hasMatch(lines[i + 1].trim())) {
         int end = i;
-        while (end < lines.length && _tableRowRegex.hasMatch(lines[end].trim())) {
+        while (end < lines.length &&
+            _tableRowRegex.hasMatch(lines[end].trim())) {
           end++;
         }
-        blocks.add(_MarkdownBlock(
-          startLine: i,
-          endLine: end - 1,
-          content: lines.sublist(i, end).join('\n'),
-          isMultiLine: true,
-        ));
+        blocks.add(
+          _MarkdownBlock(
+            startLine: i,
+            endLine: end - 1,
+            content: lines.sublist(i, end).join('\n'),
+            isMultiLine: true,
+          ),
+        );
         i = end;
         continue;
       }
@@ -791,63 +828,35 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       // Blockquote: contiguous > lines
       if (_blockquoteRegex.hasMatch(trimmed)) {
         int end = i;
-        while (end < lines.length && _blockquoteRegex.hasMatch(lines[end].trim())) {
+        while (end < lines.length &&
+            _blockquoteRegex.hasMatch(lines[end].trim())) {
           end++;
         }
-        blocks.add(_MarkdownBlock(
-          startLine: i,
-          endLine: end - 1,
-          content: lines.sublist(i, end).join('\n'),
-          isMultiLine: end > i + 1,
-        ));
+        blocks.add(
+          _MarkdownBlock(
+            startLine: i,
+            endLine: end - 1,
+            content: lines.sublist(i, end).join('\n'),
+            isMultiLine: end > i + 1,
+          ),
+        );
         i = end;
         continue;
       }
 
       // Single line
-      blocks.add(_MarkdownBlock(
-        startLine: i,
-        endLine: i,
-        content: line,
-        isMultiLine: false,
-      ));
+      blocks.add(
+        _MarkdownBlock(
+          startLine: i,
+          endLine: i,
+          content: line,
+          isMultiLine: false,
+        ),
+      );
       i++;
     }
 
     return blocks;
-  }
-
-  /// Count checkboxes in a text segment
-  int _countCheckboxesInText(String text) {
-    int count = 0;
-    for (final line in text.split('\n')) {
-      if (_uncheckedBoxRegex.hasMatch(line) || _checkedBoxRegex.hasMatch(line)) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  /// Start inline editing for a specific block
-  void _startInlineEdit(int blockIndex, List<_MarkdownBlock> blocks) {
-    if (blockIndex < 0 || blockIndex >= blocks.length) return;
-
-    // Finish any current editing first
-    if (_editingBlockIndex != null) {
-      _finishInlineEdit();
-    }
-
-    // Re-parse blocks after finishing previous edit
-    final currentBlocks = _parseBlocks(_textController.text);
-    if (blockIndex >= currentBlocks.length) return;
-
-    _inlineEditController.text = currentBlocks[blockIndex].content;
-    setState(() {
-      _editingBlockIndex = blockIndex;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _inlineEditFocusNode.requestFocus();
-    });
   }
 
   /// Finish inline editing and apply changes
@@ -880,11 +889,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
-  /// Cancel inline editing without saving
-  void _cancelInlineEdit() {
-    setState(() => _editingBlockIndex = null);
-  }
-
   /// Return the background and foreground colors for the active theme scheme.
   ({Color bg, Color fg}) _themeSchemeColors(SettingsProvider settings) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -911,11 +915,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       data: _textController.text,
       isDark: isDark,
       fontSize: settings.fontSize,
-      fontFamily:
-          settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      fontFamily: settings.editorFontFamily == 'System'
+          ? null
+          : settings.editorFontFamily,
       bgColor: colors.bg,
       fgColor: colors.fg,
-      codeFont: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
+      codeFont: settings.codeFontFamily == 'System'
+          ? null
+          : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
@@ -923,50 +930,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
       bottomPadding: safeBottom,
-    );
-  }
-
-  /// Build the inline editor widget for a block.
-  ///
-  /// No confirm/cancel buttons – tapping outside the field (focus-lost) saves
-  /// the change; pressing Enter on a single-line block also saves.
-  Widget _buildBlockEditor(_MarkdownBlock block, SettingsProvider settings) {
-    // Auto-save when the field loses focus (user tapped elsewhere)
-    _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
-    _inlineEditFocusNode.addListener(_onInlineEditFocusChanged);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-          width: 2,
-        ),
-      ),
-      child: TextField(
-        controller: _inlineEditController,
-        focusNode: _inlineEditFocusNode,
-        maxLines: block.isMultiLine ? null : 1,
-        keyboardType: block.isMultiLine ? TextInputType.multiline : TextInputType.text,
-        onSubmitted: block.isMultiLine ? null : (_) => _finishInlineEdit(),
-        style: TextStyle(
-          fontSize: settings.fontSize,
-          fontFamily: settings.editorFontFamily == 'System'
-              ? (block.content.trimLeft().startsWith('```') ? 'monospace' : null)
-              : settings.editorFontFamily,
-          height: 1.5,
-        ),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(12),
-          hintText: block.isMultiLine ? '编辑此块...' : '编辑此行...',
-          hintStyle: TextStyle(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-          ),
-        ),
-      ),
     );
   }
 
@@ -1011,8 +974,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 ),
               // Floating buttons – positioned relative to the full screen so
               // they stay fixed even when the keyboard is shown.
-              if (!_isLoading && _error == null)
-                _buildFixedFloatingButtons(),
+              if (!_isLoading && _error == null) _buildFixedFloatingButtons(),
             ],
           ),
         ),
@@ -1064,14 +1026,21 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     children: [
                       Positioned.fill(child: _buildContent()),
                       // Toolbar floats at the bottom of the content area
-                      if (!_isLoading && _error == null && (_mode != EditorMode.preview || _editingBlockIndex != null))
+                      if (!_isLoading &&
+                          _error == null &&
+                          (_mode != EditorMode.preview ||
+                              _editingBlockIndex != null))
                         Positioned(
                           bottom: 0,
                           left: 0,
                           right: 0,
                           child: MarkdownToolbar(
-                            controller: _editingBlockIndex != null ? _inlineEditController : _textController,
-                            undoController: _editingBlockIndex != null ? null : _undoController,
+                            controller: _editingBlockIndex != null
+                                ? _inlineEditController
+                                : _textController,
+                            undoController: _editingBlockIndex != null
+                                ? null
+                                : _undoController,
                             filePath: widget.filePath,
                             onSearchPressed: _showSearchDialog,
                           ),
@@ -1108,7 +1077,6 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     return '$chars 字符 · $words 词';
   }
 
-
   Widget _buildContent() {
     if (_isLoading) {
       return Center(
@@ -1118,7 +1086,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: CircularProgressIndicator(
@@ -1129,8 +1099,8 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             Text(
               '正在加载...',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ],
         ),
@@ -1159,17 +1129,17 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               const SizedBox(height: 24),
               Text(
                 '加载失败',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.red,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.red),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
@@ -1220,7 +1190,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.5),
                     ),
                   ),
                   child: ClipRRect(
@@ -1236,7 +1208,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.5),
                     ),
                   ),
                   child: ClipRRect(
@@ -1263,8 +1237,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         // Keep button above the 56 px toolbar + 16 px gap.
         // Compensate for body shrinkage so the button stays as close as
         // possible to its natural position on screen.
-        final editBottom =
-            math.max(56.0 + 16.0, safeBottom + 56.0 + 16.0 - viewInsets);
+        final editBottom = math.max(
+          56.0 + 16.0,
+          safeBottom + 56.0 + 16.0 - viewInsets,
+        );
         return Positioned(
           right: 24,
           bottom: editBottom,
@@ -1277,8 +1253,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
         // Keep buttons at a fixed visual position from the screen bottom.
-        final previewBottom =
-            math.max(8.0, safeBottom + 24.0 - viewInsets);
+        final previewBottom = math.max(8.0, safeBottom + 24.0 - viewInsets);
         return Positioned(
           right: 24,
           bottom: previewBottom,
@@ -1305,7 +1280,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
     }
   }
 
-  Widget _buildEditPanel(SettingsProvider settings, {double toolbarPadding = 0}) {
+  Widget _buildEditPanel(
+    SettingsProvider settings, {
+    double toolbarPadding = 0,
+  }) {
     return Stack(
       children: [
         TextField(
@@ -1318,15 +1296,24 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           textAlignVertical: TextAlignVertical.top,
           style: TextStyle(
             fontSize: settings.fontSize,
-            fontFamily: settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+            fontFamily: settings.editorFontFamily == 'System'
+                ? null
+                : settings.editorFontFamily,
             height: 1.5,
           ),
           decoration: InputDecoration(
             border: InputBorder.none,
-            contentPadding: EdgeInsets.fromLTRB(16, 16, 16, 16 + toolbarPadding),
+            contentPadding: EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              16 + toolbarPadding,
+            ),
             hintText: '开始编写你的 Markdown 内容...',
             hintStyle: TextStyle(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -1369,11 +1356,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
       data: _textController.text,
       isDark: isDark,
       fontSize: settings.fontSize,
-      fontFamily:
-          settings.editorFontFamily == 'System' ? null : settings.editorFontFamily,
+      fontFamily: settings.editorFontFamily == 'System'
+          ? null
+          : settings.editorFontFamily,
       bgColor: colors.bg,
       fgColor: colors.fg,
-      codeFont: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
+      codeFont: settings.codeFontFamily == 'System'
+          ? null
+          : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
       onTapLink: _handleLinkTap,
       onCheckboxChanged: _toggleCheckbox,
@@ -1386,13 +1376,14 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
   Map<ShortcutActivator, VoidCallback> _buildShortcutBindings() {
     final bindings = <ShortcutActivator, VoidCallback>{};
     final pluginProvider = context.read<PluginProvider>();
-    
+
     for (final ext in pluginProvider.getShortcutExtensions()) {
       if (ext.logicalKeys.isEmpty) continue;
-      
+
       final triggerKey = ext.logicalKeys.last;
-      final hasControl = ext.logicalKeys.contains(LogicalKeyboardKey.control) || 
-                        ext.logicalKeys.contains(LogicalKeyboardKey.meta);
+      final hasControl =
+          ext.logicalKeys.contains(LogicalKeyboardKey.control) ||
+          ext.logicalKeys.contains(LogicalKeyboardKey.meta);
       final hasShift = ext.logicalKeys.contains(LogicalKeyboardKey.shift);
       final hasAlt = ext.logicalKeys.contains(LogicalKeyboardKey.alt);
 
@@ -1419,23 +1410,35 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
         if (text != null) {
           final selection = _textController.selection;
           final newText = _textController.text.replaceRange(
-            selection.start, selection.end, text
+            selection.start,
+            selection.end,
+            text,
           );
           _textController.value = TextEditingValue(
             text: newText,
-            selection: TextSelection.collapsed(offset: selection.start + text.length),
+            selection: TextSelection.collapsed(
+              offset: selection.start + text.length,
+            ),
           );
           _onTextChanged();
         }
         break;
       case ShortcutActionType.toggleMode:
-         final modeStr = ext.actionParams['mode'] as String?;
-         if (modeStr == 'preview') {
-           setState(() => _mode = _mode == EditorMode.preview ? EditorMode.edit : EditorMode.preview);
-         } else if (modeStr == 'split') {
-            setState(() => _mode = _mode == EditorMode.split ? EditorMode.edit : EditorMode.split);
-         }
-         break;
+        final modeStr = ext.actionParams['mode'] as String?;
+        if (modeStr == 'preview') {
+          setState(
+            () => _mode = _mode == EditorMode.preview
+                ? EditorMode.edit
+                : EditorMode.preview,
+          );
+        } else if (modeStr == 'split') {
+          setState(
+            () => _mode = _mode == EditorMode.split
+                ? EditorMode.edit
+                : EditorMode.split,
+          );
+        }
+        break;
       default:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('插件快捷键: ${ext.description} (未实现)')),
@@ -1445,7 +1448,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
 
   void _showMoreMenu() {
     final pluginProvider = context.read<PluginProvider>();
-    
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1462,7 +1465,9 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1475,7 +1480,7 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 _showSearchDialog();
               },
             ),
-             ListTile(
+            ListTile(
               leading: const Icon(Icons.fullscreen),
               title: const Text('全屏预览'),
               onTap: () {
@@ -1488,17 +1493,20 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
               title: const Text('导出为 PDF'),
               onTap: () async {
                 Navigator.pop(context);
-                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('正在生成 PDF...')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('正在生成 PDF...')));
                 await ExportService.exportAndShareAsPdf(
                   _textController.text,
-                  widget.filePath.split(Platform.pathSeparator).last.replaceAll('.md', ''),
+                  widget.filePath
+                      .split(Platform.pathSeparator)
+                      .last
+                      .replaceAll('.md', ''),
                 );
               },
             ),
             ...pluginProvider.getExportExtensions().map((ext) {
-               return ListTile(
+              return ListTile(
                 leading: const Icon(Icons.extension),
                 title: Text('导出为 ${ext.formatName}'),
                 subtitle: Text(ext.formatId),
