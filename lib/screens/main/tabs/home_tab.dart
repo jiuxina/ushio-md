@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../providers/file_provider.dart';
 import '../../../../providers/plugin_provider.dart';
+import '../../../../providers/settings_provider.dart';
 import '../../../../plugins/extensions/widget_extension.dart';
 import '../../../../utils/constants.dart';
 import '../../../../utils/file_actions.dart';
@@ -25,54 +26,70 @@ class _HomeTabState extends State<HomeTab> {
     return SafeArea(
       bottom: false,
       child: Column(
-      children: [
-        _buildHomeHeader(),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => widget.fileProvider.refresh(),
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                ..._buildPluginWidgets(),
-                QuickActions(fileProvider: widget.fileProvider),
-                
-                // Pinned files section
-                if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  _buildSectionHeader('置顶文件', Icons.push_pin),
-                  const SizedBox(height: 12),
-                  _buildPinnedFilesList(),
+        children: [
+          _buildHomeHeader(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => widget.fileProvider.refresh(),
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  ..._buildPluginWidgets(),
+                  QuickActions(fileProvider: widget.fileProvider),
+
+                  // Pinned files section
+                  if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _buildSectionHeader('置顶文件', Icons.push_pin),
+                    const SizedBox(height: 12),
+                    _buildPinnedFilesList(),
+                  ],
+
+                  // Pinned folders section
+                  if (widget.fileProvider.pinnedFolders.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _buildSectionHeader('置顶文件夹', Icons.folder_special),
+                    const SizedBox(height: 12),
+                    _buildPinnedFoldersList(),
+                  ],
                 ],
-                
-                // Pinned folders section
-                if (widget.fileProvider.pinnedFolders.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  _buildSectionHeader('置顶文件夹', Icons.folder_special),
-                  const SizedBox(height: 12),
-                  _buildPinnedFoldersList(),
-                ],
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
 
   Widget _buildHomeHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
-        children: [
-          Container(
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        final iconMode = settings.homeIconMode;
+        final customPath = settings.homeIconCustomPath;
+
+        // 决定图标 widget，'none' 时不显示
+        Widget? iconWidget;
+        if (iconMode != 'none') {
+          ImageProvider? imageProvider;
+          if (iconMode == 'icon2') {
+            imageProvider = const AssetImage('assets/icons/icon2.png');
+          } else if (iconMode == 'custom' && customPath != null) {
+            imageProvider = FileImage(File(customPath));
+          } else {
+            // default
+            imageProvider = const AssetImage('app.png');
+          }
+
+          iconWidget = Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.3),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -80,32 +97,58 @@ class _HomeTabState extends State<HomeTab> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                'app.png',
+              child: Image(
+                image: imageProvider,
                 fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.image_not_supported,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
             children: [
-              Text(
-                AppConstants.appName,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              if (iconWidget != null) ...[
+                iconWidget,
+                const SizedBox(width: 12),
+              ],
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppConstants.appName,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
-              ),
-              Text(
-                AppConstants.appDescription,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  ),
+                  Text(
+                    AppConstants.appDescription,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -128,9 +171,9 @@ class _HomeTabState extends State<HomeTab> {
         Text(
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );
@@ -196,10 +239,14 @@ class _HomeTabState extends State<HomeTab> {
 
   List<Widget> _buildPluginWidgets() {
     final pluginProvider = context.watch<PluginProvider>();
-    final widgets = pluginProvider.getWidgetExtensions()
-        .where((ext) => ext.injectionPoint == WidgetInjectionPoint.homeTab)
-        .toList()
-        ..sort((a, b) => b.priority.compareTo(a.priority)); // High priority first
+    final widgets =
+        pluginProvider
+            .getWidgetExtensions()
+            .where((ext) => ext.injectionPoint == WidgetInjectionPoint.homeTab)
+            .toList()
+          ..sort(
+            (a, b) => b.priority.compareTo(a.priority),
+          ); // High priority first
 
     return widgets.map((ext) {
       return Padding(
@@ -209,4 +256,3 @@ class _HomeTabState extends State<HomeTab> {
     }).toList();
   }
 } // End of State class
-

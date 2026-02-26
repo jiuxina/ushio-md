@@ -1,11 +1,12 @@
 // ============================================================================
 // 外观设置页面
-// 
+//
 // 设置主题模式、主题色、字体、背景等外观相关选项
 // ============================================================================
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../providers/settings_provider.dart';
@@ -17,7 +18,8 @@ class AppearanceSettingsScreen extends StatefulWidget {
   const AppearanceSettingsScreen({super.key});
 
   @override
-  State<AppearanceSettingsScreen> createState() => _AppearanceSettingsScreenState();
+  State<AppearanceSettingsScreen> createState() =>
+      _AppearanceSettingsScreenState();
 }
 
 class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
@@ -59,13 +61,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 _buildSection('主题模式', Icons.brightness_6, [
                   _buildThemeModeSelector(settings),
                 ]),
-                
+
                 const SizedBox(height: 16),
-                
+
                 _buildSection('主题色', Icons.color_lens, [
                   _buildThemeColorSelector(settings),
                 ]),
-                
+
                 // 浅色主题方案（仅在浅色模式下显示）
                 if (settings.themeMode == ThemeMode.light) ...[
                   const SizedBox(height: 16),
@@ -73,7 +75,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     _buildLightThemeSelector(settings),
                   ]),
                 ],
-                
+
                 // 夜间主题方案（仅在深色模式下显示）
                 if (settings.themeMode == ThemeMode.dark) ...[
                   const SizedBox(height: 16),
@@ -81,23 +83,35 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     _buildDarkThemeSelector(settings),
                   ]),
                 ],
-                
+
                 const SizedBox(height: 16),
-                
+
                 _buildSection('字体', Icons.font_download, [
                   _buildFontSelector(settings),
                 ]),
-                
+
                 const SizedBox(height: 16),
-                
+
                 _buildSection('背景', Icons.image, [
                   _buildBackgroundSettings(settings),
                 ]),
-                
+
                 const SizedBox(height: 16),
-                
+
                 _buildSection('粒子效果', Icons.auto_awesome, [
                   _buildParticleSettings(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection('桌面图标', Icons.apps, [
+                  _buildAppIconSelector(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection('主页图标', Icons.account_circle_outlined, [
+                  _buildHomeIconSelector(settings),
                 ]),
 
                 const SizedBox(height: 16),
@@ -153,13 +167,17 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -318,7 +336,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     decoration: BoxDecoration(
                       color: scheme.surface,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: scheme.textSecondary.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: scheme.textSecondary.withValues(alpha: 0.3),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -329,8 +349,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     ),
                   ),
                   if (isSelected)
-                    Icon(Icons.check_circle, 
-                         color: Theme.of(context).colorScheme.primary),
+                    Icon(
+                      Icons.check_circle,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                 ],
               ),
             ),
@@ -380,8 +402,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     ),
                   ),
                   if (isSelected)
-                    Icon(Icons.check_circle, 
-                         color: Theme.of(context).colorScheme.primary),
+                    Icon(
+                      Icons.check_circle,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                 ],
               ),
             ),
@@ -399,10 +423,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     // 1. 添加预设字体
     for (var font in AppConstants.availableFonts) {
       if (seenFamilies.add(font.fontFamily)) {
-        fontItems.add(DropdownMenuItem(
-          value: font.fontFamily,
-          child: Text(font.name),
-        ));
+        fontItems.add(
+          DropdownMenuItem(value: font.fontFamily, child: Text(font.name)),
+        );
       }
     }
 
@@ -410,13 +433,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     for (final font in _customFonts) {
       // 自定义字体加载时使用的是 font.name 作为 family name
       if (seenFamilies.add(font.name)) {
-        fontItems.add(DropdownMenuItem(
-          value: font.name,
-          child: Text(font.name),
-        ));
+        fontItems.add(
+          DropdownMenuItem(value: font.name, child: Text(font.name)),
+        );
       }
     }
-    
+
     // 确保当前选中的字体在列表中，如果不在（可能被删除），则回退到 System
     String getValidFontFamily(String current) {
       return seenFamilies.contains(current) ? current : 'System';
@@ -477,21 +499,27 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         const SizedBox(height: 16),
         // 安装自定义字体按钮
         OutlinedButton.icon(
-          onPressed: _loadingFonts ? null : () async {
-            final fontName = await FontService.installFontFromFile(context);
-            if (fontName != null) {
-              await _loadCustomFonts();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('字体 "$fontName" 安装成功'),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-              }
-            }
-          },
+          onPressed: _loadingFonts
+              ? null
+              : () async {
+                  final fontName = await FontService.installFontFromFile(
+                    context,
+                  );
+                  if (fontName != null) {
+                    await _loadCustomFonts();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('字体 "$fontName" 安装成功'),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
           icon: const Icon(Icons.add),
           label: const Text('安装自定义字体'),
         ),
@@ -529,7 +557,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 return Container(
                   height: 100,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Center(child: Text('图片加载失败')),
@@ -607,11 +637,11 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             ),
           ],
         ),
-        
+
         // 以下选项仅在启用时显示
         if (settings.particleEnabled) ...[
           const SizedBox(height: 16),
-          
+
           // 效果类型选择器
           Text(
             '效果类型',
@@ -632,10 +662,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               return GestureDetector(
                 onTap: () => settings.setParticleType(type['id']!),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1)
                         : Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
@@ -648,15 +683,14 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        type['icon']!,
-                        style: const TextStyle(fontSize: 18),
-                      ),
+                      Text(type['icon']!, style: const TextStyle(fontSize: 18)),
                       const SizedBox(width: 8),
                       Text(
                         type['name']!,
                         style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           color: isSelected
                               ? Theme.of(context).colorScheme.primary
                               : Theme.of(context).colorScheme.onSurface,
@@ -668,9 +702,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               );
             }).toList(),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // 速率滑块
           Row(
             children: [
@@ -694,9 +728,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 8),
-          
+
           // 全局显示开关
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -707,8 +741,8 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   children: [
                     const Text('全局显示'),
                     Text(
-                      settings.particleGlobal 
-                          ? '所有界面都显示粒子效果' 
+                      settings.particleGlobal
+                          ? '所有界面都显示粒子效果'
                           : '编辑器内容区域不显示粒子效果',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,
@@ -728,16 +762,392 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
+  /// 选择背景图片
   Future<void> _pickBackgroundImage(SettingsProvider settings) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );
-    
+
     if (result != null && result.files.isNotEmpty) {
       final path = result.files.first.path;
       if (path != null) {
         settings.setBackgroundImage(path);
+      }
+    }
+  }
+
+  // ==================== 桌面图标选择器 ====================
+
+  /// 桌面图标切换（Android 专属）
+  Widget _buildAppIconSelector(SettingsProvider settings) {
+    final options = [
+      {'index': 0, 'label': '默认图标', 'asset': 'app.png'},
+      {'index': 1, 'label': 'icon2', 'asset': 'assets/icons/icon2.png'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '选择桌面图标（仅 Android 生效，切换后应用将重启）',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: options.map((opt) {
+            final idx = opt['index'] as int;
+            final isSelected = settings.appIconIndex == idx;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => _setAppIcon(settings, idx),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: EdgeInsets.only(right: idx == 0 ? 8 : 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).dividerColor,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset(
+                          opt['asset'] as String,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.image, size: 28),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (isSelected)
+                            Icon(
+                              Icons.check_circle,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          if (isSelected) const SizedBox(width: 4),
+                          Text(
+                            opt['label'] as String,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  /// 调用原生频道切换桌面图标
+  Future<void> _setAppIcon(SettingsProvider settings, int iconIndex) async {
+    if (settings.appIconIndex == iconIndex) return;
+
+    // 仅 Android 支持
+    if (!Platform.isAndroid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('图标切换仅支持 Android'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    const channel = MethodChannel('com.ushiomd/app_icon');
+    try {
+      await channel.invokeMethod('setAppIcon', {'iconIndex': iconIndex});
+      await settings.setAppIconIndex(iconIndex);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('桌面图标已更换，可能需要几秒钟生效'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('切换失败：$e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // ==================== 主页图标选择器 ====================
+
+  /// 主页左上角图标切换（4 个选项）
+  Widget _buildHomeIconSelector(SettingsProvider settings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '选择主页左上角显示的图标',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // 前三个选项（默认、icon2、隐藏）横排
+        Row(
+          children: [
+            Expanded(
+              child: _buildHomeIconOption(
+                settings,
+                'default',
+                '默认图标',
+                icon: const AssetImage('app.png'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildHomeIconOption(
+                settings,
+                'icon2',
+                'icon2',
+                icon: const AssetImage('assets/icons/icon2.png'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildHomeIconOption(
+                settings,
+                'none',
+                '隐藏',
+                iconWidget: const Icon(Icons.hide_image_outlined, size: 32),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // 自定义选项占一行（因为还有选择按钮）
+        _buildHomeIconCustomOption(settings),
+      ],
+    );
+  }
+
+  Widget _buildHomeIconOption(
+    SettingsProvider settings,
+    String mode,
+    String label, {
+    ImageProvider? icon,
+    Widget? iconWidget,
+  }) {
+    final isSelected = settings.homeIconMode == mode;
+    return GestureDetector(
+      onTap: () => settings.setHomeIconMode(mode),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            if (iconWidget != null)
+              iconWidget
+            else if (icon != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image(
+                  image: icon,
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.image, size: 40),
+                ),
+              ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                size: 14,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeIconCustomOption(SettingsProvider settings) {
+    final isSelected = settings.homeIconMode == 'custom';
+    final customPath = settings.homeIconCustomPath;
+    return GestureDetector(
+      onTap: () => _pickHomeCustomIcon(settings),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            if (isSelected && customPath != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(customPath),
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.broken_image, size: 40),
+                ),
+              )
+            else
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.add_photo_alternate_outlined,
+                  size: 24,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '自定义图片',
+                    style: TextStyle(
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    isSelected && customPath != null
+                        ? customPath.split('/').last.split('\\').last
+                        : '从相册选择图片',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.check_circle : Icons.chevron_right,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.outline,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickHomeCustomIcon(SettingsProvider settings) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final path = result.files.first.path;
+      if (path != null) {
+        await settings.setHomeIconCustomPath(path);
+        await settings.setHomeIconMode('custom');
       }
     }
   }

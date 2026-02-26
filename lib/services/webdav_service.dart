@@ -1,6 +1,6 @@
 // ============================================================================
 // WebDAV 服务
-// 
+//
 // 封装 WebDAV 客户端操作，提供：
 // - 连接测试
 // - 文件上传/下载
@@ -18,16 +18,17 @@ class WebDAVConfig {
   final String url;
   final String username;
   final String password;
-  
+
   const WebDAVConfig({
     required this.url,
     required this.username,
     required this.password,
   });
-  
+
   /// 检查配置是否完整
-  bool get isValid => url.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
-  
+  bool get isValid =>
+      url.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+
   /// 从 Map 创建配置
   factory WebDAVConfig.fromMap(Map<String, dynamic> map) {
     return WebDAVConfig(
@@ -36,14 +37,10 @@ class WebDAVConfig {
       password: map['password'] ?? '',
     );
   }
-  
+
   /// 转换为 Map
   Map<String, dynamic> toMap() {
-    return {
-      'url': url,
-      'username': username,
-      'password': password,
-    };
+    return {'url': url, 'username': username, 'password': password};
   }
 }
 
@@ -52,11 +49,9 @@ class WebDAVService implements SyncServiceInterface {
   webdav.Client? _client;
 
   /// 云端工作区目录名称（可配置）
-  @override
   String _remoteWorkspaceName = 'Ushio-MD';
 
   /// 云端路径前缀（可配置）
-  @override
   String _remotePathPrefix = '';
 
   /// 获取当前工作区名称
@@ -95,7 +90,8 @@ class WebDAVService implements SyncServiceInterface {
     }
 
     // 自动补齐文件夹名称（如果路径不以文件夹名称结尾）
-    if (!fullPath.endsWith('$_remoteWorkspaceName/') && !fullPath.endsWith(_remoteWorkspaceName)) {
+    if (!fullPath.endsWith('$_remoteWorkspaceName/') &&
+        !fullPath.endsWith(_remoteWorkspaceName)) {
       fullPath += _remoteWorkspaceName;
     }
 
@@ -106,30 +102,30 @@ class WebDAVService implements SyncServiceInterface {
 
     return fullPath;
   }
-  
+
   /// 初始化 WebDAV 客户端
   void initialize(WebDAVConfig config) {
     if (!config.isValid) {
       _client = null;
       return;
     }
-    
+
     _client = webdav.newClient(
       config.url,
       user: config.username,
       password: config.password,
       debug: false,
     );
-    
+
     // 设置公共请求头
     _client!.setHeaders({'accept-charset': 'utf-8'});
   }
-  
+
   /// 测试连接
   @override
   Future<bool> testConnection() async {
     if (_client == null) return false;
-    
+
     try {
       await _client!.ping();
       return true;
@@ -138,7 +134,7 @@ class WebDAVService implements SyncServiceInterface {
       return false;
     }
   }
-  
+
   /// 确保远程工作区目录存在
   @override
   Future<void> ensureRemoteWorkspace() async {
@@ -152,12 +148,14 @@ class WebDAVService implements SyncServiceInterface {
       debugPrint('WebDAV 创建远程目录: $e');
     }
   }
-  
+
   /// 列出远程目录内容
   ///
   /// [remotePath] 远程路径（相对于工作区根目录）
   @override
-  Future<List<RemoteFileInfo>?> listRemoteFiles({String remotePath = ''}) async {
+  Future<List<RemoteFileInfo>?> listRemoteFiles({
+    String remotePath = '',
+  }) async {
     if (_client == null) return null;
 
     try {
@@ -169,18 +167,22 @@ class WebDAVService implements SyncServiceInterface {
       final files = await _client!.readDir(path);
 
       // 转换为通用格式
-      return files.map((f) => RemoteFileInfo(
-        name: f.name ?? '',
-        path: f.path ?? '',
-        isDirectory: f.isDir ?? false,
-        modifiedTime: f.mTime,
-      )).toList();
+      return files
+          .map(
+            (f) => RemoteFileInfo(
+              name: f.name ?? '',
+              path: f.path ?? '',
+              isDirectory: f.isDir ?? false,
+              modifiedTime: f.mTime,
+            ),
+          )
+          .toList();
     } catch (e) {
       debugPrint('WebDAV 列出目录失败: $e');
       return null;
     }
   }
-  
+
   /// 上传文件
   ///
   /// [localPath] 本地文件路径
@@ -212,7 +214,7 @@ class WebDAVService implements SyncServiceInterface {
       return false;
     }
   }
-  
+
   /// 下载文件
   ///
   /// [remotePath] 远程文件路径（相对于工作区）
@@ -226,7 +228,10 @@ class WebDAVService implements SyncServiceInterface {
       final sourcePath = '$fullRemotePath/$remotePath';
 
       // 确保本地父目录存在
-      final localDir = localPath.substring(0, localPath.lastIndexOf(Platform.pathSeparator));
+      final localDir = localPath.substring(
+        0,
+        localPath.lastIndexOf(Platform.pathSeparator),
+      );
       await Directory(localDir).create(recursive: true);
 
       // 下载文件
@@ -238,7 +243,7 @@ class WebDAVService implements SyncServiceInterface {
       return false;
     }
   }
-  
+
   /// 删除远程文件或目录
   @override
   Future<bool> deleteRemote(String remotePath) async {
@@ -255,12 +260,12 @@ class WebDAVService implements SyncServiceInterface {
       return false;
     }
   }
-  
+
   /// 获取远程文件信息
   @override
   Future<RemoteFileInfo?> getRemoteFileInfo(String remotePath) async {
     if (_client == null) return null;
-    
+
     try {
       final parentPath = remotePath.contains('/')
           ? remotePath.substring(0, remotePath.lastIndexOf('/'))
@@ -268,7 +273,7 @@ class WebDAVService implements SyncServiceInterface {
       final fileName = remotePath.contains('/')
           ? remotePath.substring(remotePath.lastIndexOf('/') + 1)
           : remotePath;
-      
+
       final files = await listRemoteFiles(remotePath: parentPath);
       return files?.firstWhere(
         (f) => f.name == fileName,
@@ -278,16 +283,16 @@ class WebDAVService implements SyncServiceInterface {
       return null;
     }
   }
-  
+
   // ==================== 私有方法 ====================
-  
+
   /// 确保远程目录存在（递归创建）
   Future<void> _ensureRemoteDir(String remotePath) async {
     if (_client == null) return;
-    
+
     final parts = remotePath.split('/').where((p) => p.isNotEmpty).toList();
     String currentPath = '';
-    
+
     for (final part in parts) {
       currentPath += '/$part';
       try {

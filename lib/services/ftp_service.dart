@@ -28,7 +28,8 @@ class FTPConfig {
   });
 
   /// 检查配置是否完整
-  bool get isValid => host.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+  bool get isValid =>
+      host.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
 
   /// 从 Map 创建配置
   factory FTPConfig.fromMap(Map<String, dynamic> map) {
@@ -54,14 +55,11 @@ class FTPConfig {
 /// FTP 服务类
 class FTPService implements SyncServiceInterface {
   FTPConnect? _ftpClient;
-  FTPConfig? _config;
 
   /// 云端工作区目录名称（可配置）
-  @override
   String _remoteWorkspaceName = 'Ushio-MD';
 
   /// 云端路径前缀（可配置）
-  @override
   String _remotePathPrefix = '';
 
   /// 获取当前工作区名称
@@ -100,7 +98,8 @@ class FTPService implements SyncServiceInterface {
     }
 
     // 自动补齐文件夹名称（如果路径不以文件夹名称结尾）
-    if (!fullPath.endsWith('$_remoteWorkspaceName/') && !fullPath.endsWith(_remoteWorkspaceName)) {
+    if (!fullPath.endsWith('$_remoteWorkspaceName/') &&
+        !fullPath.endsWith(_remoteWorkspaceName)) {
       fullPath += _remoteWorkspaceName;
     }
 
@@ -116,11 +115,9 @@ class FTPService implements SyncServiceInterface {
   void initialize(FTPConfig config) {
     if (!config.isValid) {
       _ftpClient = null;
-      _config = null;
       return;
     }
 
-    _config = config;
     _ftpClient = FTPConnect(
       config.host,
       port: config.port,
@@ -169,7 +166,9 @@ class FTPService implements SyncServiceInterface {
   ///
   /// [remotePath] 远程路径（相对于工作区根目录）
   @override
-  Future<List<RemoteFileInfo>?> listRemoteFiles({String remotePath = ''}) async {
+  Future<List<RemoteFileInfo>?> listRemoteFiles({
+    String remotePath = '',
+  }) async {
     if (_ftpClient == null) return null;
 
     try {
@@ -187,12 +186,16 @@ class FTPService implements SyncServiceInterface {
       await _ftpClient!.disconnect();
 
       // 转换为通用格式
-      return files.map((f) => RemoteFileInfo(
-        name: f.name,
-        path: path + '/' + f.name,
-        isDirectory: f.type == FTPEntryType.dir,
-        modifiedTime: f.modifyTime,
-      )).toList();
+      return files
+          .map(
+            (f) => RemoteFileInfo(
+              name: f.name,
+              path: '$path/${f.name}',
+              isDirectory: f.type == FTPEntryType.dir,
+              modifiedTime: f.modifyTime,
+            ),
+          )
+          .toList();
     } catch (e) {
       debugPrint('FTP 列出目录失败: $e');
       try {
@@ -227,7 +230,10 @@ class FTPService implements SyncServiceInterface {
       await _ensureRemoteDir(parentPath);
 
       // 上传文件
-      final success = await _ftpClient!.uploadFile(file, sRemoteName: targetPath);
+      final success = await _ftpClient!.uploadFile(
+        file,
+        sRemoteName: targetPath,
+      );
 
       await _ftpClient!.disconnect();
 
@@ -261,11 +267,17 @@ class FTPService implements SyncServiceInterface {
       final sourcePath = '$fullRemotePath/$remotePath';
 
       // 确保本地父目录存在
-      final localDir = localPath.substring(0, localPath.lastIndexOf(Platform.pathSeparator));
+      final localDir = localPath.substring(
+        0,
+        localPath.lastIndexOf(Platform.pathSeparator),
+      );
       await Directory(localDir).create(recursive: true);
 
       // 下载文件
-      final success = await _ftpClient!.downloadFile(sourcePath, File(localPath));
+      final success = await _ftpClient!.downloadFile(
+        sourcePath,
+        File(localPath),
+      );
 
       await _ftpClient!.disconnect();
 
