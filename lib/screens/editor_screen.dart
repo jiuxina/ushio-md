@@ -1457,6 +1457,10 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
           _onTextChanged();
         }
         break;
+      case ShortcutActionType.executeCommand:
+      case ShortcutActionType.openDialog:
+        // Not supported in this context; ignore silently.
+        break;
     }
   }
 
