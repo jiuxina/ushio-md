@@ -115,6 +115,7 @@ class _SearchSheetState extends State<SearchSheet> {
                       setState(() {
                         _currentMatchIndex = (_currentMatchIndex - 1 + _matchPositions.length) % _matchPositions.length;
                       });
+                      widget.onMatchSelected(_matchPositions[_currentMatchIndex], _searchController.text.length);
                     },
                   ),
                   IconButton(
@@ -123,6 +124,7 @@ class _SearchSheetState extends State<SearchSheet> {
                       setState(() {
                         _currentMatchIndex = (_currentMatchIndex + 1) % _matchPositions.length;
                       });
+                      widget.onMatchSelected(_matchPositions[_currentMatchIndex], _searchController.text.length);
                     },
                   ),
                 ],

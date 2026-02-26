@@ -3,7 +3,9 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
@@ -17,6 +19,7 @@ import 'editor/components/toc_overlay.dart';
 import 'editor/components/search_sheet.dart';
 import 'editor/components/fullscreen_preview_page.dart';
 import '../providers/plugin_provider.dart';
+import '../plugins/plugin_manifest.dart';
 import '../plugins/extensions/shortcut_extension.dart';
 import '../services/export_service.dart';
 
@@ -1436,10 +1439,24 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
             setState(() => _mode = _mode == EditorMode.split ? EditorMode.edit : EditorMode.split);
          }
          break;
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('插件快捷键: ${ext.description} (未实现)')),
-        );
+      case ShortcutActionType.wrapSelection:
+        final prefix = ext.actionParams['prefix'] as String? ?? '';
+        final suffix = ext.actionParams['suffix'] as String? ?? '';
+        final selection = _textController.selection;
+        if (selection.isValid && !selection.isCollapsed) {
+          final selected = _textController.text.substring(selection.start, selection.end);
+          final newText = _textController.text.replaceRange(
+            selection.start, selection.end, '$prefix$selected$suffix',
+          );
+          _textController.value = TextEditingValue(
+            text: newText,
+            selection: TextSelection.collapsed(
+              offset: selection.start + prefix.length + selected.length,
+            ),
+          );
+          _onTextChanged();
+        }
+        break;
     }
   }
 
@@ -1502,11 +1519,51 @@ class _EditorScreenState extends State<EditorScreen> with TickerProviderStateMix
                 leading: const Icon(Icons.extension),
                 title: Text('导出为 ${ext.formatName}'),
                 subtitle: Text(ext.formatId),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('插件导出: ${ext.formatName} (待实现)')),
+                    SnackBar(content: Text('正在导出为 ${ext.formatName}...')),
                   );
+                  try {
+                    final fileName = widget.filePath
+                        .split(Platform.pathSeparator)
+                        .last
+                        .replaceAll('.md', '');
+                    String content = _textController.text;
+
+                    // Apply plugin template if provided
+                    if (ext.templatePath != null) {
+                      final manifest = pluginProvider.enabledPlugins
+                          .where((p) => p.id == ext.pluginId)
+                          .firstOrNull;
+                      if (manifest?.installPath != null) {
+                        final templateFile =
+                            File('${manifest!.installPath!}/${ext.templatePath}');
+                        if (await templateFile.exists()) {
+                          final template = await templateFile.readAsString();
+                          content = template.replaceAll('{{content}}', content);
+                        }
+                      }
+                    }
+
+                    final tempDir = await getTemporaryDirectory();
+                    final outFile =
+                        File('${tempDir.path}/$fileName.${ext.fileExtension}');
+                    await outFile.writeAsString(content);
+                    await Share.shareXFiles(
+                      [XFile(outFile.path, mimeType: ext.mimeType)],
+                      subject: '$fileName.${ext.fileExtension}',
+                    );
+                    Future.delayed(const Duration(minutes: 5), () {
+                      try { outFile.deleteSync(); } catch (_) {}
+                    });
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('导出失败: $e')),
+                      );
+                    }
+                  }
                 },
               );
             }),

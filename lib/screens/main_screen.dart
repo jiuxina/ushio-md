@@ -16,6 +16,7 @@ import 'editor_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/navigation_extension.dart';
 import '../services/update_service.dart';
+import 'plugin_page_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -301,10 +302,12 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                   title: Text(ext.title),
                   onTap: () {
                     Navigator.pop(context); // Close drawer
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('插件页面: ${ext.title} (暂未实现加载)')),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PluginPageScreen(extension: ext),
+                      ),
                     );
-                    // TODO: Implement plugin page loading (WebView or Custom Widget)
                   },
                 );
               }),
