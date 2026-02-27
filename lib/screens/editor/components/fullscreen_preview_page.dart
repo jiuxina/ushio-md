@@ -88,7 +88,8 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     await frameCompleter.future;
     
     final fileName = widget.fileName.replaceAll('.md', '').replaceAll('.markdown', '');
-    final pngBytes = await _webViewController.captureScreenshot();
+    final pngBytes = await _webViewController.captureFullPageScreenshot() ??
+        await _webViewController.captureScreenshot();
     final success = pngBytes != null
         ? await ExportService.sharePngBytes(pngBytes, fileName)
         : false;

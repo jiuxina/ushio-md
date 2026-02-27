@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -90,6 +91,77 @@ class MarkdownWebViewController {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Capture a full-page screenshot by scrolling and stitching viewport shots.
+  Future<Uint8List?> captureFullPageScreenshot({
+    int maxShots = 30,
+    Duration settleDelay = const Duration(milliseconds: 80),
+  }) async {
+    final c = _webViewController;
+    if (c == null) return null;
+
+    try {
+      final originalYRaw =
+          await c.evaluateJavascript(source: 'window.scrollY || 0');
+      final vhRaw =
+          await c.evaluateJavascript(source: 'window.innerHeight || 0');
+      final shRaw = await c.evaluateJavascript(
+          source: 'Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) || 0');
+
+      final originalY =
+          (double.tryParse(originalYRaw?.toString() ?? '0') ?? 0.0).clamp(0.0, double.infinity);
+      final viewportHeightCss =
+          (double.tryParse(vhRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
+      final pageHeightCss =
+          (double.tryParse(shRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
+
+      final steps = <double>[];
+      for (double y = 0; y < pageHeightCss; y += viewportHeightCss) {
+        steps.add(y);
+        if (steps.length >= maxShots) break;
+      }
+
+      final captures = <({double yCss, Uint8List png})>[];
+      for (final y in steps) {
+        await c.evaluateJavascript(source: 'window.scrollTo(0, $y)');
+        await Future.delayed(settleDelay);
+        final png = await c.takeScreenshot();
+        if (png == null) continue;
+        captures.add((yCss: y, png: png));
+      }
+
+      await c.evaluateJavascript(source: 'window.scrollTo(0, $originalY)');
+
+      if (captures.isEmpty) return null;
+
+      final first = await _decodePng(captures.first.png);
+      final scale = first.height / viewportHeightCss;
+      final targetWidth = first.width;
+      final targetHeight = (pageHeightCss * scale).ceil();
+
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+
+      for (final cap in captures) {
+        final img = await _decodePng(cap.png);
+        final dy = (cap.yCss * scale).roundToDouble();
+        canvas.drawImage(img, ui.Offset(0, dy), ui.Paint());
+      }
+
+      final picture = recorder.endRecording();
+      final stitched = await picture.toImage(targetWidth, targetHeight);
+      final bytes = await stitched.toByteData(format: ui.ImageByteFormat.png);
+      return bytes?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<ui.Image> _decodePng(Uint8List pngBytes) async {
+    final codec = await ui.instantiateImageCodec(pngBytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
   }
 }
 
