@@ -175,6 +175,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
                   ? null
                   : widget.settings.codeFontFamily,
               onCheckboxChanged: (_, __) {},
+              hidePageScrollbar: true,
               onLoadFinished: () {
                 if (!loadCompleter.isCompleted) loadCompleter.complete();
               },
@@ -308,6 +309,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
                   ? null
                   : widget.settings.codeFontFamily,
               onCheckboxChanged: widget.onCheckboxChanged,
+              hidePageScrollbar: true,
               onLoadFinished: _onPreviewLoaded,
               controller: _webViewController,
               baseDirectory:

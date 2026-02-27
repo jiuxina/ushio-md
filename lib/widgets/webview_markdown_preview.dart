@@ -196,6 +196,8 @@ class WebViewMarkdownPreview extends StatefulWidget {
   final void Function(String key, String newText)? onInPlaceEdit;
   final VoidCallback? onLoadFinished;
   final MarkdownWebViewController? controller;
+  /// Hide html/body scrollbars inside WebView.
+  final bool hidePageScrollbar;
   /// Extra bottom padding (pixels) added to the HTML body to prevent content
   /// being obscured by a floating toolbar or the system navigation bar.
   final double bottomPadding;
@@ -216,6 +218,7 @@ class WebViewMarkdownPreview extends StatefulWidget {
     this.onInPlaceEdit,
     this.onLoadFinished,
     this.controller,
+    this.hidePageScrollbar = false,
     this.bottomPadding = 0,
   });
 
@@ -476,6 +479,9 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     final flashKf = dark
         ? '@keyframes hflash { 0%{background:transparent} 20%{background:rgba(100,180,255,0.35)} 100%{background:transparent} }'
         : '@keyframes hflash { 0%{background:transparent} 20%{background:rgba(0,122,255,0.25)} 100%{background:transparent} }';
+    final scrollbarCss = widget.hidePageScrollbar
+        ? 'html,body{scrollbar-width:none;-ms-overflow-style:none;}html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none;}'
+        : '';
 
     // ── @font-face rules (use extracted temp-dir files via file:// URI) ─────
     String fontFaces = '';
@@ -511,6 +517,7 @@ h1{font-size:${fs * 2}px;border-bottom:2px solid $hrColor;padding-bottom:0.3em}
 h2{font-size:${fs * 1.5}px;border-bottom:1px solid $hrColor;padding-bottom:0.2em}
 h3{font-size:${fs * 1.25}px}h4{font-size:${fs * 1.1}px}h5{font-size:${fs}px}h6{font-size:${fs * 0.9}px}
 $flashKf
+$scrollbarCss
 .heading-flash{animation:hflash 0.7s ease-out forwards}
 p{margin:0.8em 0}
 a{color:$linkColor;text-decoration:none}a:hover{text-decoration:underline}
