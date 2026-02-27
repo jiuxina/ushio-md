@@ -660,6 +660,29 @@ $body
     return _findBlockMatch(innerText).md;
   }
 
+  // ── Prefer matching blockquotes against quote-source blocks only ──────
+  function _findBlockquoteMatch(innerText) {
+    var search = (innerText || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 100);
+    if (!search) return { md: innerText, index: -1 };
+    var blocks = _parseRawBlocks();
+    var best = '', score = 0, bestIndex = -1;
+    for (var b = 0; b < blocks.length; b++) {
+      var md = blocks[b];
+      if (!/^\s*>/.test(md.trim())) continue;
+      var norm = _stripMd(md).replace(/\s+/g, ' ');
+      if (!norm) continue;
+      var sh = norm.length <= search.length ? norm : search;
+      var lo = norm.length > search.length ? norm : search;
+      if (lo.indexOf(sh) !== -1 && sh.length > score) {
+        score = sh.length;
+        best = md;
+        bestIndex = b;
+      }
+    }
+    if (best) return { md: best, index: bestIndex };
+    return _findBlockMatch(innerText);
+  }
+
   // ── Get raw markdown for a specific table cell ────────────────────────
   function _getCellMd(ti, ri, ci) {
     var sep = /^[\\|\\s\\-:]+\$/, lines = __rawMd.split('\\n');
@@ -798,7 +821,7 @@ $body
     }
     if (outerBq) {
       var qText = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
-      var qMatch = _findBlockMatch(qText);
+      var qMatch = _findBlockquoteMatch(qText);
       var qMd = qMatch.md;
       var startQuoteEdit = function(md) {
         var fromHandler = (md && ('' + md).length) ? ('' + md) : '';
