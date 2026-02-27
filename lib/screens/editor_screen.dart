@@ -987,7 +987,55 @@ class _EditorScreenState extends State<EditorScreen>
         continue;
       }
 
-      // Single line
+      // List block: contiguous unordered/ordered/task-list lines.
+      final isListLine = RegExp(r'^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+\.\s+)');
+      if (isListLine.hasMatch(trimmed)) {
+        int end = i;
+        while (end < lines.length && isListLine.hasMatch(lines[end].trim())) {
+          end++;
+        }
+        blocks.add(
+          _MarkdownBlock(
+            startLine: i,
+            endLine: end - 1,
+            content: lines.sublist(i, end).join('\n'),
+            isMultiLine: end > i + 1,
+          ),
+        );
+        i = end;
+        continue;
+      }
+
+      // Paragraph block: contiguous non-empty lines until another block starts.
+      if (trimmed.isNotEmpty) {
+        int end = i;
+        while (end < lines.length) {
+          final t = lines[end].trim();
+          if (t.isEmpty) break;
+          if (_codeBlockStartRegex.hasMatch(t) ||
+              _blockquoteRegex.hasMatch(t) ||
+              _tableRowRegex.hasMatch(t) ||
+              isListLine.hasMatch(t)) {
+            if (end == i) {
+              end++;
+            }
+            break;
+          }
+          end++;
+        }
+        blocks.add(
+          _MarkdownBlock(
+            startLine: i,
+            endLine: end - 1,
+            content: lines.sublist(i, end).join('\n'),
+            isMultiLine: end > i + 1,
+          ),
+        );
+        i = end;
+        continue;
+      }
+
+      // Single (empty) line
       blocks.add(
         _MarkdownBlock(
           startLine: i,

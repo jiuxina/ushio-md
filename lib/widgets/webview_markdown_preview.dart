@@ -354,7 +354,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 
     // Block math  $$...$$  (may span multiple lines)
     src = src.replaceAllMapped(
-      RegExp(r'\$\$([\s\S]+?)\$\$', multiLine: true),
+      RegExp(r'\$\$([\\s\S]+?)\$\$', multiLine: true),
       (m) {
         final idx = mathBlocks.length;
         mathBlocks.add('<div class="math-block">\\[${m.group(1)}\\]</div>');
@@ -391,7 +391,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     // 4. Add sequential id="heading-N" to every heading tag for TOC navigation
     int headingIdx = 0;
     final withIds = htmlBody.replaceAllMapped(
-      RegExp(r'<(h[1-6])(\s[^>]*)?>'),
+      RegExp(r'<(h[1-6])(\\s[^>]*)?>'),
       (m) {
         final tag = m.group(1)!;
         final attrs = m.group(2) ?? '';
@@ -401,13 +401,13 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 
     // 5. Make task-list checkboxes interactive (remove the `disabled` attr)
     var processed = withIds.replaceAll(
-      RegExp(r'<input\s+type="checkbox"\s+disabled'),
+      RegExp(r'<input\\s+type="checkbox"\\s+disabled'),
       '<input type="checkbox"',
     );
 
     // 6. Convert <img> tags whose src ends in a video extension to <video>
     processed = processed.replaceAllMapped(
-      RegExp(r'<img\s[^>]*src="([^"]*\.(mp4|webm|mov|avi|mkv))"[^>]*>',
+      RegExp(r'<img\\s[^>]*src="([^"]*\.(mp4|webm|mov|avi|mkv))"[^>]*>',
           caseSensitive: false),
       (m) {
         final src = m.group(1)!;
@@ -417,7 +417,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 
     // 7. Convert <img> tags whose src ends in an audio extension to <audio>
     processed = processed.replaceAllMapped(
-      RegExp(r'<img\s[^>]*src="([^"]*\.(mp3|wav|ogg|aac|flac|m4a))"[^>]*>',
+      RegExp(r'<img\\s[^>]*src="([^"]*\.(mp3|wav|ogg|aac|flac|m4a))"[^>]*>',
           caseSensitive: false),
       (m) {
         final src = m.group(1)!;
@@ -591,7 +591,7 @@ $body
 
   // ── Parse raw markdown into logical blocks (mirrors Dart _parseBlocks) ─
   function _parseRawBlocks() {
-    var lines = __rawMd.split('\\n'), blocks = [], i = 0;
+    var lines = __rawMd.split('\n'), blocks = [], i = 0;
     while (i < lines.length) {
       var t = lines[i].trim();
       if (/^\\s*```/.test(t) || /^\\s*~~~/.test(t)) {
@@ -599,19 +599,37 @@ $body
         var end = i + 1;
         while (end < lines.length && lines[end].trim().indexOf(fence) === -1) end++;
         if (end < lines.length) end++;
-        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
+        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
       }
-      if (/^\\s*\\|/.test(lines[i]) && i + 1 < lines.length && /^\\s*\\|/.test(lines[i + 1])) {
+      if (/^\\s*\|/.test(lines[i]) && i + 1 < lines.length && /^\\s*\|/.test(lines[i + 1])) {
         var end = i;
-        while (end < lines.length && /^\\s*\\|/.test(lines[end])) end++;
-        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
+        while (end < lines.length && /^\\s*\|/.test(lines[end])) end++;
+        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
       }
       if (/^\\s*>/.test(t)) {
         var end = i;
         while (end < lines.length && /^\\s*>/.test(lines[end].trim())) end++;
-        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
+        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
       }
-      if (t) blocks.push(lines[i]);
+      if (/^\\s*(?:[-*+]\\s+(?:\[[ xX]\]\\s+)?|\d+\.\\s+)/.test(t)) {
+        var end = i;
+        while (end < lines.length && /^\\s*(?:[-*+]\\s+(?:\[[ xX]\]\\s+)?|\d+\.\\s+)/.test(lines[end].trim())) end++;
+        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
+      }
+      if (t) {
+        var end = i;
+        while (end < lines.length) {
+          var nt = lines[end].trim();
+          if (!nt) break;
+          if (/^\\s*```/.test(nt) || /^\\s*~~~/.test(nt) ||
+              /^\\s*\|/.test(lines[end]) || /^\\s*>/.test(nt) ||
+              /^\\s*(?:[-*+]\\s+(?:\[[ xX]\]\\s+)?|\d+\.\\s+)/.test(nt)) {
+            break;
+          }
+          end++;
+        }
+        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
+      }
       i++;
     }
     return blocks;
@@ -619,11 +637,11 @@ $body
 
   // ── Get raw markdown matching the rendered innerText of a block ────────
   function _findBlockMatch(innerText) {
-    var search = innerText.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 100);
+    var search = innerText.trim().toLowerCase().replace(/\\s+/g, ' ').slice(0, 100);
     if (!search) return { md: innerText, index: -1 };
     var blocks = _parseRawBlocks(), best = '', score = 0, bestIndex = -1;
     for (var b = 0; b < blocks.length; b++) {
-      var s = _stripMd(blocks[b]).replace(/\s+/g, ' ');
+      var s = _stripMd(blocks[b]).replace(/\\s+/g, ' ');
       if (!s) continue;
       var sh = s.length <= search.length ? s : search;
       var lo = s.length > search.length ? s : search;
@@ -663,10 +681,51 @@ $body
   }
 
   // ── In-place editing ──────────────────────────────────────────────────
+  function _buildEditPayload(rawMd, el) {
+    var lines = (rawMd || '').split('\n');
+    var mode = 'plain';
+    var prefixes = [];
+
+    var isQuote = lines.length > 0 && lines.every(function(l){ return l.trim() === '' || /^\\s*>/.test(l.trim()); });
+    if (isQuote) {
+      return {
+        mode: 'blockquote',
+        prefixes: lines.map(function(l){ var m = l.match(/^(\\s*(?:>\\s*)+)/); return m ? m[1] : ''; }),
+        displayText: lines.map(function(l){ return l.replace(/^(\\s*(?:>\\s*)+)/, ''); }).join('\n')
+      };
+    }
+
+    var listPrefix = /^((?:\\s*)(?:[-*+]\\s+(?:\[[ xX]\]\\s+)?|\d+\.\\s+))/;
+    var isList = lines.length > 0 && lines.every(function(l){ return l.trim() === '' || listPrefix.test(l); });
+    if (isList) {
+      return {
+        mode: 'list',
+        prefixes: lines.map(function(l){ var m = l.match(listPrefix); return m ? m[1] : ''; }),
+        displayText: lines.map(function(l){ return l.replace(listPrefix, ''); }).join('\n')
+      };
+    }
+
+    return { mode: mode, prefixes: prefixes, displayText: rawMd || (el ? (el.textContent || '') : '') };
+  }
+
+  function _rebuildMarkdownFromPayload(ie, editedText) {
+    if (!ie || !ie.editMeta) return editedText;
+    var meta = ie.editMeta;
+    if (meta.mode !== 'blockquote' && meta.mode !== 'list') return editedText;
+    var lines = editedText.split('\n');
+    return lines.map(function(line, idx){
+      var p = (meta.prefixes && idx < meta.prefixes.length) ? meta.prefixes[idx] :
+              (meta.prefixes && meta.prefixes.length ? meta.prefixes[meta.prefixes.length - 1] : '');
+      if (!p) return line;
+      return line.trim() ? (p + line) : '';
+    }).join('\n');
+  }
+
   var _ie = null;
   function _startEdit(el, key, rawMd) {
     if (_ie) _commitEdit(true);
-    var displayText = rawMd || el.textContent || '';
+    var editMeta = _buildEditPayload(rawMd, el);
+    var displayText = editMeta.displayText;
     var ta = document.createElement('textarea');
     ta.value = displayText;
     ta.setAttribute('spellcheck', 'false');
@@ -685,12 +744,19 @@ $body
     ta.style.whiteSpace = 'pre-wrap';
     ta.style.overflow = 'hidden';
 
-    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML };
+    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML, editMeta: editMeta, origListStyleType: el.style.listStyleType, origBorderLeft: el.style.borderLeft, origPaddingLeft: el.style.paddingLeft };
     el.innerHTML = '';
     el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
     el.style.borderRadius = '4px';
     el.style.background = 'rgba(74,144,217,0.08)';
+    if (editMeta.mode === 'blockquote') {
+      el.style.borderLeft = 'none';
+      el.style.paddingLeft = '0';
+    }
+    if (editMeta.mode === 'list') {
+      el.style.listStyleType = 'none';
+    }
 
     var _syncHeight = function() {
       ta.style.height = 'auto';
@@ -706,10 +772,14 @@ $body
     if (!_ie) return;
     var ie = _ie; _ie = null;
     var newText = ie.ta ? ie.ta.value : '';
+    var markdownText = _rebuildMarkdownFromPayload(ie, newText);
     ie.el.innerHTML = ie.origHtml;
     ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
-    if (send !== false && newText.trim()) {
-      window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
+    ie.el.style.listStyleType = ie.origListStyleType || '';
+    ie.el.style.borderLeft = ie.origBorderLeft || '';
+    ie.el.style.paddingLeft = ie.origPaddingLeft || '';
+    if (send !== false && markdownText.trim()) {
+      window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, markdownText);
     }
   }
   document.addEventListener('focusout', function(e) {
@@ -729,6 +799,9 @@ $body
       _ie.el.innerHTML = _ie.origHtml;
       var s = _ie; _ie = null;
       s.el.style.outline = s.el.style.borderRadius = s.el.style.background = '';
+      s.el.style.listStyleType = s.origListStyleType || '';
+      s.el.style.borderLeft = s.origBorderLeft || '';
+      s.el.style.paddingLeft = s.origPaddingLeft || '';
       e.preventDefault();
     } else if ((e.key === 'Enter' && (e.metaKey || e.ctrlKey)) || e.key === 'Tab') {
       e.preventDefault(); _commitEdit(true);
@@ -842,6 +915,7 @@ $body
     if (_ie) {
       if (_ie.el.contains(t)) return;
       _commitEdit(true);
+      return;
     }
 
     _handleEditTap(t);
