@@ -397,7 +397,7 @@ class FileActions {
                   await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => FullscreenPreviewPage(
-                        controller: tempController,
+                        controller: tempController!,
                         settings: settings,
                         fileName: path
                             .split(Platform.pathSeparator)
