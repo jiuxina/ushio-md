@@ -627,6 +627,11 @@ $body
   }, true);
   document.addEventListener('keydown', function(e) {
     if (!_ie) return;
+    if (_ie.ta && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && document.activeElement === _ie.ta) {
+      // Keep native textarea caret movement, but prevent Android WebView page-scroll animation.
+      e.stopPropagation();
+      return;
+    }
     if (e.key === 'Escape') {
       _ie.el.innerHTML = _ie.origHtml;
       var s = _ie; _ie = null;
@@ -634,6 +639,12 @@ $body
       e.preventDefault();
     } else if ((e.key === 'Enter' && (e.metaKey || e.ctrlKey)) || e.key === 'Tab') {
       e.preventDefault(); _commitEdit(true);
+    }
+  });
+  document.addEventListener('keyup', function(e) {
+    if (!_ie || !_ie.ta) return;
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && document.activeElement === _ie.ta) {
+      e.stopPropagation();
     }
   });
 
