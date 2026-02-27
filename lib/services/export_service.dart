@@ -387,7 +387,7 @@ class ExportService {
         .replaceAll(RegExp(r'\*([^*]+)\*'), r'$1')
         .replaceAll(RegExp(r'_([^_]+)_'), r'$1')
         .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
-        .replaceAll(RegExp(r'!\[[^\]]*\]\(([^\)]+)\)'), '[图片: \$1]')
+        .replaceAll(RegExp(r'!\[[^\]]*\]\(([^\)]+)\)'), '[图片: $1]')
         .replaceAll(RegExp(r'\[([^\]]+)\]\(([^\)]+)\)'), r'$1 ($2)')
         .trim();
   }

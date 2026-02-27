@@ -118,8 +118,9 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
         );
       }
 
-      // One-tap share flow from file list: close preview automatically.
-      if (widget.autoShareOnOpen) {
+      // One-tap share flow from file list: close preview automatically only
+      // when sharing actually succeeds, so users can retry on failure.
+      if (widget.autoShareOnOpen && success) {
         Navigator.of(context).maybePop();
       }
     }
