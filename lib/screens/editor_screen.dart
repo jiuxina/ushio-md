@@ -612,6 +612,7 @@ class _EditorScreenState extends State<EditorScreen>
           settings: settings,
           fileName: fileName,
           onCheckboxChanged: _toggleCheckbox,
+          filePath: widget.filePath,
         ),
       ),
     );
