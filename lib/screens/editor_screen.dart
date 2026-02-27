@@ -369,7 +369,6 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (_mode == EditorMode.edit) {
       // Scroll the text editor to the target line
-      setState(() => _highlightedLine = item.lineNumber);
       final lines = _textController.text.split('\n');
       int position = 0;
       for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
@@ -383,12 +382,7 @@ class _EditorScreenState extends State<EditorScreen>
             .clamp(0.0, maxScroll);
         _editScrollController.jumpTo(targetScroll);
       }
-      // Trigger Flutter-side highlight flash for edit mode
-      _highlightController.forward(from: 0.0).then((_) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) setState(() => _highlightedLine = null);
-        });
-      });
+      _flashLineHighlight(item.lineNumber);
     } else {
       // WebView preview/split mode — scroll via JavaScript.
       // The JS also handles the visual flash on the target heading.
@@ -400,6 +394,16 @@ class _EditorScreenState extends State<EditorScreen>
         );
       }
     }
+  }
+
+  void _flashLineHighlight(int lineNumber) {
+    if (!mounted || _mode != EditorMode.edit) return;
+    setState(() => _highlightedLine = lineNumber);
+    _highlightController.forward(from: 0.0).then((_) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() => _highlightedLine = null);
+      });
+    });
   }
 
   /// 自动保存
@@ -560,6 +564,14 @@ class _EditorScreenState extends State<EditorScreen>
                 baseOffset: position,
                 extentOffset: position + length,
               );
+
+              final lineNumber = (_textController.text
+                  .substring(0, position)
+                  .split('\n')
+                  .length
+                  .clamp(1, 1 << 20) - 1)
+                  .toInt();
+              _flashLineHighlight(lineNumber);
 
               if (_editScrollController.hasClients) {
                 final lines = _textController.text
