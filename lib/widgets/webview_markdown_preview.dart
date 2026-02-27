@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -80,6 +81,15 @@ class MarkdownWebViewController {
         }
       })();
     ''');
+  }
+
+  /// Capture a screenshot of the current WebView content.
+  Future<Uint8List?> captureScreenshot() async {
+    try {
+      return await _webViewController?.takeScreenshot();
+    } catch (_) {
+      return null;
+    }
   }
 }
 
