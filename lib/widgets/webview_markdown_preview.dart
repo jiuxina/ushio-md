@@ -705,7 +705,7 @@ $body
     ta.style.whiteSpace = 'pre-wrap';
     ta.style.overflow = 'hidden';
 
-    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML };
+    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML, origText: displayText };
     if (el.classList) el.classList.add('editing-plain');
     el.innerHTML = '';
     el.appendChild(ta);
@@ -730,7 +730,7 @@ $body
     ie.el.innerHTML = ie.origHtml;
     if (ie.el.classList) ie.el.classList.remove('editing-plain');
     ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
-    if (send !== false && newText.trim()) {
+    if (send !== false && newText !== (ie.origText || '')) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
     }
   }
