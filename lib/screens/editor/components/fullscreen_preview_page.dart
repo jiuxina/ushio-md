@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../utils/constants.dart';
@@ -88,7 +89,10 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     await frameCompleter.future;
     
     final fileName = widget.fileName.replaceAll('.md', '').replaceAll('.markdown', '');
-    final pngBytes = await _webViewController.captureFullPageScreenshot() ??
+    // Prefer an off-screen background WebView capture to avoid visible scrollbars
+    // and layout jank in the foreground preview while stitching long screenshots.
+    final pngBytes = await _captureInBackgroundWebView() ??
+        await _webViewController.captureFullPageScreenshot() ??
         await _webViewController.captureScreenshot();
     final success = pngBytes != null
         ? await ExportService.sharePngBytes(pngBytes, fileName)
@@ -118,6 +122,80 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
       if (widget.autoShareOnOpen) {
         Navigator.of(context).maybePop();
       }
+    }
+  }
+
+  Future<Uint8List?> _captureInBackgroundWebView() async {
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return null;
+
+    final bgController = MarkdownWebViewController();
+    final loadCompleter = Completer<void>();
+    OverlayEntry? entry;
+
+    try {
+      final screenSize = MediaQuery.of(context).size;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      Color bg;
+      Color fg;
+      if (isDark) {
+        final schemes = AppConstants.darkThemeSchemes;
+        final idx = widget.settings.darkThemeIndex.clamp(0, schemes.length - 1);
+        bg = schemes[idx].background;
+        fg = schemes[idx].text;
+      } else {
+        final schemes = AppConstants.lightThemeSchemes;
+        final idx = widget.settings.lightThemeIndex.clamp(0, schemes.length - 1);
+        bg = schemes[idx].background;
+        fg = schemes[idx].text;
+      }
+
+      // Use the same inner preview width (page width minus horizontal margins).
+      final captureWidth =
+          (screenSize.width - 32).clamp(320.0, screenSize.width).toDouble();
+
+      entry = OverlayEntry(
+        builder: (_) => Positioned(
+          left: -10000,
+          top: 0,
+          width: captureWidth,
+          height: screenSize.height,
+          child: Material(
+            color: bg,
+            child: WebViewMarkdownPreview(
+              data: widget.controller.text,
+              isDark: isDark,
+              fontSize: widget.settings.fontSize,
+              fontFamily: widget.settings.editorFontFamily == 'System'
+                  ? null
+                  : widget.settings.editorFontFamily,
+              bgColor: bg,
+              fgColor: fg,
+              codeFont: widget.settings.codeFontFamily == 'System'
+                  ? null
+                  : widget.settings.codeFontFamily,
+              onCheckboxChanged: (_, __) {},
+              onLoadFinished: () {
+                if (!loadCompleter.isCompleted) loadCompleter.complete();
+              },
+              controller: bgController,
+              baseDirectory:
+                  widget.filePath != null ? File(widget.filePath!).parent.path : null,
+            ),
+          ),
+        ),
+      );
+
+      overlay.insert(entry);
+      await loadCompleter.future.timeout(const Duration(seconds: 8), onTimeout: () {});
+      await Future.delayed(const Duration(milliseconds: 120));
+
+      return await bgController.captureFullPageScreenshot() ??
+          await bgController.captureScreenshot();
+    } catch (_) {
+      return null;
+    } finally {
+      entry?.remove();
     }
   }
 
