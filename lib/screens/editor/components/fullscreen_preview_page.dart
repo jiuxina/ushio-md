@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../utils/constants.dart';
-import '../../../../widgets/markdown_preview.dart';
 import '../../../../widgets/webview_markdown_preview.dart';
 import '../../../../services/export_service.dart';
 
@@ -13,6 +13,7 @@ class FullscreenPreviewPage extends StatefulWidget {
   final String fileName;
   final Function(int, bool) onCheckboxChanged;
   final String? filePath;
+  final bool autoShareOnOpen;
 
   const FullscreenPreviewPage({
     super.key,
@@ -21,6 +22,7 @@ class FullscreenPreviewPage extends StatefulWidget {
     required this.fileName,
     required this.onCheckboxChanged,
     this.filePath,
+    this.autoShareOnOpen = false,
   });
 
   @override
@@ -29,12 +31,15 @@ class FullscreenPreviewPage extends StatefulWidget {
 
 class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
   bool _isExporting = false;
+  bool _autoSharePending = false;
+  final _webViewController = MarkdownWebViewController();
   
   @override
   void initState() {
     super.initState();
     // 监听文本变化以刷新界面
     widget.controller.addListener(_onTextChanged);
+    _autoSharePending = widget.autoShareOnOpen;
   }
 
   @override
@@ -46,11 +51,17 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
   void _onTextChanged() {
     setState(() {});
   }
+
+  void _onPreviewLoaded() {
+    if (!_autoSharePending || _isExporting || !mounted) return;
+    _autoSharePending = false;
+    // Wait one extra frame to ensure WebView content is fully painted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _shareAsImage();
+    });
+  }
   
-  /// Share the full document content as a long image.
-  ///
-  /// Renders the entire markdown content off-screen using an [OverlayEntry] so
-  /// the image is not clipped to the current viewport height.
+  /// Share the current WebView preview as image (WYSIWYG).
   Future<void> _shareAsImage() async {
     if (_isExporting) return;
     
@@ -71,46 +82,6 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
       ),
     );
     
-    final screenWidth = MediaQuery.of(context).size.width;
-    final captureKey = GlobalKey();
-    final baseDir = widget.filePath != null ? File(widget.filePath!).parent.path : null;
-    // Snapshot settings to avoid using context inside the overlay builder
-    final settings = widget.settings;
-    final markdownData = widget.controller.text;
-    final surface = Theme.of(context).colorScheme.surface;
-
-    // Insert a full-height (unconstrained) markdown render into the overlay.
-    // Positioned off-screen to the left so it is rendered but not visible.
-    late OverlayEntry overlayEntry;
-    overlayEntry = OverlayEntry(
-      builder: (ctx) => Positioned(
-        left: -screenWidth,
-        top: 0,
-        width: screenWidth,
-        child: Material(
-          color: surface,
-          child: RepaintBoundary(
-            key: captureKey,
-            child: Container(
-              color: surface,
-              padding: const EdgeInsets.all(16),
-              child: MarkdownPreview(
-                data: markdownData,
-                settings: settings,
-                shrinkWrap: true,
-                onCheckboxChanged: (_, __) {},
-                baseDirectory: baseDir,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    
-    Overlay.of(context).insert(overlayEntry);
-    
-    // Wait for the overlay widget to be fully laid out and painted.
-    // Use addPostFrameCallback with a Completer to reliably wait for the next frame.
     final frameCompleter = Completer<void>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!frameCompleter.isCompleted) frameCompleter.complete();
@@ -118,9 +89,14 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     await frameCompleter.future;
     
     final fileName = widget.fileName.replaceAll('.md', '').replaceAll('.markdown', '');
-    final success = await ExportService.captureAndShareAsImage(captureKey, fileName);
-    
-    overlayEntry.remove();
+    // Prefer an off-screen background WebView capture to avoid visible scrollbars
+    // and layout jank in the foreground preview while stitching long screenshots.
+    final pngBytes = await _captureInBackgroundWebView() ??
+        await _webViewController.captureFullPageScreenshot() ??
+        await _webViewController.captureScreenshot();
+    final success = pngBytes != null
+        ? await ExportService.sharePngBytes(pngBytes, fileName)
+        : false;
     
     if (mounted) {
       setState(() => _isExporting = false);
@@ -141,6 +117,87 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
           ),
         );
       }
+
+      // One-tap share flow from file list: close preview automatically only
+      // when sharing actually succeeds, so users can retry on failure.
+      if (widget.autoShareOnOpen && success) {
+        Navigator.of(context).maybePop();
+      }
+    }
+  }
+
+  Future<Uint8List?> _captureInBackgroundWebView() async {
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return null;
+
+    final bgController = MarkdownWebViewController();
+    final loadCompleter = Completer<void>();
+    OverlayEntry? entry;
+
+    try {
+      final screenSize = MediaQuery.of(context).size;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      Color bg;
+      Color fg;
+      if (isDark) {
+        final schemes = AppConstants.darkThemeSchemes;
+        final idx = widget.settings.darkThemeIndex.clamp(0, schemes.length - 1);
+        bg = schemes[idx].background;
+        fg = schemes[idx].text;
+      } else {
+        final schemes = AppConstants.lightThemeSchemes;
+        final idx = widget.settings.lightThemeIndex.clamp(0, schemes.length - 1);
+        bg = schemes[idx].background;
+        fg = schemes[idx].text;
+      }
+
+      // Use the same inner preview width (page width minus horizontal margins).
+      final captureWidth =
+          (screenSize.width - 32).clamp(320.0, screenSize.width).toDouble();
+
+      entry = OverlayEntry(
+        builder: (_) => Positioned(
+          left: -10000,
+          top: 0,
+          width: captureWidth,
+          height: screenSize.height,
+          child: Material(
+            color: bg,
+            child: WebViewMarkdownPreview(
+              data: widget.controller.text,
+              isDark: isDark,
+              fontSize: widget.settings.fontSize,
+              fontFamily: widget.settings.editorFontFamily == 'System'
+                  ? null
+                  : widget.settings.editorFontFamily,
+              bgColor: bg,
+              fgColor: fg,
+              codeFont: widget.settings.codeFontFamily == 'System'
+                  ? null
+                  : widget.settings.codeFontFamily,
+              onCheckboxChanged: (_, __) {},
+              hidePageScrollbar: true,
+              onLoadFinished: () {
+                if (!loadCompleter.isCompleted) loadCompleter.complete();
+              },
+              controller: bgController,
+              baseDirectory:
+                  widget.filePath != null ? File(widget.filePath!).parent.path : null,
+            ),
+          ),
+        ),
+      );
+
+      overlay.insert(entry);
+      await loadCompleter.future.timeout(const Duration(seconds: 8), onTimeout: () {});
+      await Future.delayed(const Duration(milliseconds: 120));
+
+      return await bgController.captureFullPageScreenshot() ??
+          await bgController.captureScreenshot();
+    } catch (_) {
+      return null;
+    } finally {
+      entry?.remove();
     }
   }
 
@@ -253,6 +310,9 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
                   ? null
                   : widget.settings.codeFontFamily,
               onCheckboxChanged: widget.onCheckboxChanged,
+              hidePageScrollbar: true,
+              onLoadFinished: _onPreviewLoaded,
+              controller: _webViewController,
               baseDirectory:
                   widget.filePath != null ? File(widget.filePath!).parent.path : null,
             );
@@ -262,4 +322,3 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     );
   }
 }
-

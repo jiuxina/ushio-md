@@ -9,6 +9,7 @@ import '../screens/editor_screen.dart';
 import '../screens/folder_browser_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/file_action_extension.dart';
+import '../screens/editor/components/fullscreen_preview_page.dart';
 
 enum FileSource {
   myFiles,
@@ -61,6 +62,8 @@ class FileActions {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 6),
+            _buildPathPreview(context, path),
             const SizedBox(height: 20),
             
             // 1. Share (With submenu for file share options)
@@ -196,6 +199,8 @@ class FileActions {
                   ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 6),
+            _buildPathPreview(context, path),
             const SizedBox(height: 20),
             
             // 1. Share folder as ZIP
@@ -340,12 +345,33 @@ class FileActions {
       ),
     );
   }
+
+  static Widget _buildPathPreview(BuildContext context, String path) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        path,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+              height: 1.35,
+            ),
+        textAlign: TextAlign.center,
+        softWrap: true,
+      ),
+    );
+  }
   
   /// 构建文件分享子菜单
   /// 
   /// 提供三种分享选项：
   /// - 以文件分享：直接分享 .md 文件
-  /// - 以图片分享：渲染 Markdown 为图片后分享（待实现）
+  /// - 以图片分享：使用 WebView 预览所见即所得截图后分享
   /// - 以 PDF 分享：转换为 PDF 后分享（待实现）
   static Widget _buildShareSubmenu(BuildContext context, String path, ShareService shareService) {
     return Container(
@@ -383,26 +409,42 @@ class FileActions {
               context,
               icon: Icons.image,
               label: '以图片分享',
-              subtitle: '请在编辑器全屏预览中使用',
-              isDisabled: true,
-              onTap: () {
+              subtitle: '按预览 WebView 所见即所得分享',
+              onTap: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.white),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text('请打开文件后，在全屏预览模式中使用分享按钮导出图片'),
-                        ),
-                      ],
+                TextEditingController? tempController;
+                try {
+                  final file = File(path);
+                  final content = await file.readAsString();
+                  if (!context.mounted) return;
+                  final settings = context.read<SettingsProvider>();
+                  tempController = TextEditingController(text: content);
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => FullscreenPreviewPage(
+                        controller: tempController!,
+                        settings: settings,
+                        fileName: path
+                            .split(Platform.pathSeparator)
+                            .last,
+                        onCheckboxChanged: (_, __) {},
+                        filePath: path,
+                        autoShareOnOpen: true,
+                      ),
                     ),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    duration: const Duration(seconds: 4),
-                  ),
-                );
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('图片分享失败: $e'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                } finally {
+                  tempController?.dispose();
+                }
               },
             ),
             const SizedBox(height: 8),
