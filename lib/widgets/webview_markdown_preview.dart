@@ -664,8 +664,9 @@ $body
 
   // ── In-place editing ──────────────────────────────────────────────────
   var _ie = null;
-  function _startEdit(el, key, rawMd) {
+  function _startEdit(el, key, rawMd, opts) {
     if (_ie) _commitEdit(true);
+    opts = opts || {};
     var displayText = rawMd || el.textContent || '';
     var ta = document.createElement('textarea');
     ta.value = displayText;
@@ -685,12 +686,24 @@ $body
     ta.style.whiteSpace = 'pre-wrap';
     ta.style.overflow = 'hidden';
 
-    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML };
+    _ie = {
+      el: el,
+      ta: ta,
+      key: key,
+      origHtml: el.innerHTML,
+      prefix: opts.prefix || '',
+      suffix: opts.suffix || '',
+      originalText: rawMd || ''
+    };
     el.innerHTML = '';
     el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
     el.style.borderRadius = '4px';
     el.style.background = 'rgba(74,144,217,0.08)';
+    if ((el.tagName || '').toUpperCase() === 'BLOCKQUOTE') {
+      el.style.borderLeft = 'none';
+      el.style.paddingLeft = '0';
+    }
 
     var _syncHeight = function() {
       ta.style.height = 'auto';
@@ -706,9 +719,13 @@ $body
     if (!_ie) return;
     var ie = _ie; _ie = null;
     var newText = ie.ta ? ie.ta.value : '';
+    if (ie.prefix || ie.suffix) {
+      newText = newText.length ? (ie.prefix + newText + ie.suffix) : '';
+    }
     ie.el.innerHTML = ie.origHtml;
     ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
-    if (send !== false && newText.trim()) {
+    ie.el.style.borderLeft = ie.el.style.paddingLeft = '';
+    if (send !== false) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
     }
   }
@@ -793,6 +810,11 @@ $body
     var blockMatch = _findBlockMatch(innerText);
     var blockMd = blockMatch.md;
     var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd))) + ':' + blockMatch.index;
+    var listMatch = blockMd.match(/^(\s*(?:[-+*]|\d+\.)\s+(?:\[[ xX]\]\s*)?)(.*)$/);
+    if ((el.tagName||'').toUpperCase() === 'LI' && listMatch) {
+      _startEdit(el, blockKey, listMatch[2], { prefix: listMatch[1] });
+      return;
+    }
     _startEdit(el, blockKey, blockMd);
   }
 
@@ -842,6 +864,7 @@ $body
     if (_ie) {
       if (_ie.el.contains(t)) return;
       _commitEdit(true);
+      return;
     }
 
     _handleEditTap(t);

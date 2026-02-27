@@ -612,6 +612,7 @@ class _EditorScreenState extends State<EditorScreen>
           settings: settings,
           fileName: fileName,
           onCheckboxChanged: _toggleCheckbox,
+          filePath: widget.filePath,
         ),
       ),
     );
@@ -893,7 +894,13 @@ class _EditorScreenState extends State<EditorScreen>
     if (blockIndex >= blocks.length) return;
     final block = blocks[blockIndex];
     final lines = _textController.text.split('\n');
-    final editedLines = _inlineEditController.text.split('\n');
+
+    // If a single-line block is cleared in preview inline-edit, remove that line.
+    final clearedSingleLine =
+        _inlineEditController.text.isEmpty && block.startLine == block.endLine;
+    final editedLines = clearedSingleLine
+        ? <String>[]
+        : _inlineEditController.text.split('\n');
     final newLines = <String>[
       ...lines.sublist(0, block.startLine),
       ...editedLines,
