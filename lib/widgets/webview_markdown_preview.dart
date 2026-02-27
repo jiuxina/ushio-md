@@ -800,8 +800,19 @@ $body
       var qText = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
       var qMatch = _findBlockMatch(qText);
       var qMd = qMatch.md;
-      var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(qMd))) + ':' + qMatch.index;
-      _startEdit(outerBq, qKey, qMd);
+      var startQuoteEdit = function(md) {
+        var finalMd = (md && ('' + md).length) ? ('' + md) : qMd;
+        var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(finalMd))) + ':' + qMatch.index;
+        _startEdit(outerBq, qKey, finalMd);
+      };
+      try {
+        window.flutter_inappwebview
+          .callHandler('getMarkdown', 'block', 0, 0, 0, qText)
+          .then(function(md) { startQuoteEdit(md); })
+          .catch(function() { startQuoteEdit(qMd); });
+      } catch (_) {
+        startQuoteEdit(qMd);
+      }
       return;
     }
 
