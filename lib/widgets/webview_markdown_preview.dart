@@ -565,31 +565,55 @@ $body
 
   // ── In-place editing ──────────────────────────────────────────────────
   var _ie = null;
+  function _autoGrowTextarea(ta) {
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(28, ta.scrollHeight) + 'px';
+  }
   function _startEdit(el, key, rawMd) {
     if (_ie) _commitEdit(true);
-    var displayText = rawMd || el.textContent;
+    var displayText = rawMd || el.textContent || '';
     var prefix = '';
     if ((el.tagName || '').toUpperCase() === 'LI') {
       var pm = displayText.match(/^(\\s*(?:\\d+\\.|-|\\*|\\+)\\s*)/);
       if (pm) { prefix = pm[1]; displayText = displayText.slice(pm[0].length); }
     }
-    _ie = { el: el, key: key, origHtml: el.innerHTML, prefix: prefix };
-    el.textContent = displayText;
-    el.setAttribute('contenteditable', 'true');
+
+    var ta = document.createElement('textarea');
+    ta.value = displayText;
+    ta.setAttribute('spellcheck', 'false');
+    ta.style.width = '100%';
+    ta.style.minHeight = '28px';
+    ta.style.boxSizing = 'border-box';
+    ta.style.border = 'none';
+    ta.style.outline = 'none';
+    ta.style.padding = '0';
+    ta.style.margin = '0';
+    ta.style.resize = 'none';
+    ta.style.overflow = 'hidden';
+    ta.style.background = 'transparent';
+    ta.style.color = 'inherit';
+    ta.style.font = 'inherit';
+    ta.style.lineHeight = 'inherit';
+    ta.style.whiteSpace = 'pre-wrap';
+
+    _ie = { el: el, key: key, origHtml: el.innerHTML, prefix: prefix, textarea: ta };
+    el.innerHTML = '';
+    el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
     el.style.borderRadius = '4px';
     el.style.fontFamily = 'monospace,sans-serif';
     el.style.background = 'rgba(74,144,217,0.08)';
     el.style.whiteSpace = 'pre-wrap';
-    el.focus();
-    var r = document.createRange(), s = window.getSelection();
-    r.selectNodeContents(el); r.collapse(false);
-    s.removeAllRanges(); s.addRange(r);
+    _autoGrowTextarea(ta);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
   }
   function _commitEdit(send) {
     if (!_ie) return;
     var ie = _ie; _ie = null;
-    var newText = (ie.prefix || '') + ie.el.textContent;
+    var edited = ie.textarea ? ie.textarea.value : ie.el.textContent;
+    var newText = (ie.prefix || '') + (edited || '');
     ie.el.innerHTML = ie.origHtml;
     ie.el.setAttribute('contenteditable', 'false');
     ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.fontFamily =
@@ -599,11 +623,18 @@ $body
     }
   }
   document.addEventListener('focusout', function(e) {
-    if (_ie && e.target === _ie.el) setTimeout(_commitEdit, 50);
+    if (_ie && _ie.textarea && e.target === _ie.textarea) {
+      setTimeout(function() {
+        if (_ie && document.activeElement !== _ie.textarea) _commitEdit(true);
+      }, 50);
+    }
   }, true);
   document.addEventListener('keydown', function(e) {
     if (!_ie) return;
-    var isMl = ['PRE','BLOCKQUOTE'].indexOf((_ie.el.tagName||'').toUpperCase()) !== -1;
+    var ta = _ie.textarea;
+    if (ta && document.activeElement === ta && ['ArrowUp', 'ArrowDown'].indexOf(e.key) !== -1) {
+      setTimeout(function() { _autoGrowTextarea(ta); }, 0);
+    }
     if (e.key === 'Escape') {
       _ie.el.innerHTML = _ie.origHtml;
       var s = _ie; _ie = null;
@@ -611,10 +642,11 @@ $body
       s.el.style.outline = s.el.style.borderRadius = s.el.style.fontFamily =
         s.el.style.background = s.el.style.whiteSpace = '';
       e.preventDefault();
-    } else if (e.key === 'Enter' && !isMl && !e.shiftKey) {
-      e.preventDefault(); _commitEdit(true);
     }
   });
+  document.addEventListener('input', function(e) {
+    if (_ie && _ie.textarea && e.target === _ie.textarea) _autoGrowTextarea(_ie.textarea);
+  }, true);
 
   // ── Double-tap handler ────────────────────────────────────────────────
   function _handleDoubleTap(target) {
@@ -676,12 +708,7 @@ $body
     }
   });
 
-  // ── Unified click handler (links + checkboxes + double-tap counter) ───
-  // touch-action:manipulation on body disables native double-tap zoom but
-  // also suppresses the synthetic dblclick on Android WebView. However,
-  // both click events for a double-tap are always delivered, so counting
-  // 2 click events within 350 ms is a reliable cross-platform approach.
-  var _dblTap = { count: 0, target: null, timer: null };
+  // ── Unified click handler (links + checkboxes + single-click edit) ─────
   document.addEventListener('click', function(e) {
     var t = e.target;
     // Link: walk up to A ancestor
@@ -698,24 +725,8 @@ $body
       window.flutter_inappwebview.callHandler('onCheckboxChange', Array.from(boxes).indexOf(t), t.checked);
       return;
     }
-    // Double-tap counter
     if (_ie) return;
-    _dblTap.count++; _dblTap.target = t;
-    if (_dblTap.timer) clearTimeout(_dblTap.timer);
-    if (_dblTap.count >= 2) {
-      _dblTap.count = 0;
-      _handleDoubleTap(_dblTap.target);
-    } else {
-      _dblTap.timer = setTimeout(function() { _dblTap.count = 0; }, 350);
-    }
-  });
-  // Desktop fast-path: native dblclick (returns early if click-counter already started editing)
-  document.addEventListener('dblclick', function(e) {
-    if (_ie) return;
-    if (_dblTap.timer) { clearTimeout(_dblTap.timer); _dblTap.timer = null; }
-    _dblTap.count = 0;
-    e.preventDefault();
-    _handleDoubleTap(e.target);
+    _handleDoubleTap(t);
   });
 })();
 </script>
