@@ -618,18 +618,26 @@ $body
   }
 
   // ── Get raw markdown matching the rendered innerText of a block ────────
-  function _getBlockMd(innerText) {
-    var search = innerText.trim().toLowerCase().replace(/\\s+/g, ' ').slice(0, 100);
-    if (!search) return innerText;
-    var blocks = _parseRawBlocks(), best = '', score = 0;
+  function _findBlockMatch(innerText) {
+    var search = innerText.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 100);
+    if (!search) return { md: innerText, index: -1 };
+    var blocks = _parseRawBlocks(), best = '', score = 0, bestIndex = -1;
     for (var b = 0; b < blocks.length; b++) {
-      var s = _stripMd(blocks[b]).replace(/\\s+/g, ' ');
+      var s = _stripMd(blocks[b]).replace(/\s+/g, ' ');
       if (!s) continue;
       var sh = s.length <= search.length ? s : search;
       var lo = s.length > search.length ? s : search;
-      if (lo.indexOf(sh) !== -1 && sh.length > score) { score = sh.length; best = blocks[b]; }
+      if (lo.indexOf(sh) !== -1 && sh.length > score) {
+        score = sh.length;
+        best = blocks[b];
+        bestIndex = b;
+      }
     }
-    return best || innerText;
+    return { md: (best || innerText), index: bestIndex };
+  }
+
+  function _getBlockMd(innerText) {
+    return _findBlockMatch(innerText).md;
   }
 
   // ── Get raw markdown for a specific table cell ────────────────────────
@@ -767,8 +775,9 @@ $body
     }
     if (outerBq) {
       var qText = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
-      var qMd = _getBlockMd(qText);
-      var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(qMd)));
+      var qMatch = _findBlockMatch(qText);
+      var qMd = qMatch.md;
+      var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(qMd))) + ':' + qMatch.index;
       _startEdit(outerBq, qKey, qMd);
       return;
     }
@@ -781,8 +790,9 @@ $body
     }
     if (!el || el === document.body) return;
     var innerText = (el.dataset && el.dataset.mdSrc) || (el.innerText||el.textContent||'').trim();
-    var blockMd = _getBlockMd(innerText);
-    var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd)));
+    var blockMatch = _findBlockMatch(innerText);
+    var blockMd = blockMatch.md;
+    var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd))) + ':' + blockMatch.index;
     _startEdit(el, blockKey, blockMd);
   }
 
