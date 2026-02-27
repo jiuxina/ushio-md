@@ -591,7 +591,7 @@ $body
 
   // ── Parse raw markdown into logical blocks (mirrors Dart _parseBlocks) ─
   function _parseRawBlocks() {
-    var lines = __rawMd.split('\n'), blocks = [], i = 0;
+    var lines = __rawMd.split('\\n'), blocks = [], i = 0;
     while (i < lines.length) {
       var t = lines[i].trim();
       if (/^\\s*```/.test(t) || /^\\s*~~~/.test(t)) {
@@ -599,22 +599,22 @@ $body
         var end = i + 1;
         while (end < lines.length && lines[end].trim().indexOf(fence) === -1) end++;
         if (end < lines.length) end++;
-        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
       }
       if (/^\\s*\|/.test(lines[i]) && i + 1 < lines.length && /^\\s*\|/.test(lines[i + 1])) {
         var end = i;
         while (end < lines.length && /^\\s*\|/.test(lines[end])) end++;
-        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
       }
       if (/^\\s*>/.test(t)) {
         var end = i;
         while (end < lines.length && /^\\s*>/.test(lines[end].trim())) end++;
-        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
       }
       if (/^\\s*(?:[-*+]\\s+(?:\[[ xX]\]\\s+)?|\d+\.\\s+)/.test(t)) {
         var end = i;
         while (end < lines.length && /^\\s*(?:[-*+]\\s+(?:\[[ xX]\]\\s+)?|\d+\.\\s+)/.test(lines[end].trim())) end++;
-        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
       }
       if (t) {
         var end = i;
@@ -628,7 +628,7 @@ $body
           }
           end++;
         }
-        blocks.push(lines.slice(i, end).join('\n')); i = end; continue;
+        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
       }
       i++;
     }
@@ -682,7 +682,7 @@ $body
 
   // ── In-place editing ──────────────────────────────────────────────────
   function _buildEditPayload(rawMd, el) {
-    var lines = (rawMd || '').split('\n');
+    var lines = (rawMd || '').split('\\n');
     var mode = 'plain';
     var prefixes = [];
 
@@ -691,7 +691,7 @@ $body
       return {
         mode: 'blockquote',
         prefixes: lines.map(function(l){ var m = l.match(/^(\\s*(?:>\\s*)+)/); return m ? m[1] : ''; }),
-        displayText: lines.map(function(l){ return l.replace(/^(\\s*(?:>\\s*)+)/, ''); }).join('\n')
+        displayText: lines.map(function(l){ return l.replace(/^(\\s*(?:>\\s*)+)/, ''); }).join('\\n')
       };
     }
 
@@ -701,7 +701,7 @@ $body
       return {
         mode: 'list',
         prefixes: lines.map(function(l){ var m = l.match(listPrefix); return m ? m[1] : ''; }),
-        displayText: lines.map(function(l){ return l.replace(listPrefix, ''); }).join('\n')
+        displayText: lines.map(function(l){ return l.replace(listPrefix, ''); }).join('\\n')
       };
     }
 
@@ -712,13 +712,13 @@ $body
     if (!ie || !ie.editMeta) return editedText;
     var meta = ie.editMeta;
     if (meta.mode !== 'blockquote' && meta.mode !== 'list') return editedText;
-    var lines = editedText.split('\n');
+    var lines = editedText.split('\\n');
     return lines.map(function(line, idx){
       var p = (meta.prefixes && idx < meta.prefixes.length) ? meta.prefixes[idx] :
               (meta.prefixes && meta.prefixes.length ? meta.prefixes[meta.prefixes.length - 1] : '');
       if (!p) return line;
       return line.trim() ? (p + line) : '';
-    }).join('\n');
+    }).join('\\n');
   }
 
   var _ie = null;
