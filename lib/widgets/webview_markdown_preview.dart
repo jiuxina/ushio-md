@@ -568,12 +568,6 @@ $body
   function _startEdit(el, key, rawMd) {
     if (_ie) _commitEdit(true);
     var displayText = rawMd || el.textContent || '';
-    var prefix = '';
-    if ((el.tagName || '').toUpperCase() === 'LI') {
-      var pm = displayText.match(/^(\\s*(?:\\d+\\.|-|\\*|\\+)\\s*)/);
-      if (pm) { prefix = pm[1]; displayText = displayText.slice(pm[0].length); }
-    }
-
     var ta = document.createElement('textarea');
     ta.value = displayText;
     ta.setAttribute('spellcheck', 'false');
@@ -592,7 +586,7 @@ $body
     ta.style.whiteSpace = 'pre-wrap';
     ta.style.overflow = 'hidden';
 
-    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML, prefix: prefix };
+    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML };
     el.innerHTML = '';
     el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
@@ -612,7 +606,7 @@ $body
   function _commitEdit(send) {
     if (!_ie) return;
     var ie = _ie; _ie = null;
-    var newText = (ie.prefix || '') + (ie.ta ? ie.ta.value : '');
+    var newText = ie.ta ? ie.ta.value : '';
     ie.el.innerHTML = ie.origHtml;
     ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
     if (send !== false && newText.trim()) {
@@ -673,8 +667,21 @@ $body
       }
       node = node.parentElement || node.parentNode;
     }
-    // Block element?
-    var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE'];
+    // Blockquote: edit the whole quote block (outermost ancestor) no matter where user taps inside.
+    var qNode = target;
+    var outerBq = null;
+    while (qNode && qNode !== document.body) {
+      if ((qNode.tagName || '').toUpperCase() === 'BLOCKQUOTE') outerBq = qNode;
+      qNode = qNode.parentElement || qNode.parentNode;
+    }
+    if (outerBq) {
+      var qText = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
+      _startEdit(outerBq, 'block:'+qText.slice(0,80), _getBlockMd(qText));
+      return;
+    }
+
+    // Other block elements
+    var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','PRE'];
     var el = target;
     while (el && el !== document.body && blockTags.indexOf((el.tagName||'').toUpperCase()) === -1) {
       el = el.parentElement || el.parentNode;
