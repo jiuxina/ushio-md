@@ -37,6 +37,14 @@ class _MarkdownBlock {
   });
 }
 
+
+class _EditHistoryEntry {
+  final String text;
+  final TextSelection selection;
+
+  const _EditHistoryEntry({required this.text, required this.selection});
+}
+
 class EditorScreen extends StatefulWidget {
   final String filePath;
 
@@ -49,6 +57,11 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen>
     with TickerProviderStateMixin {
   bool _isAutoCompleting = false;
+  static const int _maxEditHistory = 100;
+  final List<_EditHistoryEntry> _editHistory = <_EditHistoryEntry>[];
+  int _historyIndex = -1;
+  bool _isApplyingHistory = false;
+
   late TextEditingController _textController;
   late ScrollController _editScrollController;
   late UndoHistoryController _undoController;
@@ -123,6 +136,11 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _textController.text = content;
       _textController.addListener(_onTextChanged);
+      _recordHistorySnapshot(
+        text: content,
+        selection: const TextSelection.collapsed(offset: 0),
+        reset: true,
+      );
       _updateToc();
 
       final settings = context.read<SettingsProvider>();
@@ -147,6 +165,10 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _tocDebounceTimer?.cancel();
     _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
+
+    if (!_isApplyingHistory) {
+      _recordHistorySnapshot();
+    }
 
     // 自动补全处理
     if (!_isAutoCompleting) {
@@ -191,6 +213,78 @@ class _EditorScreenState extends State<EditorScreen>
         }
       }
     }
+  }
+
+  void _recordHistorySnapshot({
+    String? text,
+    TextSelection? selection,
+    bool reset = false,
+  }) {
+    final t = text ?? _textController.text;
+    final s = selection ?? _textController.selection;
+    final safe = _safeSelection(s, t.length);
+
+    if (reset) {
+      _editHistory
+        ..clear()
+        ..add(_EditHistoryEntry(text: t, selection: safe));
+      _historyIndex = 0;
+      return;
+    }
+
+    if (_historyIndex >= 0 && _historyIndex < _editHistory.length) {
+      final cur = _editHistory[_historyIndex];
+      if (cur.text == t) return;
+    }
+
+    if (_historyIndex < _editHistory.length - 1) {
+      _editHistory.removeRange(_historyIndex + 1, _editHistory.length);
+    }
+
+    _editHistory.add(_EditHistoryEntry(text: t, selection: safe));
+    if (_editHistory.length > _maxEditHistory) {
+      final overflow = _editHistory.length - _maxEditHistory;
+      _editHistory.removeRange(0, overflow);
+      _historyIndex = (_historyIndex - overflow).clamp(0, _editHistory.length - 1);
+    }
+    _historyIndex = _editHistory.length - 1;
+    if (mounted) setState(() {});
+  }
+
+  TextSelection _safeSelection(TextSelection sel, int textLength) {
+    final base = sel.baseOffset.clamp(0, textLength).toInt();
+    final extent = sel.extentOffset.clamp(0, textLength).toInt();
+    return TextSelection(baseOffset: base, extentOffset: extent);
+  }
+
+  void _applyMainTextWithSelection(String newText, TextSelection selection) {
+    _isApplyingHistory = true;
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: _safeSelection(selection, newText.length),
+    );
+    _isApplyingHistory = false;
+    _recordHistorySnapshot(text: newText, selection: selection);
+  }
+
+  void _undoEditHistory() {
+    if (_historyIndex <= 0) return;
+    _historyIndex--;
+    final entry = _editHistory[_historyIndex];
+    _isApplyingHistory = true;
+    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _isApplyingHistory = false;
+    setState(() {});
+  }
+
+  void _redoEditHistory() {
+    if (_historyIndex < 0 || _historyIndex >= _editHistory.length - 1) return;
+    _historyIndex++;
+    final entry = _editHistory[_historyIndex];
+    _isApplyingHistory = true;
+    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _isApplyingHistory = false;
+    setState(() {});
   }
 
   /// 更新目录结构
@@ -745,10 +839,17 @@ class _EditorScreenState extends State<EditorScreen>
     }
     final newText = allLines.join('\n');
     if (newText != _textController.text) {
-      setState(() {
-        _textController.text = newText;
-        _isModified = true;
-      });
+      final rowLine = (tableBlock.startLine + rowIdx).clamp(0, allLines.length - 1);
+      final lineStart = allLines
+          .take(rowLine)
+          .fold<int>(0, (sum, line) => sum + line.length + 1);
+      final caret = TextSelection.collapsed(
+        offset: (lineStart + _inlineEditController.text.length)
+            .clamp(0, newText.length)
+            .toInt(),
+      );
+      _applyMainTextWithSelection(newText, caret);
+      setState(() => _isModified = true);
     }
   }
 
@@ -765,10 +866,17 @@ class _EditorScreenState extends State<EditorScreen>
     ];
     final newText = newLines.join('\n');
     if (newText != _textController.text) {
-      setState(() {
-        _textController.text = newText;
-        _isModified = true;
-      });
+      final caretOffset = newLines
+          .take(block.startLine + editedLines.length)
+          .join('\n')
+          .length
+          .clamp(0, newText.length)
+          .toInt();
+      _applyMainTextWithSelection(
+        newText,
+        TextSelection.collapsed(offset: caretOffset),
+      );
+      setState(() => _isModified = true);
     }
   }
 
@@ -883,7 +991,16 @@ class _EditorScreenState extends State<EditorScreen>
 
       final newText = newLines.join('\n');
       if (newText != _textController.text) {
-        _textController.text = newText;
+        final caretOffset = newLines
+            .take(block.startLine + editedLines.length)
+            .join('\n')
+            .length
+            .clamp(0, newText.length)
+            .toInt();
+        _applyMainTextWithSelection(
+          newText,
+          TextSelection.collapsed(offset: caretOffset),
+        );
         // _isModified will be set by _onTextChanged listener
       }
     }
@@ -1041,6 +1158,14 @@ class _EditorScreenState extends State<EditorScreen>
                             undoController: _editingBlockIndex != null
                                 ? null
                                 : _undoController,
+                            canUndo: _editingBlockIndex != null
+                                ? _historyIndex > 0
+                                : null,
+                            canRedo: _editingBlockIndex != null
+                                ? (_historyIndex >= 0 && _historyIndex < _editHistory.length - 1)
+                                : null,
+                            onUndo: _editingBlockIndex != null ? _undoEditHistory : null,
+                            onRedo: _editingBlockIndex != null ? _redoEditHistory : null,
                             filePath: widget.filePath,
                             onSearchPressed: _showSearchDialog,
                           ),
