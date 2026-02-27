@@ -801,7 +801,16 @@ $body
       var qMatch = _findBlockMatch(qText);
       var qMd = qMatch.md;
       var startQuoteEdit = function(md) {
-        var finalMd = (md && ('' + md).length) ? ('' + md) : qMd;
+        var fromHandler = (md && ('' + md).length) ? ('' + md) : '';
+        var localQuoteMd = (qMd && ('' + qMd).length) ? ('' + qMd) : '';
+        var hasQuoteMarker = function(text) { return /^\s*>/m.test(text || ''); };
+
+        var finalMd = fromHandler || localQuoteMd;
+        // Prefer source that preserves markdown quote markers.
+        if (hasQuoteMarker(localQuoteMd) && !hasQuoteMarker(fromHandler)) {
+          finalMd = localQuoteMd;
+        }
+
         var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(finalMd))) + ':' + qMatch.index;
         _startEdit(outerBq, qKey, finalMd);
       };
