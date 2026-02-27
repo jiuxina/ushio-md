@@ -22,7 +22,8 @@ class ExportService {
   static final _orderedListRegex = RegExp(r'^\s*(\d+)\.\s+(.+)$');
   static final _unorderedListRegex = RegExp(r'^\s*[-*+]\s+(.+)$');
   static final _blockquoteRegex = RegExp(r'^\s*>\s?(.*)$');
-  static final _tableRowRegex = RegExp(r'^\s*\|.*\|\s*$');
+  // Accept both `| a | b |` and `a | b` table row styles.
+  static final _tableRowRegex = RegExp(r'^\s*\|?.*\|.*\|?\s*$');
   static final _tableDividerRegex = RegExp(r'^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$');
   static final _hrRegex = RegExp(r'^\s*([-*_])\1{2,}\s*$');
 
@@ -178,7 +179,8 @@ class ExportService {
         while (end < lines.length && !lines[end].trim().startsWith(fence)) {
           end++;
         }
-        final code = lines.sublist(i + 1, end.clamp(0, lines.length)).join('\n');
+        final safeEnd = end.clamp(0, lines.length).toInt();
+        final code = lines.sublist(i + 1, safeEnd).join('\n');
         widgets.add(_buildCodeBlock(code, font));
         i = end < lines.length ? end + 1 : lines.length;
         continue;
@@ -250,30 +252,36 @@ class ExportService {
         continue;
       }
 
-      final ordered = _orderedListRegex.firstMatch(trimmed);
-      final unordered = _unorderedListRegex.firstMatch(trimmed);
-      if (ordered != null || unordered != null) {
+      final firstOrdered = _orderedListRegex.firstMatch(trimmed);
+      final firstUnordered = _unorderedListRegex.firstMatch(trimmed);
+      if (firstOrdered != null || firstUnordered != null) {
         int end = i;
-        final items = <String>[];
+        final items = <({int? number, String text})>[];
         while (end < lines.length) {
           final t = lines[end].trim();
           final om = _orderedListRegex.firstMatch(t);
           final um = _unorderedListRegex.firstMatch(t);
           if (om == null && um == null) break;
-          items.add((om?.group(2) ?? um?.group(1) ?? '').trim());
+          items.add((
+            number: om != null ? int.tryParse(om.group(1) ?? '') : null,
+            text: (om?.group(2) ?? um?.group(1) ?? '').trim(),
+          ));
           end++;
         }
         for (var idx = 0; idx < items.length; idx++) {
+          final marker = firstOrdered != null
+              ? '${items[idx].number ?? (idx + 1)}. '
+              : '• ';
           widgets.add(
             pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  ordered != null ? '${idx + 1}. ' : '• ',
+                  marker,
                   style: pw.TextStyle(font: boldFont, fontSize: 12),
                 ),
                 pw.Expanded(
-                  child: pw.Text(_stripInlineMarkdown(items[idx]), style: pw.TextStyle(font: font, fontSize: 12, height: 1.5)),
+                  child: pw.Text(_stripInlineMarkdown(items[idx].text), style: pw.TextStyle(font: font, fontSize: 12, height: 1.5)),
                 ),
               ],
             ),

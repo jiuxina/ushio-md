@@ -30,6 +30,7 @@ class FullscreenPreviewPage extends StatefulWidget {
 
 class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
   bool _isExporting = false;
+  bool _autoSharePending = false;
   final _webViewController = MarkdownWebViewController();
   
   @override
@@ -37,11 +38,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     super.initState();
     // 监听文本变化以刷新界面
     widget.controller.addListener(_onTextChanged);
-    if (widget.autoShareOnOpen) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _shareAsImage();
-      });
-    }
+    _autoSharePending = widget.autoShareOnOpen;
   }
 
   @override
@@ -53,11 +50,17 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
   void _onTextChanged() {
     setState(() {});
   }
+
+  void _onPreviewLoaded() {
+    if (!_autoSharePending || _isExporting || !mounted) return;
+    _autoSharePending = false;
+    // Wait one extra frame to ensure WebView content is fully painted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _shareAsImage();
+    });
+  }
   
-  /// Share the full document content as a long image.
-  ///
-  /// Renders the entire markdown content off-screen using an [OverlayEntry] so
-  /// the image is not clipped to the current viewport height.
+  /// Share the current WebView preview as image (WYSIWYG).
   Future<void> _shareAsImage() async {
     if (_isExporting) return;
     
@@ -108,6 +111,11 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
+      }
+
+      // One-tap share flow from file list: close preview automatically.
+      if (widget.autoShareOnOpen) {
+        Navigator.of(context).maybePop();
       }
     }
   }
@@ -221,6 +229,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
                   ? null
                   : widget.settings.codeFontFamily,
               onCheckboxChanged: widget.onCheckboxChanged,
+              onLoadFinished: _onPreviewLoaded,
               controller: _webViewController,
               baseDirectory:
                   widget.filePath != null ? File(widget.filePath!).parent.path : null,

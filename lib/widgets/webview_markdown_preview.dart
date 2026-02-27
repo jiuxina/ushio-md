@@ -122,6 +122,7 @@ class WebViewMarkdownPreview extends StatefulWidget {
   final Function(int index, bool value) onCheckboxChanged;
   final String? Function(String type, int p1, int p2, int p3, String extra)? onGetMarkdown;
   final void Function(String key, String newText)? onInPlaceEdit;
+  final VoidCallback? onLoadFinished;
   final MarkdownWebViewController? controller;
   /// Extra bottom padding (pixels) added to the HTML body to prevent content
   /// being obscured by a floating toolbar or the system navigation bar.
@@ -141,6 +142,7 @@ class WebViewMarkdownPreview extends StatefulWidget {
     required this.onCheckboxChanged,
     this.onGetMarkdown,
     this.onInPlaceEdit,
+    this.onLoadFinished,
     this.controller,
     this.bottomPadding = 0,
   });
@@ -849,6 +851,7 @@ $body
               source: 'window.scrollTo(0, $_savedScrollY)');
           _savedScrollY = 0;
         }
+        widget.onLoadFinished?.call();
       },
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         return NavigationActionPolicy.CANCEL;
