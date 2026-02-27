@@ -98,7 +98,7 @@ class _EditorScreenState extends State<EditorScreen>
   static final _uncheckedBoxRegex = RegExp(r'^(\s*-\s*)\[\s*\](.*)$');
   static final _checkedBoxRegex = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$');
   static final _wordSplitRegex = RegExp(r'\s+');
-  static final _codeBlockStartRegex = RegExp(r'^\s*```');
+  static final _codeBlockStartRegex = RegExp(r'^\s*(`{3}|~{3})');
   static final _tableRowRegex = RegExp(r'^\s*\|');
   static final _blockquoteRegex = RegExp(r'^\s*>');
 
@@ -819,6 +819,21 @@ class _EditorScreenState extends State<EditorScreen>
           } else {
             bestIndex = blocks.indexWhere((b) => b.content == originalMd);
           }
+
+          if (bestIndex < 0) {
+            final originalNorm = _stripMarkdown(originalMd);
+            int bestLen = 0;
+            for (int i = 0; i < blocks.length; i++) {
+              final norm = _stripMarkdown(blocks[i].content);
+              if (norm.isEmpty || originalNorm.isEmpty) continue;
+              final shorter = norm.length <= originalNorm.length ? norm : originalNorm;
+              final longer = norm.length > originalNorm.length ? norm : originalNorm;
+              if (longer.contains(shorter) && shorter.length > bestLen) {
+                bestLen = shorter.length;
+                bestIndex = i;
+              }
+            }
+          }
         } catch (_) {
           bestIndex = -1;
         }
@@ -931,14 +946,18 @@ class _EditorScreenState extends State<EditorScreen>
       final line = lines[i];
       final trimmed = line.trim();
 
-      // Code block: ``` to ```
+      // Code block: fenced block (``` or ~~~), closing fence must match opener.
       if (_codeBlockStartRegex.hasMatch(trimmed)) {
+        final fenceMatch = RegExp(r'^\s*(`{3}|~{3})').firstMatch(trimmed);
+        final fence = fenceMatch?.group(1) ?? '```';
+        final closeFenceRegex = RegExp('^\\s*' + RegExp.escape(fence));
+
         int end = i + 1;
         while (end < lines.length &&
-            !_codeBlockStartRegex.hasMatch(lines[end].trim())) {
+            !closeFenceRegex.hasMatch(lines[end].trim())) {
           end++;
         }
-        if (end < lines.length) end++; // include closing ```
+        if (end < lines.length) end++; // include closing fence
         blocks.add(
           _MarkdownBlock(
             startLine: i,
