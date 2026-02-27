@@ -526,11 +526,14 @@ pre{background:$codeBlockBg;border:1px solid $codeBlockBorder;border-radius:8px;
 pre code{background:none;color:$codeColor;padding:0;border-radius:0;font-size:${fs * 0.85}px;line-height:1.5}
 blockquote{border-left:4px solid $bqBorder;background:$bqBg;margin:1em 0;padding:8px 8px 8px 16px;border-radius:0 4px 4px 0}
 blockquote p{margin:0}
+blockquote.editing-plain{border-left:none !important;background:transparent !important;padding:0 !important;border-radius:0 !important}
 table{border-collapse:collapse;width:100%;margin:1em 0;border-radius:6px;overflow:hidden}
 th,td{border:1px solid $tblBorder;padding:8px 12px}
 th{background:$tblHeadBg;font-weight:bold}
 img{max-width:100%;height:auto;display:block;margin:0.5em auto;border-radius:4px}
 ul,ol{padding-left:1.5em;margin:0.5em 0}li{margin:0.3em 0}
+li.editing-plain{list-style:none !important}
+li.editing-plain::marker{content:''}
 input[type="checkbox"]{margin-right:6px;width:${fs * 0.9}px;height:${fs * 0.9}px;vertical-align:middle;cursor:pointer}
 hr{border:none;border-top:1px solid $hrColor;margin:1.5em 0}
 del{color:$delColor}
@@ -585,7 +588,8 @@ $body
       .replace(/!\\[[^\\]]*\\]\\([^)]*\\)/g, '')
       .replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '\$1')
       .replace(/^#{1,6}\\s+/gm, '').replace(/^[-*+]\\s+/gm, '')
-      .replace(/^\\d+\\.\\s+/gm, '').replace(/^\\s*(>\\s*)+/gm, '')
+      .replace(/^\\d+\\.\\s+/gm, '').replace(/^\\s*\\[[ xX]\\]\\s+/gm, '')
+      .replace(/^\\s*(>\\s*)+/gm, '')
       .trim().toLowerCase();
   }
 
@@ -606,10 +610,26 @@ $body
         while (end < lines.length && /^\\s*\\|/.test(lines[end])) end++;
         blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
       }
-      if (/^\\s*>/.test(t)) {
+      if (/^\s*>/.test(t)) {
+        var quoteDepth = function(value) {
+          var m = value.match(/^\s*(>\s*)+/);
+          return m ? (m[0].match(/>/g) || []).length : 0;
+        };
+        var baseDepth = quoteDepth(lines[i]);
         var end = i;
-        while (end < lines.length && /^\\s*>/.test(lines[end].trim())) end++;
-        blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
+        var hasNested = false;
+        while (end < lines.length && /^\s*>/.test(lines[end].trim())) {
+          if (quoteDepth(lines[end]) > baseDepth) hasNested = true;
+          end++;
+        }
+        var finalEnd = end;
+        if (!hasNested) {
+          finalEnd = i;
+          while (finalEnd < lines.length && /^\s*>/.test(lines[finalEnd].trim()) && quoteDepth(lines[finalEnd]) === baseDepth) {
+            finalEnd++;
+          }
+        }
+        blocks.push(lines.slice(i, finalEnd).join('\n')); i = finalEnd; continue;
       }
       if (t) blocks.push(lines[i]);
       i++;
@@ -686,6 +706,7 @@ $body
     ta.style.overflow = 'hidden';
 
     _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML };
+    if (el.classList) el.classList.add('editing-plain');
     el.innerHTML = '';
     el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
@@ -707,6 +728,7 @@ $body
     var ie = _ie; _ie = null;
     var newText = ie.ta ? ie.ta.value : '';
     ie.el.innerHTML = ie.origHtml;
+    if (ie.el.classList) ie.el.classList.remove('editing-plain');
     ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
     if (send !== false && newText.trim()) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
@@ -727,6 +749,7 @@ $body
     }
     if (e.key === 'Escape') {
       _ie.el.innerHTML = _ie.origHtml;
+      if (_ie.el.classList) _ie.el.classList.remove('editing-plain');
       var s = _ie; _ie = null;
       s.el.style.outline = s.el.style.borderRadius = s.el.style.background = '';
       e.preventDefault();
@@ -842,6 +865,7 @@ $body
     if (_ie) {
       if (_ie.el.contains(t)) return;
       _commitEdit(true);
+      return;
     }
 
     _handleEditTap(t);

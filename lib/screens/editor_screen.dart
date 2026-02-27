@@ -726,6 +726,7 @@ class _EditorScreenState extends State<EditorScreen>
         .replaceAll(RegExp(r'^#+\s*', multiLine: true), '')
         .replaceAll(RegExp(r'^[-*+]\s+', multiLine: true), '')
         .replaceAll(RegExp(r'^\d+\.\s+', multiLine: true), '')
+        .replaceAll(RegExp(r'^\s*\[[ xX]\]\s+', multiLine: true), '')
         // Strip ALL leading blockquote markers (handles nested > > > lines)
         .replaceAll(RegExp(r'^\s*(>\s*)+', multiLine: true), '')
         .trim()
@@ -968,22 +969,44 @@ class _EditorScreenState extends State<EditorScreen>
         continue;
       }
 
-      // Blockquote: contiguous > lines
+      // Blockquote: if nested exists, edit all contiguous quote lines;
+      // otherwise edit only same-level contiguous quote lines.
       if (_blockquoteRegex.hasMatch(trimmed)) {
+        int quoteDepth(String value) {
+          final m = RegExp(r'^\s*(>\s*)+').firstMatch(value);
+          if (m == null) return 0;
+          return RegExp(r'>').allMatches(m.group(0)!).length;
+        }
+
+        final baseDepth = quoteDepth(line);
         int end = i;
-        while (end < lines.length &&
-            _blockquoteRegex.hasMatch(lines[end].trim())) {
+        bool hasNested = false;
+        while (end < lines.length && _blockquoteRegex.hasMatch(lines[end].trim())) {
+          if (quoteDepth(lines[end]) > baseDepth) {
+            hasNested = true;
+          }
           end++;
         }
+
+        int finalEnd = end;
+        if (!hasNested) {
+          finalEnd = i;
+          while (finalEnd < lines.length &&
+              _blockquoteRegex.hasMatch(lines[finalEnd].trim()) &&
+              quoteDepth(lines[finalEnd]) == baseDepth) {
+            finalEnd++;
+          }
+        }
+
         blocks.add(
           _MarkdownBlock(
             startLine: i,
-            endLine: end - 1,
-            content: lines.sublist(i, end).join('\n'),
-            isMultiLine: end > i + 1,
+            endLine: finalEnd - 1,
+            content: lines.sublist(i, finalEnd).join('\n'),
+            isMultiLine: finalEnd > i + 1,
           ),
         );
-        i = end;
+        i = finalEnd;
         continue;
       }
 
