@@ -66,10 +66,10 @@ class SettingsProvider extends ChangeNotifier {
   String? _defaultDirectory;
 
   /// 工作区文件夹名称
-  String _workspaceName = 'Ushio-MD';
+  String _workspaceName = 'Ushio-md';
 
   /// 自定义工作区基础路径（可选，为null时使用默认的getExternalStorageDirectory）
-  String? _customWorkspaceBasePath;
+  String? _customWorkspaceBasePath = '/storage/emulated/0/Documents';
 
   // ==================== 背景设置 ====================
 
@@ -303,8 +303,9 @@ class SettingsProvider extends ChangeNotifier {
     _autoSave = prefs.getBool('auto_save') ?? true;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
     _defaultDirectory = prefs.getString('default_directory');
-    _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-MD';
-    _customWorkspaceBasePath = prefs.getString('custom_workspace_base_path');
+    _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
+    _customWorkspaceBasePath = prefs.getString('custom_workspace_base_path') ??
+        '/storage/emulated/0/Documents';
 
     // 背景设置
     _backgroundImagePath = prefs.getString('background_image_path');
