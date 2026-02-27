@@ -767,7 +767,9 @@ $body
     }
     if (outerBq) {
       var qText = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
-      _startEdit(outerBq, 'block:'+qText.slice(0,80), _getBlockMd(qText));
+      var qMd = _getBlockMd(qText);
+      var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(qMd)));
+      _startEdit(outerBq, qKey, qMd);
       return;
     }
 
@@ -779,7 +781,9 @@ $body
     }
     if (!el || el === document.body) return;
     var innerText = (el.dataset && el.dataset.mdSrc) || (el.innerText||el.textContent||'').trim();
-    _startEdit(el, 'block:'+innerText.slice(0,80), _getBlockMd(innerText));
+    var blockMd = _getBlockMd(innerText);
+    var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd)));
+    _startEdit(el, blockKey, blockMd);
   }
 
   // ── GitHub Alerts ─────────────────────────────────────────────────────
