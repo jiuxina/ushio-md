@@ -567,62 +567,83 @@ $body
   var _ie = null;
   function _startEdit(el, key, rawMd) {
     if (_ie) _commitEdit(true);
-    var displayText = rawMd || el.textContent;
+    var displayText = rawMd || el.textContent || '';
     var prefix = '';
     if ((el.tagName || '').toUpperCase() === 'LI') {
       var pm = displayText.match(/^(\\s*(?:\\d+\\.|-|\\*|\\+)\\s*)/);
       if (pm) { prefix = pm[1]; displayText = displayText.slice(pm[0].length); }
     }
-    _ie = { el: el, key: key, origHtml: el.innerHTML, prefix: prefix };
-    el.textContent = displayText;
-    el.setAttribute('contenteditable', 'true');
+
+    var ta = document.createElement('textarea');
+    ta.value = displayText;
+    ta.setAttribute('spellcheck', 'false');
+    ta.style.width = '100%';
+    ta.style.minHeight = '1.8em';
+    ta.style.boxSizing = 'border-box';
+    ta.style.border = '0';
+    ta.style.padding = '0';
+    ta.style.margin = '0';
+    ta.style.outline = 'none';
+    ta.style.background = 'transparent';
+    ta.style.color = 'inherit';
+    ta.style.font = 'inherit';
+    ta.style.lineHeight = 'inherit';
+    ta.style.resize = 'none';
+    ta.style.whiteSpace = 'pre-wrap';
+    ta.style.overflow = 'hidden';
+
+    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML, prefix: prefix };
+    el.innerHTML = '';
+    el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
     el.style.borderRadius = '4px';
-    el.style.fontFamily = 'monospace,sans-serif';
     el.style.background = 'rgba(74,144,217,0.08)';
-    el.style.whiteSpace = 'pre-wrap';
-    el.focus();
-    var r = document.createRange(), s = window.getSelection();
-    r.selectNodeContents(el); r.collapse(false);
-    s.removeAllRanges(); s.addRange(r);
+
+    var _syncHeight = function() {
+      ta.style.height = 'auto';
+      ta.style.height = Math.max(ta.scrollHeight, 24) + 'px';
+    };
+    _syncHeight();
+    ta.addEventListener('input', _syncHeight);
+
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
   }
   function _commitEdit(send) {
     if (!_ie) return;
     var ie = _ie; _ie = null;
-    var newText = (ie.prefix || '') + ie.el.textContent;
+    var newText = (ie.prefix || '') + (ie.ta ? ie.ta.value : '');
     ie.el.innerHTML = ie.origHtml;
-    ie.el.setAttribute('contenteditable', 'false');
-    ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.fontFamily =
-      ie.el.style.background = ie.el.style.whiteSpace = '';
+    ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
     if (send !== false && newText.trim()) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
     }
   }
   document.addEventListener('focusout', function(e) {
-    if (_ie && e.target === _ie.el) setTimeout(_commitEdit, 50);
+    if (!_ie) return;
+    if (e.target === _ie.ta && !_ie.el.contains(e.relatedTarget)) {
+      setTimeout(_commitEdit, 50);
+    }
   }, true);
   document.addEventListener('keydown', function(e) {
     if (!_ie) return;
-    var isMl = ['PRE','BLOCKQUOTE'].indexOf((_ie.el.tagName||'').toUpperCase()) !== -1;
     if (e.key === 'Escape') {
       _ie.el.innerHTML = _ie.origHtml;
       var s = _ie; _ie = null;
-      s.el.setAttribute('contenteditable','false');
-      s.el.style.outline = s.el.style.borderRadius = s.el.style.fontFamily =
-        s.el.style.background = s.el.style.whiteSpace = '';
+      s.el.style.outline = s.el.style.borderRadius = s.el.style.background = '';
       e.preventDefault();
-    } else if (e.key === 'Enter' && !isMl && !e.shiftKey) {
+    } else if ((e.key === 'Enter' && (e.metaKey || e.ctrlKey)) || e.key === 'Tab') {
       e.preventDefault(); _commitEdit(true);
     }
   });
 
-  // ── Double-tap handler ────────────────────────────────────────────────
-  function _handleDoubleTap(target) {
+  // ── Single-tap edit handler ───────────────────────────────────────────
+  function _handleEditTap(target) {
     if (!target) return;
     var check = target;
     while (check && check !== document.body) {
       var tag = (check.tagName || '').toUpperCase();
-      if (tag==='A'||tag==='IMG'||tag==='INPUT'||tag==='BUTTON'||tag==='VIDEO'||tag==='AUDIO') return;
+      if (tag==='A'||tag==='IMG'||tag==='INPUT'||tag==='BUTTON'||tag==='VIDEO'||tag==='AUDIO'||tag==='TEXTAREA') return;
       check = check.parentElement || check.parentNode;
     }
     // Table cell?
@@ -676,12 +697,7 @@ $body
     }
   });
 
-  // ── Unified click handler (links + checkboxes + double-tap counter) ───
-  // touch-action:manipulation on body disables native double-tap zoom but
-  // also suppresses the synthetic dblclick on Android WebView. However,
-  // both click events for a double-tap are always delivered, so counting
-  // 2 click events within 350 ms is a reliable cross-platform approach.
-  var _dblTap = { count: 0, target: null, timer: null };
+  // ── Unified click handler (links + checkboxes + single-tap edit) ─────
   document.addEventListener('click', function(e) {
     var t = e.target;
     // Link: walk up to A ancestor
@@ -698,24 +714,14 @@ $body
       window.flutter_inappwebview.callHandler('onCheckboxChange', Array.from(boxes).indexOf(t), t.checked);
       return;
     }
-    // Double-tap counter
-    if (_ie) return;
-    _dblTap.count++; _dblTap.target = t;
-    if (_dblTap.timer) clearTimeout(_dblTap.timer);
-    if (_dblTap.count >= 2) {
-      _dblTap.count = 0;
-      _handleDoubleTap(_dblTap.target);
-    } else {
-      _dblTap.timer = setTimeout(function() { _dblTap.count = 0; }, 350);
+
+    // In edit mode: keep editing when clicking inside textarea, otherwise commit first.
+    if (_ie) {
+      if (_ie.el.contains(t)) return;
+      _commitEdit(true);
     }
-  });
-  // Desktop fast-path: native dblclick (returns early if click-counter already started editing)
-  document.addEventListener('dblclick', function(e) {
-    if (_ie) return;
-    if (_dblTap.timer) { clearTimeout(_dblTap.timer); _dblTap.timer = null; }
-    _dblTap.count = 0;
-    e.preventDefault();
-    _handleDoubleTap(e.target);
+
+    _handleEditTap(t);
   });
 })();
 </script>
