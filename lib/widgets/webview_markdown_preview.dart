@@ -810,7 +810,7 @@ $body
     var blockMatch = _findBlockMatch(innerText);
     var blockMd = blockMatch.md;
     var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd))) + ':' + blockMatch.index;
-    var listMatch = blockMd.match(/^(\s*(?:[-+*]|\d+\.)\s+(?:\[[ xX]\]\s*)?)(.*)$/);
+    var listMatch = blockMd.match(/^(\s*(?:[-+*]|\d+\.)\s+(?:\[[ xX]\]\s*)?)(.*)\$/);
     if ((el.tagName||'').toUpperCase() === 'LI' && listMatch) {
       _startEdit(el, blockKey, listMatch[2], { prefix: listMatch[1] });
       return;
