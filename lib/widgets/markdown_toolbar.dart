@@ -9,6 +9,10 @@ import '../plugins/extensions/toolbar_extension.dart';
 class MarkdownToolbar extends StatelessWidget {
   final TextEditingController controller;
   final UndoHistoryController? undoController; // 撤回重做控制器
+  final bool? canUndo;
+  final bool? canRedo;
+  final VoidCallback? onUndo;
+  final VoidCallback? onRedo;
   final String? filePath; // Path to the markdown file being edited
   final VoidCallback? onSearchPressed; // 搜索按钮回调
 
@@ -16,12 +20,19 @@ class MarkdownToolbar extends StatelessWidget {
     super.key,
     required this.controller,
     this.undoController,
+    this.canUndo,
+    this.canRedo,
+    this.onUndo,
+    this.onRedo,
     this.filePath,
     this.onSearchPressed,
   });
 
   @override
   Widget build(BuildContext context) {
+    final showCustomUndoRedo =
+        undoController == null && onUndo != null && onRedo != null;
+
     return Container(
       height: 56,
       decoration: BoxDecoration(
@@ -67,7 +78,25 @@ class MarkdownToolbar extends StatelessWidget {
                 ),
               ],
             ),
-          if (undoController != null) _buildDivider(context),
+          if (showCustomUndoRedo)
+            _ToolbarButtonGroup(
+              children: [
+                _ToolbarButton(
+                  icon: Icons.undo,
+                  tooltip: '撤回',
+                  enabled: canUndo ?? false,
+                  onPressed: onUndo,
+                ),
+                _ToolbarButton(
+                  icon: Icons.redo,
+                  tooltip: '重做',
+                  enabled: canRedo ?? false,
+                  onPressed: onRedo,
+                ),
+              ],
+            ),
+          if (undoController != null || showCustomUndoRedo)
+            _buildDivider(context),
           _ToolbarButtonGroup(
             children: [
               _ToolbarButton(
