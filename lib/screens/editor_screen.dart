@@ -806,10 +806,18 @@ class _EditorScreenState extends State<EditorScreen>
       int bestIndex = -1;
 
       if (key.startsWith('blocksrc:')) {
-        final encoded = key.substring('blocksrc:'.length);
+        final payload = key.substring('blocksrc:'.length);
+        final sep = payload.lastIndexOf(':');
+        final encoded = sep > 0 ? payload.substring(0, sep) : payload;
+        final hintedIndex = sep > 0 ? int.tryParse(payload.substring(sep + 1)) : null;
         try {
           final originalMd = utf8.decode(base64Decode(encoded));
-          bestIndex = blocks.indexWhere((b) => b.content == originalMd);
+          if (hintedIndex != null && hintedIndex >= 0 && hintedIndex < blocks.length &&
+              blocks[hintedIndex].content == originalMd) {
+            bestIndex = hintedIndex;
+          } else {
+            bestIndex = blocks.indexWhere((b) => b.content == originalMd);
+          }
         } catch (_) {
           bestIndex = -1;
         }
