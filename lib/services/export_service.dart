@@ -18,6 +18,29 @@ import 'package:share_plus/share_plus.dart';
 
 /// 导出服务类
 class ExportService {
+  /// Share PNG bytes as an image file.
+  static Future<bool> sharePngBytes(
+    List<int> pngBytes,
+    String fileName, {
+    Duration cleanupDelay = const Duration(minutes: 5),
+  }) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/$fileName.png');
+      await file.writeAsBytes(pngBytes, flush: true);
+      await Share.shareXFiles([XFile(file.path)], subject: '$fileName.png');
+      Future.delayed(cleanupDelay, () {
+        try {
+          file.deleteSync();
+        } catch (_) {}
+      });
+      return true;
+    } catch (e) {
+      debugPrint('图片分享失败: $e');
+      return false;
+    }
+  }
+
   /// 将 Widget 捕获为图片并分享
   /// 
   /// [globalKey] 要捕获的 Widget 的 GlobalKey

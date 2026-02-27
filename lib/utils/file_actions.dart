@@ -9,6 +9,7 @@ import '../screens/editor_screen.dart';
 import '../screens/folder_browser_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/file_action_extension.dart';
+import '../screens/editor/components/fullscreen_preview_page.dart';
 
 enum FileSource {
   myFiles,
@@ -345,7 +346,7 @@ class FileActions {
   /// 
   /// 提供三种分享选项：
   /// - 以文件分享：直接分享 .md 文件
-  /// - 以图片分享：渲染 Markdown 为图片后分享（待实现）
+  /// - 以图片分享：使用 WebView 预览所见即所得截图后分享
   /// - 以 PDF 分享：转换为 PDF 后分享（待实现）
   static Widget _buildShareSubmenu(BuildContext context, String path, ShareService shareService) {
     return Container(
@@ -383,26 +384,42 @@ class FileActions {
               context,
               icon: Icons.image,
               label: '以图片分享',
-              subtitle: '请在编辑器全屏预览中使用',
-              isDisabled: true,
-              onTap: () {
+              subtitle: '按预览 WebView 所见即所得分享',
+              onTap: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.white),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text('请打开文件后，在全屏预览模式中使用分享按钮导出图片'),
-                        ),
-                      ],
+                TextEditingController? tempController;
+                try {
+                  final file = File(path);
+                  final content = await file.readAsString();
+                  if (!context.mounted) return;
+                  final settings = context.read<SettingsProvider>();
+                  tempController = TextEditingController(text: content);
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => FullscreenPreviewPage(
+                        controller: tempController,
+                        settings: settings,
+                        fileName: path
+                            .split(Platform.pathSeparator)
+                            .last,
+                        onCheckboxChanged: (_, __) {},
+                        filePath: path,
+                        autoShareOnOpen: true,
+                      ),
                     ),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    duration: const Duration(seconds: 4),
-                  ),
-                );
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('图片分享失败: $e'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                } finally {
+                  tempController?.dispose();
+                }
               },
             ),
             const SizedBox(height: 8),
