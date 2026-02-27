@@ -610,26 +610,26 @@ $body
         while (end < lines.length && /^\\s*\\|/.test(lines[end])) end++;
         blocks.push(lines.slice(i, end).join('\\n')); i = end; continue;
       }
-      if (/^\s*>/.test(t)) {
+      if (/^\\s*>/.test(t)) {
         var quoteDepth = function(value) {
-          var m = value.match(/^\s*(>\s*)+/);
+          var m = value.match(/^\\s*(>\\s*)+/);
           return m ? (m[0].match(/>/g) || []).length : 0;
         };
         var baseDepth = quoteDepth(lines[i]);
         var end = i;
         var hasNested = false;
-        while (end < lines.length && /^\s*>/.test(lines[end].trim())) {
+        while (end < lines.length && /^\\s*>/.test(lines[end].trim())) {
           if (quoteDepth(lines[end]) > baseDepth) hasNested = true;
           end++;
         }
         var finalEnd = end;
         if (!hasNested) {
           finalEnd = i;
-          while (finalEnd < lines.length && /^\s*>/.test(lines[finalEnd].trim()) && quoteDepth(lines[finalEnd]) === baseDepth) {
+          while (finalEnd < lines.length && /^\\s*>/.test(lines[finalEnd].trim()) && quoteDepth(lines[finalEnd]) === baseDepth) {
             finalEnd++;
           }
         }
-        blocks.push(lines.slice(i, finalEnd).join('\n')); i = finalEnd; continue;
+        blocks.push(lines.slice(i, finalEnd).join('\\n')); i = finalEnd; continue;
       }
       if (t) blocks.push(lines[i]);
       i++;
