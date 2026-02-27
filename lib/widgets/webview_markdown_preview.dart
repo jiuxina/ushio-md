@@ -803,7 +803,7 @@ $body
       var startQuoteEdit = function(md) {
         var fromHandler = (md && ('' + md).length) ? ('' + md) : '';
         var localQuoteMd = (qMd && ('' + qMd).length) ? ('' + qMd) : '';
-        var hasQuoteMarker = function(text) { return /^\s*>/m.test(text || ''); };
+        var hasQuoteMarker = function(text) { return /^\\s*>/m.test(text || ''); };
 
         var finalMd = fromHandler || localQuoteMd;
         // Prefer source that preserves markdown quote markers.
