@@ -382,7 +382,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               controller: controller,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'Ushio-MD',
+                hintText: 'Ushio-md',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -463,7 +463,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   void _showEditBasePathDialog(SettingsProvider settings) async {
     // 获取默认路径用于显示
     final externalDir = await getExternalStorageDirectory();
-    final defaultPath = externalDir?.path ?? '/storage/emulated/0/Android/data/com.ushiomd/files';
+    final defaultPath = externalDir?.path ?? '/storage/emulated/0/Documents';
 
     final controller = TextEditingController(
       text: settings.customWorkspaceBasePath ?? '',

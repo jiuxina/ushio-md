@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -37,6 +38,14 @@ class _MarkdownBlock {
   });
 }
 
+
+class _EditHistoryEntry {
+  final String text;
+  final TextSelection selection;
+
+  const _EditHistoryEntry({required this.text, required this.selection});
+}
+
 class EditorScreen extends StatefulWidget {
   final String filePath;
 
@@ -49,6 +58,11 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen>
     with TickerProviderStateMixin {
   bool _isAutoCompleting = false;
+  static const int _maxEditHistory = 100;
+  final List<_EditHistoryEntry> _editHistory = <_EditHistoryEntry>[];
+  int _historyIndex = -1;
+  bool _isApplyingHistory = false;
+
   late TextEditingController _textController;
   late ScrollController _editScrollController;
   late UndoHistoryController _undoController;
@@ -123,6 +137,11 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _textController.text = content;
       _textController.addListener(_onTextChanged);
+      _recordHistorySnapshot(
+        text: content,
+        selection: const TextSelection.collapsed(offset: 0),
+        reset: true,
+      );
       _updateToc();
 
       final settings = context.read<SettingsProvider>();
@@ -147,6 +166,10 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _tocDebounceTimer?.cancel();
     _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
+
+    if (!_isApplyingHistory) {
+      _recordHistorySnapshot();
+    }
 
     // 自动补全处理
     if (!_isAutoCompleting) {
@@ -191,6 +214,78 @@ class _EditorScreenState extends State<EditorScreen>
         }
       }
     }
+  }
+
+  void _recordHistorySnapshot({
+    String? text,
+    TextSelection? selection,
+    bool reset = false,
+  }) {
+    final t = text ?? _textController.text;
+    final s = selection ?? _textController.selection;
+    final safe = _safeSelection(s, t.length);
+
+    if (reset) {
+      _editHistory
+        ..clear()
+        ..add(_EditHistoryEntry(text: t, selection: safe));
+      _historyIndex = 0;
+      return;
+    }
+
+    if (_historyIndex >= 0 && _historyIndex < _editHistory.length) {
+      final cur = _editHistory[_historyIndex];
+      if (cur.text == t) return;
+    }
+
+    if (_historyIndex < _editHistory.length - 1) {
+      _editHistory.removeRange(_historyIndex + 1, _editHistory.length);
+    }
+
+    _editHistory.add(_EditHistoryEntry(text: t, selection: safe));
+    if (_editHistory.length > _maxEditHistory) {
+      final overflow = _editHistory.length - _maxEditHistory;
+      _editHistory.removeRange(0, overflow);
+      _historyIndex = (_historyIndex - overflow).clamp(0, _editHistory.length - 1);
+    }
+    _historyIndex = _editHistory.length - 1;
+    if (mounted) setState(() {});
+  }
+
+  TextSelection _safeSelection(TextSelection sel, int textLength) {
+    final base = sel.baseOffset.clamp(0, textLength).toInt();
+    final extent = sel.extentOffset.clamp(0, textLength).toInt();
+    return TextSelection(baseOffset: base, extentOffset: extent);
+  }
+
+  void _applyMainTextWithSelection(String newText, TextSelection selection) {
+    _isApplyingHistory = true;
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: _safeSelection(selection, newText.length),
+    );
+    _isApplyingHistory = false;
+    _recordHistorySnapshot(text: newText, selection: selection);
+  }
+
+  void _undoEditHistory() {
+    if (_historyIndex <= 0) return;
+    _historyIndex--;
+    final entry = _editHistory[_historyIndex];
+    _isApplyingHistory = true;
+    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _isApplyingHistory = false;
+    setState(() {});
+  }
+
+  void _redoEditHistory() {
+    if (_historyIndex < 0 || _historyIndex >= _editHistory.length - 1) return;
+    _historyIndex++;
+    final entry = _editHistory[_historyIndex];
+    _isApplyingHistory = true;
+    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _isApplyingHistory = false;
+    setState(() {});
   }
 
   /// 更新目录结构
@@ -275,7 +370,6 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (_mode == EditorMode.edit) {
       // Scroll the text editor to the target line
-      setState(() => _highlightedLine = item.lineNumber);
       final lines = _textController.text.split('\n');
       int position = 0;
       for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
@@ -289,12 +383,7 @@ class _EditorScreenState extends State<EditorScreen>
             .clamp(0.0, maxScroll);
         _editScrollController.jumpTo(targetScroll);
       }
-      // Trigger Flutter-side highlight flash for edit mode
-      _highlightController.forward(from: 0.0).then((_) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) setState(() => _highlightedLine = null);
-        });
-      });
+      _flashLineHighlight(item.lineNumber);
     } else {
       // WebView preview/split mode — scroll via JavaScript.
       // The JS also handles the visual flash on the target heading.
@@ -306,6 +395,16 @@ class _EditorScreenState extends State<EditorScreen>
         );
       }
     }
+  }
+
+  void _flashLineHighlight(int lineNumber) {
+    if (!mounted || _mode != EditorMode.edit) return;
+    setState(() => _highlightedLine = lineNumber);
+    _highlightController.forward(from: 0.0).then((_) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() => _highlightedLine = null);
+      });
+    });
   }
 
   /// 自动保存
@@ -467,6 +566,14 @@ class _EditorScreenState extends State<EditorScreen>
                 extentOffset: position + length,
               );
 
+              final lineNumber = (_textController.text
+                  .substring(0, position)
+                  .split('\n')
+                  .length
+                  .clamp(1, 1 << 20) - 1)
+                  .toInt();
+              _flashLineHighlight(lineNumber);
+
               if (_editScrollController.hasClients) {
                 final lines = _textController.text
                     .substring(0, position)
@@ -505,6 +612,7 @@ class _EditorScreenState extends State<EditorScreen>
           settings: settings,
           fileName: fileName,
           onCheckboxChanged: _toggleCheckbox,
+          filePath: widget.filePath,
         ),
       ),
     );
@@ -694,23 +802,45 @@ class _EditorScreenState extends State<EditorScreen>
       if (ti >= tableBlocks.length) return;
       _inlineEditController.text = newText;
       _applyCellEdit(tableBlocks[ti], ri, ci);
-    } else if (key.startsWith('block:')) {
-      // key = 'block:' + first 80 chars of innerText → fuzzy-find block
-      final innerText = key.substring('block:'.length);
+    } else if (key.startsWith('blocksrc:') || key.startsWith('block:')) {
       final blocks = _parseBlocks(_textController.text);
-      final normalized = _stripMarkdown(innerText);
       int bestIndex = -1;
-      int bestLen = 0;
-      for (int i = 0; i < blocks.length; i++) {
-        final norm = _stripMarkdown(blocks[i].content);
-        if (norm.isEmpty) continue;
-        final shorter = norm.length <= normalized.length ? norm : normalized;
-        final longer = norm.length > normalized.length ? norm : normalized;
-        if (longer.contains(shorter) && shorter.length > bestLen) {
-          bestLen = shorter.length;
-          bestIndex = i;
+
+      if (key.startsWith('blocksrc:')) {
+        final payload = key.substring('blocksrc:'.length);
+        final sep = payload.lastIndexOf(':');
+        final encoded = sep > 0 ? payload.substring(0, sep) : payload;
+        final hintedIndex = sep > 0 ? int.tryParse(payload.substring(sep + 1)) : null;
+        try {
+          final originalMd = utf8.decode(base64Decode(encoded));
+          if (hintedIndex != null && hintedIndex >= 0 && hintedIndex < blocks.length &&
+              blocks[hintedIndex].content == originalMd) {
+            bestIndex = hintedIndex;
+          } else {
+            bestIndex = blocks.indexWhere((b) => b.content == originalMd);
+          }
+        } catch (_) {
+          bestIndex = -1;
         }
       }
+
+      if (bestIndex < 0 && key.startsWith('block:')) {
+        // Legacy key: fuzzy-find by text prefix from rendered innerText.
+        final innerText = key.substring('block:'.length);
+        final normalized = _stripMarkdown(innerText);
+        int bestLen = 0;
+        for (int i = 0; i < blocks.length; i++) {
+          final norm = _stripMarkdown(blocks[i].content);
+          if (norm.isEmpty) continue;
+          final shorter = norm.length <= normalized.length ? norm : normalized;
+          final longer = norm.length > normalized.length ? norm : normalized;
+          if (longer.contains(shorter) && shorter.length > bestLen) {
+            bestLen = shorter.length;
+            bestIndex = i;
+          }
+        }
+      }
+
       if (bestIndex >= 0) {
         _inlineEditController.text = newText;
         _applyBlockEdit(bestIndex, blocks);
@@ -745,10 +875,17 @@ class _EditorScreenState extends State<EditorScreen>
     }
     final newText = allLines.join('\n');
     if (newText != _textController.text) {
-      setState(() {
-        _textController.text = newText;
-        _isModified = true;
-      });
+      final rowLine = (tableBlock.startLine + rowIdx).clamp(0, allLines.length - 1);
+      final lineStart = allLines
+          .take(rowLine)
+          .fold<int>(0, (sum, line) => sum + line.length + 1);
+      final caret = TextSelection.collapsed(
+        offset: (lineStart + _inlineEditController.text.length)
+            .clamp(0, newText.length)
+            .toInt(),
+      );
+      _applyMainTextWithSelection(newText, caret);
+      setState(() => _isModified = true);
     }
   }
 
@@ -757,7 +894,11 @@ class _EditorScreenState extends State<EditorScreen>
     if (blockIndex >= blocks.length) return;
     final block = blocks[blockIndex];
     final lines = _textController.text.split('\n');
-    final editedLines = _inlineEditController.text.split('\n');
+    final editedText = _inlineEditController.text;
+    // If user cleared the line, delete it
+    final editedLines = editedText.trim().isEmpty
+        ? <String>[]
+        : editedText.split('\n');
     final newLines = <String>[
       ...lines.sublist(0, block.startLine),
       ...editedLines,
@@ -765,10 +906,17 @@ class _EditorScreenState extends State<EditorScreen>
     ];
     final newText = newLines.join('\n');
     if (newText != _textController.text) {
-      setState(() {
-        _textController.text = newText;
-        _isModified = true;
-      });
+      final caretOffset = newLines
+          .take(block.startLine + editedLines.length)
+          .join('\n')
+          .length
+          .clamp(0, newText.length)
+          .toInt();
+      _applyMainTextWithSelection(
+        newText,
+        TextSelection.collapsed(offset: caretOffset),
+      );
+      setState(() => _isModified = true);
     }
   }
 
@@ -883,7 +1031,16 @@ class _EditorScreenState extends State<EditorScreen>
 
       final newText = newLines.join('\n');
       if (newText != _textController.text) {
-        _textController.text = newText;
+        final caretOffset = newLines
+            .take(block.startLine + editedLines.length)
+            .join('\n')
+            .length
+            .clamp(0, newText.length)
+            .toInt();
+        _applyMainTextWithSelection(
+          newText,
+          TextSelection.collapsed(offset: caretOffset),
+        );
         // _isModified will be set by _onTextChanged listener
       }
     }
@@ -1041,6 +1198,14 @@ class _EditorScreenState extends State<EditorScreen>
                             undoController: _editingBlockIndex != null
                                 ? null
                                 : _undoController,
+                            canUndo: _editingBlockIndex != null
+                                ? _historyIndex > 0
+                                : null,
+                            canRedo: _editingBlockIndex != null
+                                ? (_historyIndex >= 0 && _historyIndex < _editHistory.length - 1)
+                                : null,
+                            onUndo: _editingBlockIndex != null ? _undoEditHistory : null,
+                            onRedo: _editingBlockIndex != null ? _redoEditHistory : null,
                             filePath: widget.filePath,
                             onSearchPressed: _showSearchDialog,
                           ),

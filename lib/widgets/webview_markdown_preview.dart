@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -81,6 +83,86 @@ class MarkdownWebViewController {
       })();
     ''');
   }
+
+  /// Capture a screenshot of the current WebView content.
+  Future<Uint8List?> captureScreenshot() async {
+    try {
+      return await _webViewController?.takeScreenshot();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Capture a full-page screenshot by scrolling and stitching viewport shots.
+  Future<Uint8List?> captureFullPageScreenshot({
+    int maxShots = 30,
+    Duration settleDelay = const Duration(milliseconds: 80),
+  }) async {
+    final c = _webViewController;
+    if (c == null) return null;
+
+    try {
+      final originalYRaw =
+          await c.evaluateJavascript(source: 'window.scrollY || 0');
+      final vhRaw =
+          await c.evaluateJavascript(source: 'window.innerHeight || 0');
+      final shRaw = await c.evaluateJavascript(
+          source: 'Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) || 0');
+
+      final originalY =
+          (double.tryParse(originalYRaw?.toString() ?? '0') ?? 0.0).clamp(0.0, double.infinity);
+      final viewportHeightCss =
+          (double.tryParse(vhRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
+      final pageHeightCss =
+          (double.tryParse(shRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
+
+      final steps = <double>[];
+      for (double y = 0; y < pageHeightCss; y += viewportHeightCss) {
+        steps.add(y);
+        if (steps.length >= maxShots) break;
+      }
+
+      final captures = <({double yCss, Uint8List png})>[];
+      for (final y in steps) {
+        await c.evaluateJavascript(source: 'window.scrollTo(0, $y)');
+        await Future.delayed(settleDelay);
+        final png = await c.takeScreenshot();
+        if (png == null) continue;
+        captures.add((yCss: y, png: png));
+      }
+
+      await c.evaluateJavascript(source: 'window.scrollTo(0, $originalY)');
+
+      if (captures.isEmpty) return null;
+
+      final first = await _decodePng(captures.first.png);
+      final scale = first.height / viewportHeightCss;
+      final targetWidth = first.width;
+      final targetHeight = (pageHeightCss * scale).ceil();
+
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+
+      for (final cap in captures) {
+        final img = await _decodePng(cap.png);
+        final dy = (cap.yCss * scale).roundToDouble();
+        canvas.drawImage(img, ui.Offset(0, dy), ui.Paint());
+      }
+
+      final picture = recorder.endRecording();
+      final stitched = await picture.toImage(targetWidth, targetHeight);
+      final bytes = await stitched.toByteData(format: ui.ImageByteFormat.png);
+      return bytes?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<ui.Image> _decodePng(Uint8List pngBytes) async {
+    final codec = await ui.instantiateImageCodec(pngBytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
 }
 
 /// WebView-based markdown preview widget.
@@ -112,7 +194,10 @@ class WebViewMarkdownPreview extends StatefulWidget {
   final Function(int index, bool value) onCheckboxChanged;
   final String? Function(String type, int p1, int p2, int p3, String extra)? onGetMarkdown;
   final void Function(String key, String newText)? onInPlaceEdit;
+  final VoidCallback? onLoadFinished;
   final MarkdownWebViewController? controller;
+  /// Hide html/body scrollbars inside WebView.
+  final bool hidePageScrollbar;
   /// Extra bottom padding (pixels) added to the HTML body to prevent content
   /// being obscured by a floating toolbar or the system navigation bar.
   final double bottomPadding;
@@ -131,7 +216,9 @@ class WebViewMarkdownPreview extends StatefulWidget {
     required this.onCheckboxChanged,
     this.onGetMarkdown,
     this.onInPlaceEdit,
+    this.onLoadFinished,
     this.controller,
+    this.hidePageScrollbar = false,
     this.bottomPadding = 0,
   });
 
@@ -392,6 +479,9 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     final flashKf = dark
         ? '@keyframes hflash { 0%{background:transparent} 20%{background:rgba(100,180,255,0.35)} 100%{background:transparent} }'
         : '@keyframes hflash { 0%{background:transparent} 20%{background:rgba(0,122,255,0.25)} 100%{background:transparent} }';
+    final scrollbarCss = widget.hidePageScrollbar
+        ? 'html,body{scrollbar-width:none;-ms-overflow-style:none;}html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none;}'
+        : '';
 
     // ── @font-face rules (use extracted temp-dir files via file:// URI) ─────
     String fontFaces = '';
@@ -427,6 +517,7 @@ h1{font-size:${fs * 2}px;border-bottom:2px solid $hrColor;padding-bottom:0.3em}
 h2{font-size:${fs * 1.5}px;border-bottom:1px solid $hrColor;padding-bottom:0.2em}
 h3{font-size:${fs * 1.25}px}h4{font-size:${fs * 1.1}px}h5{font-size:${fs}px}h6{font-size:${fs * 0.9}px}
 $flashKf
+$scrollbarCss
 .heading-flash{animation:hflash 0.7s ease-out forwards}
 p{margin:0.8em 0}
 a{color:$linkColor;text-decoration:none}a:hover{text-decoration:underline}
@@ -527,18 +618,26 @@ $body
   }
 
   // ── Get raw markdown matching the rendered innerText of a block ────────
-  function _getBlockMd(innerText) {
-    var search = innerText.trim().toLowerCase().replace(/\\s+/g, ' ').slice(0, 100);
-    if (!search) return innerText;
-    var blocks = _parseRawBlocks(), best = '', score = 0;
+  function _findBlockMatch(innerText) {
+    var search = innerText.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 100);
+    if (!search) return { md: innerText, index: -1 };
+    var blocks = _parseRawBlocks(), best = '', score = 0, bestIndex = -1;
     for (var b = 0; b < blocks.length; b++) {
-      var s = _stripMd(blocks[b]).replace(/\\s+/g, ' ');
+      var s = _stripMd(blocks[b]).replace(/\s+/g, ' ');
       if (!s) continue;
       var sh = s.length <= search.length ? s : search;
       var lo = s.length > search.length ? s : search;
-      if (lo.indexOf(sh) !== -1 && sh.length > score) { score = sh.length; best = blocks[b]; }
+      if (lo.indexOf(sh) !== -1 && sh.length > score) {
+        score = sh.length;
+        best = blocks[b];
+        bestIndex = b;
+      }
     }
-    return best || innerText;
+    return { md: (best || innerText), index: bestIndex };
+  }
+
+  function _getBlockMd(innerText) {
+    return _findBlockMatch(innerText).md;
   }
 
   // ── Get raw markdown for a specific table cell ────────────────────────
@@ -567,62 +666,108 @@ $body
   var _ie = null;
   function _startEdit(el, key, rawMd) {
     if (_ie) _commitEdit(true);
-    var displayText = rawMd || el.textContent;
-    var prefix = '';
-    if ((el.tagName || '').toUpperCase() === 'LI') {
-      var pm = displayText.match(/^(\\s*(?:\\d+\\.|-|\\*|\\+)\\s*)/);
-      if (pm) { prefix = pm[1]; displayText = displayText.slice(pm[0].length); }
+    var displayText = rawMd || el.textContent || '';
+    var ta = document.createElement('textarea');
+    ta.value = displayText;
+    ta.setAttribute('spellcheck', 'false');
+    ta.style.width = '100%';
+    ta.style.minHeight = '1.8em';
+    ta.style.boxSizing = 'border-box';
+    ta.style.border = '0';
+    ta.style.padding = '0';
+    ta.style.margin = '0';
+    ta.style.outline = 'none';
+    ta.style.background = 'transparent';
+    ta.style.color = 'inherit';
+    ta.style.font = 'inherit';
+    ta.style.lineHeight = 'inherit';
+    ta.style.resize = 'none';
+    ta.style.whiteSpace = 'pre-wrap';
+    ta.style.overflow = 'hidden';
+
+    var savedStyles = {};
+    var tag = (el.tagName || '').toUpperCase();
+    // Blockquote: hide left border line during editing
+    if (tag === 'BLOCKQUOTE') {
+      savedStyles.borderLeft = el.style.borderLeft;
+      el.style.borderLeft = 'none';
     }
-    _ie = { el: el, key: key, origHtml: el.innerHTML, prefix: prefix };
-    el.textContent = displayText;
-    el.setAttribute('contenteditable', 'true');
+    // List item: hide CSS list marker during editing
+    if (tag === 'LI') {
+      savedStyles.listStyle = el.style.listStyle;
+      el.style.listStyle = 'none';
+    }
+
+    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML, savedStyles: savedStyles };
+    el.innerHTML = '';
+    el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
     el.style.borderRadius = '4px';
-    el.style.fontFamily = 'monospace,sans-serif';
     el.style.background = 'rgba(74,144,217,0.08)';
-    el.style.whiteSpace = 'pre-wrap';
-    el.focus();
-    var r = document.createRange(), s = window.getSelection();
-    r.selectNodeContents(el); r.collapse(false);
-    s.removeAllRanges(); s.addRange(r);
+
+    var _syncHeight = function() {
+      ta.style.height = 'auto';
+      ta.style.height = Math.max(ta.scrollHeight, 24) + 'px';
+    };
+    _syncHeight();
+    ta.addEventListener('input', _syncHeight);
+
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
+  }
+  function _restoreStyles(ie) {
+    ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
+    if (ie.savedStyles) {
+      if (ie.savedStyles.borderLeft !== undefined) ie.el.style.borderLeft = ie.savedStyles.borderLeft;
+      if (ie.savedStyles.listStyle !== undefined) ie.el.style.listStyle = ie.savedStyles.listStyle;
+    }
   }
   function _commitEdit(send) {
     if (!_ie) return;
     var ie = _ie; _ie = null;
-    var newText = (ie.prefix || '') + ie.el.textContent;
+    var newText = ie.ta ? ie.ta.value : '';
     ie.el.innerHTML = ie.origHtml;
-    ie.el.setAttribute('contenteditable', 'false');
-    ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.fontFamily =
-      ie.el.style.background = ie.el.style.whiteSpace = '';
-    if (send !== false && newText.trim()) {
+    _restoreStyles(ie);
+    if (send !== false) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
     }
   }
   document.addEventListener('focusout', function(e) {
-    if (_ie && e.target === _ie.el) setTimeout(_commitEdit, 50);
+    if (!_ie) return;
+    if (e.target === _ie.ta && !_ie.el.contains(e.relatedTarget)) {
+      setTimeout(_commitEdit, 50);
+    }
   }, true);
   document.addEventListener('keydown', function(e) {
     if (!_ie) return;
-    var isMl = ['PRE','BLOCKQUOTE'].indexOf((_ie.el.tagName||'').toUpperCase()) !== -1;
+    if (_ie.ta && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && document.activeElement === _ie.ta) {
+      // Keep native textarea caret movement, but prevent Android WebView page-scroll animation.
+      e.stopPropagation();
+      return;
+    }
     if (e.key === 'Escape') {
       _ie.el.innerHTML = _ie.origHtml;
       var s = _ie; _ie = null;
-      s.el.setAttribute('contenteditable','false');
-      s.el.style.outline = s.el.style.borderRadius = s.el.style.fontFamily =
-        s.el.style.background = s.el.style.whiteSpace = '';
+      _restoreStyles(s);
       e.preventDefault();
-    } else if (e.key === 'Enter' && !isMl && !e.shiftKey) {
+    } else if ((e.key === 'Enter' && (e.metaKey || e.ctrlKey)) || e.key === 'Tab') {
       e.preventDefault(); _commitEdit(true);
     }
   });
+  document.addEventListener('keyup', function(e) {
+    if (!_ie || !_ie.ta) return;
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && document.activeElement === _ie.ta) {
+      e.stopPropagation();
+    }
+  });
 
-  // ── Double-tap handler ────────────────────────────────────────────────
-  function _handleDoubleTap(target) {
+  // ── Single-tap edit handler ───────────────────────────────────────────
+  function _handleEditTap(target) {
     if (!target) return;
     var check = target;
     while (check && check !== document.body) {
       var tag = (check.tagName || '').toUpperCase();
-      if (tag==='A'||tag==='IMG'||tag==='INPUT'||tag==='BUTTON'||tag==='VIDEO'||tag==='AUDIO') return;
+      if (tag==='A'||tag==='IMG'||tag==='INPUT'||tag==='BUTTON'||tag==='VIDEO'||tag==='AUDIO'||tag==='TEXTAREA') return;
       check = check.parentElement || check.parentNode;
     }
     // Table cell?
@@ -641,15 +786,34 @@ $body
       }
       node = node.parentElement || node.parentNode;
     }
-    // Block element?
-    var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE'];
+    // Blockquote: edit the whole quote block (outermost ancestor) no matter where user taps inside.
+    var qNode = target;
+    var outerBq = null;
+    while (qNode && qNode !== document.body) {
+      if ((qNode.tagName || '').toUpperCase() === 'BLOCKQUOTE') outerBq = qNode;
+      qNode = qNode.parentElement || qNode.parentNode;
+    }
+    if (outerBq) {
+      var qText = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
+      var qMatch = _findBlockMatch(qText);
+      var qMd = qMatch.md;
+      var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(qMd))) + ':' + qMatch.index;
+      _startEdit(outerBq, qKey, qMd);
+      return;
+    }
+
+    // Other block elements
+    var blockTags = ['P','H1','H2','H3','H4','H5','H6','LI','PRE'];
     var el = target;
     while (el && el !== document.body && blockTags.indexOf((el.tagName||'').toUpperCase()) === -1) {
       el = el.parentElement || el.parentNode;
     }
     if (!el || el === document.body) return;
     var innerText = (el.dataset && el.dataset.mdSrc) || (el.innerText||el.textContent||'').trim();
-    _startEdit(el, 'block:'+innerText.slice(0,80), _getBlockMd(innerText));
+    var blockMatch = _findBlockMatch(innerText);
+    var blockMd = blockMatch.md;
+    var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd))) + ':' + blockMatch.index;
+    _startEdit(el, blockKey, blockMd);
   }
 
   // ── GitHub Alerts ─────────────────────────────────────────────────────
@@ -676,12 +840,7 @@ $body
     }
   });
 
-  // ── Unified click handler (links + checkboxes + double-tap counter) ───
-  // touch-action:manipulation on body disables native double-tap zoom but
-  // also suppresses the synthetic dblclick on Android WebView. However,
-  // both click events for a double-tap are always delivered, so counting
-  // 2 click events within 350 ms is a reliable cross-platform approach.
-  var _dblTap = { count: 0, target: null, timer: null };
+  // ── Unified click handler (links + checkboxes + single-tap edit) ─────
   document.addEventListener('click', function(e) {
     var t = e.target;
     // Link: walk up to A ancestor
@@ -698,24 +857,15 @@ $body
       window.flutter_inappwebview.callHandler('onCheckboxChange', Array.from(boxes).indexOf(t), t.checked);
       return;
     }
-    // Double-tap counter
-    if (_ie) return;
-    _dblTap.count++; _dblTap.target = t;
-    if (_dblTap.timer) clearTimeout(_dblTap.timer);
-    if (_dblTap.count >= 2) {
-      _dblTap.count = 0;
-      _handleDoubleTap(_dblTap.target);
-    } else {
-      _dblTap.timer = setTimeout(function() { _dblTap.count = 0; }, 350);
+
+    // In edit mode: keep editing when clicking inside textarea, otherwise commit and stop.
+    if (_ie) {
+      if (_ie.el.contains(t)) return;
+      _commitEdit(true);
+      return;
     }
-  });
-  // Desktop fast-path: native dblclick (returns early if click-counter already started editing)
-  document.addEventListener('dblclick', function(e) {
-    if (_ie) return;
-    if (_dblTap.timer) { clearTimeout(_dblTap.timer); _dblTap.timer = null; }
-    _dblTap.count = 0;
-    e.preventDefault();
-    _handleDoubleTap(e.target);
+
+    _handleEditTap(t);
   });
 })();
 </script>
@@ -815,6 +965,7 @@ $body
               source: 'window.scrollTo(0, $_savedScrollY)');
           _savedScrollY = 0;
         }
+        widget.onLoadFinished?.call();
       },
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         return NavigationActionPolicy.CANCEL;
