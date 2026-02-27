@@ -685,7 +685,22 @@ $body
     ta.style.whiteSpace = 'pre-wrap';
     ta.style.overflow = 'hidden';
 
-    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML };
+    var savedStyles = {};
+    var tag = (el.tagName || '').toUpperCase();
+    // Blockquote: hide left border line during editing
+    if (tag === 'BLOCKQUOTE') {
+      savedStyles.borderLeft = el.style.borderLeft;
+      savedStyles.background = el.style.background;
+      savedStyles.padding = el.style.padding;
+      el.style.borderLeft = 'none';
+    }
+    // List item: hide CSS list marker during editing
+    if (tag === 'LI') {
+      savedStyles.listStyle = el.style.listStyle;
+      el.style.listStyle = 'none';
+    }
+
+    _ie = { el: el, ta: ta, key: key, origHtml: el.innerHTML, savedStyles: savedStyles };
     el.innerHTML = '';
     el.appendChild(ta);
     el.style.outline = '2px solid #4a90d9';
@@ -702,13 +717,21 @@ $body
     ta.focus();
     ta.selectionStart = ta.selectionEnd = ta.value.length;
   }
+  function _restoreStyles(ie) {
+    ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
+    if (ie.savedStyles) {
+      if (ie.savedStyles.borderLeft !== undefined) ie.el.style.borderLeft = ie.savedStyles.borderLeft;
+      if (ie.savedStyles.padding !== undefined) ie.el.style.padding = ie.savedStyles.padding;
+      if (ie.savedStyles.listStyle !== undefined) ie.el.style.listStyle = ie.savedStyles.listStyle;
+    }
+  }
   function _commitEdit(send) {
     if (!_ie) return;
     var ie = _ie; _ie = null;
     var newText = ie.ta ? ie.ta.value : '';
     ie.el.innerHTML = ie.origHtml;
-    ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
-    if (send !== false && newText.trim()) {
+    _restoreStyles(ie);
+    if (send !== false) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
     }
   }
@@ -728,7 +751,7 @@ $body
     if (e.key === 'Escape') {
       _ie.el.innerHTML = _ie.origHtml;
       var s = _ie; _ie = null;
-      s.el.style.outline = s.el.style.borderRadius = s.el.style.background = '';
+      _restoreStyles(s);
       e.preventDefault();
     } else if ((e.key === 'Enter' && (e.metaKey || e.ctrlKey)) || e.key === 'Tab') {
       e.preventDefault(); _commitEdit(true);
@@ -838,10 +861,11 @@ $body
       return;
     }
 
-    // In edit mode: keep editing when clicking inside textarea, otherwise commit first.
+    // In edit mode: keep editing when clicking inside textarea, otherwise commit and stop.
     if (_ie) {
       if (_ie.el.contains(t)) return;
       _commitEdit(true);
+      return;
     }
 
     _handleEditTap(t);
