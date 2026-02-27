@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -800,23 +801,37 @@ class _EditorScreenState extends State<EditorScreen>
       if (ti >= tableBlocks.length) return;
       _inlineEditController.text = newText;
       _applyCellEdit(tableBlocks[ti], ri, ci);
-    } else if (key.startsWith('block:')) {
-      // key = 'block:' + first 80 chars of innerText → fuzzy-find block
-      final innerText = key.substring('block:'.length);
+    } else if (key.startsWith('blocksrc:') || key.startsWith('block:')) {
       final blocks = _parseBlocks(_textController.text);
-      final normalized = _stripMarkdown(innerText);
       int bestIndex = -1;
-      int bestLen = 0;
-      for (int i = 0; i < blocks.length; i++) {
-        final norm = _stripMarkdown(blocks[i].content);
-        if (norm.isEmpty) continue;
-        final shorter = norm.length <= normalized.length ? norm : normalized;
-        final longer = norm.length > normalized.length ? norm : normalized;
-        if (longer.contains(shorter) && shorter.length > bestLen) {
-          bestLen = shorter.length;
-          bestIndex = i;
+
+      if (key.startsWith('blocksrc:')) {
+        final encoded = key.substring('blocksrc:'.length);
+        try {
+          final originalMd = utf8.decode(base64Decode(encoded));
+          bestIndex = blocks.indexWhere((b) => b.content == originalMd);
+        } catch (_) {
+          bestIndex = -1;
         }
       }
+
+      if (bestIndex < 0 && key.startsWith('block:')) {
+        // Legacy key: fuzzy-find by text prefix from rendered innerText.
+        final innerText = key.substring('block:'.length);
+        final normalized = _stripMarkdown(innerText);
+        int bestLen = 0;
+        for (int i = 0; i < blocks.length; i++) {
+          final norm = _stripMarkdown(blocks[i].content);
+          if (norm.isEmpty) continue;
+          final shorter = norm.length <= normalized.length ? norm : normalized;
+          final longer = norm.length > normalized.length ? norm : normalized;
+          if (longer.contains(shorter) && shorter.length > bestLen) {
+            bestLen = shorter.length;
+            bestIndex = i;
+          }
+        }
+      }
+
       if (bestIndex >= 0) {
         _inlineEditController.text = newText;
         _applyBlockEdit(bestIndex, blocks);
