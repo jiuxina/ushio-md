@@ -690,8 +690,6 @@ $body
     // Blockquote: hide left border line during editing
     if (tag === 'BLOCKQUOTE') {
       savedStyles.borderLeft = el.style.borderLeft;
-      savedStyles.background = el.style.background;
-      savedStyles.padding = el.style.padding;
       el.style.borderLeft = 'none';
     }
     // List item: hide CSS list marker during editing
@@ -721,7 +719,6 @@ $body
     ie.el.style.outline = ie.el.style.borderRadius = ie.el.style.background = '';
     if (ie.savedStyles) {
       if (ie.savedStyles.borderLeft !== undefined) ie.el.style.borderLeft = ie.savedStyles.borderLeft;
-      if (ie.savedStyles.padding !== undefined) ie.el.style.padding = ie.savedStyles.padding;
       if (ie.savedStyles.listStyle !== undefined) ie.el.style.listStyle = ie.savedStyles.listStyle;
     }
   }
