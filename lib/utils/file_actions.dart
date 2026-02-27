@@ -62,6 +62,8 @@ class FileActions {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 6),
+            _buildPathPreview(context, path),
             const SizedBox(height: 20),
             
             // 1. Share (With submenu for file share options)
@@ -197,6 +199,8 @@ class FileActions {
                   ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 6),
+            _buildPathPreview(context, path),
             const SizedBox(height: 20),
             
             // 1. Share folder as ZIP
@@ -338,6 +342,27 @@ class FileActions {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  static Widget _buildPathPreview(BuildContext context, String path) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        path,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+              height: 1.35,
+            ),
+        textAlign: TextAlign.center,
+        softWrap: true,
       ),
     );
   }
