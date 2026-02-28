@@ -304,6 +304,64 @@ class SupabaseService {
   }
 
   // ---------------------------------------------------------------------------
+  // Data – Language Partners
+  // ---------------------------------------------------------------------------
+
+  /// Fetches all rows from the `language_partners` table.
+  Future<List<Map<String, dynamic>>> getLanguagePartners() async {
+    _ensureConfigured();
+    final response = await client
+        .from('language_partners')
+        .select()
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Creates a new partner match record.
+  Future<Map<String, dynamic>> createLanguagePartnerMatch(
+    Map<String, dynamic> data,
+  ) async {
+    _ensureConfigured();
+    final response = await client
+        .from('partner_matches')
+        .insert(data)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Data – Cultural Events
+  // ---------------------------------------------------------------------------
+
+  /// Fetches cultural events ordered by `start_date`.
+  Future<List<Map<String, dynamic>>> getCulturalEvents() async {
+    _ensureConfigured();
+    final response = await client
+        .from('cultural_events')
+        .select()
+        .order('start_date', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Data – Visa Info
+  // ---------------------------------------------------------------------------
+
+  /// Fetches visa information for a specific [userId].
+  Future<Map<String, dynamic>?> getVisaInfo(String userId) async {
+    _ensureConfigured();
+    final response = await client
+        .from('visa_info')
+        .select()
+        .eq('user_id', userId)
+        .maybeSingle();
+    return response != null
+        ? Map<String, dynamic>.from(response)
+        : null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
