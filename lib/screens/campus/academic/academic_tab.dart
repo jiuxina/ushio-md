@@ -201,13 +201,6 @@ class _AcademicTabState extends State<AcademicTab> {
   // ==================== GPA overview ====================
 
   Widget _buildGpaOverview(ThemeData theme, ColorScheme cs) {
-    final campus = context.watch<CampusProvider>();
-
-    // Compute GPA from grades if available; otherwise show placeholder
-    final grades = campus.courses
-        .where((c) => c.semester == _selectedSemester && c.credit != null)
-        .toList();
-
     // Placeholder values – replace with real data when backend provides grades
     const double currentGpa = 3.5;
     const double maxGpa = 4.0;
@@ -672,7 +665,7 @@ class _AcademicTabState extends State<AcademicTab> {
     final totalEarned =
         categories.fold<int>(0, (sum, c) => sum + c.earned);
     final totalRequired =
-        categories.fold<int>(0, (sum, c) => sum + c.required_);
+        categories.fold<int>(0, (sum, c) => sum + c.requiredCredits);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -740,7 +733,7 @@ class _AcademicTabState extends State<AcademicTab> {
               // Category breakdowns
               ...categories.map((cat) {
                 final progress =
-                    cat.required_ > 0 ? cat.earned / cat.required_ : 0.0;
+                    cat.requiredCredits > 0 ? cat.earned / cat.requiredCredits : 0.0;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Row(
@@ -779,7 +772,7 @@ class _AcademicTabState extends State<AcademicTab> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        '${cat.earned}/${cat.required_}',
+                        '${cat.earned}/${cat.requiredCredits}',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: cs.outline,
                           fontWeight: FontWeight.w500,
@@ -1049,8 +1042,8 @@ class _CertificateItem {
 class _GraduationCategory {
   final String label;
   final int earned;
-  final int required_;
+  final int requiredCredits;
   final Color color;
   const _GraduationCategory(
-      this.label, this.earned, this.required_, this.color);
+      this.label, this.earned, this.requiredCredits, this.color);
 }
