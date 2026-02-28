@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/campus_provider.dart';
-import '../utils/constants.dart';
 import '../widgets/app_background.dart';
 import 'campus/home/home_tab.dart';
 import 'campus/academic/academic_tab.dart';

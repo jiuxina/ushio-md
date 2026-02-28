@@ -272,7 +272,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     String displayName;
     if (widget.title != null) {
       displayName = widget.title!;
-    } else if (folderName == 'Ushio-MD' || folderName == 'Ushio-md') {
+    } else if (folderName == 'XiangsiTongxing') {
       displayName = '我的文件';
     } else {
       displayName = folderName;

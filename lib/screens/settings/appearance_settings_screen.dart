@@ -899,7 +899,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       return;
     }
 
-    const channel = MethodChannel('com.ushiomd/app_icon');
+    const channel = MethodChannel('com.xiangsi.tongxing/app_icon');
     try {
       await channel.invokeMethod('setAppIcon', {'iconIndex': iconIndex});
       await settings.setAppIconIndex(iconIndex);

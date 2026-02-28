@@ -66,7 +66,7 @@ class SettingsProvider extends ChangeNotifier {
   String? _defaultDirectory;
 
   /// 工作区文件夹名称
-  String _workspaceName = 'Ushio-md';
+  String _workspaceName = 'XiangsiTongxing';
 
   /// 自定义工作区基础路径（可选，为null时使用默认的getExternalStorageDirectory）
   String? _customWorkspaceBasePath = '/storage/emulated/0/Documents';
@@ -149,7 +149,7 @@ class SettingsProvider extends ChangeNotifier {
   String _ftpPassword = '';
 
   /// 云端同步文件夹名称
-  String _syncFolderName = 'Ushio-MD';
+  String _syncFolderName = 'XiangsiTongxing';
 
   /// 云端文件夹路径前缀（不含文件夹名称）
   String _syncRemotePath = '/storage/emulated/0/';
@@ -303,7 +303,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoSave = prefs.getBool('auto_save') ?? true;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
     _defaultDirectory = prefs.getString('default_directory');
-    _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
+    _workspaceName = prefs.getString('workspace_name') ?? 'XiangsiTongxing';
     _customWorkspaceBasePath = prefs.getString('custom_workspace_base_path') ??
         '/storage/emulated/0/Documents';
 
@@ -373,7 +373,7 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     _ftpUsername = prefs.getString('ftp_username') ?? '';
-    _syncFolderName = prefs.getString('sync_folder_name') ?? 'Ushio-MD';
+    _syncFolderName = prefs.getString('sync_folder_name') ?? 'XiangsiTongxing';
     _syncRemotePath =
         prefs.getString('sync_remote_path') ?? '/storage/emulated/0/';
     _autoSyncEnabled = prefs.getBool('auto_sync_enabled') ?? false;

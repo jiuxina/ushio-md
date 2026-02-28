@@ -57,7 +57,7 @@ class FTPService implements SyncServiceInterface {
   FTPConnect? _ftpClient;
 
   /// 云端工作区目录名称（可配置）
-  String _remoteWorkspaceName = 'Ushio-MD';
+  String _remoteWorkspaceName = 'XiangsiTongxing';
 
   /// 云端路径前缀（可配置）
   String _remotePathPrefix = '';

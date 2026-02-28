@@ -16,7 +16,7 @@ import '../utils/constants.dart';
 
 /// 安装器抽象
 class AppInstaller {
-  static const platform = MethodChannel('com.ushiomd/install');
+  static const platform = MethodChannel('com.xiangsi.tongxing/install');
   
   Future<bool?> install(String filePath) async {
     try {

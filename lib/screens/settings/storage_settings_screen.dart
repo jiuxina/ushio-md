@@ -382,7 +382,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               controller: controller,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'Ushio-md',
+                hintText: 'XiangsiTongxing',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

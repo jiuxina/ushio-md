@@ -303,7 +303,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           controller: _folderNameController,
           decoration: InputDecoration(
             labelText: '云端文件夹名称',
-            hintText: 'Ushio-MD',
+            hintText: 'XiangsiTongxing',
             prefixIcon: const Icon(Icons.folder),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
