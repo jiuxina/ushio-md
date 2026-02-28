@@ -208,6 +208,23 @@ class SupabaseService {
   }
 
   // ---------------------------------------------------------------------------
+  // Data – Venue Bookings
+  // ---------------------------------------------------------------------------
+
+  /// Creates a new venue booking.
+  Future<Map<String, dynamic>> createVenueBooking(
+    Map<String, dynamic> data,
+  ) async {
+    _ensureConfigured();
+    final response = await client
+        .from('venue_bookings')
+        .insert(data)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response);
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
