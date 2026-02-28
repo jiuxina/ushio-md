@@ -43,7 +43,7 @@ void main() async {
   // 尝试初始化 Supabase（如果已配置）
   if (SupabaseConfig.isConfigured) {
     try {
-      await SupabaseService().initialize();
+      await SupabaseService.instance.initialize();
     } catch (e) {
       debugPrint('Supabase initialization failed: $e');
     }
