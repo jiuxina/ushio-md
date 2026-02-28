@@ -362,6 +362,34 @@ class SupabaseService {
   }
 
   // ---------------------------------------------------------------------------
+  // Data – AI Chat Messages
+  // ---------------------------------------------------------------------------
+
+  /// Saves a chat message to the `ai_chat_messages` table.
+  Future<Map<String, dynamic>> saveChatMessage(
+    Map<String, dynamic> data,
+  ) async {
+    _ensureConfigured();
+    final response = await client
+        .from('ai_chat_messages')
+        .insert(data)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response);
+  }
+
+  /// Fetches chat history for a specific [userId], ordered by timestamp.
+  Future<List<Map<String, dynamic>>> getChatHistory(String userId) async {
+    _ensureConfigured();
+    final response = await client
+        .from('ai_chat_messages')
+        .select()
+        .eq('user_id', userId)
+        .order('timestamp', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
