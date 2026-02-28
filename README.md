@@ -1,160 +1,366 @@
-# 汐 - Android Markdown Editor ✨
+# 相思同行 - 广西民族大学智慧校园服务应用 🏫
 
 <p align="center">
-  <img src="app.png" width="180" alt="汐 Logo">
+  <img src="app.png" width="180" alt="相思同行 Logo">
 </p>
 <p align="center">
-  <b>一款简洁优雅的安卓端 Markdown 编辑器</b><br>
-  Markdown支持 · 文件管理 · 个性化设置 · 云同步 
+  <b>广西民族大学智慧校园一站式服务平台</b><br>
+  校园看板 · 学业中心 · 智慧办事 · 社区场馆 · 个人中心
 </p>
-
 
 <p align="center">
   <a href="https://github.com/jiuxina/ushio-md/stargazers">
     <img src="https://img.shields.io/github/stars/jiuxina/ushio-md?style=social" alt="GitHub stars">
   </a>
-  <a href="https://github.com/jiuxina/ushio-md/network/members">
-    <img src="https://img.shields.io/github/forks/jiuxina/ushio-md?style=social" alt="GitHub forks">
-  </a>
   <a href="https://github.com/jiuxina/ushio-md/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/jiuxina/ushio-md" alt="GitHub license">
   </a>
-  <a href="https://www.android.com">
-    <img src="https://img.shields.io/badge/platform-Android-brightgreen" alt="Platform Android">
+  <a href="https://flutter.dev">
+    <img src="https://img.shields.io/badge/Flutter-跨平台-blue?logo=flutter" alt="Flutter">
+  </a>
+  <a href="https://supabase.com">
+    <img src="https://img.shields.io/badge/Supabase-后端服务-3ECF8E?logo=supabase" alt="Supabase">
   </a>
 </p>
 
+---
+
 ## 目录
 
-- [功能特性](#✨-功能特性)
-- [截图展示](#📱-截图展示)
-- [安装](#📦-安装)
-- [已知问题](#⚠️-已知问题)
-- [权限说明](#📋-权限说明)
-- [Markdown 支持](#🎯-markdown-支持)
-- [贡献](#🤝-贡献)
-- [开源协议](#📄-开源协议)
-- [作者](#👨‍💻-作者)
-- [校园 App UI 架构参考](#🏫-校园-app-ui-架构参考)
+- [功能特性](#-功能特性)
+- [实现进度](#-实现进度)
+- [技术栈](#-技术栈)
+- [数据库配置](#-数据库配置)
+- [数据库结构](#-数据库结构)
+- [项目结构](#-项目结构)
+- [构建与运行](#-构建与运行)
+- [贡献](#-贡献)
+- [开源协议](#-开源协议)
+- [致谢](#-致谢)
+
+---
 
 ## ✨ 功能特性
 
-### 📝 编辑功能
-- 完整 Markdown 语法支持（粗体、斜体、删除线、标题、列表、表格等）
-- 三种查看模式：编辑 / 预览 / 分屏
-- 基于 WebView 的高保真预览渲染
-- 预览模式双击段落/表格单元格，直接原地编辑
-- 自动保存，可自定义间隔
-- 快捷工具栏，快速插入常用格式
-- 智能目录导航，快速跳转章节
-- 全文搜索，高亮匹配结果
-- 代码高亮显示，支持多种语言
-- KaTeX 数学公式渲染（`$$...$$` / `$...$`）
-- 视频/音频链接自动渲染为 HTML5 播放器（.mp4/.mp3 等）
+### 🏠 首页看板
 
-### 📁 文件管理
-- 本地文件 & 文件夹浏览，支持搜索、排序、新建
-- 最近文件/文件夹快速访问
-- 长按置顶 + 拖拽排序，首页更整洁
-- 一键清除最近记录
-- 多种排序方式：名称、修改时间、自定义顺序
-- 智能过滤：自动清理不存在的文件引用
-- 输入验证：重命名时自动检测非法字符
-- 外部文件导入：
-- 可选"仅查看"（目前无法对源文档作修改）或"导入"（连同引用图片一起复制到工作区）
+- 实时天气信息展示
+- 校巴运行状态查询
+- 下一节课提醒
+- 校园卡余额显示
+- 快捷服务宫格入口（图书馆、充值、报修、成绩等）
+- 校园公告与通知轮播
 
-### 🎨 个性化设置
-- 主题模式：跟随系统 / 浅色 / 深色
-- 12 种精选主题色
-- 5 套浅色主题方案（经典白、暖纸色、冷灰色、天空蓝、薄荷绿）
-- 6 套深色主题方案（柔和暗灰、舒适暖灰、午夜深蓝、深邃极夜、经典黑、极致纯黑）
-- 自定义背景图片，支持模糊效果
-- 界面字体 / 编辑器字体 / 代码字体分别设置，支持导入本地字体
-- 字体大小 6–80px 自由调节
-- 粒子效果：樱花、雨滴、萤火虫、雪花
-- 粒子速率 0.1x–1.0x 可调
-- 全局显示开关，可单独控制编辑器区域
-- 底部导航栏透明度调节
+### 📚 学业中心
 
-### ☁️ 云端同步（待测试，可能不可用）
-- WebDAV 协议，兼容主流网盘
-- FTP 协议支持
-- 智能冲突检测，支持手动解决
-- 同步预览，明确上传/下载文件
-- 安全存储：密码加密保护（使用 Android EncryptedSharedPreferences）
-- 自动同步 + 手动触发
+- GPA 总览与学期走势
+- 课程表（周视图，按星期/节次排列）
+- 成绩列表与学分统计
+- 证书办理服务入口
+- 毕业进度追踪
 
-### 🧩 插件系统（待测试，可能不可用）
-- 声明式插件架构，安全稳定
-- 支持工具栏、主题、预览样式等 10 大扩展点
-- 内置官方插件市场，一键安装/更新
-- 开发者友好，提供完整开发文档
-- 详情请查阅： [插件系统](https://github.com/jiuxina/ushio-md-plugins)
+### 📋 智慧办事
 
-### 📤 分享导出
-- 文件夹压缩分享（ZIP 格式）
-- PDF 导出
-- 图片导出
-- 全屏预览模式一键分享
+- 请假申请（支持选择假别、起止时间、去向、事由、附件上传）
+- 审批时间线，实时查看请假状态
+- 报修申请提交
+- 各类办事申请进度跟踪
 
-## 📱 截图展示
-> 可能过时
+### 🤝 社区与场馆
 
-| 首页 | 编辑器 | 设置 |
-|:---:|:---:|:---:|
-| 快速操作、置顶文件 | 预览模式、目录导航 | 主题色、背景设置 |
-| <img src="sample/1.png" alt="1" style="zoom: 25%;" /> | <img src="sample/2.png" alt="1" style="zoom: 25%;" /> | <img src="sample/3.png" alt="1" style="zoom: 25%;" /> |
+- 校园动态信息流（帖子、图片、话题）
+- 场馆在线预约（体育馆、自习室、会议室等）
+- 心情打卡签到
+- 心理健康资源入口
 
-## 📦 安装
+### 👤 我的
 
-1. 前往 [Releases](https://github.com/jiuxina/ushio-md/releases) 下载最新 APK
-2. 安装后授予存储权限
-3. 立即开始你的 Markdown 之旅～
+- 个人信息卡片（头像、姓名、学号、学院、专业）
+- 数字校园码（扫码通行）
+- 缴费与充值
+- 系统设置（主题切换、通知管理）
+- 隐私与安全
+- 退出登录
 
-## 📋 权限说明
+---
 
-| 权限         | 用途                    |
-| ------------ | ----------------------- |
-| 存储权限     | 读取/保存 Markdown 文件 |
-| 管理所有文件 | 访问设备任意文件夹      |
+## 📊 实现进度
 
-## 🎯 Markdown 支持
+### 已完成 ✅
 
-| 语法       | 示例             | 效果         |
-| ---------- | ---------------- | ------------ |
-| **粗体**   | `**文字**`       | **文字**     |
-| *斜体*     | `*文字*`         | *文字*       |
-| ~~删除线~~ | `~~文字~~`       | ~~文字~~     |
-| # 标题     | `# 标题`         | 大标题       |
-| 引用       | `> 内容`         | 引用块       |
-| 代码       | `` `代码` ``     | `代码`       |
-| 代码块     | `````            | 代码块       |
-| 链接       | `[文字](URL)`    | [文字](URL)  |
-| 图片       | `![alt](URL)`    | 图片         |
-| 无序列表   | `- 项目`         | • 项目       |
-| 有序列表   | `1. 项目`        | 1. 项目      |
-| 任务列表   | `- [ ] 待办`     | ☐ 待办       |
-| 分隔线     | `---`            | ---          |
-| 表格       | `\| 列 \| 列 \|` | 完整表格支持 |
-| 数学公式   | `$$E=mc^2$$`     | KaTeX 渲染   |
+- [x] 完整的登录/认证流程，集成 Supabase Auth
+- [x] 5 Tab 主导航结构（首页 / 学业 / 办事 / 社区 / 我的）
+- [x] 所有 Tab 页面完整 UI 实现
+- [x] Supabase 服务层，支持维护模式检测
+- [x] 8 个数据模型（CampusUser、Course、Grade、LeaveRequest、Announcement、Venue、VenueBooking、CommunityPost）
+- [x] Auth Provider —— 会话管理与登录状态维持
+- [x] Campus Data Provider —— 统一数据获取与错误处理
+- [x] 维护模式提示 —— Supabase 未配置时自动降级展示
+- [x] 主题系统（5 套浅色 + 6 套深色主题方案，12 种强调色）
 
+### 待开发 ⬜
 
-## 🏫 校园 App UI 架构参考
+- [ ] 推送通知
+- [ ] 附件文件上传
+- [ ] 实时数据订阅（Supabase Realtime）
+- [ ] 离线缓存
 
-如果你想基于汐 app 的设计颗粒度，扩展校园类应用的信息架构（含 Windows 端兼容设计），可参考：
+---
 
-- [CAMPUS_UI_MERMAID.md](CAMPUS_UI_MERMAID.md)
+## 🛠 技术栈
+
+| 技术 | 用途 |
+| --- | --- |
+| **Flutter** | 跨平台 UI 框架（Android / iOS / Web / Desktop） |
+| **Provider** | 状态管理 |
+| **Supabase** | 后端服务（认证、数据库、存储） |
+| **Material 3** | UI 设计规范 |
+
+---
+
+## ⚙ 数据库配置
+
+本项目使用 [Supabase](https://supabase.com) 作为后端服务。请按以下步骤配置：
+
+### 1. 创建 Supabase 项目
+
+1. 前往 [supabase.com](https://supabase.com) 注册并创建一个新项目
+2. 在项目 **Settings → API** 页面获取：
+   - **Project URL**（例如 `https://xxxxx.supabase.co`）
+   - **anon public key**（匿名公钥）
+
+### 2. 修改配置文件
+
+配置文件位于：
+
+```
+lib/config/supabase_config.dart
+```
+
+将文件中的占位符替换为你的真实值：
+
+```dart
+class SupabaseConfig {
+  static const String supabaseUrl = 'https://YOUR_PROJECT.supabase.co';
+  static const String supabaseAnonKey = 'YOUR_ANON_KEY';
+}
+```
+
+### 3. 创建数据库表
+
+在 Supabase 控制台的 **SQL Editor** 中执行下方 [数据库结构](#-数据库结构) 部分的建表 SQL。
+
+### 4. 未配置时的行为
+
+如果未替换占位符，应用将自动进入 **维护模式**：
+
+- 所有页面显示维护提示横幅
+- UI 仍可正常浏览，但数据请求将被拦截
+- 不会产生错误崩溃
+
+---
+
+## 🗄 数据库结构
+
+以下为完整的建表 SQL，可直接在 Supabase SQL Editor 中执行：
+
+```sql
+-- profiles 表（扩展 Supabase auth.users）
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
+  student_id TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  avatar TEXT,
+  college TEXT,
+  major TEXT,
+  grade TEXT,
+  role TEXT DEFAULT '本科生',
+  phone TEXT,
+  email TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- courses 课程表
+CREATE TABLE courses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  name TEXT NOT NULL,
+  teacher TEXT,
+  location TEXT,
+  day_of_week INTEGER,
+  start_period INTEGER,
+  end_period INTEGER,
+  start_week INTEGER,
+  end_week INTEGER,
+  semester TEXT,
+  credit NUMERIC(3,1),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- grades 成绩表
+CREATE TABLE grades (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id UUID REFERENCES courses(id),
+  course_name TEXT NOT NULL,
+  score NUMERIC(5,2),
+  credit NUMERIC(3,1),
+  grade_point NUMERIC(3,2),
+  semester TEXT,
+  rank TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- announcements 公告表
+CREATE TABLE announcements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  content TEXT,
+  department TEXT,
+  category TEXT,
+  is_important BOOLEAN DEFAULT false,
+  published_at TIMESTAMPTZ DEFAULT now(),
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- leave_requests 请假申请表
+CREATE TABLE leave_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  type TEXT NOT NULL,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  reason TEXT,
+  destination TEXT,
+  attachments JSONB DEFAULT '[]',
+  status TEXT DEFAULT 'pending',
+  reviewer_comment TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- venues 场馆表
+CREATE TABLE venues (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  type TEXT,
+  location TEXT,
+  capacity INTEGER DEFAULT 0,
+  is_available BOOLEAN DEFAULT true,
+  image_url TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- venue_bookings 场馆预约表
+CREATE TABLE venue_bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  venue_id UUID REFERENCES venues(id),
+  date DATE NOT NULL,
+  time_slot TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- community_posts 社区帖子表
+CREATE TABLE community_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  user_name TEXT,
+  user_avatar TEXT,
+  content TEXT NOT NULL,
+  images JSONB DEFAULT '[]',
+  topic TEXT,
+  like_count INTEGER DEFAULT 0,
+  comment_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+---
+
+## 📁 项目结构
+
+```
+lib/
+├── config/
+│   └── supabase_config.dart          # Supabase 连接配置
+├── main.dart                          # 应用入口
+├── models/
+│   ├── announcement.dart              # 公告模型
+│   ├── campus_user.dart               # 校园用户模型
+│   ├── community_post.dart            # 社区帖子模型
+│   ├── course.dart                    # 课程模型
+│   ├── grade.dart                     # 成绩模型
+│   ├── leave_request.dart             # 请假申请模型
+│   ├── venue.dart                     # 场馆模型
+│   └── venue_booking.dart             # 场馆预约模型
+├── providers/
+│   ├── auth_provider.dart             # 认证状态管理
+│   ├── campus_provider.dart           # 校园数据状态管理
+│   └── settings_provider.dart         # 设置状态管理
+├── screens/
+│   ├── auth/
+│   │   └── login_screen.dart          # 登录页
+│   └── campus/
+│       ├── academic/
+│       │   └── academic_tab.dart      # 学业中心
+│       ├── community/
+│       │   └── community_tab.dart     # 社区与场馆
+│       ├── home/
+│       │   └── home_tab.dart          # 首页看板
+│       ├── office/
+│       │   └── office_tab.dart        # 智慧办事
+│       └── profile/
+│           └── profile_tab.dart       # 个人中心
+├── services/
+│   └── supabase_service.dart          # Supabase 服务层
+└── widgets/
+    └── ...                            # 通用 UI 组件
+```
+
+---
+
+## 🚀 构建与运行
+
+### 环境要求
+
+- Flutter SDK ≥ 3.x
+- Dart SDK ≥ 3.x
+- Android Studio / VS Code
+
+### 运行步骤
+
+```bash
+# 安装依赖
+flutter pub get
+
+# 运行应用（调试模式）
+flutter run
+
+# 构建 APK
+flutter build apk --release
+```
+
+---
 
 ## 🤝 贡献
 
-发现 bug、想加新功能、优化体验，或者单纯想打个招呼，都欢迎提交 Issue 或 Pull Request 的说~
+发现 bug、想加新功能、优化体验，或者单纯想打个招呼，都欢迎提交 Issue 或 Pull Request！
+
+---
 
 ## 📄 开源协议
 
 [MIT License](https://github.com/jiuxina/ushio-md/blob/main/LICENSE)
 
-## 👨‍💻 作者
+---
 
-**jiuxina**  
+## 💡 致谢
 
-Made with ❤️ by Me & You
+本项目基于 **汐 (Ushio-MD)** 的 UI 框架进行开发，感谢原作者 [jiuxina](https://github.com/jiuxina) 提供的优秀基础架构。
+
+校园应用 UI 架构设计参考：[CAMPUS_UI_MERMAID.md](CAMPUS_UI_MERMAID.md)
+
+Made with ❤️ for 广西民族大学
