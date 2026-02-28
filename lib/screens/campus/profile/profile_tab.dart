@@ -3,9 +3,17 @@ import 'package:provider/provider.dart';
 
 import '../../../providers/auth_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../providers/teacher_provider.dart';
 import '../../../utils/constants.dart';
 import '../../../widgets/glass_card.dart';
 import '../../settings/appearance_settings_screen.dart';
+import '../teacher/teacher_dashboard.dart';
+import '../asean/asean_hub_screen.dart';
+import '../compliance/privacy_center_screen.dart';
+import '../compliance/checkin_screen.dart';
+import '../compliance/youth_mode_screen.dart';
+import '../compliance/job_board_screen.dart';
+import '../ai/ai_chat_screen.dart';
 
 /// 我的数字身份 - Tab 5
 ///
@@ -42,6 +50,13 @@ class _ProfileTabState extends State<ProfileTab> {
           _buildProfileCard(context, authProvider),
           const SizedBox(height: 16),
           _buildStatisticsRow(context),
+          const SizedBox(height: 16),
+          // Module 10: Teacher mode switch
+          _buildTeacherModeCard(context, authProvider),
+          const SizedBox(height: 24),
+          _buildSectionHeader(context, '特色服务'),
+          const SizedBox(height: 12),
+          _buildFeatureServicesSection(context),
           const SizedBox(height: 24),
           _buildSectionHeader(context, '常用服务'),
           const SizedBox(height: 12),
@@ -344,6 +359,160 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  // ==================== Teacher Mode Card ====================
+
+  Widget _buildTeacherModeCard(BuildContext context, AuthProvider authProvider) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final user = authProvider.currentUser;
+    final isTeacher = user?.role == '教师' || user?.role == '辅导员';
+
+    if (!isTeacher) return const SizedBox.shrink();
+
+    return Consumer<TeacherProvider>(
+      builder: (context, teacherProvider, _) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: teacherProvider.isTeacherMode
+                  ? [AppConstants.warningColor.withValues(alpha: 0.15),
+                     AppConstants.warningColor.withValues(alpha: 0.05)]
+                  : [cs.surface.withValues(alpha: 0.7),
+                     cs.surface.withValues(alpha: 0.5)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: teacherProvider.isTeacherMode
+                  ? AppConstants.warningColor.withValues(alpha: 0.5)
+                  : theme.dividerColor.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppConstants.warningColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: AppConstants.warningColor,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '教职工模式',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      teacherProvider.isTeacherMode ? '审批与管理功能已开启' : '切换查看管理工作台',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: teacherProvider.isTeacherMode,
+                onChanged: (v) {
+                  teacherProvider.toggleTeacherMode();
+                  if (v) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TeacherDashboard(),
+                      ),
+                    );
+                  }
+                },
+                activeColor: AppConstants.warningColor,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ==================== Feature Services Section ====================
+
+  Widget _buildFeatureServicesSection(BuildContext context) {
+    return Column(
+      children: [
+        GlassCard(
+          icon: Icons.public_rounded,
+          iconColor: const Color(0xFF10B981),
+          title: '东盟与民族特色',
+          subtitle: '多语种服务 · 留学生办事 · 民族文化',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AseanHubScreen(),
+              ),
+            );
+          },
+          trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+        ),
+        GlassCard(
+          icon: Icons.smart_toy_rounded,
+          iconColor: const Color(0xFF8B5CF6),
+          title: '相思 AI 助理',
+          subtitle: '智能问答 · 语音交互 · 一键办事',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AiChatScreen(),
+              ),
+            );
+          },
+          trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+        ),
+        GlassCard(
+          icon: Icons.calendar_today_rounded,
+          iconColor: AppConstants.warningColor,
+          title: '每日签到',
+          subtitle: '签到领积分，连续签到更多奖励',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CheckinScreen(),
+              ),
+            );
+          },
+          trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+        ),
+        GlassCard(
+          icon: Icons.work_rounded,
+          iconColor: const Color(0xFF3B82F6),
+          title: '校企直聘',
+          subtitle: '实习 · 兼职 · 校招信息',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const JobBoardScreen(),
+              ),
+            );
+          },
+          trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+        ),
+      ],
+    );
+  }
+
   // ==================== Services Section ====================
 
   Widget _buildServicesSection(BuildContext context) {
@@ -444,7 +613,29 @@ class _ProfileTabState extends State<ProfileTab> {
           iconColor: AppConstants.successColor,
           title: '隐私与安全',
           subtitle: '账号安全与隐私管理',
-          onTap: () {},
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const PrivacyCenterScreen(),
+              ),
+            );
+          },
+          trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+        ),
+        GlassCard(
+          icon: Icons.child_care_rounded,
+          iconColor: const Color(0xFFF472B6),
+          title: '青少年模式',
+          subtitle: '使用时间限制与内容过滤',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const YouthModeScreen(),
+              ),
+            );
+          },
           trailing: const Icon(Icons.chevron_right_rounded, size: 20),
         ),
         GlassCard(

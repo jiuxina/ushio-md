@@ -4,11 +4,13 @@ import '../providers/settings_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/campus_provider.dart';
 import '../widgets/app_background.dart';
+import '../widgets/ai_floating_button.dart';
 import 'campus/home/home_tab.dart';
 import 'campus/academic/academic_tab.dart';
 import 'campus/office/office_tab.dart';
 import 'campus/community/community_tab.dart';
 import 'campus/profile/profile_tab.dart';
+import 'campus/ai/ai_chat_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -64,7 +66,22 @@ class _MainScreenState extends State<MainScreen> {
       wrapWithSafeArea: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: _buildBody(),
+        body: Stack(
+          children: [
+            _buildBody(),
+            // Module 12: AI 悬浮球
+            AiFloatingButton(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AiChatScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
         bottomNavigationBar: _buildBottomNav(),
       ),
     );

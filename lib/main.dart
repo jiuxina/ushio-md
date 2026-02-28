@@ -27,6 +27,8 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/campus_provider.dart';
+import 'providers/teacher_provider.dart';
+import 'providers/ai_provider.dart';
 import 'config/supabase_config.dart';
 import 'services/supabase_service.dart';
 import 'screens/main_screen.dart';
@@ -66,6 +68,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => CampusProvider()),
+        ChangeNotifierProvider(create: (_) => TeacherProvider()),
+        ChangeNotifierProvider(create: (_) => AiProvider()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, child) {
