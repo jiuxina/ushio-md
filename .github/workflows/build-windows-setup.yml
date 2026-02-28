@@ -1,0 +1,79 @@
+name: Build Windows Setup
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows-setup:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows app
+        run: flutter build windows --release
+
+      - name: Prepare Inno Setup script
+        shell: pwsh
+        run: |
+          $appName = "ushio-md"
+          $pubspec = Get-Content pubspec.yaml -Raw
+          if ($pubspec -match "(?m)^version:\s*([^\s+]+)") {
+            $appVersion = $Matches[1]
+          } else {
+            $appVersion = "0.0.0"
+          }
+
+          $releaseDir = (Resolve-Path "build/windows/x64/runner/Release").Path
+          $iss = @"
+          [Setup]
+          AppId={{4D779D85-9C34-4D4F-AF74-A72A6AB90C85}
+          AppName=$appName
+          AppVersion=$appVersion
+          DefaultDirName={autopf}\\$appName
+          DefaultGroupName=$appName
+          OutputDir=installer
+          OutputBaseFilename=$appName-$appVersion-setup
+          Compression=lzma
+          SolidCompression=yes
+          WizardStyle=modern
+
+          [Files]
+          Source: "$releaseDir\\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+
+          [Icons]
+          Name: "{group}\\$appName"; Filename: "{app}\\mdreader.exe"
+          Name: "{autodesktop}\\$appName"; Filename: "{app}\\mdreader.exe"; Tasks: desktopicon
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:";
+
+          [Run]
+          Filename: "{app}\\mdreader.exe"; Description: "Launch $appName"; Flags: nowait postinstall skipifsilent
+          "@
+
+          Set-Content -Path "windows_installer.iss" -Value $iss -Encoding UTF8
+
+      - name: Build setup.exe
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
+        with:
+          path: windows_installer.iss
+
+      - name: Upload setup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: installer/*.exe
+          if-no-files-found: error
