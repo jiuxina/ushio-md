@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -18,9 +19,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     with TickerProviderStateMixin {
   late final AnimationController _qrRotateController;
   late final AnimationController _radarController;
+  Timer? _countdownTimer;
 
   int _qrCountdown = 30;
-  bool _countingDown = true;
 
   // Mock student list
   final List<_StudentAttendance> _students = [
@@ -49,9 +50,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   void _startCountdown() {
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return false;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       setState(() {
         if (_qrCountdown > 0) {
           _qrCountdown--;
@@ -59,13 +62,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           _qrCountdown = 30;
         }
       });
-      return _countingDown;
     });
   }
 
   @override
   void dispose() {
-    _countingDown = false;
+    _countdownTimer?.cancel();
     _qrRotateController.dispose();
     _radarController.dispose();
     super.dispose();
@@ -536,15 +538,8 @@ class _RadarPainter extends CustomPainter {
     final startAngle = progress * 2 * math.pi - math.pi / 2;
 
     final sweepPaint = Paint()
-      ..shader = SweepGradient(
-        startAngle: startAngle,
-        endAngle: startAngle + sweepAngle,
-        colors: [
-          color.withValues(alpha: 0.0),
-          color.withValues(alpha: 0.3),
-        ],
-        stops: const [0.0, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
+      ..color = color.withValues(alpha: 0.25)
+      ..style = PaintingStyle.fill;
 
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
@@ -553,6 +548,15 @@ class _RadarPainter extends CustomPainter {
       true,
       sweepPaint,
     );
+
+    // Draw sweep edge line
+    final edgePaint = Paint()
+      ..color = color.withValues(alpha: 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final edgeEndX = center.dx + radius * math.cos(startAngle + sweepAngle);
+    final edgeEndY = center.dy + radius * math.sin(startAngle + sweepAngle);
+    canvas.drawLine(center, Offset(edgeEndX, edgeEndY), edgePaint);
   }
 
   @override

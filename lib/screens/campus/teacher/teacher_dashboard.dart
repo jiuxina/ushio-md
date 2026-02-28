@@ -515,7 +515,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
               const SizedBox(height: 8),
               Text(
-                '← 右滑批准 · 左滑驳回 →',
+                '← 右滑批准  ·  左滑驳回 →',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: cs.outline.withValues(alpha: 0.5),
                 ),

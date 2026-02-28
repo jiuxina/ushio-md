@@ -153,15 +153,21 @@ class TeacherProvider extends ChangeNotifier {
 
     try {
       await _supabaseService.submitAttendanceRecords(records);
-      await fetchAttendanceRecords(courseId);
     } on SupabaseNotConfiguredException {
       _attendanceRecordsError = _maintenanceMessage;
       _attendanceRecordsLoading = false;
       notifyListeners();
+      return;
     } catch (e) {
       _attendanceRecordsError = '提交考勤失败，请稍后再试';
       _attendanceRecordsLoading = false;
       notifyListeners();
+      return;
     }
+
+    _attendanceRecordsLoading = false;
+    notifyListeners();
+
+    await fetchAttendanceRecords(courseId);
   }
 }

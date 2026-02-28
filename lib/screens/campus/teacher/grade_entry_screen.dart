@@ -97,11 +97,12 @@ class _GradeEntryScreenState extends State<GradeEntryScreen> {
       } else if (key == '✓') {
         _activeStudentIndex = null;
       } else {
-        // Prevent scores > 100 and multiple decimals
-        final newText = student.controller.text + key;
         if (key == '.' && student.controller.text.contains('.')) return;
+        if (key == '.' && student.controller.text.isEmpty) return;
+        final newText = student.controller.text + key;
         final parsed = double.tryParse(newText);
-        if (parsed != null && parsed > 100) return;
+        if (parsed == null) return;
+        if (parsed < 0 || parsed > 100) return;
         student.controller.text = newText;
       }
       student.score = double.tryParse(student.controller.text);
