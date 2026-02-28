@@ -68,13 +68,13 @@ class AppConstants {
   // ==================== 应用信息 ====================
   
   /// 应用名称
-  static const String appName = '汐';
+  static const String appName = '相思同行';
   
   /// 版本号
-  static const String appVersion = '1.3.2';
+  static const String appVersion = '1.0.0';
   
   /// 应用描述
-  static const String appDescription = 'Markdown 编辑器';
+  static const String appDescription = '广西民族大学智慧校园';
   
   /// 作者
   static const String appAuthor = 'jiuxina';
@@ -83,7 +83,7 @@ class AppConstants {
   static const String githubUrl = 'https://github.com/jiuxina/ushio-md';
 
   /// 包名 (Application ID)
-  static const String packageName = 'com.ushiomd';
+  static const String packageName = 'com.xiangsi.tongxing';
 
   // ==================== 主题色 ====================
   
