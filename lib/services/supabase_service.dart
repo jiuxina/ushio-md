@@ -225,6 +225,85 @@ class SupabaseService {
   }
 
   // ---------------------------------------------------------------------------
+  // Data – Teacher: Pending Approvals
+  // ---------------------------------------------------------------------------
+
+  /// Fetches pending leave requests for teacher approval.
+  Future<List<Map<String, dynamic>>> getPendingApprovals() async {
+    _ensureConfigured();
+    final response = await client
+        .from('leave_requests')
+        .select()
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Approves a leave request by [id].
+  Future<void> approveLeaveRequest(String id) async {
+    _ensureConfigured();
+    await client
+        .from('leave_requests')
+        .update({
+          'status': 'approved',
+          'reviewed_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', id);
+  }
+
+  /// Rejects a leave request by [id] with an optional [comment].
+  Future<void> rejectLeaveRequest(String id, String comment) async {
+    _ensureConfigured();
+    await client
+        .from('leave_requests')
+        .update({
+          'status': 'rejected',
+          'reviewer_comment': comment,
+          'reviewed_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Data – Teacher: Student Alerts
+  // ---------------------------------------------------------------------------
+
+  /// Fetches student alerts from the `student_alerts` table.
+  Future<List<Map<String, dynamic>>> getStudentAlerts() async {
+    _ensureConfigured();
+    final response = await client
+        .from('student_alerts')
+        .select()
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Data – Teacher: Attendance Records
+  // ---------------------------------------------------------------------------
+
+  /// Fetches attendance records for a specific [courseId].
+  Future<List<Map<String, dynamic>>> getAttendanceRecords(
+    String courseId,
+  ) async {
+    _ensureConfigured();
+    final response = await client
+        .from('attendance_records')
+        .select()
+        .eq('course_id', courseId)
+        .order('checked_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Submits a batch of attendance records.
+  Future<void> submitAttendanceRecords(
+    List<Map<String, dynamic>> records,
+  ) async {
+    _ensureConfigured();
+    await client.from('attendance_records').insert(records);
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
