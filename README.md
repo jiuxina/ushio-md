@@ -82,6 +82,31 @@
 - 隐私与安全
 - 退出登录
 
+### 👨‍🏫 教师与管理者视图 (Module 10)
+
+- **身份动态切换** —— 我的页面一键切换教职工模式
+- **辅导员移动驾驶舱** —— 高危学生预警雷达（红/黄/蓝三色分级）、批量审批中心（侧滑同意/驳回）、一键寻人、学生画像穿透
+- **任课教师工具箱** —— 课堂点名（QR 码动态刷新 + 蓝牙感应雷达动画）、成绩录入面板（极速数字小键盘）
+- **权限越权访问拦截** —— 403 无权限页面
+
+### 🌏 民大东盟与民族特色专区 (Module 11)
+
+- **多语种国际化 UI** —— 全局语言切换面板（中/泰/越/老/柬/英 6 种语言）、专业名词多语种对照词典
+- **留学生跨境办事服务** —— 居留签证到期红色倒计时卡片、双语智能办事指南、语伴结对匹配滑动卡片
+- **石榴籽民族文化空间** —— 民族节日打卡地图（三月三/歌圩节）、素拓分换算明细、民族服饰 AR 试穿体验界面
+
+### 🤖 相思 AI 助理 (Module 12)
+
+- **全局唤醒** —— 右下角悬浮拖拽球（呼吸灯动效）、语音输入态（拾音波浪线动画）
+- **对话界面** —— 流式打字机输出效果、快捷 Prompt 建议筹码、多轮对话上下文折叠、点赞/点踩/重新生成
+- **意图识别与卡片渲染** —— 文本转指令（对话流中直接渲染请假单表单卡片）、信息聚合卡（课表图文排版卡片）
+
+### 📋 合规、增长与运营矩阵 (Module 13)
+
+- **隐私与合规** —— 个人信息收集清单、第三方共享清单、账号注销全流程（15 天犹豫期）、青少年/防沉迷模式
+- **新手引导与增长** —— 首次安装蒙版引导、老带新裂变海报生成器、签到体系（金币/积分掉落动效与存钱罐 UI）
+- **商业化拓展** —— 开屏广告倒计时跳过组件、信息流原生广告位、校企直聘专栏（企业微主页与简历一键投递）
+
 ---
 
 ## 📊 实现进度
@@ -92,11 +117,17 @@
 - [x] 5 Tab 主导航结构（首页 / 学业 / 办事 / 社区 / 我的）
 - [x] 所有 Tab 页面完整 UI 实现
 - [x] Supabase 服务层，支持维护模式检测
-- [x] 8 个数据模型（CampusUser、Course、Grade、LeaveRequest、Announcement、Venue、VenueBooking、CommunityPost）
+- [x] 13 个数据模型（CampusUser、Course、Grade、LeaveRequest、Announcement、Venue、VenueBooking、CommunityPost、StudentAlert、AttendanceRecord、ChatMessage、LanguagePartner、CulturalEvent）
 - [x] Auth Provider —— 会话管理与登录状态维持
 - [x] Campus Data Provider —— 统一数据获取与错误处理
+- [x] Teacher Provider —— 教师模式切换、审批、考勤管理
+- [x] AI Provider —— 流式对话模拟、语音输入状态
 - [x] 维护模式提示 —— Supabase 未配置时自动降级展示
 - [x] 主题系统（5 套浅色 + 6 套深色主题方案，12 种强调色）
+- [x] **模块 10**：教师与管理者视图（辅导员驾驶舱、批量审批、QR 点名、成绩录入、403 页面）
+- [x] **模块 11**：民大东盟与民族特色专区（多语种面板、签证倒计时、语伴匹配、民族文化空间）
+- [x] **模块 12**：相思 AI 助理（悬浮拖拽球、流式对话 UI、语音波浪线、意图卡片渲染）
+- [x] **模块 13**：合规与运营矩阵（隐私中心、账号注销、青少年模式、新手引导、签到体系、裂变海报、校企直聘）
 
 ### 待开发 ⬜
 
@@ -104,6 +135,9 @@
 - [ ] 附件文件上传
 - [ ] 实时数据订阅（Supabase Realtime）
 - [ ] 离线缓存
+- [ ] AI 大模型接入（当前为模拟响应，后续接入 LLM API）
+- [ ] AR 民族服饰试穿（需要 AR 引擎集成）
+- [ ] 蓝牙近场考勤（需要蓝牙 BLE 插件）
 
 ---
 
@@ -276,6 +310,135 @@ CREATE TABLE community_posts (
   comment_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- ===================== Module 10: 教师与管理者 =====================
+
+-- student_alerts 高危学生预警表
+CREATE TABLE student_alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id TEXT NOT NULL,
+  student_name TEXT NOT NULL,
+  college TEXT,
+  alert_level TEXT NOT NULL CHECK (alert_level IN ('red', 'yellow', 'blue')),
+  reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- attendance_records 考勤记录表
+CREATE TABLE attendance_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id TEXT NOT NULL,
+  course_name TEXT,
+  student_id TEXT NOT NULL,
+  student_name TEXT,
+  status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'late')),
+  checked_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ===================== Module 11: 东盟与民族特色 =====================
+
+-- language_partners 语伴匹配表
+CREATE TABLE language_partners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  user_name TEXT NOT NULL,
+  user_avatar TEXT,
+  native_language TEXT NOT NULL,
+  learning_language TEXT NOT NULL,
+  college TEXT,
+  bio TEXT,
+  interests JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- partner_matches 语伴匹配记录表
+CREATE TABLE partner_matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_user_id UUID REFERENCES profiles(id),
+  to_user_id UUID REFERENCES profiles(id),
+  match_type TEXT DEFAULT 'like',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- cultural_events 民族文化活动表
+CREATE TABLE cultural_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  event_type TEXT CHECK (event_type IN ('festival', 'performance', 'workshop')),
+  ethnic_group TEXT,
+  start_date DATE,
+  end_date DATE,
+  location TEXT,
+  image_url TEXT,
+  sutuo_credits NUMERIC(5,2) DEFAULT 0,
+  participant_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- visa_info 留学生签证信息表
+CREATE TABLE visa_info (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  visa_type TEXT,
+  issue_date DATE,
+  expiry_date DATE NOT NULL,
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ===================== Module 12: AI 助理 =====================
+
+-- ai_chat_messages AI 对话消息表
+CREATE TABLE ai_chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL,
+  card_type TEXT,
+  liked BOOLEAN,
+  timestamp TIMESTAMPTZ DEFAULT now()
+);
+
+-- ===================== Module 13: 合规与运营 =====================
+
+-- checkin_records 签到记录表
+CREATE TABLE checkin_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  checkin_date DATE NOT NULL,
+  streak_count INTEGER DEFAULT 1,
+  points_earned INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- job_listings 校企直聘岗位表
+CREATE TABLE job_listings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  company TEXT NOT NULL,
+  company_logo TEXT,
+  salary_range TEXT,
+  job_type TEXT CHECK (job_type IN ('intern', 'part_time', 'full_time', 'campus')),
+  location TEXT,
+  description TEXT,
+  requirements TEXT,
+  tags JSONB DEFAULT '[]',
+  contact_email TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- account_deletion_requests 账号注销申请表
+CREATE TABLE account_deletion_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id),
+  reason TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'withdrawn')),
+  requested_at TIMESTAMPTZ DEFAULT now(),
+  expires_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ
+);
 ```
 
 ---
@@ -289,35 +452,67 @@ lib/
 ├── main.dart                          # 应用入口
 ├── models/
 │   ├── announcement.dart              # 公告模型
+│   ├── attendance_record.dart         # 考勤记录模型 (Module 10)
 │   ├── campus_user.dart               # 校园用户模型
+│   ├── chat_message.dart              # AI 对话消息模型 (Module 12)
 │   ├── community_post.dart            # 社区帖子模型
 │   ├── course.dart                    # 课程模型
+│   ├── cultural_event.dart            # 民族文化活动模型 (Module 11)
 │   ├── grade.dart                     # 成绩模型
+│   ├── language_partner.dart          # 语伴匹配模型 (Module 11)
 │   ├── leave_request.dart             # 请假申请模型
+│   ├── student_alert.dart             # 高危学生预警模型 (Module 10)
 │   ├── venue.dart                     # 场馆模型
 │   └── venue_booking.dart             # 场馆预约模型
 ├── providers/
+│   ├── ai_provider.dart               # AI 助理状态管理 (Module 12)
 │   ├── auth_provider.dart             # 认证状态管理
 │   ├── campus_provider.dart           # 校园数据状态管理
-│   └── settings_provider.dart         # 设置状态管理
+│   ├── settings_provider.dart         # 设置状态管理
+│   └── teacher_provider.dart          # 教师模式状态管理 (Module 10)
 ├── screens/
 │   ├── auth/
 │   │   └── login_screen.dart          # 登录页
-│   └── campus/
-│       ├── academic/
-│       │   └── academic_tab.dart      # 学业中心
-│       ├── community/
-│       │   └── community_tab.dart     # 社区与场馆
-│       ├── home/
-│       │   └── home_tab.dart          # 首页看板
-│       ├── office/
-│       │   └── office_tab.dart        # 智慧办事
-│       └── profile/
-│           └── profile_tab.dart       # 个人中心
+│   ├── campus/
+│   │   ├── academic/
+│   │   │   └── academic_tab.dart      # 学业中心
+│   │   ├── ai/                        # Module 12
+│   │   │   └── ai_chat_screen.dart    # AI 对话界面
+│   │   ├── asean/                     # Module 11
+│   │   │   ├── asean_hub_screen.dart  # 东盟与民族特色专区
+│   │   │   └── language_partner_screen.dart  # 语伴匹配
+│   │   ├── community/
+│   │   │   └── community_tab.dart     # 社区与场馆
+│   │   ├── compliance/                # Module 13
+│   │   │   ├── account_deletion_screen.dart  # 账号注销
+│   │   │   ├── checkin_screen.dart     # 每日签到
+│   │   │   ├── job_board_screen.dart   # 校企直聘
+│   │   │   ├── onboarding_screen.dart  # 新手引导
+│   │   │   ├── privacy_center_screen.dart  # 隐私中心
+│   │   │   ├── referral_screen.dart   # 裂变海报
+│   │   │   └── youth_mode_screen.dart  # 青少年模式
+│   │   ├── home/
+│   │   │   └── home_tab.dart          # 首页看板
+│   │   ├── office/
+│   │   │   └── office_tab.dart        # 智慧办事
+│   │   ├── profile/
+│   │   │   └── profile_tab.dart       # 个人中心
+│   │   └── teacher/                   # Module 10
+│   │       ├── attendance_screen.dart  # 课堂考勤
+│   │       ├── grade_entry_screen.dart  # 成绩录入
+│   │       ├── permission_denied_screen.dart  # 403 页面
+│   │       └── teacher_dashboard.dart  # 辅导员驾驶舱
+│   ├── main_screen.dart               # 5 Tab 主容器
+│   └── settings/
+│       └── appearance_settings_screen.dart  # 外观设置
 ├── services/
 │   └── supabase_service.dart          # Supabase 服务层
 └── widgets/
-    └── ...                            # 通用 UI 组件
+    ├── ai_floating_button.dart        # AI 悬浮球 (Module 12)
+    ├── app_background.dart            # 渐变背景
+    ├── glass_card.dart                # 玻璃态卡片
+    ├── splash_ad_widget.dart          # 开屏广告组件 (Module 13)
+    └── ...                            # 其他通用 UI 组件
 ```
 
 ---
