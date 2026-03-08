@@ -97,12 +97,12 @@
 - 全屏预览模式一键分享
 
 ## 📱 截图展示
-> 可能过时
+> 截图版本为V1.3.2
 
 | 首页 | 编辑器 | 设置 |
 |:---:|:---:|:---:|
-| 快速操作、置顶文件 | 预览模式、目录导航 | 主题色、背景设置 |
-| <img src="sample/1.png" alt="1" style="zoom: 25%;" /> | <img src="sample/2.png" alt="1" style="zoom: 25%;" /> | <img src="sample/3.png" alt="1" style="zoom: 25%;" /> |
+| 快速操作、置顶文件 | 目录搜索双击编辑 | 多种设置 |
+| <img src="sample/1.jpg" alt="1" style="zoom: 25%;" /> | <img src="sample/2.jpg" alt="1" style="zoom: 25%;" /> | <img src="sample/3.jpg" alt="1" style="zoom: 25%;" /> |
 
 ## 📦 安装
 
