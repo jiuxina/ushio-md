@@ -150,3 +150,11 @@
 **jiuxina**  
 
 Made with ❤️ by Me & You
+
+------
+
+<div align="center">
+
+[![Star History Chart](https://api.star-history.com/svg?repos=jiuxina/ushio-md&type=Date)](https://star-history.com/#jiuxina/ushio-md&Date)
+
+</div>
