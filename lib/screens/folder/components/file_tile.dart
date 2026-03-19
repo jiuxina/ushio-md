@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/file_provider.dart';
 import '../../../utils/file_actions.dart';
 import '../../../utils/editor_navigation_helper.dart';
+import '../../../utils/app_style.dart';
 import '../../folder_browser_screen.dart';
 
 class FileTile extends StatelessWidget {
@@ -24,6 +25,7 @@ class FileTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final isFile = entity is File;
     final name = entity.path.split(Platform.pathSeparator).last;
     final isImage = isFile && _isImage(name);
@@ -47,14 +49,18 @@ class FileTile extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+      decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isPinned 
-              ? (isFile ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3) : Colors.amber.withValues(alpha: 0.3))
-              : Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: isPinned
+                    ? (isFile
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+                        : Colors.amber.withValues(alpha: 0.3))
+                    : Theme.of(context).dividerColor.withValues(alpha: 0.5),
+              ),
       ),
       child: Material(
         color: Colors.transparent,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../providers/file_provider.dart';
 import '../../../utils/file_actions.dart';
 import '../../../utils/file_import_helper.dart';
+import '../../../utils/app_style.dart';
 
 import '../../../screens/folder_browser_screen.dart';
 
@@ -12,6 +13,7 @@ class QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     bool hasPinnedItems = fileProvider.pinnedFiles.isNotEmpty || fileProvider.pinnedFolders.isNotEmpty;
     
     if (hasPinnedItems) {
@@ -21,6 +23,8 @@ class QuickActions extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: appStyle.surfaceShadow,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -29,10 +33,11 @@ class QuickActions extends StatelessWidget {
             Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-        ),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+              ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,9 +135,12 @@ class QuickActions extends StatelessWidget {
   }
 
   Widget _buildCompactQuickActions(BuildContext context) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: appStyle.surfaceShadow,
         gradient: LinearGradient(
           begin: Alignment.centerLeft, // Horizontal gradient for compact row
           end: Alignment.centerRight,
@@ -141,10 +149,11 @@ class QuickActions extends StatelessWidget {
             Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-        ),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+              ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -238,6 +247,7 @@ class QuickActions extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -245,12 +255,14 @@ class QuickActions extends StatelessWidget {
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+          decoration: appStyle.surfaceDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: color.withValues(alpha: 0.3),
-            ),
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+            border: appStyle.useBorderlessButtons
+                ? null
+                : Border.all(
+                    color: color.withValues(alpha: 0.3),
+                  ),
           ),
           child: Column(
             children: [
