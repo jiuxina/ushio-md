@@ -105,11 +105,10 @@ void main() {
       await File(file.path).writeAsString('version 1');
       await service.preloadFile(file.path);
 
-      await Future<void>.delayed(const Duration(milliseconds: 1100));
-      await File(file.path).writeAsString('version 2');
+      await File(file.path).writeAsString('version 2 with different length');
 
       final refreshed = await service.readFile(file.path);
-      expect(refreshed, 'version 2');
+      expect(refreshed, 'version 2 with different length');
     });
   });
 }

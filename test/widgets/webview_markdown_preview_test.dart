@@ -30,6 +30,13 @@ After'''),
       );
     });
 
+    test('returns true for latex style delimiters without dollar signs', () {
+      expect(
+        markdownNeedsMathRendering(r'Inline: \(a^2+b^2=c^2\) and block: \[x+y\]'),
+        isTrue,
+      );
+    });
+
     test('ignores escaped dollar signs', () {
       expect(
         markdownNeedsMathRendering(r'Total cost is \$25 and no formula here.'),

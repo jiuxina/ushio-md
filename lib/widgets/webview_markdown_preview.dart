@@ -14,14 +14,19 @@ final RegExp _blockMathRegex =
 final RegExp _inlineMathRegex = RegExp(
   r'(?<!\\)(?<!\$)\$(?!\$)(?:[^\n\$]|\\\$)+?(?<!\\)\$(?!\$)',
 );
+final RegExp _latexInlineMathRegex = RegExp(r'\\\((?:[\s\S]+?)\\\)');
+final RegExp _latexBlockMathRegex = RegExp(r'\\\[(?:[\s\S]+?)\\\]', multiLine: true);
 
 /// Returns true when the markdown likely contains KaTeX-style math syntax.
 ///
 /// We use this to avoid loading remote KaTeX assets for normal documents,
 /// which makes first-run preview startup much faster on fresh installs.
 bool markdownNeedsMathRendering(String data) {
-  if (data.isEmpty || !data.contains(r'$')) return false;
-  return _blockMathRegex.hasMatch(data) || _inlineMathRegex.hasMatch(data);
+  if (data.isEmpty) return false;
+  return _blockMathRegex.hasMatch(data) ||
+      _inlineMathRegex.hasMatch(data) ||
+      _latexInlineMathRegex.hasMatch(data) ||
+      _latexBlockMathRegex.hasMatch(data);
 }
 
 final Map<String, String> _previewFontFilePaths = <String, String>{};
