@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mdreader/providers/settings_provider.dart';
+import 'package:mdreader/utils/app_style.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +32,7 @@ void main() {
       expect(provider.autoSaveInterval, 30);
       expect(provider.webdavUrl, isEmpty);
       expect(provider.syncFolderName, 'Ushio-MD');
+      expect(provider.buttonStyleMode, AppButtonStyleMode.classic);
     });
 
     test('setThemeMode 应更新内存和持久化存储', () async {
@@ -47,6 +49,15 @@ void main() {
       
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getDouble('font_size'), 20.0);
+    });
+
+    test('setButtonStyleMode 应更新内存和持久化存储', () async {
+      await provider.setButtonStyleMode(AppButtonStyleMode.softShadow);
+      expect(provider.buttonStyleMode, AppButtonStyleMode.softShadow);
+      expect(provider.useBorderlessButtons, isTrue);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('button_style_mode'), AppButtonStyleMode.softShadow.name);
     });
 
     test('WebDAV 密码应存储在 SecureStorage 中', () async {
