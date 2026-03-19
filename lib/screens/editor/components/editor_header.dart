@@ -22,6 +22,9 @@ class EditorHeader extends StatelessWidget {
     this.onMore,
   });
 
+  String get _displayFileName =>
+      fileName.replaceAll('.markdown', '').replaceAll('.md', '');
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -37,37 +40,10 @@ class EditorHeader extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isModified)
-                      Container(
-                        margin: const EdgeInsets.only(left: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          '未保存',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                _AdaptiveFileName(fileName: _displayFileName),
+                const SizedBox(height: 4),
                 Text(
                   wordCount,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -77,6 +53,7 @@ class EditorHeader extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 8),
           _buildSaveButton(context),
           if (onMore != null) ...[
             const SizedBox(width: 8),
@@ -117,6 +94,7 @@ class EditorHeader extends StatelessWidget {
   }
 
   Widget _buildSaveButton(BuildContext context) {
+<<<<<<< beta
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       decoration: BoxDecoration(
@@ -142,41 +120,127 @@ class EditorHeader extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+=======
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconColor = isSaving
+        ? colorScheme.primary
+        : isModified
+            ? Colors.orange
+            : colorScheme.outline;
+
+    return Tooltip(
+      message: isSaving ? '保存中' : '保存',
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withValues(alpha: 0.8),
+>>>>>>> main
           borderRadius: BorderRadius.circular(12),
-          onTap: isSaving ? null : onSave,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isSaving)
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: isModified ? Colors.white : null,
-                    ),
-                  )
-                else
-                  Icon(
-                    Icons.save,
-                    size: 18,
-                    color: isModified ? Colors.white : null,
-                  ),
-                const SizedBox(width: 8),
-                Text(
-                  '保存',
-                  style: TextStyle(
-                    color: isModified ? Colors.white : null,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: isSaving ? null : onSave,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: isSaving
+                    ? SizedBox(
+                        key: const ValueKey('saving'),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: iconColor,
+                        ),
+                      )
+                    : Icon(
+                        Icons.save,
+                        key: ValueKey('save-$isModified'),
+                        size: 20,
+                        color: iconColor,
+                      ),
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _AdaptiveFileName extends StatelessWidget {
+  final String fileName;
+
+  const _AdaptiveFileName({required this.fileName});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final baseStyle = theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+          height: 1.1,
+        ) ??
+        const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          height: 1.1,
+        );
+
+    final title = fileName.trim().isEmpty ? '未命名' : fileName.trim();
+    final glyphs = title.runes.length;
+    final lineCount = glyphs <= 10 ? 1 : 2;
+    final displayTitle = _formatTitle(title);
+    final sizeScale = glyphs <= 10
+        ? 1.0
+        : glyphs <= 14
+            ? 0.94
+            : glyphs <= 18
+                ? 0.88
+                : 0.82;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final lineHeight = (baseStyle.fontSize ?? 16) * (baseStyle.height ?? 1.1);
+        final maxHeight = lineHeight * lineCount + 2;
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: lineHeight,
+            maxHeight: maxHeight,
+            maxWidth: constraints.maxWidth,
+          ),
+          child: Text(
+            displayTitle,
+            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.ellipsis,
+            style: baseStyle.copyWith(
+              fontSize: (baseStyle.fontSize ?? 16) * sizeScale,
+            ),
+            strutStyle: StrutStyle(
+              fontSize: (baseStyle.fontSize ?? 16) * sizeScale,
+              height: baseStyle.height,
+              forceStrutHeight: true,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatTitle(String title) {
+    final chars = title.runes.toList();
+    if (chars.length <= 10) {
+      return title;
+    }
+
+    final firstLine = String.fromCharCodes(chars.take(10));
+    final secondLine = String.fromCharCodes(chars.skip(10).take(10));
+    return '$firstLine\n$secondLine';
   }
 }

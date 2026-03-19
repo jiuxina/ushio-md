@@ -1285,8 +1285,12 @@ class _EditorScreenState extends State<EditorScreen>
   String _getWordCount() {
     final text = _textController.text;
     final chars = text.length;
+    final glyphs = text.runes.where((char) {
+      final value = String.fromCharCode(char);
+      return value.trim().isNotEmpty;
+    }).length;
     final words = text.split(_wordSplitRegex).where((w) => w.isNotEmpty).length;
-    return '$chars 字符 · $words 词';
+    return '$chars 字符 · $glyphs 文字 · $words 单词';
   }
 
   Widget _buildContent() {
