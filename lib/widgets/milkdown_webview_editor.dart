@@ -46,7 +46,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       final html = await rootBundle.loadString(_assetPath);
       if (!mounted) return;
       setState(() => _htmlData = Uint8List.fromList(utf8.encode(html)));
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to load Milkdown asset $_assetPath: $e');
       if (!mounted) return;
       setState(() => _htmlData = Uint8List(0));
     }
@@ -67,10 +68,12 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
   Future<void> _sendMessage(Map<String, dynamic> msg) async {
     final encoded = jsonEncode(msg);
+    final encodedLiteral = jsonEncode(encoded);
     await _controller?.evaluateJavascript(
       source: '''
         (function() {
-          const m = $encoded;
+          const raw = $encodedLiteral;
+          const m = JSON.parse(raw);
           if (window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.onFlutterMessage) {
             window.__USHIO_BRIDGE__.onFlutterMessage(m);
           }
@@ -80,7 +83,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   }
 
   void _handleBridgeArgs(List<dynamic> args) {
-    if (args.isEmpty || args.first is! Map) return;
+    if (args.isEmpty || args.first is! Map) {
+      debugPrint('Milkdown bridge: invalid message args: $args');
+      return;
+    }
     final map = Map<String, dynamic>.from(args.first as Map);
     widget.onBridgeMessage?.call(map);
 
@@ -103,7 +109,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     }
 
     if (_htmlData!.isEmpty) {
-      return const Center(child: Text('Milkdown 资源加载失败'));
+      return const Center(child: Text('Failed to load Milkdown assets'));
     }
 
     return InAppWebView(
@@ -114,9 +120,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       ),
       initialSettings: InAppWebViewSettings(
         transparentBackground: true,
-        allowFileAccessFromFileURLs: true,
-        allowUniversalAccessFromFileURLs: true,
-        allowFileAccess: true,
+        allowFileAccessFromFileURLs: false,
+        allowUniversalAccessFromFileURLs: false,
+        allowFileAccess: false,
         javaScriptEnabled: true,
         disableContextMenu: true,
         supportZoom: false,

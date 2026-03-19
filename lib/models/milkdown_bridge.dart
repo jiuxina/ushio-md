@@ -96,6 +96,6 @@ class ExecCmdPayload {
 
 String createBridgeRequestId() {
   final now = DateTime.now();
-  final salt = Random().nextInt(1 << 20);
+  final salt = Random.secure().nextInt(1 << 20);
   return '${now.microsecondsSinceEpoch}-$salt';
 }

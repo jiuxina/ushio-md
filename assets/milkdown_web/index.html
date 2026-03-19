@@ -57,7 +57,9 @@
           if (!window.flutter_inappwebview || !window.flutter_inappwebview.callHandler) {
             return;
           }
-          window.flutter_inappwebview.callHandler('bridge', msg).catch(() => {});
+          window.flutter_inappwebview.callHandler('bridge', msg).catch((err) => {
+            console.warn('bridge call failed', err);
+          });
         };
 
         const cssVarMap = {
@@ -122,7 +124,15 @@
         };
 
         const onFlutterMessage = (message) => {
-          const m = typeof message === 'string' ? JSON.parse(message) : message;
+          let m = message;
+          if (typeof message === 'string') {
+            try {
+              m = JSON.parse(message);
+            } catch (err) {
+              console.warn('invalid flutter bridge message', err);
+              return;
+            }
+          }
           if (!m || typeof m !== 'object') return;
           if (m.type === 'init_doc') {
             setMarkdown(m.payload && typeof m.payload.markdown === 'string' ? m.payload.markdown : '');
@@ -142,6 +152,7 @@
         window.__USHIO_BRIDGE__ = {
           postToFlutter,
           setMarkdown,
+          // Phase-1 placeholder; command routing will be implemented in phase-3.
           exec: () => {},
           onFlutterMessage
         };

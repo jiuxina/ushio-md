@@ -47,5 +47,10 @@ void main() {
       expect(id, isNotEmpty);
       expect(id.contains('-'), isTrue);
     });
+
+    test('createBridgeRequestId generates unique IDs across calls', () {
+      final ids = List.generate(1000, (_) => createBridgeRequestId()).toSet();
+      expect(ids.length, 1000);
+    });
   });
 }
