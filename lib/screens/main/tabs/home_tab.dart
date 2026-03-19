@@ -5,7 +5,6 @@ import '../../../../providers/file_provider.dart';
 import '../../../../providers/plugin_provider.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../plugins/extensions/widget_extension.dart';
-import '../../../../utils/constants.dart';
 import '../../../../utils/file_actions.dart';
 
 import '../components/quick_actions.dart';
@@ -129,7 +128,7 @@ class _HomeTabState extends State<HomeTab> {
                 const SizedBox(width: 12),
               ],
               Text(
-                AppConstants.appName,
+                settings.homeTitleText,
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),

@@ -4,7 +4,7 @@ import '../utils/app_style.dart';
 
 class ThemedProgressDialog extends StatelessWidget {
   final String title;
-  final String message;
+  final String? message;
   final String? label;
   final IconData icon;
   final Color? iconColor;
@@ -12,7 +12,7 @@ class ThemedProgressDialog extends StatelessWidget {
   const ThemedProgressDialog({
     super.key,
     required this.title,
-    required this.message,
+    this.message,
     this.label,
     this.icon = Icons.hourglass_top_rounded,
     this.iconColor,
@@ -108,15 +108,17 @@ class ThemedProgressDialog extends StatelessWidget {
                     ),
                   ),
                 ],
-                const SizedBox(height: 14),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    height: 1.45,
-                    color: colorScheme.onSurfaceVariant,
+                if (message != null && message!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    message!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      height: 1.45,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
