@@ -49,6 +49,7 @@ class MockSettingsProvider extends ChangeNotifier implements SettingsProvider {
   String _webdavPassword = '';
   bool _autoSyncEnabled = false;
   DateTime? _lastSyncTime;
+  bool _autoCheckUpdate = true;
 
   // Getters
   @override ThemeMode get themeMode => _themeMode;
@@ -83,8 +84,10 @@ class MockSettingsProvider extends ChangeNotifier implements SettingsProvider {
   @override bool get autoSyncEnabled => _autoSyncEnabled;
   @override DateTime? get lastSyncTime => _lastSyncTime;
   @override bool get isWebdavConfigured => false;
+  @override bool get autoCheckUpdate => _autoCheckUpdate;
 
   @override void loadSettings() {}
+  @override Future<void> setAutoCheckUpdate(bool value) async { _autoCheckUpdate = value; }
   @override dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
