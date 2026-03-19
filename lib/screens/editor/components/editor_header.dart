@@ -94,50 +94,43 @@ class EditorHeader extends StatelessWidget {
   }
 
   Widget _buildSaveButton(BuildContext context) {
-<<<<<<< beta
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: isModified
-            ? LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.secondary,
-                ],
-              )
-            : null,
-        color: isModified
-            ? null
-            : (appStyle.useBorderlessButtons
-                  ? appStyle.strongSurface
-                  : Theme.of(context).colorScheme.surface),
-        borderRadius: BorderRadius.circular(12),
-        border: isModified ? null : appStyle.surfaceBorder(),
-        boxShadow: isModified
-            ? appStyle.prominentShadow
-            : (appStyle.useBorderlessButtons ? appStyle.surfaceShadow : null),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-=======
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final appStyle = theme.extension<AppStyleTheme>()!;
     final iconColor = isSaving
         ? colorScheme.primary
         : isModified
-            ? Colors.orange
+            ? colorScheme.onPrimary
             : colorScheme.outline;
 
     return Tooltip(
       message: isSaving ? '保存中' : '保存',
       child: Container(
         decoration: BoxDecoration(
-          color: colorScheme.surface.withValues(alpha: 0.8),
->>>>>>> main
+          gradient: isModified
+              ? LinearGradient(
+                  colors: [
+                    colorScheme.primary,
+                    colorScheme.secondary,
+                  ],
+                )
+              : null,
+          color: isModified
+              ? null
+              : (appStyle.useBorderlessButtons
+                    ? appStyle.strongSurface
+                    : colorScheme.surface.withValues(alpha: 0.8)),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          ),
+          border: isModified
+              ? null
+              : (appStyle.useBorderlessButtons
+                    ? appStyle.surfaceBorder()
+                    : Border.all(
+                        color: theme.dividerColor.withValues(alpha: 0.5),
+                      )),
+          boxShadow: isModified
+              ? appStyle.prominentShadow
+              : (appStyle.useBorderlessButtons ? appStyle.surfaceShadow : null),
         ),
         child: Material(
           color: Colors.transparent,
