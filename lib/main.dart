@@ -32,6 +32,7 @@ import 'plugins/extensions/theme_extension.dart';
 import 'screens/main_screen.dart';
 import 'services/font_service.dart';
 import 'services/my_files_service.dart';
+import 'utils/app_style.dart';
 import 'utils/constants.dart';
 
 /// ============================================================================
@@ -137,8 +138,8 @@ class MyApp extends StatelessWidget {
               Locale('en', 'US'),  // 英文
             ],
             locale: settings.locale,  // 使用动态语言设置
-            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, pluginLightColors),  // 浅色主题
-            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, pluginDarkColors),  // 深色主题
+            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, settings.buttonStyleMode, pluginLightColors),  // 浅色主题
+            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, settings.buttonStyleMode, pluginDarkColors),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
             home: const MainScreen(),  // 主页面
           );
@@ -152,102 +153,35 @@ class MyApp extends StatelessWidget {
   /// [primaryColor] 用户选择的主题色
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
   /// [pluginColors] 插件自定义颜色
-  ThemeData _buildLightTheme(Color primaryColor, String? fontFamily, int lightThemeIndex, ThemeColors? pluginColors) {
-    // 获取选中的浅色主题配色方案
+  ThemeData _buildLightTheme(
+    Color primaryColor,
+    String? fontFamily,
+    int lightThemeIndex,
+    AppButtonStyleMode buttonStyleMode,
+    ThemeColors? pluginColors,
+  ) {
     final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
-    
-    // 构建基础 ColorScheme
+
     var colorScheme = ColorScheme.light(
       primary: primaryColor,
       secondary: AppConstants.accentColor,
       surface: scheme.surface,
       error: AppConstants.errorColor,
     );
-    
-    // 应用插件颜色覆盖
+
     if (pluginColors != null) {
       colorScheme = pluginColors.applyTo(colorScheme);
     }
-    
-    // 构建基础主题
-    ThemeData theme = ThemeData(
-      useMaterial3: true,  // 启用 Material 3 设计
+
+    return _buildTheme(
       brightness: Brightness.light,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: scheme.background,
-      
-      // AppBar 主题
-      appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
-        foregroundColor: scheme.text,
-        elevation: 0,  // 无阴影
-        centerTitle: false,  // 标题左对齐
-      ),
-      
-      // 卡片主题
-      cardTheme: CardThemeData(
-        color: scheme.surface,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          side: BorderSide(color: scheme.textSecondary.withValues(alpha: 0.2)),
-        ),
-      ),
-      
-      // 浮动按钮主题
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-      ),
-      
-      // 输入框主题
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
-        ),
-        filled: true,
-        fillColor: scheme.background,
-      ),
-      
-      // 分割线主题
-      dividerTheme: DividerThemeData(
-        color: scheme.textSecondary.withValues(alpha: 0.2),
-        thickness: 1,
-      ),
-      
-      // 下拉菜单主题
-      dropdownMenuTheme: DropdownMenuThemeData(
-        textStyle: TextStyle(color: scheme.text),
-        menuStyle: MenuStyle(
-          backgroundColor: WidgetStatePropertyAll(scheme.surface),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          elevation: const WidgetStatePropertyAll(8),
-          padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
-        ),
-      ),
-      
-      // 弹出菜单主题
-      popupMenuTheme: PopupMenuThemeData(
-        color: scheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        elevation: 8,
-      ),
+      backgroundColor: scheme.background,
+      textColor: scheme.text,
+      textSecondaryColor: scheme.textSecondary,
+      fontFamily: fontFamily,
+      buttonStyleMode: buttonStyleMode,
     );
-    
-    // 应用字体
-    if (fontFamily != null) {
-      theme = theme.copyWith(
-        textTheme: theme.textTheme.apply(fontFamily: fontFamily),
-      );
-    }
-    
-    return theme;
   }
 
   /// 构建深色主题
@@ -256,109 +190,218 @@ class MyApp extends StatelessWidget {
   /// [darkThemeIndex] 夜间主题配色方案索引
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
   /// [pluginColors] 插件自定义颜色
-  ThemeData _buildDarkTheme(Color primaryColor, int darkThemeIndex, String? fontFamily, ThemeColors? pluginColors) {
-    // 获取选中的夜间主题配色方案
+  ThemeData _buildDarkTheme(
+    Color primaryColor,
+    int darkThemeIndex,
+    String? fontFamily,
+    AppButtonStyleMode buttonStyleMode,
+    ThemeColors? pluginColors,
+  ) {
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
-    
-    // 构建基础 ColorScheme
+
     var colorScheme = ColorScheme.dark(
       primary: primaryColor,
       secondary: AppConstants.accentColor,
       surface: scheme.surface,
       error: AppConstants.errorColor,
     );
-    
-    // 应用插件颜色覆盖
+
     if (pluginColors != null) {
       colorScheme = pluginColors.applyTo(colorScheme);
     }
-    
-    // 构建基础主题
-    ThemeData theme = ThemeData(
-      useMaterial3: true,
+
+    return _buildTheme(
       brightness: Brightness.dark,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: scheme.background,
-      
+      backgroundColor: scheme.background,
+      textColor: scheme.text,
+      textSecondaryColor: scheme.textSecondary,
+      fontFamily: fontFamily,
+      buttonStyleMode: buttonStyleMode,
+    );
+  }
+
+  ThemeData _buildTheme({
+    required Brightness brightness,
+    required ColorScheme colorScheme,
+    required Color backgroundColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required String? fontFamily,
+    required AppButtonStyleMode buttonStyleMode,
+  }) {
+    final appStyle = AppStyleTheme.resolve(
+      brightness: brightness,
+      colorScheme: colorScheme,
+      textSecondary: textSecondaryColor,
+      buttonStyleMode: buttonStyleMode,
+    );
+
+    final buttonForeground = appStyle.useBorderlessButtons
+        ? textColor
+        : Colors.white;
+    final buttonBackground = appStyle.useBorderlessButtons
+        ? appStyle.strongSurface
+        : colorScheme.primary;
+
+    ThemeData theme = ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: backgroundColor,
+      extensions: [appStyle],
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
-        foregroundColor: scheme.text,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: textColor,
         elevation: 0,
         centerTitle: false,
       ),
-      
       cardTheme: CardThemeData(
-        color: scheme.surface,
-        elevation: 0,
+        color: colorScheme.surface,
+        elevation: appStyle.useBorderlessButtons ? 4 : 0,
+        shadowColor: Colors.black.withValues(alpha: 0.14),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          side: BorderSide(color: scheme.textSecondary.withValues(alpha: 0.3)),
-
+          side: BorderSide(
+            color: appStyle.useBorderlessButtons
+                ? Colors.transparent
+                : textSecondaryColor.withValues(alpha: brightness == Brightness.dark ? 0.3 : 0.2),
+          ),
         ),
       ),
-      
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-      ),
-      
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
-        ),
-        filled: true,
-        fillColor: scheme.background,
-      ),
-      
-      dividerTheme: DividerThemeData(
-        color: scheme.textSecondary.withValues(alpha: 0.3),
-
-        thickness: 1,
-      ),
-      
-      // 文本主题（使用夜间主题配色）
-      textTheme: TextTheme(
-        bodyLarge: TextStyle(color: scheme.text),
-        bodyMedium: TextStyle(color: scheme.text),
-        bodySmall: TextStyle(color: scheme.textSecondary),
-        titleLarge: TextStyle(color: scheme.text),
-        titleMedium: TextStyle(color: scheme.text),
-        titleSmall: TextStyle(color: scheme.textSecondary),
-      ),
-      
-      // 下拉菜单主题
-      dropdownMenuTheme: DropdownMenuThemeData(
-        textStyle: TextStyle(color: scheme.text),
-        menuStyle: MenuStyle(
-          backgroundColor: WidgetStatePropertyAll(scheme.surface),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          foregroundColor: buttonForeground,
+          backgroundColor: buttonBackground,
+          disabledBackgroundColor: buttonBackground.withValues(alpha: 0.45),
+          disabledForegroundColor: buttonForeground.withValues(alpha: 0.55),
+          elevation: appStyle.useBorderlessButtons ? 4 : 0,
+          shadowColor: Colors.black.withValues(alpha: 0.18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: appStyle.useBorderlessButtons ? Colors.transparent : colorScheme.primary,
             ),
           ),
-          elevation: const WidgetStatePropertyAll(8),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ).copyWith(
+          overlayColor: WidgetStatePropertyAll(colorScheme.primary.withValues(alpha: 0.08)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: appStyle.useBorderlessButtons ? textColor : colorScheme.primary,
+          backgroundColor: appStyle.useBorderlessButtons ? appStyle.strongSurface : Colors.transparent,
+          side: BorderSide(
+            color: appStyle.useBorderlessButtons ? Colors.transparent : appStyle.outlineColor,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          foregroundColor: buttonForeground,
+          backgroundColor: buttonBackground,
+          elevation: appStyle.useBorderlessButtons ? 4 : 0,
+          shadowColor: Colors.black.withValues(alpha: 0.18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: appStyle.useBorderlessButtons ? Colors.transparent : colorScheme.primary,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: appStyle.useBorderlessButtons ? textColor : colorScheme.primary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: textColor,
+          backgroundColor: appStyle.useBorderlessButtons ? appStyle.strongSurface : null,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: buttonBackground,
+        foregroundColor: buttonForeground,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: appStyle.useBorderlessButtons ? appStyle.mutedSurface : backgroundColor,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: _buildInputBorder(appStyle, textSecondaryColor),
+        enabledBorder: _buildInputBorder(appStyle, textSecondaryColor),
+        focusedBorder: _buildInputBorder(appStyle, colorScheme.primary),
+      ),
+      dividerTheme: DividerThemeData(
+        color: textSecondaryColor.withValues(alpha: appStyle.useBorderlessButtons ? 0.1 : brightness == Brightness.dark ? 0.3 : 0.2),
+        thickness: 1,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: appStyle.useBorderlessButtons ? 0 : 8,
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: TextStyle(color: textColor),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(colorScheme.surface),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          elevation: WidgetStatePropertyAll(appStyle.useBorderlessButtons ? 0 : 8),
           padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
         ),
       ),
-      
-      // 弹出菜单主题
-      popupMenuTheme: PopupMenuThemeData(
-        color: scheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        elevation: 8,
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: colorScheme.surface,
+        contentTextStyle: TextStyle(color: textColor),
+      ),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: textColor),
+        bodyMedium: TextStyle(color: textColor),
+        bodySmall: TextStyle(color: textSecondaryColor),
+        titleLarge: TextStyle(color: textColor),
+        titleMedium: TextStyle(color: textColor),
+        titleSmall: TextStyle(color: textSecondaryColor),
       ),
     );
-    
-    // 应用字体
+
     if (fontFamily != null) {
       theme = theme.copyWith(
         textTheme: theme.textTheme.apply(fontFamily: fontFamily),
       );
     }
-    
+
     return theme;
+  }
+
+  OutlineInputBorder _buildInputBorder(AppStyleTheme appStyle, Color color) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppConstants.borderRadiusSmall),
+      borderSide: BorderSide(
+        color: appStyle.useBorderlessButtons ? Colors.transparent : color,
+      ),
+    );
   }
 }
 

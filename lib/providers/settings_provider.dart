@@ -17,6 +17,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../utils/app_style.dart';
+
 /// 设置状态提供者
 ///
 /// 管理应用的外观和行为设置
@@ -44,6 +46,9 @@ class SettingsProvider extends ChangeNotifier {
 
   /// UI 字体族（System 表示系统默认）
   String _uiFontFamily = 'System';
+
+  /// 按钮风格（经典描边 / 简洁立体）
+  AppButtonStyleMode _buttonStyleMode = AppButtonStyleMode.classic;
 
   /// 编辑器字体族
   String _editorFontFamily = 'System';
@@ -212,6 +217,8 @@ class SettingsProvider extends ChangeNotifier {
   int get darkThemeIndex => _darkThemeIndex;
   int get lightThemeIndex => _lightThemeIndex;
   String get uiFontFamily => _uiFontFamily;
+  AppButtonStyleMode get buttonStyleMode => _buttonStyleMode;
+  bool get useBorderlessButtons => _buttonStyleMode == AppButtonStyleMode.softShadow;
   String get editorFontFamily => _editorFontFamily;
   String get codeFontFamily => _codeFontFamily;
 
@@ -340,6 +347,12 @@ class SettingsProvider extends ChangeNotifier {
     // 夜间主题和字体设置
     _darkThemeIndex = prefs.getInt('dark_theme_index') ?? 0;
     _lightThemeIndex = prefs.getInt('light_theme_index') ?? 0;
+
+    final buttonStyleName = prefs.getString('button_style_mode');
+    _buttonStyleMode = AppButtonStyleMode.values.firstWhere(
+      (mode) => mode.name == buttonStyleName,
+      orElse: () => AppButtonStyleMode.classic,
+    );
 
     // 字体设置迁移逻辑
     final oldFontFamily = prefs.getString('font_family');
@@ -673,6 +686,14 @@ class SettingsProvider extends ChangeNotifier {
     _lightThemeIndex = index;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('light_theme_index', index);
+    notifyListeners();
+  }
+
+  /// 设置按钮风格
+  Future<void> setButtonStyleMode(AppButtonStyleMode mode) async {
+    _buttonStyleMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('button_style_mode', mode.name);
     notifyListeners();
   }
 
