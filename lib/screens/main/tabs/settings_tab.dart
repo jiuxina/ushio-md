@@ -7,9 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../providers/settings_provider.dart';
 import '../../../providers/plugin_provider.dart';
-import '../../../utils/constants.dart';
 import '../../../utils/app_style.dart';
 import '../../settings/appearance_settings_screen.dart';
 import '../../settings/editor_settings_screen.dart';
@@ -25,92 +23,82 @@ class SettingsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, child) {
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              _buildSettingsHeader(context),
-              const SizedBox(height: 24),
-              
-              _buildSettingsItem(
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildSettingsHeader(context),
+          const SizedBox(height: 16),
+
+          _buildSettingsItem(
+            context,
+            icon: Icons.palette,
+            iconColor: Colors.purple,
+            title: '外观',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AppearanceSettingsScreen()),
+            ),
+          ),
+
+          _buildSettingsItem(
+            context,
+            icon: Icons.edit,
+            iconColor: Colors.blue,
+            title: '编辑器',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EditorSettingsScreen()),
+            ),
+          ),
+
+          _buildSettingsItem(
+            context,
+            icon: Icons.cloud_sync,
+            iconColor: Colors.teal,
+            title: '云同步',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CloudSyncScreen()),
+            ),
+          ),
+
+          _buildSettingsItem(
+            context,
+            icon: Icons.folder,
+            iconColor: Colors.amber,
+            title: '存储',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const StorageSettingsScreen()),
+            ),
+          ),
+
+          Consumer<PluginProvider>(
+            builder: (context, _, child) {
+              return _buildSettingsItem(
                 context,
-                icon: Icons.palette,
-                iconColor: Colors.purple,
-                title: '外观',
-                subtitle: _getThemeModeText(settings.themeMode),
+                icon: Icons.extension,
+                iconColor: Colors.deepPurple,
+                title: '插件',
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const AppearanceSettingsScreen()),
+                  MaterialPageRoute(builder: (_) => const PluginSettingsScreen()),
                 ),
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.edit,
-                iconColor: Colors.blue,
-                title: '编辑器',
-                subtitle: '字体大小: ${settings.fontSize.toInt()}',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const EditorSettingsScreen()),
-                ),
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.cloud_sync,
-                iconColor: Colors.teal,
-                title: '云同步',
-                subtitle: settings.webdavUrl.isNotEmpty ? '已配置' : '未配置',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CloudSyncScreen()),
-                ),
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.folder,
-                iconColor: Colors.amber,
-                title: '存储',
-                subtitle: '管理工作区和缓存',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const StorageSettingsScreen()),
-                ),
-              ),
-              
-              Consumer<PluginProvider>(
-                builder: (context, pluginProvider, child) {
-                  return _buildSettingsItem(
-                    context,
-                    icon: Icons.extension,
-                    iconColor: Colors.deepPurple,
-                    title: '插件',
-                    subtitle: '已安装 ${pluginProvider.installedCount} 个插件',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PluginSettingsScreen()),
-                    ),
-                  );
-                },
-              ),
-              
-              _buildSettingsItem(
-                context,
-                icon: Icons.info,
-                iconColor: Colors.cyan,
-                title: '关于',
-                subtitle: 'v${AppConstants.appVersion}',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AboutScreen()),
-                ),
-              ),
-            ],
-          );
-        },
+              );
+            },
+          ),
+
+          _buildSettingsItem(
+            context,
+            icon: Icons.info,
+            iconColor: Colors.cyan,
+            title: '关于',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AboutScreen()),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -159,14 +147,13 @@ class SettingsTab extends StatelessWidget {
     required IconData icon,
     required Color iconColor,
     required String title,
-    required String subtitle,
     required VoidCallback onTap,
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
         border: appStyle.useBorderlessButtons
             ? null
@@ -177,44 +164,33 @@ class SettingsTab extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: iconColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: iconColor),
+                  child: Icon(icon, color: iconColor, size: 18),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                 ),
                 Icon(
                   Icons.chevron_right,
                   color: Theme.of(context).colorScheme.outline,
+                  size: 18,
                 ),
               ],
             ),
@@ -222,16 +198,5 @@ class SettingsTab extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _getThemeModeText(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return '跟随系统';
-      case ThemeMode.light:
-        return '浅色模式';
-      case ThemeMode.dark:
-        return '深色模式';
-    }
   }
 }
