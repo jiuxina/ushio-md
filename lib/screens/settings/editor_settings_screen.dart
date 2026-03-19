@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/app_background.dart';
+import '../../utils/app_style.dart';
 
 class EditorSettingsScreen extends StatelessWidget {
   const EditorSettingsScreen({super.key});
@@ -50,14 +51,17 @@ class EditorSettingsScreen extends StatelessWidget {
   }
 
   Widget _buildSection(BuildContext context, String title, IconData icon, List<Widget> children) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+      decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+              ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

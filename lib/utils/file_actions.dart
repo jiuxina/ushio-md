@@ -5,11 +5,11 @@ import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/share_service.dart';
 import '../services/export_service.dart';
-import '../screens/editor_screen.dart';
 import '../screens/folder_browser_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/file_action_extension.dart';
 import '../screens/editor/components/fullscreen_preview_page.dart';
+import 'editor_navigation_helper.dart';
 
 enum FileSource {
   myFiles,
@@ -743,11 +743,10 @@ class FileActions {
     if (result != null && result.isNotEmpty) {
       final file = await fileProvider.createFile(folderPath, result);
       if (file != null && context.mounted) {
-        await Navigator.push(
+        await EditorNavigationHelper.openEditor(
           context,
-          MaterialPageRoute(
-            builder: (context) => EditorScreen(filePath: file.path),
-          ),
+          file.path,
+          initialContent: file.content,
         );
         // Trigger refresh after returning from editor
         onRefresh?.call();
@@ -900,11 +899,10 @@ class FileActions {
         result['name']!,
       );
       if (file != null && context.mounted) {
-        Navigator.push(
+        await EditorNavigationHelper.openEditor(
           context,
-          MaterialPageRoute(
-            builder: (context) => EditorScreen(filePath: file.path),
-          ),
+          file.path,
+          initialContent: file.content,
         );
       }
     }

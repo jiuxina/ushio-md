@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/plugin_provider.dart';
 import '../../../utils/constants.dart';
+import '../../../utils/app_style.dart';
 import '../../settings/appearance_settings_screen.dart';
 import '../../settings/editor_settings_screen.dart';
 import '../../settings/cloud_sync_screen.dart';
@@ -161,14 +162,17 @@ class SettingsTab extends StatelessWidget {
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+      decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+              ),
       ),
       child: Material(
         color: Colors.transparent,

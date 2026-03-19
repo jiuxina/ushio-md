@@ -1,16 +1,34 @@
 import 'package:flutter/material.dart';
 import '../../../models/toc_item.dart';
 
+class TocOverlayController {
+  VoidCallback? _closeImpl;
+
+  void _bind(VoidCallback closeImpl) {
+    _closeImpl = closeImpl;
+  }
+
+  void _unbind(VoidCallback closeImpl) {
+    if (_closeImpl == closeImpl) {
+      _closeImpl = null;
+    }
+  }
+
+  void close() => _closeImpl?.call();
+}
+
 class TocOverlay extends StatefulWidget {
   final List<TocItem> items;
   final VoidCallback onClose;
   final Function(TocItem) onJumpToHeading;
+  final TocOverlayController? controller;
 
   const TocOverlay({
     super.key,
     required this.items,
     required this.onClose,
     required this.onJumpToHeading,
+    this.controller,
   });
 
   @override
@@ -29,10 +47,12 @@ class _TocOverlayState extends State<TocOverlay>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     )..forward();
+    widget.controller?._bind(_startClose);
   }
 
   @override
   void dispose() {
+    widget.controller?._unbind(_startClose);
     _controller.dispose();
     super.dispose();
   }
