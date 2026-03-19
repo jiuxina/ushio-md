@@ -123,6 +123,33 @@
           });
         };
 
+        const applyInlineWrap = (prefix, suffix) => {
+          const text = app.textContent || '';
+          app.textContent = `${prefix}${text}${suffix}`;
+          postToFlutter({
+            v: 1,
+            source: 'web',
+            target: 'flutter',
+            type: 'on_content_change',
+            requestId: `${Date.now()}`,
+            ts: Date.now(),
+            payload: { mode: 'full', markdown: app.textContent }
+          });
+        };
+
+        const appendText = (text) => {
+          app.textContent = `${app.textContent || ''}${text}`;
+          postToFlutter({
+            v: 1,
+            source: 'web',
+            target: 'flutter',
+            type: 'on_content_change',
+            requestId: `${Date.now()}`,
+            ts: Date.now(),
+            payload: { mode: 'full', markdown: app.textContent }
+          });
+        };
+
         const onFlutterMessage = (message) => {
           let m = message;
           if (typeof message === 'string') {
@@ -143,8 +170,32 @@
             return;
           }
           if (m.type === 'exec_cmd') {
-            if (m.payload && m.payload.cmd === 'focus_editor') {
+            const cmd = m.payload && m.payload.cmd;
+            if (cmd === 'focus_editor') {
               window.focus();
+              return;
+            }
+            if (cmd === 'toggle_bold') {
+              applyInlineWrap('**', '**');
+              return;
+            }
+            if (cmd === 'toggle_italic') {
+              applyInlineWrap('*', '*');
+              return;
+            }
+            if (cmd === 'insert_table') {
+              appendText('\n| 列1 | 列2 |\n| --- | --- |\n| 内容1 | 内容2 |\n');
+              return;
+            }
+            if (cmd === 'insert_image') {
+              const args = (m.payload && m.payload.args) || {};
+              const src = typeof args.src === 'string' ? args.src : '';
+              const alt = typeof args.alt === 'string' ? args.alt : 'image';
+              if (src) appendText(`\n![${alt}](${src})\n`);
+              return;
+            }
+            if (cmd === 'undo' || cmd === 'redo') {
+              // placeholder for real editor command stack
             }
           }
         };

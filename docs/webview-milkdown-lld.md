@@ -696,8 +696,8 @@ document.addEventListener(
   - [x] 新增 `assets/milkdown_web/index.html`，提供 `window.__USHIO_BRIDGE__` 协议入口
   - [x] 新增 Flutter 端 `MilkdownWebViewEditor`（WebView + JS bridge + `init_doc` 下发）
   - [x] 新增 Dart 协议模型骨架（`BridgeEnvelope` / `InitDocPayload` / `ThemePalettePayload` / `ExecCmdPayload`）
-- [ ] 阶段 2（主题融合）：完成 Flutter 主题 -> `update_theme` 注入（含 12 色映射）
-- [ ] 阶段 3（命令系统）：接入 `exec_cmd`（撤销/重做/加粗/斜体/插图/表格）
+- [x] 阶段 2（主题融合）：完成 Flutter 主题 -> `update_theme` 注入（含色板 + 字体变量）
+- [x] 阶段 3（命令系统）：接入 `exec_cmd` 下发通道，并落地基础命令路由（focus/undo/redo/bold/italic/table/image 占位实现）
 - [ ] 阶段 4（平台细节）：图片资源路由、Android 键盘与长按策略、性能压测
 
 ## 以下是以上内容的评论
