@@ -16,7 +16,6 @@ import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
-import 'editor/components/search_sheet.dart';
 import 'editor/components/fullscreen_preview_page.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/shortcut_extension.dart';
@@ -47,6 +46,18 @@ class _EditHistoryEntry {
   const _EditHistoryEntry({required this.text, required this.selection});
 }
 
+class _SearchMatch {
+  final int position;
+  final int length;
+  final String preview;
+
+  const _SearchMatch({
+    required this.position,
+    required this.length,
+    required this.preview,
+  });
+}
+
 class EditorScreen extends StatefulWidget {
   final String filePath;
   final String? initialContent;
@@ -71,8 +82,10 @@ class _EditorScreenState extends State<EditorScreen>
   bool _textListenerAttached = false;
 
   late TextEditingController _textController;
+  late TextEditingController _searchController;
   late ScrollController _editScrollController;
   late UndoHistoryController _undoController;
+  late FocusNode _searchFocusNode;
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
 
@@ -89,11 +102,14 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isModified = false;
   bool _isSaving = false;
   bool _showToc = false;
+  bool _showSearchBar = false;
+  bool _showSearchCandidates = false;
   final TocOverlayController _tocOverlayController = TocOverlayController();
   bool _hidePlatformViews = false; // hide WebView during pop transition
   Timer? _autoSaveTimer;
   Timer? _tocDebounceTimer;
   int? _highlightedLine;
+  List<_SearchMatch> _searchMatches = const [];
 
   // ==================== 常量 ====================
   /// Offset from top when jumping to a target position
@@ -119,8 +135,10 @@ class _EditorScreenState extends State<EditorScreen>
   void initState() {
     super.initState();
     _textController = TextEditingController();
+    _searchController = TextEditingController();
     _editScrollController = ScrollController();
     _undoController = UndoHistoryController();
+    _searchFocusNode = FocusNode();
     _inlineEditController = TextEditingController();
     _inlineEditFocusNode = FocusNode();
     _highlightController = AnimationController(
@@ -130,6 +148,7 @@ class _EditorScreenState extends State<EditorScreen>
     _highlightAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
     );
+    _searchFocusNode.addListener(_onSearchFocusChanged);
     if (widget.initialContent != null) {
       _applyLoadedContent(widget.initialContent!);
       _configureAutoSave();
@@ -510,8 +529,12 @@ class _EditorScreenState extends State<EditorScreen>
     _autoSaveTimer?.cancel();
     _tocDebounceTimer?.cancel();
     _textController.dispose();
+    _searchController.dispose();
     _editScrollController.dispose();
     _undoController.dispose();
+    _searchFocusNode
+      ..removeListener(_onSearchFocusChanged)
+      ..dispose();
     _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
     _inlineEditController.dispose();
     _inlineEditFocusNode.dispose();
@@ -574,58 +597,98 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _showSearchDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => SearchSheet(
-        text: _textController.text,
-        onMatchSelected: (position, length) {
-          Navigator.pop(context);
+    if (_showToc) {
+      _tocOverlayController.close();
+      _showToc = false;
+    }
 
-          if (_mode == EditorMode.edit) {
-            // Edit mode: select text and scroll the editor
-            Future.delayed(const Duration(milliseconds: 100), () {
-              _textController.selection = TextSelection(
-                baseOffset: position,
-                extentOffset: position + length,
-              );
+    setState(() {
+      _mode = EditorMode.edit;
+      _showSearchBar = true;
+    });
 
-              final lineNumber = (_textController.text
-                  .substring(0, position)
-                  .split('\n')
-                  .length
-                  .clamp(1, 1 << 20) - 1)
-                  .toInt();
-              _flashLineHighlight(lineNumber);
+    _performInlineSearch(_searchController.text);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _searchFocusNode.requestFocus();
+      }
+    });
+  }
 
-              if (_editScrollController.hasClients) {
-                final lines = _textController.text
-                    .substring(0, position)
-                    .split('\n');
-                const lineHeight = 24.0;
-                final targetScroll =
-                    (lines.length * lineHeight - _jumpTopOffset);
-                _editScrollController.jumpTo(
-                  targetScroll.clamp(
-                    0.0,
-                    _editScrollController.position.maxScrollExtent,
-                  ),
-                );
-              }
-            });
-          } else {
-            // Preview / split mode: scroll the WebView to the matched text
-            final end = (position + length).clamp(
-              0,
-              _textController.text.length,
-            );
-            final matchText = _textController.text.substring(position, end);
-            _previewWebViewController.scrollToText(matchText);
-          }
-        },
-      ),
+  void _onSearchFocusChanged() {
+    if (!mounted || !_showSearchBar) return;
+    setState(() {
+      _showSearchCandidates =
+          _searchFocusNode.hasFocus && _searchController.text.trim().isNotEmpty;
+    });
+  }
+
+  void _performInlineSearch(String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      setState(() {
+        _searchMatches = const [];
+        _showSearchCandidates = false;
+      });
+      return;
+    }
+
+    final text = _textController.text;
+    final normalizedText = text.toLowerCase();
+    final matches = <_SearchMatch>[];
+    var index = 0;
+
+    while (matches.length < 50) {
+      index = normalizedText.indexOf(normalizedQuery, index);
+      if (index == -1) break;
+      final start = (index - 20).clamp(0, text.length);
+      final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
+      final preview = text.substring(start, end).replaceAll('\n', ' ');
+      matches.add(_SearchMatch(
+        position: index,
+        length: normalizedQuery.length,
+        preview: preview,
+      ));
+      index += normalizedQuery.length;
+    }
+
+    setState(() {
+      _searchMatches = matches;
+      _showSearchCandidates = _searchFocusNode.hasFocus;
+    });
+  }
+
+  void _jumpToSearchMatch(_SearchMatch match) {
+    final position = match.position;
+    final length = match.length;
+    _textController.selection = TextSelection(
+      baseOffset: position,
+      extentOffset: position + length,
     );
+
+    final lineNumber = (_textController.text
+            .substring(0, position)
+            .split('\n')
+            .length
+            .clamp(1, 1 << 20) -
+        1)
+        .toInt();
+    _flashLineHighlight(lineNumber);
+
+    if (_editScrollController.hasClients) {
+      final lines = _textController.text.substring(0, position).split('\n');
+      const lineHeight = 24.0;
+      final targetScroll = (lines.length * lineHeight - _jumpTopOffset);
+      _editScrollController.jumpTo(
+        targetScroll.clamp(
+          0.0,
+          _editScrollController.position.maxScrollExtent,
+        ),
+      );
+    }
+
+    _searchFocusNode.unfocus();
+    setState(() => _showSearchCandidates = false);
   }
 
   void _openFullscreenPreview() {
@@ -1244,6 +1307,23 @@ class _EditorScreenState extends State<EditorScreen>
                   onSave: _saveFile,
                   onMore: _showMoreMenu,
                 ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SizeTransition(
+                      sizeFactor: animation,
+                      axisAlignment: -1,
+                      child: child,
+                    ),
+                  ),
+                  child: _showSearchBar
+                      ? KeyedSubtree(
+                          key: const ValueKey('inline-search'),
+                          child: _buildInlineSearch(),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('inline-search-off')),
+                ),
                 Expanded(
                   child: Stack(
                     children: [
@@ -1310,6 +1390,113 @@ class _EditorScreenState extends State<EditorScreen>
     }).length;
     final words = text.split(_wordSplitRegex).where((w) => w.isNotEmpty).length;
     return '$chars 字符 · $glyphs 文字 · $words 单词';
+  }
+
+  Widget _buildInlineSearch() {
+    if (!_showSearchBar) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final displayMatches = _searchMatches.take(5).toList(growable: false);
+    final showCandidates =
+        _showSearchCandidates && _searchController.text.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              ),
+            ),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              autofocus: true,
+              onChanged: _performInlineSearch,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: '搜索内容...',
+                border: InputBorder.none,
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  tooltip: '关闭搜索',
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    if (_searchController.text.isNotEmpty) {
+                      _searchController.clear();
+                      _performInlineSearch('');
+                      _searchFocusNode.requestFocus();
+                      return;
+                    }
+                    _searchFocusNode.unfocus();
+                    setState(() {
+                      _showSearchBar = false;
+                      _searchMatches = const [];
+                      _showSearchCandidates = false;
+                    });
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          AnimatedOpacity(
+            opacity: showCandidates ? 1 : 0,
+            duration: const Duration(milliseconds: 160),
+            child: IgnorePointer(
+              ignoring: !showCandidates,
+              child: Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxHeight: 220),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.98),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: displayMatches.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          '未找到匹配内容',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: displayMatches.length,
+                        itemBuilder: (context, index) {
+                          final match = displayMatches[index];
+                          return _buildSearchCandidateTile(match);
+                        },
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchCandidateTile(_SearchMatch match) {
+    return ListTile(
+      dense: true,
+      title: Text(
+        match.preview,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      onTap: () => _jumpToSearchMatch(match),
+    );
   }
 
   Widget _buildContent() {
