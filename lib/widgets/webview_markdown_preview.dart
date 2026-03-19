@@ -24,6 +24,45 @@ bool markdownNeedsMathRendering(String data) {
   return _blockMathRegex.hasMatch(data) || _inlineMathRegex.hasMatch(data);
 }
 
+final Map<String, String> _previewFontFilePaths = <String, String>{};
+Completer<void>? _previewFontCompleter;
+
+/// 预热 Markdown 预览所需资源。
+///
+/// 首次启动或首次打开大文档时可提前调用，避免进入编辑器后再等待字体资源
+/// 解压与 WebView 相关初始化。
+Future<void> warmUpMarkdownPreviewAssets() async {
+  if (_previewFontCompleter != null) {
+    await _previewFontCompleter!.future.catchError((_) {});
+    return;
+  }
+
+  _previewFontCompleter = Completer<void>();
+  try {
+    final dir = await getTemporaryDirectory();
+    const assets = [
+      'assets/fonts/NotoSansSC-Regular.ttf',
+      'assets/fonts/JetBrainsMono-Regular.ttf',
+    ];
+
+    for (final asset in assets) {
+      final filename = asset.split('/').last;
+      final file = File('${dir.path}/$filename');
+      if (!file.existsSync()) {
+        final data = await rootBundle.load(asset);
+        await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
+      }
+      _previewFontFilePaths[asset] = file.path;
+    }
+
+    _previewFontCompleter!.complete();
+  } catch (_) {
+    if (!_previewFontCompleter!.isCompleted) {
+      _previewFontCompleter!.complete();
+    }
+  }
+}
+
 /// Controller for the WebView-based markdown preview.
 ///
 /// Exposes [scrollToHeading] to navigate to a heading by its sequential index
@@ -247,10 +286,6 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
   Timer? _debounceTimer;
   bool _suppressNextReload = false;
   double _savedScrollY = 0;
-
-  // ── Static font-file cache (extracted once, shared across all instances) ──
-  static final Map<String, String> _fontFilePaths = {};
-  static Completer<void>? _fontCompleter;
   bool _webViewReady = false;
 
   @override
@@ -264,40 +299,14 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
   /// After extraction completes, reload the WebView (if already created) so it
   /// picks up the @font-face rules that reference the extracted files.
   Future<void> _ensureFontsExtracted() async {
-    if (_fontCompleter != null) {
-      // Already in progress or done – wait, then trigger reload if needed.
-      await _fontCompleter!.future.catchError((_) {});
-      _triggerFontReload();
-      return;
-    }
-    _fontCompleter = Completer<void>();
-    try {
-      final dir = await getTemporaryDirectory();
-      const assets = [
-        'assets/fonts/NotoSansSC-Regular.ttf',
-        'assets/fonts/JetBrainsMono-Regular.ttf',
-      ];
-      for (final asset in assets) {
-        final filename = asset.split('/').last;
-        final file = File('${dir.path}/$filename');
-        if (!file.existsSync()) {
-          final data = await rootBundle.load(asset);
-          await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
-        }
-        _fontFilePaths[asset] = file.path;
-      }
-      _fontCompleter!.complete();
-    } catch (e) {
-      // If extraction fails, complete with no error so the app still works.
-      if (!_fontCompleter!.isCompleted) _fontCompleter!.complete();
-    }
+    await warmUpMarkdownPreviewAssets();
     if (mounted) _triggerFontReload();
   }
 
   /// Reload the WebView content with @font-face rules once both the WebView
   /// and the font files are ready.
   void _triggerFontReload() {
-    if (_webViewReady && (_fontCompleter?.isCompleted ?? false)) {
+    if (_webViewReady && (_previewFontCompleter?.isCompleted ?? false)) {
       _loadContent();
     }
   }
@@ -506,7 +515,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     // ── @font-face rules (use extracted temp-dir files via file:// URI) ─────
     String fontFaces = '';
     void addFontFace(String family, String assetKey) {
-      final path = _fontFilePaths[assetKey];
+      final path = _previewFontFilePaths[assetKey];
       if (path == null) return;
       final uri = Platform.isWindows
           ? 'file:///${path.replaceAll('\\', '/')}'
