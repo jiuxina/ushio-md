@@ -125,6 +125,9 @@ class SettingsProvider extends ChangeNotifier {
   /// 主页自定义图标路径（仅当 homeIconMode == 'custom' 时有效）
   String? _homeIconCustomPath;
 
+  /// 主页左上角标题文字
+  String _homeTitleText = '汐';
+
   // ==================== 语言设置 ====================
 
   /// 当前语言环境（默认中文）
@@ -206,6 +209,7 @@ class SettingsProvider extends ChangeNotifier {
   int get appIconIndex => _appIconIndex;
   String get homeIconMode => _homeIconMode;
   String? get homeIconCustomPath => _homeIconCustomPath;
+  String get homeTitleText => _homeTitleText;
 
   // 粒子效果 Getters
   bool get particleEnabled => _particleEnabled;
@@ -343,6 +347,7 @@ class SettingsProvider extends ChangeNotifier {
     _appIconIndex = prefs.getInt('app_icon_index') ?? 0;
     _homeIconMode = prefs.getString('home_icon_mode') ?? 'default';
     _homeIconCustomPath = prefs.getString('home_icon_custom_path');
+    _homeTitleText = prefs.getString('home_title_text') ?? '汐';
 
     // 夜间主题和字体设置
     _darkThemeIndex = prefs.getInt('dark_theme_index') ?? 0;
@@ -668,6 +673,15 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       await prefs.remove('home_icon_custom_path');
     }
+    notifyListeners();
+  }
+
+  /// 设置主页标题文字
+  Future<void> setHomeTitleText(String text) async {
+    final normalized = text.trim().isEmpty ? '汐' : text.trim();
+    _homeTitleText = normalized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('home_title_text', normalized);
     notifyListeners();
   }
 
