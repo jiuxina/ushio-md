@@ -851,6 +851,7 @@ class _EditorScreenState extends State<EditorScreen>
     } else if (key.startsWith('blocksrc:') || key.startsWith('block:')) {
       final blocks = _parseBlocks(_textController.text);
       int bestIndex = -1;
+      String? decodedBlockSource;
 
       if (key.startsWith('blocksrc:')) {
         final payload = key.substring('blocksrc:'.length);
@@ -859,6 +860,7 @@ class _EditorScreenState extends State<EditorScreen>
         final hintedIndex = sep > 0 ? int.tryParse(payload.substring(sep + 1)) : null;
         try {
           final originalMd = utf8.decode(base64Decode(encoded));
+          decodedBlockSource = originalMd;
           if (hintedIndex != null && hintedIndex >= 0 && hintedIndex < blocks.length &&
               blocks[hintedIndex].content == originalMd) {
             bestIndex = hintedIndex;
@@ -867,6 +869,23 @@ class _EditorScreenState extends State<EditorScreen>
           }
         } catch (_) {
           bestIndex = -1;
+        }
+      }
+
+      if (bestIndex < 0 && decodedBlockSource != null) {
+        // Fallback for cases where JS-side block indexing differs from Dart
+        // parsing (for example when empty lines are included/excluded).
+        final normalized = _stripMarkdown(decodedBlockSource);
+        int bestLen = 0;
+        for (int i = 0; i < blocks.length; i++) {
+          final norm = _stripMarkdown(blocks[i].content);
+          if (norm.isEmpty) continue;
+          final shorter = norm.length <= normalized.length ? norm : normalized;
+          final longer = norm.length > normalized.length ? norm : normalized;
+          if (longer.contains(shorter) && shorter.length > bestLen) {
+            bestLen = shorter.length;
+            bestIndex = i;
+          }
         }
       }
 
