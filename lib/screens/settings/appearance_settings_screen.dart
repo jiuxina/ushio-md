@@ -93,6 +93,11 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 _buildSection('按钮风格', Icons.smart_button_outlined, [
                   _buildButtonStyleSelector(settings),
                 ]),
+                const SizedBox(height: 16),
+
+                _buildSection('卡片透明度', Icons.opacity_rounded, [
+                  _buildCardOpacitySlider(settings),
+                ]),
 
                 // 浅色主题方案（仅在浅色模式下显示）
                 if (settings.themeMode == ThemeMode.light) ...[
@@ -159,6 +164,31 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
+  Widget _buildCardOpacitySlider(SettingsProvider settings) {
+    return Row(
+      children: [
+        const Text('透明度'),
+        Expanded(
+          child: Slider(
+            value: settings.cardOpacity,
+            min: 0.4,
+            max: 1.0,
+            divisions: 12,
+            label: '${(settings.cardOpacity * 100).round()}%',
+            onChanged: (value) => settings.setCardOpacity(value),
+          ),
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(
+            '${(settings.cardOpacity * 100).round()}%',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTabBarOpacitySlider(SettingsProvider settings) {
     return Row(
       children: [
@@ -189,7 +219,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: _appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
+        color: _appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
