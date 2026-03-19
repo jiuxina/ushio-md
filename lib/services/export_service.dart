@@ -18,7 +18,7 @@ import 'package:share_plus/share_plus.dart';
 
 /// 导出服务类
 class ExportService {
-  static final _headingRegex = RegExp(r'^(#{1,6})\s+(.+)$');
+  static final _headingRegex = RegExp(r'^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$');
   static final _orderedListRegex = RegExp(r'^\s*(\d+)\.\s+(.+)$');
   static final _unorderedListRegex = RegExp(r'^\s*[-*+]\s+(.+)$');
   static final _blockquoteRegex = RegExp(r'^\s*>\s?(.*)$');
@@ -203,7 +203,7 @@ class ExportService {
       final headingMatch = _headingRegex.firstMatch(trimmed);
       if (headingMatch != null) {
         final level = headingMatch.group(1)!.length;
-        final text = headingMatch.group(2)!.trim();
+        final text = _stripInlineMarkdown(headingMatch.group(2)!.trim());
         double size;
         if (level == 1) {
           size = 22.0;
@@ -381,14 +381,35 @@ class ExportService {
 
   static String _stripInlineMarkdown(String text) {
     return text
-        .replaceAll(RegExp(r'`([^`]+)`'), r'$1')
-        .replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1')
-        .replaceAll(RegExp(r'__([^_]+)__'), r'$1')
-        .replaceAll(RegExp(r'\*([^*]+)\*'), r'$1')
-        .replaceAll(RegExp(r'_([^_]+)_'), r'$1')
-        .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
-        .replaceAll(RegExp(r'!\[[^\]]*\]\(([^\)]+)\)'), r'[图片: $1]')
-        .replaceAll(RegExp(r'\[([^\]]+)\]\(([^\)]+)\)'), r'$1 ($2)')
+        .replaceAllMapped(RegExp(r'`([^`]+)`'), (match) => match.group(1) ?? '')
+        .replaceAllMapped(
+          RegExp(r'\*\*([^*]+)\*\*'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAllMapped(
+          RegExp(r'__([^_]+)__'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAllMapped(
+          RegExp(r'\*([^*]+)\*'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAllMapped(
+          RegExp(r'_([^_]+)_'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAllMapped(
+          RegExp(r'~~([^~]+)~~'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAllMapped(
+          RegExp(r'!\[[^\]]*\]\(([^\)]+)\)'),
+          (match) => '[图片: ${match.group(1) ?? ''}]',
+        )
+        .replaceAllMapped(
+          RegExp(r'\[([^\]]+)\]\(([^\)]+)\)'),
+          (match) => '${match.group(1) ?? ''} (${match.group(2) ?? ''})',
+        )
         .trim();
   }
   
