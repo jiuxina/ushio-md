@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Ushio Milkdown Bridge</title>
+    <style>
+      :root {
+        --milkdown-color-primary: #4f46e5;
+        --milkdown-color-on-primary: #ffffff;
+        --milkdown-color-secondary: #64748b;
+        --milkdown-color-on-secondary: #ffffff;
+        --milkdown-color-surface: transparent;
+        --milkdown-color-on-surface: #111827;
+        --milkdown-color-background: transparent;
+        --milkdown-color-on-background: #111827;
+        --milkdown-color-error: #dc2626;
+        --milkdown-color-on-error: #ffffff;
+        --milkdown-color-outline: #cbd5e1;
+        --milkdown-color-shadow: rgba(0, 0, 0, 0.12);
+        --milkdown-font-body: "Noto Sans SC", sans-serif;
+        --milkdown-font-mono: "JetBrains Mono", monospace;
+        --milkdown-font-size: 16px;
+        --milkdown-line-height: 1.7;
+      }
+      html,
+      body,
+      #app {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent !important;
+      }
+      #app {
+        box-sizing: border-box;
+        padding: 16px;
+        color: var(--milkdown-color-on-surface);
+        font-family: var(--milkdown-font-body);
+        font-size: var(--milkdown-font-size);
+        line-height: var(--milkdown-line-height);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      (function () {
+        const app = document.getElementById('app');
+
+        const postToFlutter = (msg) => {
+          if (!window.flutter_inappwebview || !window.flutter_inappwebview.callHandler) {
+            return;
+          }
+          window.flutter_inappwebview.callHandler('bridge', msg).catch(() => {});
+        };
+
+        const cssVarMap = {
+          primary: '--milkdown-color-primary',
+          onPrimary: '--milkdown-color-on-primary',
+          secondary: '--milkdown-color-secondary',
+          onSecondary: '--milkdown-color-on-secondary',
+          surface: '--milkdown-color-surface',
+          onSurface: '--milkdown-color-on-surface',
+          background: '--milkdown-color-background',
+          onBackground: '--milkdown-color-on-background',
+          error: '--milkdown-color-error',
+          onError: '--milkdown-color-on-error',
+          outline: '--milkdown-color-outline',
+          shadow: '--milkdown-color-shadow'
+        };
+
+        const applyTheme = (payload) => {
+          if (!payload || typeof payload !== 'object') return;
+          const root = document.documentElement;
+          if (payload.colors && typeof payload.colors === 'object') {
+            Object.entries(payload.colors).forEach(([k, v]) => {
+              const cssVar = cssVarMap[k];
+              if (!cssVar || typeof v !== 'string') return;
+              root.style.setProperty(cssVar, v);
+            });
+          }
+          const font = payload.font;
+          if (font && typeof font === 'object') {
+            if (typeof font.body === 'string') {
+              root.style.setProperty('--milkdown-font-body', font.body);
+            }
+            if (typeof font.mono === 'string') {
+              root.style.setProperty('--milkdown-font-mono', font.mono);
+            }
+            if (typeof font.sizePx === 'number') {
+              root.style.setProperty('--milkdown-font-size', `${font.sizePx}px`);
+            }
+            if (typeof font.lineHeight === 'number') {
+              root.style.setProperty('--milkdown-line-height', `${font.lineHeight}`);
+            }
+          }
+          if (payload.mode === 'light' || payload.mode === 'dark') {
+            root.setAttribute('data-theme-mode', payload.mode);
+          }
+        };
+
+        const setMarkdown = (md) => {
+          app.textContent = typeof md === 'string' ? md : '';
+          postToFlutter({
+            v: 1,
+            source: 'web',
+            target: 'flutter',
+            type: 'on_content_change',
+            requestId: `${Date.now()}`,
+            ts: Date.now(),
+            payload: {
+              mode: 'full',
+              markdown: app.textContent
+            }
+          });
+        };
+
+        const onFlutterMessage = (message) => {
+          const m = typeof message === 'string' ? JSON.parse(message) : message;
+          if (!m || typeof m !== 'object') return;
+          if (m.type === 'init_doc') {
+            setMarkdown(m.payload && typeof m.payload.markdown === 'string' ? m.payload.markdown : '');
+            return;
+          }
+          if (m.type === 'update_theme') {
+            applyTheme(m.payload);
+            return;
+          }
+          if (m.type === 'exec_cmd') {
+            if (m.payload && m.payload.cmd === 'focus_editor') {
+              window.focus();
+            }
+          }
+        };
+
+        window.__USHIO_BRIDGE__ = {
+          postToFlutter,
+          setMarkdown,
+          exec: () => {},
+          onFlutterMessage
+        };
+      })();
+    </script>
+  </body>
+</html>
