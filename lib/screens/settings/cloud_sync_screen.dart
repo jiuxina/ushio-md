@@ -18,6 +18,7 @@ import '../../services/sync_service_interface.dart';
 import '../../services/my_files_service.dart';
 import '../../services/cloud_sync_service.dart';
 import '../../widgets/app_background.dart';
+import '../../utils/app_style.dart';
 
 class CloudSyncScreen extends StatefulWidget {
   const CloudSyncScreen({super.key});
@@ -204,17 +205,21 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
 
   Widget _buildInfoCard() {
     final settings = context.watch<SettingsProvider>();
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final fullPath = settings.getFullSyncPath();
     final syncTypeName = _selectedSyncType == 'webdav' ? 'WebDAV' : 'FTP';
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        boxShadow: appStyle.surfaceShadow,
         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-        ),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              ),
       ),
       child: Row(
         children: [
@@ -554,6 +559,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   }
 
   Widget _buildSyncControlsSection(SettingsProvider settings) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -566,12 +572,14 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+          decoration: appStyle.surfaceDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
+            color: Theme.of(context).colorScheme.surface,
+            border: appStyle.useBorderlessButtons
+                ? null
+                : Border.all(
+                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  ),
           ),
           child: Column(
             children: [
@@ -749,6 +757,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   }
 
   Widget _buildStatusSection(SettingsProvider settings) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final syncTypeName = settings.syncType == 'webdav' ? 'WebDAV' : 'FTP';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,12 +771,14 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+          decoration: appStyle.surfaceDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
+            color: Theme.of(context).colorScheme.surface,
+            border: appStyle.useBorderlessButtons
+                ? null
+                : Border.all(
+                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  ),
           ),
           child: Column(
             children: [
@@ -1247,4 +1258,3 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     return '${time.month}/${time.day} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 }
-

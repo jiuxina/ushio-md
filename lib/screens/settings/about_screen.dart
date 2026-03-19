@@ -12,6 +12,7 @@ import '../../utils/constants.dart';
 import '../../services/update_service.dart';
 import '../../widgets/app_background.dart';
 import '../../providers/settings_provider.dart';
+import '../../utils/app_style.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -59,9 +60,11 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Widget _buildAppInfo() {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
+        boxShadow: appStyle.surfaceShadow,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -71,9 +74,11 @@ class _AboutScreenState extends State<AboutScreen> {
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-        ),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+              ),
       ),
       child: Column(
         children: [
@@ -130,14 +135,17 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Widget _buildSection(String title, IconData icon, List<Widget> children) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+      decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+              ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

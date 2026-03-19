@@ -929,18 +929,21 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   margin: EdgeInsets.only(right: idx == 0 ? 8 : 0),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
+                    boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
                     color: isSelected
                         ? Theme.of(
                             context,
                           ).colorScheme.primary.withValues(alpha: 0.1)
-                        : Colors.transparent,
+                        : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).dividerColor,
-                      width: isSelected ? 2 : 1,
-                    ),
+                    border: _appStyle.useBorderlessButtons
+                        ? null
+                        : Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).dividerColor,
+                            width: isSelected ? 2 : 1,
+                          ),
                   ),
                   child: Column(
                     children: [
@@ -1116,16 +1119,19 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
+          boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : Colors.transparent,
+              : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: isSelected ? 2 : 1,
-          ),
+          border: _appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).dividerColor,
+                  width: isSelected ? 2 : 1,
+                ),
         ),
         child: Column(
           children: [
@@ -1176,16 +1182,19 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
+          boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : Colors.transparent,
+              : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: isSelected ? 2 : 1,
-          ),
+          border: _appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).dividerColor,
+                  width: isSelected ? 2 : 1,
+                ),
         ),
         child: Row(
           children: [
