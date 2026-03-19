@@ -10,11 +10,22 @@ import '../models/milkdown_bridge.dart';
 
 typedef MilkdownBridgeMessageHandler = void Function(Map<String, dynamic> msg);
 
+const _defaultBodyFont = 'Noto Sans SC';
+const _defaultMonoFont = 'JetBrains Mono';
+const _defaultFontSize = 16.0;
+const _defaultLineHeight = 1.7;
+
 class MilkdownWebViewController {
   _MilkdownWebViewEditorState? _state;
 
   void _attach(_MilkdownWebViewEditorState state) {
     _state = state;
+  }
+
+  void _detach(_MilkdownWebViewEditorState state) {
+    if (identical(_state, state)) {
+      _state = null;
+    }
   }
 
   Future<void> setMarkdown(String markdown) async {
@@ -101,10 +112,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final colorScheme = theme.colorScheme;
     final brightness = theme.brightness;
     final mode = brightness == Brightness.dark ? 'dark' : 'light';
-    final bodyFont = widget.bodyFont ?? 'Noto Sans SC';
-    final monoFont = widget.monoFont ?? 'JetBrains Mono';
-    final fontSize = widget.fontSize ?? 16.0;
-    final lineHeight = widget.lineHeight ?? 1.7;
+    final bodyFont = widget.bodyFont ?? _defaultBodyFont;
+    final monoFont = widget.monoFont ?? _defaultMonoFont;
+    final fontSize = widget.fontSize ?? _defaultFontSize;
+    final lineHeight = widget.lineHeight ?? _defaultLineHeight;
     return ThemePalettePayload(
       mode: mode,
       colors: {
@@ -114,6 +125,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         'onSecondary': _toCssHex(colorScheme.onSecondary),
         'surface': _toCssHex(colorScheme.surface),
         'onSurface': _toCssHex(colorScheme.onSurface),
+        // Material 3 favors surface-based backgrounds; keep the same token for
+        // now to avoid introducing an app-specific background divergence.
         'background': _toCssHex(colorScheme.surface),
         'onBackground': _toCssHex(colorScheme.onSurface),
         'error': _toCssHex(colorScheme.error),
@@ -131,6 +144,14 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   String _themeSignature() {
     final payload = _buildThemePayload();
     return jsonEncode(payload.toJson());
+  }
+
+  void _syncThemeIfNeeded() {
+    if (_controller == null) return;
+    final sig = _themeSignature();
+    if (_lastThemeSignature != sig) {
+      _sendTheme();
+    }
   }
 
   Future<void> _sendInitDoc({String? markdownOverride}) async {
@@ -213,7 +234,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   @override
   void didUpdateWidget(covariant MilkdownWebViewEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_controller == null) return;
     if (oldWidget.initialMarkdown != widget.initialMarkdown) {
       _sendInitDoc();
     }
@@ -222,22 +242,20 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         oldWidget.fontSize != widget.fontSize ||
         oldWidget.lineHeight != widget.lineHeight) {
       _sendTheme();
-      return;
     }
-    final sig = _themeSignature();
-    if (_lastThemeSignature != sig) {
-      _sendTheme();
-    }
+    _syncThemeIfNeeded();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controller == null) return;
-    final sig = _themeSignature();
-    if (_lastThemeSignature != sig) {
-      _sendTheme();
-    }
+    _syncThemeIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    widget.controller?._detach(this);
+    super.dispose();
   }
 
   @override

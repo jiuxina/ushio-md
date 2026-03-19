@@ -52,6 +52,9 @@
     <script>
       (function () {
         const app = document.getElementById('app');
+        let bridgeSeq = 0;
+
+        const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
         const postToFlutter = (msg) => {
           if (!window.flutter_inappwebview || !window.flutter_inappwebview.callHandler) {
@@ -114,7 +117,7 @@
             source: 'web',
             target: 'flutter',
             type: 'on_content_change',
-            requestId: `${Date.now()}`,
+            requestId: nextRequestId(),
             ts: Date.now(),
             payload: {
               mode: 'full',
@@ -131,7 +134,7 @@
             source: 'web',
             target: 'flutter',
             type: 'on_content_change',
-            requestId: `${Date.now()}`,
+            requestId: nextRequestId(),
             ts: Date.now(),
             payload: { mode: 'full', markdown: app.textContent }
           });
@@ -144,7 +147,7 @@
             source: 'web',
             target: 'flutter',
             type: 'on_content_change',
-            requestId: `${Date.now()}`,
+            requestId: nextRequestId(),
             ts: Date.now(),
             payload: { mode: 'full', markdown: app.textContent }
           });
@@ -184,7 +187,7 @@
               return;
             }
             if (cmd === 'insert_table') {
-              appendText('\n| 列1 | 列2 |\n| --- | --- |\n| 内容1 | 内容2 |\n');
+              appendText('\n| Column 1 | Column 2 |\n| --- | --- |\n| Content 1 | Content 2 |\n');
               return;
             }
             if (cmd === 'insert_image') {
@@ -195,7 +198,8 @@
               return;
             }
             if (cmd === 'undo' || cmd === 'redo') {
-              // placeholder for real editor command stack
+              console.info(`exec_cmd ${cmd} is not wired to editor history yet`);
+              return;
             }
           }
         };
@@ -203,8 +207,7 @@
         window.__USHIO_BRIDGE__ = {
           postToFlutter,
           setMarkdown,
-          // Phase-1 placeholder; command routing will be implemented in phase-3.
-          exec: () => {},
+          exec: (payload) => onFlutterMessage({ type: 'exec_cmd', payload }),
           onFlutterMessage
         };
       })();

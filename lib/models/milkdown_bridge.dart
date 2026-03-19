@@ -1,5 +1,7 @@
 import 'dart:math';
 
+const _bridgeRequestSaltRange = 1 << 20;
+
 class BridgeEnvelope<T> {
   final int v;
   final String source;
@@ -96,6 +98,6 @@ class ExecCmdPayload {
 
 String createBridgeRequestId() {
   final now = DateTime.now();
-  final salt = Random.secure().nextInt(1 << 20);
+  final salt = Random.secure().nextInt(_bridgeRequestSaltRange);
   return '${now.microsecondsSinceEpoch}-$salt';
 }
