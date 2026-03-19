@@ -3,16 +3,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
+import '../utils/editor_navigation_helper.dart';
 import '../widgets/app_background.dart';
+import '../widgets/webview_markdown_preview.dart';
 import 'main/tabs/home_tab.dart';
 import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
 import 'main/tabs/settings_tab.dart';
 import 'main/components/permission_screen.dart';
-import 'editor_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/navigation_extension.dart';
 import '../services/update_service.dart';
@@ -79,13 +81,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         
         final fileProvider = context.read<FileProvider>();
         fileProvider.addToRecentFiles(path);
-        
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => EditorScreen(filePath: path),
-          ),
-        );
+
+        EditorNavigationHelper.openEditor(context, path);
       });
     }
   }
@@ -96,11 +93,44 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     
     await fileProvider.initialize();
     await settingsProvider.initialize();
+    await _runFirstLaunchWarmupIfNeeded();
+    unawaited(warmUpMarkdownPreviewAssets());
     if (mounted) setState(() {});
 
     // 延迟2秒后检查更新（避免阻塞启动流程）
     if (settingsProvider.autoCheckUpdate) {
       Future.delayed(const Duration(seconds: 2), _checkUpdateOnStartup);
+    }
+  }
+
+  Future<void> _runFirstLaunchWarmupIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    const warmupKey = 'startup_preview_warmup_done';
+    if (prefs.getBool(warmupKey) == true || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const _StartupWarmupDialog(),
+    );
+
+    try {
+      await warmUpMarkdownPreviewAssets();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await prefs.setBool(warmupKey, true);
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('首次启动初始化完成，后续打开文档会更快。'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -323,6 +353,48 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           ),
         );
       },
+    );
+  }
+}
+
+class _StartupWarmupDialog extends StatelessWidget {
+  const _StartupWarmupDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '首次启动初始化中',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -10,7 +10,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/my_files_service.dart';
-import '../screens/editor_screen.dart';
+import 'editor_navigation_helper.dart';
 
 /// 文件导入助手
 /// 
@@ -101,12 +101,10 @@ class FileImportHelper {
   }
 
   static void _navigateToEditor(BuildContext context, String filePath, VoidCallback? onFileOpened) {
-    onFileOpened?.call();
-    Navigator.push(
+    EditorNavigationHelper.openEditor(
       context,
-      MaterialPageRoute(
-        builder: (context) => EditorScreen(filePath: filePath),
-      ),
+      filePath,
+      onFileOpened: onFileOpened,
     );
   }
 
