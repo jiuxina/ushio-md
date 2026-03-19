@@ -100,64 +100,41 @@ class EditorHeader extends StatelessWidget {
     final iconColor = isSaving
         ? colorScheme.primary
         : isModified
-            ? colorScheme.onPrimary
+            ? colorScheme.secondary
             : colorScheme.outline;
 
     return Tooltip(
       message: isSaving ? '保存中' : '保存',
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: isModified
-              ? LinearGradient(
-                  colors: [
-                    colorScheme.primary,
-                    colorScheme.secondary,
-                  ],
-                )
-              : null,
-          color: isModified
-              ? null
-              : (appStyle.useBorderlessButtons
-                    ? appStyle.strongSurface
-                    : colorScheme.surface.withValues(alpha: 0.8)),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          border: isModified
-              ? null
-              : (appStyle.useBorderlessButtons
-                    ? appStyle.surfaceBorder()
-                    : Border.all(
-                        color: theme.dividerColor.withValues(alpha: 0.5),
-                      )),
-          boxShadow: isModified
-              ? appStyle.prominentShadow
-              : (appStyle.useBorderlessButtons ? appStyle.surfaceShadow : null),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: isSaving ? null : onSave,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: isSaving
-                    ? SizedBox(
-                        key: const ValueKey('saving'),
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: iconColor,
-                        ),
-                      )
-                    : Icon(
-                        Icons.save,
-                        key: ValueKey('save-$isModified'),
-                        size: 20,
+          onTap: isSaving ? null : onSave,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: appStyle.surfaceDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: colorScheme.surface.withValues(alpha: 0.82),
+              prominent: appStyle.useBorderlessButtons,
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: isSaving
+                  ? SizedBox(
+                      key: const ValueKey('saving'),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
                         color: iconColor,
                       ),
-              ),
+                    )
+                  : Icon(
+                      Icons.save,
+                      key: ValueKey('save-$isModified'),
+                      size: 20,
+                      color: iconColor,
+                    ),
             ),
           ),
         ),
