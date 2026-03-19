@@ -138,8 +138,8 @@ class MyApp extends StatelessWidget {
               Locale('en', 'US'),  // 英文
             ],
             locale: settings.locale,  // 使用动态语言设置
-            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, settings.buttonStyleMode, pluginLightColors),  // 浅色主题
-            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, settings.buttonStyleMode, pluginDarkColors),  // 深色主题
+            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, settings.buttonStyleMode, settings.cardOpacity, pluginLightColors),  // 浅色主题
+            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, settings.buttonStyleMode, settings.cardOpacity, pluginDarkColors),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
             home: const MainScreen(),  // 主页面
           );
@@ -158,6 +158,7 @@ class MyApp extends StatelessWidget {
     String? fontFamily,
     int lightThemeIndex,
     AppButtonStyleMode buttonStyleMode,
+    double cardOpacity,
     ThemeColors? pluginColors,
   ) {
     final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
@@ -181,6 +182,7 @@ class MyApp extends StatelessWidget {
       textSecondaryColor: scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
+      cardOpacity: cardOpacity,
     );
   }
 
@@ -195,6 +197,7 @@ class MyApp extends StatelessWidget {
     int darkThemeIndex,
     String? fontFamily,
     AppButtonStyleMode buttonStyleMode,
+    double cardOpacity,
     ThemeColors? pluginColors,
   ) {
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
@@ -218,6 +221,7 @@ class MyApp extends StatelessWidget {
       textSecondaryColor: scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
+      cardOpacity: cardOpacity,
     );
   }
 
@@ -229,12 +233,14 @@ class MyApp extends StatelessWidget {
     required Color textSecondaryColor,
     required String? fontFamily,
     required AppButtonStyleMode buttonStyleMode,
+    required double cardOpacity,
   }) {
     final appStyle = AppStyleTheme.resolve(
       brightness: brightness,
       colorScheme: colorScheme,
       textSecondary: textSecondaryColor,
       buttonStyleMode: buttonStyleMode,
+      cardOpacity: cardOpacity,
     );
 
     final buttonForeground = appStyle.useBorderlessButtons
@@ -257,7 +263,7 @@ class MyApp extends StatelessWidget {
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: colorScheme.surface,
+        color: appStyle.cardSurfaceColor(colorScheme),
         elevation: appStyle.useBorderlessButtons ? 4 : 0,
         shadowColor: Colors.black.withValues(alpha: 0.14),
         shape: RoundedRectangleBorder(
