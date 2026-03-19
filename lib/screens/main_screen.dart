@@ -9,6 +9,7 @@ import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../widgets/app_background.dart';
+import '../widgets/themed_feedback.dart';
 import '../widgets/webview_markdown_preview.dart';
 import 'main/tabs/home_tab.dart';
 import 'main/tabs/my_files_tab.dart';
@@ -111,7 +112,11 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => const _StartupWarmupDialog(),
+      builder: (dialogContext) => const ThemedProgressDialog(
+        title: '首次启动初始化中',
+        message: '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。',
+        icon: Icons.auto_awesome_rounded,
+      ),
     );
 
     try {
@@ -121,14 +126,11 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     } finally {
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('首次启动初始化完成，后续打开文档会更快。'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        showThemedSnackBar(
+          context,
+          message: '首次启动初始化完成，后续打开文档会更快。',
+          icon: Icons.check_circle_outline_rounded,
+          accentColor: Theme.of(context).colorScheme.primary,
         );
       }
     }
@@ -353,48 +355,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           ),
         );
       },
-    );
-  }
-}
-
-class _StartupWarmupDialog extends StatelessWidget {
-  const _StartupWarmupDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false,
-      child: Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(strokeWidth: 3),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                '首次启动初始化中',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
