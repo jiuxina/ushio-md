@@ -596,10 +596,9 @@ class _EditorScreenState extends State<EditorScreen>
     return false;
   }
 
-  void _showSearchDialog() {
+  void _showInlineSearch() {
     if (_showToc) {
       _tocOverlayController.close();
-      _showToc = false;
     }
 
     setState(() {
@@ -1353,7 +1352,7 @@ class _EditorScreenState extends State<EditorScreen>
                             onUndo: _editingBlockIndex != null ? _undoEditHistory : null,
                             onRedo: _editingBlockIndex != null ? _redoEditHistory : null,
                             filePath: widget.filePath,
-                            onSearchPressed: _showSearchDialog,
+                            onSearchPressed: _showInlineSearch,
                           ),
                         ),
                     ],
@@ -1446,40 +1445,46 @@ class _EditorScreenState extends State<EditorScreen>
             ),
           ),
           const SizedBox(height: 8),
-          AnimatedOpacity(
-            opacity: showCandidates ? 1 : 0,
-            duration: const Duration(milliseconds: 160),
-            child: IgnorePointer(
-              ignoring: !showCandidates,
-              child: Container(
-                width: double.infinity,
-                constraints: const BoxConstraints(maxHeight: 220),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface.withValues(alpha: 0.98),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: displayMatches.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          '未找到匹配内容',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
-                          ),
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: showCandidates
+                  ? Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withValues(alpha: 0.98),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.2),
                         ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: displayMatches.length,
-                        itemBuilder: (context, index) {
-                          final match = displayMatches[index];
-                          return _buildSearchCandidateTile(match);
-                        },
                       ),
-              ),
+                      child: AnimatedOpacity(
+                        opacity: 1,
+                        duration: const Duration(milliseconds: 120),
+                        child: displayMatches.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Text(
+                                  '未找到匹配内容',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.outline,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: displayMatches.length,
+                                itemBuilder: (context, index) {
+                                  final match = displayMatches[index];
+                                  return _buildSearchCandidateTile(match);
+                                },
+                              ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         ],
@@ -1904,7 +1909,7 @@ class _EditorScreenState extends State<EditorScreen>
               title: const Text('搜索'),
               onTap: () {
                 Navigator.pop(context);
-                _showSearchDialog();
+                _showInlineSearch();
               },
             ),
             ListTile(
