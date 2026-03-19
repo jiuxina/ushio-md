@@ -28,6 +28,7 @@
 
 - [功能特性](#✨-功能特性)
 - [截图展示](#📱-截图展示)
+- [WebView + Milkdown 详细设计（LLD）](#🧩-webview--milkdown-详细设计lld)
 - [安装](#📦-安装)
 - [已知问题](#⚠️-已知问题)
 - [权限说明](#📋-权限说明)
@@ -103,6 +104,11 @@
 |:---:|:---:|:---:|
 | 快速操作、置顶文件 | 目录搜索双击编辑 | 多种设置 |
 | <img src="sample/1.png" alt="1" style="zoom: 40%;" /> | <img src="sample/2.png" alt="1" style="zoom: 40%;" /> | <img src="sample/3.png" alt="1" style="zoom: 40%;" /> |
+
+## 🧩 WebView + Milkdown 详细设计（LLD）
+
+> 详见：[`docs/webview-milkdown-lld.md`](docs/webview-milkdown-lld.md)  
+> 覆盖内容：Vite 单文件构建、Milkdown 初始化、JS Bridge 协议、主题变量映射、Flutter `InAppWebView` 骨架、Android 平台调优。
 
 ## 📦 安装
 
