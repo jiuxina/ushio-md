@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 /// 应用按钮风格模式。
@@ -14,6 +16,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   final Color strongSurface;
   final List<BoxShadow> surfaceShadow;
   final List<BoxShadow> prominentShadow;
+  final double cardOpacity;
 
   const AppStyleTheme({
     required this.buttonStyleMode,
@@ -22,6 +25,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     required this.strongSurface,
     required this.surfaceShadow,
     required this.prominentShadow,
+    required this.cardOpacity,
   });
 
   bool get useBorderlessButtons => buttonStyleMode == AppButtonStyleMode.softShadow;
@@ -31,6 +35,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     required ColorScheme colorScheme,
     required Color textSecondary,
     required AppButtonStyleMode buttonStyleMode,
+    required double cardOpacity,
   }) {
     final isDark = brightness == Brightness.dark;
     final outlineColor = textSecondary.withValues(
@@ -66,6 +71,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
               ),
             ]
           : const [],
+      cardOpacity: cardOpacity,
       prominentShadow: [
         BoxShadow(
           color: prominentColor,
@@ -87,6 +93,10 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       return Theme.of(context).colorScheme.primary.withValues(alpha: useBorderlessButtons ? 0.12 : 0.10);
     }
     return useBorderlessButtons ? strongSurface : Colors.transparent;
+  }
+
+  Color cardSurfaceColor(ColorScheme colorScheme) {
+    return colorScheme.surface.withValues(alpha: cardOpacity);
   }
 
   BoxDecoration surfaceDecoration({
@@ -111,6 +121,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     Color? strongSurface,
     List<BoxShadow>? surfaceShadow,
     List<BoxShadow>? prominentShadow,
+    double? cardOpacity,
   }) {
     return AppStyleTheme(
       buttonStyleMode: buttonStyleMode ?? this.buttonStyleMode,
@@ -119,6 +130,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       strongSurface: strongSurface ?? this.strongSurface,
       surfaceShadow: surfaceShadow ?? this.surfaceShadow,
       prominentShadow: prominentShadow ?? this.prominentShadow,
+      cardOpacity: cardOpacity ?? this.cardOpacity,
     );
   }
 
@@ -132,6 +144,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       strongSurface: Color.lerp(strongSurface, other.strongSurface, t) ?? strongSurface,
       surfaceShadow: t < 0.5 ? surfaceShadow : other.surfaceShadow,
       prominentShadow: t < 0.5 ? prominentShadow : other.prominentShadow,
+      cardOpacity: lerpDouble(cardOpacity, other.cardOpacity, t) ?? cardOpacity,
     );
   }
 }

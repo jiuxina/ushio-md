@@ -111,6 +111,9 @@ class SettingsProvider extends ChangeNotifier {
 
   // ==================== 底栏设置 ====================
 
+  /// 卡片透明度（0.4–1.0）
+  double _cardOpacity = 0.72;
+
   /// 底部导航栏透明度（0.1–1.0）
   double _tabBarOpacity = 0.95;
 
@@ -203,6 +206,7 @@ class SettingsProvider extends ChangeNotifier {
   double get backgroundOverlayOpacity => _backgroundOverlayOpacity;
 
   bool get autoCheckUpdate => _autoCheckUpdate;
+  double get cardOpacity => _cardOpacity;
   double get tabBarOpacity => _tabBarOpacity;
 
   // 图标设置 Getters
@@ -341,6 +345,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoCheckUpdate = prefs.getBool('auto_check_update') ?? true;
 
     // 底栏设置
+    _cardOpacity = prefs.getDouble('card_opacity') ?? 0.72;
     _tabBarOpacity = prefs.getDouble('tab_bar_opacity') ?? 0.95;
 
     // 图标设置
@@ -635,6 +640,14 @@ class SettingsProvider extends ChangeNotifier {
     _autoCheckUpdate = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('auto_check_update', value);
+    notifyListeners();
+  }
+
+  /// 设置卡片透明度
+  Future<void> setCardOpacity(double opacity) async {
+    _cardOpacity = opacity;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('card_opacity', opacity);
     notifyListeners();
   }
 
