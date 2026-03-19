@@ -89,6 +89,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isModified = false;
   bool _isSaving = false;
   bool _showToc = false;
+  final TocOverlayController _tocOverlayController = TocOverlayController();
   bool _hidePlatformViews = false; // hide WebView during pop transition
   Timer? _autoSaveTimer;
   Timer? _tocDebounceTimer;
@@ -388,9 +389,9 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _jumpToHeading(TocItem item) {
-    setState(() {
-      _showToc = false;
-    });
+    if (_showToc) {
+      _tocOverlayController.close();
+    }
 
     if (_mode == EditorMode.edit) {
       // Scroll the text editor to the target line
@@ -691,6 +692,20 @@ class _EditorScreenState extends State<EditorScreen>
   void _handleLinkTap(String text, String? href, String title) {
     if (href == null || href.isEmpty) return;
 
+    if (href.startsWith('#')) {
+      final rawFragment = Uri.decodeComponent(href.substring(1)).trim();
+      if (rawFragment.isNotEmpty) {
+        final normalizedFragment = _slugifyHeading(rawFragment);
+        for (final item in _tocItems) {
+          if (_slugifyHeading(item.title) == normalizedFragment) {
+            _jumpToHeading(item);
+            return;
+          }
+        }
+      }
+      return;
+    }
+
     // Handle local markdown file links
     if (href.endsWith('.md') || href.endsWith('.markdown')) {
       // Sanitize: reject path traversal attempts
@@ -715,6 +730,17 @@ class _EditorScreenState extends State<EditorScreen>
         // Ignore launch failures
       }
     }
+  }
+
+  String _slugifyHeading(String input) {
+    return input
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'^\d+[\.\-_\s]+'), '')
+        .replaceAll(RegExp(r'[^\p{L}\p{N}\s\-]', unicode: true), '')
+        .replaceAll(RegExp(r'\s+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
   }
 
   // ==================== Block Parsing & Inline Editing ====================
@@ -1148,6 +1174,7 @@ class _EditorScreenState extends State<EditorScreen>
                   items: _tocItems,
                   onClose: () => setState(() => _showToc = false),
                   onJumpToHeading: _jumpToHeading,
+                  controller: _tocOverlayController,
                 ),
               // Floating buttons – positioned relative to the full screen so
               // they stay fixed even when the keyboard is shown.
@@ -1454,8 +1481,13 @@ class _EditorScreenState extends State<EditorScreen>
               _AnimatedFAB(
                 icon: Icons.list,
                 color: Theme.of(context).colorScheme.primary,
-                // Double-tap (second press) closes TOC if already open.
-                onTap: () => setState(() => _showToc = !_showToc),
+                onTap: () {
+                  if (_showToc) {
+                    _tocOverlayController.close();
+                    return;
+                  }
+                  setState(() => _showToc = true);
+                },
               ),
             ],
           ),
