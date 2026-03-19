@@ -94,77 +94,47 @@ class EditorHeader extends StatelessWidget {
   }
 
   Widget _buildSaveButton(BuildContext context) {
-<<<<<<< beta
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: isModified
-            ? LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.secondary,
-                ],
-              )
-            : null,
-        color: isModified
-            ? null
-            : (appStyle.useBorderlessButtons
-                  ? appStyle.strongSurface
-                  : Theme.of(context).colorScheme.surface),
-        borderRadius: BorderRadius.circular(12),
-        border: isModified ? null : appStyle.surfaceBorder(),
-        boxShadow: isModified
-            ? appStyle.prominentShadow
-            : (appStyle.useBorderlessButtons ? appStyle.surfaceShadow : null),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-=======
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final appStyle = theme.extension<AppStyleTheme>()!;
     final iconColor = isSaving
         ? colorScheme.primary
         : isModified
-            ? Colors.orange
+            ? colorScheme.secondary
             : colorScheme.outline;
 
     return Tooltip(
       message: isSaving ? '保存中' : '保存',
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withValues(alpha: 0.8),
->>>>>>> main
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          ),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: isSaving ? null : onSave,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: isSaving
-                    ? SizedBox(
-                        key: const ValueKey('saving'),
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: iconColor,
-                        ),
-                      )
-                    : Icon(
-                        Icons.save,
-                        key: ValueKey('save-$isModified'),
-                        size: 20,
+          onTap: isSaving ? null : onSave,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: appStyle.surfaceDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: colorScheme.surface.withValues(alpha: 0.82),
+              prominent: appStyle.useBorderlessButtons,
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: isSaving
+                  ? SizedBox(
+                      key: const ValueKey('saving'),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
                         color: iconColor,
                       ),
-              ),
+                    )
+                  : Icon(
+                      Icons.save,
+                      key: ValueKey('save-$isModified'),
+                      size: 20,
+                      color: iconColor,
+                    ),
             ),
           ),
         ),
