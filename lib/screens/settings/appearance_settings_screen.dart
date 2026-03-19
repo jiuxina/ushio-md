@@ -26,11 +26,19 @@ class AppearanceSettingsScreen extends StatefulWidget {
 class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   List<CustomFontInfo> _customFonts = [];
   bool _loadingFonts = true;
+  late final TextEditingController _homeTitleController;
 
   @override
   void initState() {
     super.initState();
+    _homeTitleController = TextEditingController();
     _loadCustomFonts();
+  }
+
+  @override
+  void dispose() {
+    _homeTitleController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCustomFonts() async {
@@ -58,6 +66,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         ),
         body: Consumer<SettingsProvider>(
           builder: (context, settings, child) {
+            final homeTitleText = settings.homeTitleText;
+            if (_homeTitleController.text != homeTitleText) {
+              _homeTitleController.value = TextEditingValue(
+                text: homeTitleText,
+                selection: TextSelection.collapsed(
+                  offset: homeTitleText.length,
+                ),
+              );
+            }
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
@@ -121,6 +138,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 _buildSection('主页图标', Icons.account_circle_outlined, [
                   _buildHomeIconSelector(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection('主页标题', Icons.title_rounded, [
+                  _buildHomeTitleTextField(settings),
                 ]),
 
                 const SizedBox(height: 16),
@@ -1280,5 +1303,53 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         await settings.setHomeIconMode('custom');
       }
     }
+  }
+
+  Widget _buildHomeTitleTextField(SettingsProvider settings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '自定义首页左上角文字，留空时会恢复为默认“汐”。',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _homeTitleController,
+                maxLength: 12,
+                decoration: const InputDecoration(
+                  labelText: '首页标题',
+                  hintText: '汐',
+                  counterText: '',
+                ),
+                onSubmitted: settings.setHomeTitleText,
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () => settings.setHomeTitleText(
+                _homeTitleController.text,
+              ),
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () {
+              _homeTitleController.text = '汐';
+              settings.setHomeTitleText('汐');
+            },
+            child: const Text('恢复默认'),
+          ),
+        ),
+      ],
+    );
   }
 }
