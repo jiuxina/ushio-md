@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../providers/file_provider.dart';
 import '../../../widgets/empty_state.dart';
+import '../../../utils/app_style.dart';
 
 import '../../../utils/file_actions.dart';
 import '../../folder/components/file_tile.dart';
@@ -109,13 +110,16 @@ class _HistoryTabState extends State<HistoryTab> {
   }
 
   Widget _buildToggleButton() {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+      decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+        border: appStyle.useBorderlessButtons
+            ? null
+            : Border.all(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+              ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
