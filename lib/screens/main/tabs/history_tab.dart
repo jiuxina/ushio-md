@@ -72,6 +72,10 @@ class _HistoryTabState extends State<HistoryTab> {
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: '清空历史',
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+            ),
             onPressed: _showClearHistoryDialog,
           ),
           const SizedBox(width: 8),
