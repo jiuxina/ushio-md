@@ -42,6 +42,46 @@ void main() {
       );
     });
 
+    test('ThemePalettePayload serializes color and font fields', () {
+      const payload = ThemePalettePayload(
+        mode: 'dark',
+        colors: {
+          'primary': '#ffffff',
+          'shadow': 'rgba(0, 0, 0, 0.120)',
+        },
+        bodyFont: 'Noto Sans SC',
+        monoFont: 'JetBrains Mono',
+        sizePx: 18,
+        lineHeight: 1.6,
+      );
+
+      expect(payload.toJson(), {
+        'mode': 'dark',
+        'colors': {
+          'primary': '#ffffff',
+          'shadow': 'rgba(0, 0, 0, 0.120)',
+        },
+        'font': {
+          'body': 'Noto Sans SC',
+          'mono': 'JetBrains Mono',
+          'sizePx': 18.0,
+          'lineHeight': 1.6,
+        },
+      });
+    });
+
+    test('ExecCmdPayload serializes optional args', () {
+      const payload = ExecCmdPayload(
+        cmd: 'insert_image',
+        args: {'src': 'http://localhost/a.png', 'alt': 'a'},
+      );
+
+      expect(payload.toJson(), {
+        'cmd': 'insert_image',
+        'args': {'src': 'http://localhost/a.png', 'alt': 'a'},
+      });
+    });
+
     test('createBridgeRequestId creates non-empty IDs', () {
       final id = createBridgeRequestId();
       expect(id, isNotEmpty);
