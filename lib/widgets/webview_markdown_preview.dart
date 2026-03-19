@@ -674,6 +674,15 @@ $body
     return { md: (best || innerText), index: bestIndex };
   }
 
+  function _setBlockSource(el, fallbackText) {
+    if (!el) return;
+    var match = _findBlockMatch(fallbackText || el.innerText || el.textContent || '');
+    if (el.dataset) {
+      el.dataset.mdSrc = match.md || fallbackText || '';
+      el.dataset.mdBlockIndex = String(match.index);
+    }
+  }
+
   function _getBlockMd(innerText) {
     return _findBlockMatch(innerText).md;
   }
@@ -832,10 +841,14 @@ $body
       qNode = qNode.parentElement || qNode.parentNode;
     }
     if (outerBq) {
-      var qText = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
-      var qMatch = _findBlockMatch(qText);
-      var qMd = qMatch.md;
-      var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(qMd))) + ':' + qMatch.index;
+      var qMd = (outerBq.dataset && outerBq.dataset.mdSrc) || (outerBq.innerText||outerBq.textContent||'').trim();
+      var qIndex = outerBq.dataset && outerBq.dataset.mdBlockIndex ? parseInt(outerBq.dataset.mdBlockIndex, 10) : -1;
+      if (!qMd) {
+        var qMatch = _findBlockMatch((outerBq.innerText||outerBq.textContent||'').trim());
+        qMd = qMatch.md;
+        qIndex = qMatch.index;
+      }
+      var qKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(qMd))) + ':' + qIndex;
       _startEdit(outerBq, qKey, qMd);
       return;
     }
@@ -847,10 +860,14 @@ $body
       el = el.parentElement || el.parentNode;
     }
     if (!el || el === document.body) return;
-    var innerText = (el.dataset && el.dataset.mdSrc) || (el.innerText||el.textContent||'').trim();
-    var blockMatch = _findBlockMatch(innerText);
-    var blockMd = blockMatch.md;
-    var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd))) + ':' + blockMatch.index;
+    var blockMd = (el.dataset && el.dataset.mdSrc) || (el.innerText||el.textContent||'').trim();
+    var blockIndex = el.dataset && el.dataset.mdBlockIndex ? parseInt(el.dataset.mdBlockIndex, 10) : -1;
+    if (!blockMd) {
+      var blockMatch = _findBlockMatch((el.innerText||el.textContent||'').trim());
+      blockMd = blockMatch.md;
+      blockIndex = blockMatch.index;
+    }
+    var blockKey = 'blocksrc:' + btoa(unescape(encodeURIComponent(blockMd))) + ':' + blockIndex;
     _startEdit(el, blockKey, blockMd);
   }
 
@@ -864,7 +881,7 @@ $body
   };
   document.querySelectorAll('blockquote').forEach(function(bq){
     var txt = bq.innerText || '';
-    bq.dataset.mdSrc = txt.trim();
+    _setBlockSource(bq, txt.trim());
     var m = txt.match(/^\\s*\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]/i);
     if(m){
       var cfg = alertMap[m[1].toUpperCase()];
@@ -876,6 +893,9 @@ $body
           '<div>'+content.replace(/\\n/g,'<br>')+'</div>';
       }
     }
+  });
+  document.querySelectorAll('pre').forEach(function(pre){
+    _setBlockSource(pre, (pre.innerText || pre.textContent || '').trim());
   });
 
   // ── Unified click handler (links + checkboxes + single-tap edit) ─────
