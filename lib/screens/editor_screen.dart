@@ -1306,27 +1306,17 @@ class _EditorScreenState extends State<EditorScreen>
                   onSave: _saveFile,
                   onMore: _showMoreMenu,
                 ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SizeTransition(
-                      sizeFactor: animation,
-                      axisAlignment: -1,
-                      child: child,
-                    ),
-                  ),
-                  child: _showSearchBar
-                      ? KeyedSubtree(
-                          key: const ValueKey('inline-search'),
-                          child: _buildInlineSearch(),
-                        )
-                      : const SizedBox.shrink(key: ValueKey('inline-search-off')),
-                ),
                 Expanded(
                   child: Stack(
                     children: [
                       Positioned.fill(child: _buildContent()),
+                      if (_showSearchBar)
+                        Positioned(
+                          top: 10,
+                          left: 12,
+                          right: 12,
+                          child: _buildInlineSearch(),
+                        ),
                       // Toolbar floats at the bottom of the content area
                       if (!_isLoading &&
                           _error == null &&
@@ -1401,17 +1391,25 @@ class _EditorScreenState extends State<EditorScreen>
     final showCandidates =
         _showSearchCandidates && _searchController.text.trim().isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    return Material(
+      color: Colors.transparent,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(14),
+              color: theme.colorScheme.surface.withValues(alpha: 0.97),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                color: theme.colorScheme.outline.withValues(alpha: 0.22),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
             child: TextField(
               controller: _searchController,
@@ -1422,6 +1420,7 @@ class _EditorScreenState extends State<EditorScreen>
               decoration: InputDecoration(
                 hintText: '搜索内容...',
                 border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: IconButton(
                   tooltip: '关闭搜索',
