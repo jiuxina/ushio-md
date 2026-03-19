@@ -9,6 +9,21 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:path_provider/path_provider.dart';
 
+final RegExp _blockMathRegex =
+    RegExp(r'(?<!\\)\$\$[\s\S]+?(?<!\\)\$\$', multiLine: true);
+final RegExp _inlineMathRegex = RegExp(
+  r'(?<!\\)(?<!\$)\$(?!\$)(?:[^\n\$]|\\\$)+?(?<!\\)\$(?!\$)',
+);
+
+/// Returns true when the markdown likely contains KaTeX-style math syntax.
+///
+/// We use this to avoid loading remote KaTeX assets for normal documents,
+/// which makes first-run preview startup much faster on fresh installs.
+bool markdownNeedsMathRendering(String data) {
+  if (data.isEmpty || !data.contains(r'$')) return false;
+  return _blockMathRegex.hasMatch(data) || _inlineMathRegex.hasMatch(data);
+}
+
 /// Controller for the WebView-based markdown preview.
 ///
 /// Exposes [scrollToHeading] to navigate to a heading by its sequential index
@@ -346,30 +361,35 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
 
   /// Convert Markdown [widget.data] to a complete HTML document string.
   String _buildHtml() {
-    // 1. Protect math expressions before markdown parsing so the parser does
-    //    not mangle $ or $$ delimiters.
-    // Replace $$...$$ (block math) and $...$ (inline math) with placeholders.
+    // Protect math expressions before markdown parsing only when needed so
+    // regular documents do not pay the startup cost of loading KaTeX assets.
+    final useMathRendering = markdownNeedsMathRendering(widget.data);
     final mathBlocks = <String>[];
     var src = widget.data;
 
-    // Block math  $$...$$  (may span multiple lines)
-    src = src.replaceAllMapped(
-      RegExp(r'\$\$([\s\S]+?)\$\$', multiLine: true),
-      (m) {
-        final idx = mathBlocks.length;
-        mathBlocks.add('<div class="math-block">\\[${m.group(1)}\\]</div>');
-        return '\n<!-- MATHBLOCK$idx -->\n';
-      },
-    );
-    // Inline math  $...$  (single line, no nesting)
-    src = src.replaceAllMapped(
-      RegExp(r'(?<!\$)\$(?!\$)([^\n\$]+?)\$(?!\$)'),
-      (m) {
-        final idx = mathBlocks.length;
-        mathBlocks.add('<span class="math-inline">\\(${m.group(1)}\\)</span>');
-        return '<!-- MATHBLOCK$idx -->';
-      },
-    );
+    if (useMathRendering) {
+      // Block math  $$...$$  (may span multiple lines)
+      src = src.replaceAllMapped(
+        _blockMathRegex,
+        (m) {
+          final idx = mathBlocks.length;
+          final content = m.group(0)!.substring(2, m.group(0)!.length - 2);
+          mathBlocks.add('<div class="math-block">\\[$content\\]</div>');
+          return '\n<!-- MATHBLOCK$idx -->\n';
+        },
+      );
+
+      // Inline math  $...$  (single line, no nesting)
+      src = src.replaceAllMapped(
+        _inlineMathRegex,
+        (m) {
+          final idx = mathBlocks.length;
+          final content = m.group(0)!.substring(1, m.group(0)!.length - 1);
+          mathBlocks.add('<span class="math-inline">\\($content\\)</span>');
+          return '<!-- MATHBLOCK$idx -->';
+        },
+      );
+    }
 
     // 1b. ==highlight== → <mark>text</mark>  (before markdown parsing)
     src = src.replaceAllMapped(
@@ -425,7 +445,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
       },
     );
 
-    return _wrapHtml(processed);
+    return _wrapHtml(processed, useMathRendering: useMathRendering);
   }
 
   /// Convert a Flutter [Color] to a CSS hex string (e.g. `#1a1a2e`).
@@ -435,7 +455,7 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
       '${c.blue.toRadixString(16).padLeft(2, '0')}';
 
   /// Wrap [body] in a full HTML document with inline CSS and JS.
-  String _wrapHtml(String body) {
+  String _wrapHtml(String body, {required bool useMathRendering}) {
     final dark = widget.isDark;
     final fs = widget.fontSize;
     final ff = widget.fontFamily;
@@ -498,16 +518,20 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
     addFontFace('Noto Sans SC', 'assets/fonts/NotoSansSC-Regular.ttf');
     addFontFace('JetBrains Mono', 'assets/fonts/JetBrainsMono-Regular.ttf');
 
+    final mathAssets = useMathRendering
+        ? '''<!-- KaTeX for math rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'\$\$',right:'\$\$',display:true},{left:'\$',right:'\$',display:false},{left:'\\\\(',right:'\\\\)',display:false},{left:'\\\\[',right:'\\\\]',display:true}],throwOnError:false});"></script>'''
+        : '';
+
     return '''<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=yes">
-<!-- KaTeX for math rendering -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"
-  onload="renderMathInElement(document.body,{delimiters:[{left:'\$\$',right:'\$\$',display:true},{left:'\$',right:'\$',display:false},{left:'\\\\(',right:'\\\\)',display:false},{left:'\\\\[',right:'\\\\]',display:true}],throwOnError:false});"></script>
+$mathAssets
 <style>
 $fontFaces
 *{box-sizing:border-box}
