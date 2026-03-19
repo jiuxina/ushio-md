@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../providers/settings_provider.dart';
+import '../../utils/app_style.dart';
 import '../../utils/constants.dart';
 import '../../services/font_service.dart';
 import '../../widgets/app_background.dart';
@@ -42,6 +43,8 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     }
   }
 
+  AppStyleTheme get _appStyle => Theme.of(context).extension<AppStyleTheme>()!;
+
   @override
   Widget build(BuildContext context) {
     return AppBackground(
@@ -66,6 +69,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 _buildSection('主题色', Icons.color_lens, [
                   _buildThemeColorSelector(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection('按钮风格', Icons.smart_button_outlined, [
+                  _buildButtonStyleSelector(settings),
                 ]),
 
                 // 浅色主题方案（仅在浅色模式下显示）
@@ -155,12 +164,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   Widget _buildSection(String title, IconData icon, List<Widget> children) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+      decoration: _appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,18 +238,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       onTap: () => settings.setThemeMode(mode),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
+        decoration: _buildOptionDecoration(isSelected: isSelected),
         child: Column(
           children: [
             Icon(
@@ -266,6 +261,123 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildButtonStyleSelector(SettingsProvider settings) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildButtonStyleOption(
+            settings,
+            AppButtonStyleMode.classic,
+            Icons.crop_square_rounded,
+            '经典描边',
+            '保留当前的实线边框按钮样式',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildButtonStyleOption(
+            settings,
+            AppButtonStyleMode.softShadow,
+            Icons.auto_awesome_rounded,
+            '简洁立体',
+            '无边框 + 阴影投影，接近 ChatGPT App 风格',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildButtonStyleOption(
+    SettingsProvider settings,
+    AppButtonStyleMode mode,
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
+    final isSelected = settings.buttonStyleMode == mode;
+    final previewPrimary = Theme.of(context).colorScheme.primary;
+    final previewSurface = _appStyle.useBorderlessButtons && mode == AppButtonStyleMode.softShadow
+        ? _appStyle.strongSurface
+        : Theme.of(context).colorScheme.surface;
+
+    return GestureDetector(
+      onTap: () => settings.setButtonStyleMode(mode),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: _buildOptionDecoration(isSelected: isSelected),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: isSelected ? previewPrimary : Theme.of(context).colorScheme.onSurface),
+                const Spacer(),
+                if (isSelected) Icon(Icons.check_circle, color: previewPrimary, size: 20),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: isSelected ? previewPrimary : null,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 40,
+                    decoration: mode == AppButtonStyleMode.softShadow
+                        ? BoxDecoration(
+                            color: previewSurface,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: _appStyle.prominentShadow,
+                          )
+                        : BoxDecoration(
+                            color: previewPrimary,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: previewPrimary),
+                          ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '按钮预览',
+                      style: TextStyle(
+                        color: mode == AppButtonStyleMode.softShadow ? Theme.of(context).colorScheme.onSurface : Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _buildOptionDecoration({required bool isSelected}) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return _appStyle.surfaceDecoration(
+      borderRadius: BorderRadius.circular(12),
+      color: _appStyle.optionBackground(context, selected: isSelected),
+      prominent: isSelected && _appStyle.useBorderlessButtons,
+      border: _appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: isSelected ? primary : _appStyle.outlineColor,
+              width: isSelected ? 2 : 1,
+            ),
     );
   }
 
@@ -318,15 +430,18 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             borderRadius: BorderRadius.circular(12),
             child: Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: scheme.background,
+              decoration: _appStyle.surfaceDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.transparent,
-                  width: 2,
-                ),
+                color: scheme.background,
+                prominent: isSelected && _appStyle.useBorderlessButtons,
+                border: _appStyle.useBorderlessButtons
+                    ? null
+                    : Border.all(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
               ),
               child: Row(
                 children: [
@@ -336,9 +451,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     decoration: BoxDecoration(
                       color: scheme.surface,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: scheme.textSecondary.withValues(alpha: 0.3),
-                      ),
+                      border: _appStyle.useBorderlessButtons
+                          ? null
+                          : Border.all(
+                              color: scheme.textSecondary.withValues(alpha: 0.3),
+                            ),
+                      boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -374,15 +492,18 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             borderRadius: BorderRadius.circular(12),
             child: Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: scheme.background,
+              decoration: _appStyle.surfaceDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.transparent,
-                  width: 2,
-                ),
+                color: scheme.background,
+                prominent: isSelected && _appStyle.useBorderlessButtons,
+                border: _appStyle.useBorderlessButtons
+                    ? null
+                    : Border.all(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.transparent,
+                        width: 2,
+                      ),
               ),
               child: Row(
                 children: [
@@ -808,18 +929,21 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   margin: EdgeInsets.only(right: idx == 0 ? 8 : 0),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
+                    boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
                     color: isSelected
                         ? Theme.of(
                             context,
                           ).colorScheme.primary.withValues(alpha: 0.1)
-                        : Colors.transparent,
+                        : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).dividerColor,
-                      width: isSelected ? 2 : 1,
-                    ),
+                    border: _appStyle.useBorderlessButtons
+                        ? null
+                        : Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).dividerColor,
+                            width: isSelected ? 2 : 1,
+                          ),
                   ),
                   child: Column(
                     children: [
@@ -995,16 +1119,19 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
+          boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : Colors.transparent,
+              : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: isSelected ? 2 : 1,
-          ),
+          border: _appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).dividerColor,
+                  width: isSelected ? 2 : 1,
+                ),
         ),
         child: Column(
           children: [
@@ -1055,16 +1182,19 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
+          boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : Colors.transparent,
+              : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-            width: isSelected ? 2 : 1,
-          ),
+          border: _appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).dividerColor,
+                  width: isSelected ? 2 : 1,
+                ),
         ),
         child: Row(
           children: [

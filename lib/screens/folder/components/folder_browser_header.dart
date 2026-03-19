@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../../../models/file_sort_option.dart';
+import '../../../utils/app_style.dart';
 
 class FolderBrowserHeader extends StatelessWidget {
   final String folderName;
@@ -49,9 +51,10 @@ class FolderBrowserHeader extends StatelessWidget {
             IconButton(
               icon: Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
                   borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                  prominent: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
                 ),
                 child: Icon(
                   Icons.arrow_back,
@@ -124,12 +127,15 @@ class FolderBrowserHeader extends StatelessWidget {
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
+              decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                ),
+                color: Theme.of(context).colorScheme.surface,
+                prominent: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
+                border: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons
+                    ? null
+                    : Border.all(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                      ),
               ),
               child: TextField(
                 controller: searchController,
@@ -161,16 +167,19 @@ class FolderBrowserHeader extends StatelessWidget {
         onTap: onPressed,
         child: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: isActive 
+          decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: isActive
                 ? colorScheme.primary.withValues(alpha: 0.1)
                 : colorScheme.surface.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isActive 
-                  ? colorScheme.primary 
-                  : Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
+            prominent: isActive && Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
+            border: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons
+                ? null
+                : Border.all(
+                    color: isActive
+                        ? colorScheme.primary
+                        : Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  ),
           ),
           child: Icon(
             icon, 
@@ -190,12 +199,10 @@ class FolderBrowserHeader extends StatelessWidget {
         onTap: () => _showSortMenu(context),
         child: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.5),
+          decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.5),
+            prominent: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
           ),
           child: const Icon(Icons.sort, size: 20),
         ),

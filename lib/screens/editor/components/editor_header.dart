@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../utils/app_style.dart';
+
 class EditorHeader extends StatelessWidget {
   final String fileName;
   final String wordCount;
@@ -29,22 +31,9 @@ class EditorHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
       child: Row(
         children: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-              ),
-              child: Icon(
-                Icons.arrow_back,
-                size: 20,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
+          _buildHeaderIconButton(
+            context,
+            icon: Icons.arrow_back,
             onPressed: onBack,
           ),
           const SizedBox(width: 8),
@@ -68,23 +57,10 @@ class EditorHeader extends StatelessWidget {
           _buildSaveButton(context),
           if (onMore != null) ...[
             const SizedBox(width: 8),
-            IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: Icon(
-                  Icons.more_vert,
-                  size: 20,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              onPressed: onMore,
+            _buildHeaderIconButton(
+              context,
+              icon: Icons.more_vert,
+              onPressed: onMore!,
             ),
           ],
         ],
@@ -92,7 +68,59 @@ class EditorHeader extends StatelessWidget {
     );
   }
 
+  Widget _buildHeaderIconButton(
+    BuildContext context, {
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: appStyle.surfaceDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.82),
+          prominent: appStyle.useBorderlessButtons,
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSaveButton(BuildContext context) {
+<<<<<<< beta
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: isModified
+            ? LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.secondary,
+                ],
+              )
+            : null,
+        color: isModified
+            ? null
+            : (appStyle.useBorderlessButtons
+                  ? appStyle.strongSurface
+                  : Theme.of(context).colorScheme.surface),
+        borderRadius: BorderRadius.circular(12),
+        border: isModified ? null : appStyle.surfaceBorder(),
+        boxShadow: isModified
+            ? appStyle.prominentShadow
+            : (appStyle.useBorderlessButtons ? appStyle.surfaceShadow : null),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+=======
     final colorScheme = Theme.of(context).colorScheme;
     final iconColor = isSaving
         ? colorScheme.primary
@@ -105,6 +133,7 @@ class EditorHeader extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: colorScheme.surface.withValues(alpha: 0.8),
+>>>>>>> main
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: Theme.of(context).dividerColor.withValues(alpha: 0.5),

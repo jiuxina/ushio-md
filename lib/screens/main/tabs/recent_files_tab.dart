@@ -6,7 +6,7 @@ import '../../../widgets/tab_header.dart';
 import '../../../widgets/empty_state.dart';
 import '../../../widgets/glass_card.dart';
 import '../../../utils/file_actions.dart';
-import '../../editor_screen.dart';
+import '../../../utils/editor_navigation_helper.dart';
 
 class RecentFilesTab extends StatelessWidget {
   final FileProvider fileProvider;
@@ -59,13 +59,11 @@ class RecentFilesTab extends StatelessWidget {
       title: fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
       subtitle: exists ? (dateStr.isNotEmpty ? '$dateStr · $path' : path) : '文件不存在',
       onTap: exists
-          ? () {
+          ? () async {
               fileProvider.addToRecentFiles(path);
-              Navigator.push(
+              await EditorNavigationHelper.openEditor(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => EditorScreen(filePath: path),
-                ),
+                path,
               );
             }
           : () {},

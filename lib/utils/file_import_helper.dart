@@ -10,7 +10,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/my_files_service.dart';
-import '../screens/editor_screen.dart';
+import 'editor_navigation_helper.dart';
 
 /// 文件导入助手
 /// 
@@ -101,12 +101,10 @@ class FileImportHelper {
   }
 
   static void _navigateToEditor(BuildContext context, String filePath, VoidCallback? onFileOpened) {
-    onFileOpened?.call();
-    Navigator.push(
+    EditorNavigationHelper.openEditor(
       context,
-      MaterialPageRoute(
-        builder: (context) => EditorScreen(filePath: filePath),
-      ),
+      filePath,
+      onFileOpened: onFileOpened,
     );
   }
 
@@ -176,18 +174,32 @@ class _ImportDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        OutlinedButton(
-          onPressed: () => Navigator.pop(context, 'view'),
-          child: const Text('仅查看'),
-        ),
-        FilledButton.icon(
-          onPressed: () => Navigator.pop(context, 'import'),
-          icon: const Icon(Icons.folder_copy, size: 18),
-          label: const Text('导入'),
+        SizedBox(
+          width: double.infinity,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, 'view'),
+                  child: const Text('仅查看'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context, 'import'),
+                  child: const Text('导入'),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
