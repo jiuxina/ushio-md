@@ -773,7 +773,15 @@ $body
     if (!_ie) return;
     var ie = _ie; _ie = null;
     var newText = ie.ta ? ie.ta.value : '';
-    ie.el.innerHTML = ie.origHtml;
+    if (send === false) {
+      ie.el.innerHTML = ie.origHtml;
+      _restoreStyles(ie);
+      return;
+    }
+
+    // Optimistic UI update: avoid restoring old rendered HTML before Flutter
+    // applies the markdown mutation, which would cause a visible flicker.
+    ie.el.textContent = newText;
     _restoreStyles(ie);
     if (send !== false) {
       window.flutter_inappwebview.callHandler('onInPlaceEdit', ie.key, newText);
