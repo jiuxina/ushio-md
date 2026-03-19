@@ -687,3 +687,67 @@ document.addEventListener(
 4. **最后平台细节**：图片资源路由、键盘滚动、长按菜单接管与性能压测。  
 
 这套 LLD 的重点是“协议稳定 + 主题可注入 + 资源可控”，可在不破坏 Flutter 外壳架构的前提下持续迭代 Milkdown 内核能力。
+
+---
+
+## 以下是以上内容的评论
+
+### 🚨 避坑指南（AI 代码中需要微调的 3 个关键点）
+
+AI 虽然强大，但在某些库的最新 API 细节和 Android 平台的玄学问题上，仍有一点点瑕疵，**你在真正写代码时请务必修正以下三点**：
+
+#### ⚠️ 坑点 1：Milkdown v7 的动态内容替换 API 有误
+在 **1.3 `main.ts`** 中，AI 给出的从 Flutter 接收 Markdown 并更新编辑器的代码是：
+```typescript
+// AI 的错误写法
+setMarkdownFromFlutter = (md: string) => {
+  instance.action((ctx) => {
+    ctx.set(defaultValueCtx, md); // 这里有问题！
+  });
+};
+```
+**修正原因：** 在 Milkdown v7 中，`defaultValueCtx` 只在编辑器**初次创建**时生效。如果编辑器已经 Ready，你要全量替换内容，不能重置这个 Context，而应该调用 ProseMirror 的事务（Transaction）或内置命令。
+**正确写法（复制替换这一段）：**
+```typescript
+import { replaceAll } from '@milkdown/utils';
+
+// ... 
+setMarkdownFromFlutter = (md: string) => {
+  instance.action(replaceAll(md));
+};
+```
+
+#### ⚠️ 坑点 2：Android 光标滚动的防抖与触发时机
+在 **5.1 软键盘与光标遮挡** 中，AI 建议监听 `selectionchange` 并调用 `scrollIntoView`。
+**修正原因：** `selectionchange` 触发频率极高（你每打一个字母都会触发）。如果你在 Android WebView 里一直执行 `scrollIntoView`，页面会发生剧烈的神经质抖动（Jitter）。
+**正确写法：** 
+ProseMirror 底层其实自己有一套极其优秀的光标滚动机制。你不需要手写 `scrollIntoView`，你只需要确保 Flutter 层的 `resizeToAvoidBottomInset: true` 是开启的。如果一定要手动干预，应该监听 Android 窗口 resize 事件（即键盘弹出时），而不是光标变化事件：
+```typescript
+// 建议替换为监听窗口大小变化（通常代表键盘弹出/收起）
+window.addEventListener('resize', () => {
+    // 稍微延迟，等待 Android 键盘完全弹出
+    setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        const node = sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
+        node?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 200);
+});
+```
+
+#### ⚠️ 坑点 3：InAppLocalhostServer 的端口冲突风险
+在 Dart 代码中，AI 硬编码了 `port: 18765`。
+**修正原因：** 在极少数 Android 手机上，某个特定端口可能被后台进程占用，导致 Server 启动失败。
+**建议：** 最好使用动态端口分配，或者捕获异常。`InAppLocalhostServer` 实际上支持不传端口让系统自动分配空闲端口，然后你再获取它。
+```dart
+// 建议的做法
+final InAppLocalhostServer _localhostServer = InAppLocalhostServer(
+  documentRoot: 'assets/milkdown_web',
+  // 不传 port 或传 0，系统会自动分配
+);
+
+// 在 initState 中 start 后，获取真实端口
+await _localhostServer.start();
+int port = _localhostServer.port;
+// 随后 WebView 加载 http://localhost:$port/index.html
+```
