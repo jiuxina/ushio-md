@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
+import '../utils/editor_navigation_helper.dart';
 import '../widgets/markdown_toolbar.dart';
 import '../widgets/webview_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
@@ -48,8 +49,13 @@ class _EditHistoryEntry {
 
 class EditorScreen extends StatefulWidget {
   final String filePath;
+  final String? initialContent;
 
-  const EditorScreen({super.key, required this.filePath});
+  const EditorScreen({
+    super.key,
+    required this.filePath,
+    this.initialContent,
+  });
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -62,6 +68,7 @@ class _EditorScreenState extends State<EditorScreen>
   final List<_EditHistoryEntry> _editHistory = <_EditHistoryEntry>[];
   int _historyIndex = -1;
   bool _isApplyingHistory = false;
+  bool _textListenerAttached = false;
 
   late TextEditingController _textController;
   late ScrollController _editScrollController;
@@ -122,7 +129,13 @@ class _EditorScreenState extends State<EditorScreen>
     _highlightAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
     );
-    _loadFile();
+    if (widget.initialContent != null) {
+      _applyLoadedContent(widget.initialContent!);
+      _configureAutoSave();
+      _isLoading = false;
+    } else {
+      _loadFile();
+    }
   }
 
   Future<void> _loadFile() async {
@@ -135,28 +148,39 @@ class _EditorScreenState extends State<EditorScreen>
       final fileService = context.read<FileProvider>().fileService;
       final content = await fileService.readFile(widget.filePath);
       if (!mounted) return;
-      _textController.text = content;
-      _textController.addListener(_onTextChanged);
-      _recordHistorySnapshot(
-        text: content,
-        selection: const TextSelection.collapsed(offset: 0),
-        reset: true,
-      );
-      _updateToc();
-
-      final settings = context.read<SettingsProvider>();
-      if (settings.autoSave) {
-        _autoSaveTimer = Timer.periodic(
-          Duration(seconds: settings.autoSaveInterval),
-          (_) => _autoSave(),
-        );
-      }
+      _applyLoadedContent(content);
+      _configureAutoSave();
     } catch (e) {
       _error = e.toString();
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  void _applyLoadedContent(String content) {
+    _textController.text = content;
+    if (!_textListenerAttached) {
+      _textController.addListener(_onTextChanged);
+      _textListenerAttached = true;
+    }
+    _recordHistorySnapshot(
+      text: content,
+      selection: const TextSelection.collapsed(offset: 0),
+      reset: true,
+    );
+    _updateToc();
+  }
+
+  void _configureAutoSave() {
+    _autoSaveTimer?.cancel();
+    final settings = context.read<SettingsProvider>();
+    if (settings.autoSave) {
+      _autoSaveTimer = Timer.periodic(
+        Duration(seconds: settings.autoSaveInterval),
+        (_) => _autoSave(),
+      );
     }
   }
 
@@ -676,11 +700,7 @@ class _EditorScreenState extends State<EditorScreen>
             '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
         final targetFile = File(targetPath);
         if (targetFile.existsSync()) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => EditorScreen(filePath: targetPath),
-            ),
-          );
+          EditorNavigationHelper.openEditor(context, targetPath);
           return;
         }
       }

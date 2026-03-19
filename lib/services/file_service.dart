@@ -10,6 +10,7 @@
 // 使用 file_picker 和 permission_handler 插件。
 // ============================================================================
 
+import 'dart:collection';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,10 @@ import '../models/markdown_file.dart';
 /// 
 /// 提供文件系统的底层操作封装
 class FileService {
+  static const int _maxCachedFiles = 24;
+  static final LinkedHashMap<String, _CachedFileContent> _contentCache =
+      LinkedHashMap<String, _CachedFileContent>();
+
   // ==================== 权限管理 ====================
 
   /// 请求存储权限
@@ -165,12 +170,63 @@ class FileService {
   /// [path] 文件的绝对路径
   /// 
   /// 抛出异常如果文件不存在
-  Future<String> readFile(String path) async {
+  Future<String> readFile(String path, {bool allowCache = true}) async {
     final file = File(path);
     if (!await file.exists()) {
       throw Exception('File not found: $path');
     }
-    return await file.readAsString();
+
+    final stat = await file.stat();
+    if (allowCache) {
+      final cached = _contentCache[path];
+      if (cached != null &&
+          cached.lastModified == stat.modified &&
+          cached.size == stat.size) {
+        _touchCacheEntry(path, cached);
+        return cached.content;
+      }
+    }
+
+    final content = await file.readAsString();
+    _storeInCache(
+      path,
+      content,
+      lastModified: stat.modified,
+      size: stat.size,
+    );
+    return content;
+  }
+
+  /// 预加载文件内容到内存缓存，供进入编辑器前使用。
+  Future<String> preloadFile(String path) async {
+    return readFile(path, allowCache: true);
+  }
+
+  /// 同步检查文件是否已有可直接使用的内存缓存。
+  bool isFileCached(String path) {
+    final cached = _contentCache[path];
+    if (cached == null) return false;
+
+    final file = File(path);
+    if (!file.existsSync()) {
+      _contentCache.remove(path);
+      return false;
+    }
+
+    try {
+      final stat = file.statSync();
+      final isFresh =
+          cached.lastModified == stat.modified && cached.size == stat.size;
+      if (isFresh) {
+        _touchCacheEntry(path, cached);
+        return true;
+      }
+    } catch (_) {
+      // 如果 statSync 失败，则视为缓存不可用。
+    }
+
+    _contentCache.remove(path);
+    return false;
   }
 
   /// 保存文件内容
@@ -180,6 +236,13 @@ class FileService {
   Future<void> saveFile(String path, String content) async {
     final file = File(path);
     await file.writeAsString(content);
+    final stat = await file.stat();
+    _storeInCache(
+      path,
+      content,
+      lastModified: stat.modified,
+      size: stat.size,
+    );
   }
 
   /// 创建新的 Markdown 文件
@@ -224,6 +287,7 @@ class FileService {
     if (await file.exists()) {
       await file.delete();
     }
+    _contentCache.remove(path);
   }
 
   /// 重命名文件
@@ -247,7 +311,39 @@ class FileService {
     }
 
     await file.rename(newPath);
+    final cached = _contentCache.remove(oldPath);
+    if (cached != null) {
+      _storeInCache(
+        newPath,
+        cached.content,
+        lastModified: cached.lastModified,
+        size: cached.size,
+      );
+    }
     return newPath;
+  }
+
+  static void _touchCacheEntry(String path, _CachedFileContent cached) {
+    _contentCache.remove(path);
+    _contentCache[path] = cached;
+  }
+
+  static void _storeInCache(
+    String path,
+    String content, {
+    required DateTime lastModified,
+    required int size,
+  }) {
+    _contentCache.remove(path);
+    _contentCache[path] = _CachedFileContent(
+      content: content,
+      lastModified: lastModified,
+      size: size,
+    );
+
+    while (_contentCache.length > _maxCachedFiles) {
+      _contentCache.remove(_contentCache.keys.first);
+    }
   }
 
   // ==================== 常用路径 ====================
@@ -284,4 +380,16 @@ class FileService {
 
     return paths;
   }
+}
+
+class _CachedFileContent {
+  final String content;
+  final DateTime lastModified;
+  final int size;
+
+  const _CachedFileContent({
+    required this.content,
+    required this.lastModified,
+    required this.size,
+  });
 }
