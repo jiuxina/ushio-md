@@ -44,12 +44,7 @@ class EditorHeader extends StatelessWidget {
               children: [
                 _AdaptiveFileName(fileName: _displayFileName),
                 const SizedBox(height: 4),
-                Text(
-                  wordCount,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                ),
+                _AdaptiveWordCount(wordCount: wordCount),
               ],
             ),
           ),
@@ -139,6 +134,38 @@ class EditorHeader extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AdaptiveWordCount extends StatelessWidget {
+  final String wordCount;
+
+  const _AdaptiveWordCount({required this.wordCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.outline,
+          height: 1.1,
+        );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: FittedBox(
+            alignment: Alignment.centerLeft,
+            fit: BoxFit.scaleDown,
+            child: Text(
+              wordCount,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+        );
+      },
     );
   }
 }
