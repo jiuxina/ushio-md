@@ -3,16 +3,19 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
+import '../utils/editor_navigation_helper.dart';
 import '../widgets/app_background.dart';
+import '../widgets/themed_feedback.dart';
+import '../widgets/webview_markdown_preview.dart';
 import 'main/tabs/home_tab.dart';
 import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
 import 'main/tabs/settings_tab.dart';
 import 'main/components/permission_screen.dart';
-import 'editor_screen.dart';
 import '../providers/plugin_provider.dart';
 import '../plugins/extensions/navigation_extension.dart';
 import '../services/update_service.dart';
@@ -79,13 +82,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         
         final fileProvider = context.read<FileProvider>();
         fileProvider.addToRecentFiles(path);
-        
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => EditorScreen(filePath: path),
-          ),
-        );
+
+        EditorNavigationHelper.openEditor(context, path);
       });
     }
   }
@@ -96,11 +94,45 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     
     await fileProvider.initialize();
     await settingsProvider.initialize();
+    await _runFirstLaunchWarmupIfNeeded();
+    unawaited(warmUpMarkdownPreviewAssets());
     if (mounted) setState(() {});
 
     // 延迟2秒后检查更新（避免阻塞启动流程）
     if (settingsProvider.autoCheckUpdate) {
       Future.delayed(const Duration(seconds: 2), _checkUpdateOnStartup);
+    }
+  }
+
+  Future<void> _runFirstLaunchWarmupIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    const warmupKey = 'startup_preview_warmup_done';
+    if (prefs.getBool(warmupKey) == true || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const ThemedProgressDialog(
+        title: '首次启动初始化中',
+        message: '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。',
+        icon: Icons.auto_awesome_rounded,
+      ),
+    );
+
+    try {
+      await warmUpMarkdownPreviewAssets();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await prefs.setBool(warmupKey, true);
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        showThemedSnackBar(
+          context,
+          message: '首次启动初始化完成，后续打开文档会更快。',
+          icon: Icons.check_circle_outline_rounded,
+          accentColor: Theme.of(context).colorScheme.primary,
+        );
+      }
     }
   }
 

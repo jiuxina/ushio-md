@@ -87,5 +87,28 @@ void main() {
       
       expect(await File(file.path).exists(), false);
     });
+
+    test('preloadFile 应缓存内容并命中内存缓存', () async {
+      final file = await service.createFile(tempDir.path, 'cached');
+      await File(file.path).writeAsString('hello cache');
+
+      final first = await service.preloadFile(file.path);
+      final second = await service.readFile(file.path);
+
+      expect(first, 'hello cache');
+      expect(second, 'hello cache');
+      expect(service.isFileCached(file.path), true);
+    });
+
+    test('文件修改后应使旧缓存失效', () async {
+      final file = await service.createFile(tempDir.path, 'stale');
+      await File(file.path).writeAsString('version 1');
+      await service.preloadFile(file.path);
+
+      await File(file.path).writeAsString('version 2 with different length');
+
+      final refreshed = await service.readFile(file.path);
+      expect(refreshed, 'version 2 with different length');
+    });
   });
 }

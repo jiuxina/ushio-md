@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/file_provider.dart';
 import '../../../utils/file_actions.dart';
-import '../../editor_screen.dart';
+import '../../../utils/editor_navigation_helper.dart';
 import '../../folder_browser_screen.dart';
 
 class FileTile extends StatelessWidget {
@@ -60,16 +60,14 @@ class FileTile extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
+          onTap: () async {
             if (isFile) {
               if (name.toLowerCase().endsWith('.md')) {
                 final fileProvider = context.read<FileProvider>();
                 fileProvider.addToRecentFiles(entity.path);
-                Navigator.push(
+                await EditorNavigationHelper.openEditor(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => EditorScreen(filePath: entity.path),
-                  ),
+                  entity.path,
                 );
               } else if (isImage) {
                 _showImagePreview(context, entity.path);
