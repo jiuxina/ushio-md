@@ -40,6 +40,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     required double cardOpacity,
   }) {
     final isDark = brightness == Brightness.dark;
+    final mutedAlpha = (cardOpacity * (isDark ? 0.82 : 0.76)).clamp(0.0, 1.0);
+    final strongAlpha = (cardOpacity * (isDark ? 0.94 : 0.90)).clamp(0.0, 1.0);
     final outlineColor = textSecondary.withValues(
       alpha: buttonStyleMode == AppButtonStyleMode.softShadow ? (isDark ? 0.0 : 0.04) : (isDark ? 0.28 : 0.16),
     );
@@ -49,14 +51,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     return AppStyleTheme(
       buttonStyleMode: buttonStyleMode,
       outlineColor: outlineColor,
-      mutedSurface: Color.alphaBlend(
-        colorScheme.primary.withValues(alpha: isDark ? 0.08 : 0.04),
-        colorScheme.surface,
-      ),
-      strongSurface: Color.alphaBlend(
-        Colors.white.withValues(alpha: isDark ? 0.03 : 0.7),
-        colorScheme.surface,
-      ),
+      mutedSurface: colorScheme.surface.withValues(alpha: mutedAlpha),
+      strongSurface: colorScheme.surface.withValues(alpha: strongAlpha),
       cardSurface: colorScheme.surface.withValues(alpha: cardOpacity),
       surfaceShadow: buttonStyleMode == AppButtonStyleMode.softShadow
           ? [
