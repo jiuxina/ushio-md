@@ -56,6 +56,7 @@
       (function () {
         const app = document.getElementById('app');
         let bridgeSeq = 0;
+        let imageBaseUrl = null;
 
         const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -113,8 +114,30 @@
           }
         };
 
-        const setMarkdown = (md) => {
-          app.textContent = typeof md === 'string' ? md : '';
+        const emitOutlineUpdate = () => {
+          const lines = (app.textContent || '').split('\n');
+          const outline = [];
+          lines.forEach((line, index) => {
+            const match = line.match(/^(#{1,6})\s+(.+)$/);
+            if (!match) return;
+            outline.push({
+              id: `line-${index}`,
+              level: match[1].length,
+              text: match[2].trim()
+            });
+          });
+          postToFlutter({
+            v: 1,
+            source: 'web',
+            target: 'flutter',
+            type: 'on_outline_update',
+            requestId: nextRequestId(),
+            ts: Date.now(),
+            payload: { outline }
+          });
+        };
+
+        const emitContentAndOutline = () => {
           postToFlutter({
             v: 1,
             source: 'web',
@@ -127,33 +150,38 @@
               markdown: app.textContent
             }
           });
+          emitOutlineUpdate();
+        };
+
+        const setMarkdown = (md) => {
+          app.textContent = typeof md === 'string' ? md : '';
+          emitContentAndOutline();
         };
 
         const applyInlineWrap = (prefix, suffix) => {
           const text = app.textContent || '';
           app.textContent = `${prefix}${text}${suffix}`;
-          postToFlutter({
-            v: 1,
-            source: 'web',
-            target: 'flutter',
-            type: 'on_content_change',
-            requestId: nextRequestId(),
-            ts: Date.now(),
-            payload: { mode: 'full', markdown: app.textContent }
-          });
+          emitContentAndOutline();
         };
 
         const appendText = (text) => {
           app.textContent = `${app.textContent || ''}${text}`;
-          postToFlutter({
-            v: 1,
-            source: 'web',
-            target: 'flutter',
-            type: 'on_content_change',
-            requestId: nextRequestId(),
-            ts: Date.now(),
-            payload: { mode: 'full', markdown: app.textContent }
-          });
+          emitContentAndOutline();
+        };
+
+        const normalizeImageSrc = (src) => {
+          if (!src || typeof src !== 'string') return '';
+          if (/^(https?:|file:|data:|content:)/i.test(src)) return src;
+          if (!imageBaseUrl) return src;
+          const base = imageBaseUrl.endsWith('/') ? imageBaseUrl : `${imageBaseUrl}/`;
+          // Handle relative markdown image paths: "./a.png", "/a.png", "///a.png"
+          // should all resolve to "<base>/a.png".
+          return `${base}${src.replace(/^(\.\/|\/)+/, '')}`;
+        };
+
+        const isExternalHref = (href) => {
+          if (typeof href !== 'string') return false;
+          return /^(https?:|mailto:|tel:)/i.test(href);
         };
 
         const onFlutterMessage = (message) => {
@@ -195,9 +223,14 @@
             }
             if (cmd === 'insert_image') {
               const args = (m.payload && m.payload.args) || {};
-              const src = typeof args.src === 'string' ? args.src : '';
+              const src = normalizeImageSrc(typeof args.src === 'string' ? args.src : '');
               const alt = typeof args.alt === 'string' ? args.alt : 'image';
               if (src) appendText(`\n![${alt}](${src})\n`);
+              return;
+            }
+            if (cmd === 'set_image_base') {
+              const args = (m.payload && m.payload.args) || {};
+              imageBaseUrl = typeof args.baseUrl === 'string' && args.baseUrl ? args.baseUrl : null;
               return;
             }
             if (cmd === 'undo' || cmd === 'redo') {
@@ -220,6 +253,43 @@
             e.preventDefault();
           },
           { passive: false }
+        );
+
+        document.addEventListener(
+          'click',
+          (e) => {
+            let node = e.target;
+            let hop = 0;
+            while (
+              node &&
+              node !== document.body &&
+              node !== document.documentElement &&
+              hop < 64 &&
+              (node.tagName || '').toUpperCase() !== 'A'
+            ) {
+              node = node.parentElement;
+              hop += 1;
+            }
+            if (node && (node.tagName || '').toUpperCase() === 'A') {
+              e.preventDefault();
+              const href = node.getAttribute('href') || '';
+              postToFlutter({
+                v: 1,
+                source: 'web',
+                target: 'flutter',
+                type: 'on_link_click',
+                requestId: nextRequestId(),
+                ts: Date.now(),
+                payload: {
+                  href,
+                  text: node.textContent || '',
+                  title: node.getAttribute('title') || '',
+                  isExternal: isExternalHref(href)
+                }
+              });
+            }
+          },
+          true
         );
 
         window.addEventListener('resize', () => {

@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/milkdown_bridge.dart';
 
@@ -58,6 +60,8 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final ValueChanged<String>? onContentChange;
   final MilkdownBridgeMessageHandler? onBridgeMessage;
   final ValueChanged<OnImageErrorPayload>? onImageError;
+  final ValueChanged<OnOutlineUpdatePayload>? onOutlineUpdate;
+  final ValueChanged<OnLinkClickPayload>? onLinkClick;
   final MilkdownWebViewController? controller;
   final String? bodyFont;
   final String? monoFont;
@@ -70,6 +74,8 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.onContentChange,
     this.onBridgeMessage,
     this.onImageError,
+    this.onOutlineUpdate,
+    this.onLinkClick,
     this.controller,
     this.bodyFont,
     this.monoFont,
@@ -85,15 +91,37 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   InAppWebViewController? _controller;
   Uint8List? _htmlData;
   String? _lastThemeSignature;
+  String? _imageBaseUrl;
 
   static const _assetPath = 'assets/milkdown_web/index.html';
+  static const _imageDirName = 'md_images';
 
   @override
   void initState() {
     super.initState();
     _loadHtmlAsset();
+    _initImageRouting();
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
+    }
+  }
+
+  Future<void> _initImageRouting() async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final imageDir = Directory.fromUri(appDir.uri.resolve(_imageDirName));
+      if (!await imageDir.exists()) {
+        await imageDir.create(recursive: true);
+      }
+      if (!mounted) return;
+      final imageDirUrl = Uri.directory(imageDir.path).toString();
+      setState(() {
+        _imageBaseUrl = imageDirUrl;
+      });
+    } catch (e) {
+      debugPrint(
+        'Milkdown image routing init failed (non-fatal, image base routing disabled): $e',
+      );
     }
   }
 
@@ -230,6 +258,20 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
           widget.onContentChange?.call(markdown);
         }
       }
+    } else if (type == 'on_outline_update') {
+      final payload = map['payload'];
+      if (payload is Map) {
+        widget.onOutlineUpdate?.call(
+          OnOutlineUpdatePayload.fromJson(Map<String, dynamic>.from(payload)),
+        );
+      }
+    } else if (type == 'on_link_click') {
+      final payload = map['payload'];
+      if (payload is Map) {
+        widget.onLinkClick?.call(
+          OnLinkClickPayload.fromJson(Map<String, dynamic>.from(payload)),
+        );
+      }
     } else if (type == 'on_image_error') {
       final payload = map['payload'];
       if (payload is Map) {
@@ -287,7 +329,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         transparentBackground: true,
         allowFileAccessFromFileURLs: false,
         allowUniversalAccessFromFileURLs: false,
-        allowFileAccess: false,
+        // Needed for local file:// image rendering when src points to app-private
+        // directory URLs; cross-file-origin access remains disabled above.
+        allowFileAccess: true,
         javaScriptEnabled: true,
         disableContextMenu: true,
         supportZoom: false,
@@ -307,6 +351,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       },
       onLoadStop: (controller, _) async {
         await _sendInitDoc();
+        if (_imageBaseUrl != null) {
+          await _sendExecCmd('set_image_base', args: {'baseUrl': _imageBaseUrl});
+        }
         await _sendTheme();
       },
     );
