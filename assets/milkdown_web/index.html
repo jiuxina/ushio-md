@@ -57,6 +57,9 @@
         const app = document.getElementById('app');
         let bridgeSeq = 0;
         let imageBaseUrl = null;
+        const maxHistorySize = 200;
+        let history = [''];
+        let historyIndex = 0;
 
         const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -153,20 +156,45 @@
           emitOutlineUpdate();
         };
 
+        const resetHistory = (markdown) => {
+          history = [markdown];
+          historyIndex = 0;
+        };
+
+        const applyMarkdown = (markdown, { emit = true, record = true } = {}) => {
+          const text = typeof markdown === 'string' ? markdown : '';
+          if (record) {
+            const current = history[historyIndex] ?? '';
+            if (text !== current) {
+              history = history.slice(0, historyIndex + 1);
+              history.push(text);
+              if (history.length > maxHistorySize) {
+                history.shift();
+                // Keep index aligned with logical current entry after dropping oldest item.
+                historyIndex = Math.max(0, historyIndex - 1);
+              }
+              historyIndex = history.length - 1;
+            }
+          }
+          app.textContent = text;
+          if (emit) {
+            emitContentAndOutline();
+          }
+        };
+
         const setMarkdown = (md) => {
-          app.textContent = typeof md === 'string' ? md : '';
-          emitContentAndOutline();
+          const text = typeof md === 'string' ? md : '';
+          resetHistory(text);
+          applyMarkdown(text, { emit: true, record: false });
         };
 
         const applyInlineWrap = (prefix, suffix) => {
           const text = app.textContent || '';
-          app.textContent = `${prefix}${text}${suffix}`;
-          emitContentAndOutline();
+          applyMarkdown(`${prefix}${text}${suffix}`);
         };
 
         const appendText = (text) => {
-          app.textContent = `${app.textContent || ''}${text}`;
-          emitContentAndOutline();
+          applyMarkdown(`${app.textContent || ''}${text}`);
         };
 
         const normalizeImageSrc = (src) => {
@@ -234,7 +262,16 @@
               return;
             }
             if (cmd === 'undo' || cmd === 'redo') {
-              console.info(`exec_cmd ${cmd} is not wired to editor history yet`);
+              if (cmd === 'undo' && historyIndex > 0) {
+                historyIndex -= 1;
+                applyMarkdown(history[historyIndex], { emit: true, record: false });
+                return;
+              }
+              if (cmd === 'redo' && historyIndex < history.length - 1) {
+                historyIndex += 1;
+                applyMarkdown(history[historyIndex], { emit: true, record: false });
+                return;
+              }
               return;
             }
           }

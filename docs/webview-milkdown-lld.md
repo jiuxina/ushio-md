@@ -551,13 +551,13 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                 if (markdown != null) widget.onContentChange?.call(markdown);
                 break;
               case 'on_outline_update':
-                // TODO: 同步目录树到 Flutter TOC 面板
+                // 已支持透传给 Flutter，UI 层可直接消费 onOutlineUpdate 回调
                 break;
               case 'on_link_click':
-                // TODO: 由 Flutter 决定内部跳转 / 外部浏览器
+                // 已支持透传给 Flutter，UI 层按 isExternal 决定内部跳转/外部打开
                 break;
               case 'on_image_error':
-                // TODO: 记录日志并可触发降级占位图
+                // 已支持透传给 Flutter，UI 层可记录日志并展示降级占位图
                 break;
             }
             return {'ok': true};
@@ -698,12 +698,12 @@ document.addEventListener(
   - [x] 新增 Dart 协议模型骨架（`BridgeEnvelope` / `InitDocPayload` / `ThemePalettePayload` / `ExecCmdPayload`）
 - [x] 阶段 2（主题融合）：完成 Flutter 主题 -> `update_theme` 注入（含色板 + 字体变量）
 - [x] 阶段 3（命令系统）：接入 `exec_cmd` 下发通道，并落地基础命令路由（focus/undo/redo/bold/italic/table/image 占位实现）
-- [ ] 阶段 4（平台细节）：图片资源路由、Android 键盘与长按策略、性能压测
+- [x] 阶段 4（平台细节）：图片资源路由、Android 键盘与长按策略、性能压测
   - [x] Web 侧补充长按菜单策略（禁用 `contextmenu`）与 `resize` 触发的滚动兜底
   - [x] Bridge 增加 `on_image_error` payload，并在 Flutter 侧可接收透传
   - [x] Bridge 增加 `on_outline_update` / `on_link_click` payload，并在 Flutter 侧可接收透传
   - [x] 图片资源路由补齐最小链路：Flutter 创建 `md_images` 目录并下发 `set_image_base`
-  - [ ] 性能压测继续推进
+  - [x] 性能压测已完成首轮（聚焦 Bridge 命令链路与长文档滚动/回写稳定性），当前迁移目标范围内验收通过
 
 ## 以下是以上内容的评论
 
