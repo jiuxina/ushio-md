@@ -125,6 +125,9 @@ class _EditorScreenState extends State<EditorScreen>
   static final _codeBlockStartRegex = RegExp(r'^\s*```');
   static final _tableRowRegex = RegExp(r'^\s*\|');
   static final _blockquoteRegex = RegExp(r'^\s*>');
+  static final _listItemStartRegex = RegExp(r'^\s*(?:[-*+]|\d+\.)\s+');
+  static final _indentedContentRegex = RegExp(r'^\s{2,}\S');
+  static final _nestedListMarkerRegex = RegExp(r'^\s{2,}(?:[-*+]|\d+\.)\s+');
 
   String? _error;
   List<TocItem> _tocItems = [];
@@ -1123,7 +1126,7 @@ class _EditorScreenState extends State<EditorScreen>
       // Group a list item with its indented continuation lines (including
       // nested markers) so single-tap editing on nested markdown replaces the
       // whole logical unit instead of only one rendered <li>/<p> fragment.
-      if (RegExp(r'^\s*(?:[-*+]|\d+\.)\s+').hasMatch(trimmed)) {
+      if (_listItemStartRegex.hasMatch(trimmed)) {
         int end = i + 1;
         while (end < lines.length) {
           final next = lines[end];
@@ -1132,8 +1135,8 @@ class _EditorScreenState extends State<EditorScreen>
             end++;
             continue;
           }
-          final isIndented = RegExp(r'^\s{2,}\S').hasMatch(next);
-          final isNestedListMarker = RegExp(r'^\s{2,}(?:[-*+]|\d+\.)\s+').hasMatch(next);
+          final isIndented = _indentedContentRegex.hasMatch(next);
+          final isNestedListMarker = _nestedListMarkerRegex.hasMatch(next);
           if (!isIndented && !isNestedListMarker) break;
           end++;
         }
