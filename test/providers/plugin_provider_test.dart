@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:mdreader/providers/plugin_provider.dart';
+import 'package:mdreader/plugins/extensions/widget_extension.dart';
 
 // Reuse fake path provider or define locally
 class FakePathProviderPlatform extends PathProviderPlatform {
@@ -61,6 +62,40 @@ void main() {
         "author": "Test Author",
         "description": "A test plugin",
         "permissions": []
+      }
+      ''');
+    }
+
+    Future<void> createFakeWidgetPlugin(String id) async {
+      final pluginsDir = Directory('${tempDir.path}/plugins');
+      if (!await pluginsDir.exists()) {
+        await pluginsDir.create(recursive: true);
+      }
+      final pluginDir = Directory('${pluginsDir.path}/$id');
+      await pluginDir.create();
+      final manifestFile = File('${pluginDir.path}/manifest.json');
+      await manifestFile.writeAsString('''
+      {
+        "id": "$id",
+        "name": "Widget Plugin",
+        "version": "1.0.0",
+        "author": "Test Author",
+        "description": "Widget extension test plugin",
+        "permissions": ["widgets"],
+        "extensions": {
+          "widgets": [
+            {
+              "id": "promo-banner",
+              "injectionPoint": "homeTab",
+              "type": "banner",
+              "priority": 50,
+              "config": {
+                "title": "Hello",
+                "subtitle": "World"
+              }
+            }
+          ]
+        }
       }
       ''');
     }
@@ -124,6 +159,21 @@ void main() {
       expect(provider.isPluginEnabled('p1'), false);
       expect(provider.enabledCount, 0);
       expect(prefs.getStringList('enabled_plugins'), isEmpty);
+    });
+
+    test('getWidgetExtensions 应该解析 manifest 中的 widgets 列表', () async {
+      await createFakeWidgetPlugin('widget.plugin');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('enabled_plugins', ['widget.plugin']);
+
+      provider = PluginProvider();
+      await provider.initialize();
+
+      final widgets = provider.getWidgetExtensions();
+      expect(widgets, hasLength(1));
+      expect(widgets.first.pluginId, 'widget.plugin');
+      expect(widgets.first.widgetId, 'promo-banner');
+      expect(widgets.first.injectionPoint, WidgetInjectionPoint.homeTab);
     });
   });
 }

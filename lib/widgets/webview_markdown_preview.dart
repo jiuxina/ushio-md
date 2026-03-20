@@ -906,7 +906,33 @@ $body
     _setBlockSource(pre, (pre.innerText || pre.textContent || '').trim());
   });
 
-  // ── Unified click handler (links + checkboxes + single-tap edit) ─────
+  // ── Unified click handler (links + checkboxes + double-tap edit) ─────
+  function _editableTapKey(target) {
+    if (!target) return null;
+    var node = target;
+    while (node && node !== document.body) {
+      var tag = (node.tagName || '').toUpperCase();
+      if (tag === 'TD' || tag === 'TH') {
+        var row = node.parentElement || node.parentNode;
+        var table = node;
+        while (table && (table.tagName||'').toUpperCase() !== 'TABLE') table = table.parentElement;
+        if (!table || !row) return 'cell';
+        var ti = Array.from(document.querySelectorAll('table')).indexOf(table);
+        var ri = Array.from(table.querySelectorAll('tr')).indexOf(row);
+        var ci = Array.from(row.querySelectorAll('td,th')).indexOf(node);
+        return 'cell:' + ti + ':' + ri + ':' + ci;
+      }
+      if (tag === 'BLOCKQUOTE') return 'bq:' + ((node.innerText || node.textContent || '').trim().slice(0, 120));
+      if (['P','H1','H2','H3','H4','H5','H6','LI','PRE'].indexOf(tag) !== -1) {
+        return tag + ':' + ((node.innerText || node.textContent || '').trim().slice(0, 120));
+      }
+      node = node.parentElement || node.parentNode;
+    }
+    return null;
+  }
+
+  var _lastEditableTapTs = 0;
+  var _lastEditableTapKey = null;
   document.addEventListener('click', function(e) {
     var t = e.target;
     // Link: walk up to A ancestor
@@ -931,7 +957,19 @@ $body
       return;
     }
 
-    _handleEditTap(t);
+    var tapKey = _editableTapKey(t);
+    if (!tapKey) return;
+    var now = Date.now();
+    var isSameTarget = _lastEditableTapKey === tapKey;
+    if (isSameTarget && (now - _lastEditableTapTs) <= 350) {
+      _lastEditableTapTs = 0;
+      _lastEditableTapKey = null;
+      _handleEditTap(t);
+      return;
+    }
+
+    _lastEditableTapTs = now;
+    _lastEditableTapKey = tapKey;
   });
 })();
 </script>

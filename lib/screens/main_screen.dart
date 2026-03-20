@@ -333,10 +333,17 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                   title: Text(ext.title),
                   onTap: () {
                     Navigator.pop(context); // Close drawer
+                    final path = ext.contentPath?.trim();
+                    final hasPath = path != null && path.isNotEmpty;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('插件页面: ${ext.title} (暂未实现加载)')),
+                      SnackBar(
+                        content: Text(
+                          hasPath
+                              ? '插件页面: ${ext.title} (${ext.contentType.name}: $path)'
+                              : '插件页面: ${ext.title} (${ext.contentType.name})',
+                        ),
+                      ),
                     );
-                    // TODO: Implement plugin page loading (WebView or Custom Widget)
                   },
                 );
               }),

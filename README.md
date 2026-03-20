@@ -102,7 +102,7 @@
 
 | 首页 | 编辑器 | 设置 |
 |:---:|:---:|:---:|
-| 快速操作、置顶文件 | 目录搜索双击编辑 | 多种设置 |
+| 快速操作、置顶文件 | 目录搜索与预览双击编辑 | 多种设置 |
 | <img src="sample/1.png" alt="1" style="zoom: 40%;" /> | <img src="sample/2.png" alt="1" style="zoom: 40%;" /> | <img src="sample/3.png" alt="1" style="zoom: 40%;" /> |
 
 ## 🧩 WebView + Milkdown 详细设计（LLD）
