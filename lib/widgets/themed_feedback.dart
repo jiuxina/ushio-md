@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
 
+const double _kFallbackCardOpacity = 0.72;
+
 class ThemedProgressDialog extends StatelessWidget {
   final String title;
   final String? message;
@@ -28,7 +30,7 @@ class ThemedProgressDialog extends StatelessWidget {
           colorScheme: colorScheme,
           textSecondary: colorScheme.onSurfaceVariant,
           buttonStyleMode: AppButtonStyleMode.classic,
-          cardOpacity: 0.72,
+          cardOpacity: _kFallbackCardOpacity,
         );
     final accent = iconColor ?? colorScheme.primary;
     final surface = Color.alphaBlend(
@@ -145,7 +147,7 @@ void showThemedSnackBar(
         colorScheme: colorScheme,
         textSecondary: colorScheme.onSurfaceVariant,
         buttonStyleMode: AppButtonStyleMode.classic,
-        cardOpacity: 0.72,
+        cardOpacity: _kFallbackCardOpacity,
       );
   final accent = accentColor ?? colorScheme.primary;
 
