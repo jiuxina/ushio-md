@@ -699,6 +699,9 @@ document.addEventListener(
 - [x] 阶段 2（主题融合）：完成 Flutter 主题 -> `update_theme` 注入（含色板 + 字体变量）
 - [x] 阶段 3（命令系统）：接入 `exec_cmd` 下发通道，并落地基础命令路由（focus/undo/redo/bold/italic/table/image 占位实现）
 - [ ] 阶段 4（平台细节）：图片资源路由、Android 键盘与长按策略、性能压测
+  - [x] Web 侧补充长按菜单策略（禁用 `contextmenu`）与 `resize` 触发的滚动兜底
+  - [x] Bridge 增加 `on_image_error` payload，并在 Flutter 侧可接收透传
+  - [ ] 图片资源路由（本地目录映射/localhost 路由）与性能压测继续推进
 
 ## 以下是以上内容的评论
 

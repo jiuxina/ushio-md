@@ -82,6 +82,23 @@ void main() {
       });
     });
 
+    test('OnImageErrorPayload serializes and deserializes', () {
+      const payload = OnImageErrorPayload(
+        src: 'file:///bad/path.png',
+        reason: 'load_failed',
+      );
+
+      expect(payload.toJson(), {
+        'src': 'file:///bad/path.png',
+        'reason': 'load_failed',
+      });
+
+      expect(
+        OnImageErrorPayload.fromJson(payload.toJson()).toJson(),
+        payload.toJson(),
+      );
+    });
+
     test('createBridgeRequestId creates non-empty IDs', () {
       final id = createBridgeRequestId();
       expect(id, isNotEmpty);

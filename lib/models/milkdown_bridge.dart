@@ -96,6 +96,32 @@ class ExecCmdPayload {
       };
 }
 
+class OnImageErrorPayload {
+  final String src;
+  final String reason;
+
+  const OnImageErrorPayload({
+    required this.src,
+    required this.reason,
+  });
+
+  factory OnImageErrorPayload.fromJson(Map<String, dynamic> json) {
+    final src = json['src']?.toString();
+    if (src == null || src.isEmpty) {
+      throw const FormatException('OnImageErrorPayload.src is required');
+    }
+    return OnImageErrorPayload(
+      src: src,
+      reason: json['reason']?.toString() ?? 'unknown',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'src': src,
+        'reason': reason,
+      };
+}
+
 String createBridgeRequestId() {
   final now = DateTime.now();
   final salt = Random.secure().nextInt(_bridgeRequestSaltRange);
