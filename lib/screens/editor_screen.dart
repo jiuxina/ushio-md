@@ -1048,7 +1048,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   /// Parse markdown text into logical blocks for inline editing.
-  /// Code blocks, tables, and blockquotes are grouped as multi-line blocks.
+  /// Code blocks, tables, blockquotes, and nested list continuations are grouped.
   /// All other lines are individual blocks.
   List<_MarkdownBlock> _parseBlocks(String text) {
     final lines = text.split('\n');
@@ -1105,6 +1105,36 @@ class _EditorScreenState extends State<EditorScreen>
         int end = i;
         while (end < lines.length &&
             _blockquoteRegex.hasMatch(lines[end].trim())) {
+          end++;
+        }
+        blocks.add(
+          _MarkdownBlock(
+            startLine: i,
+            endLine: end - 1,
+            content: lines.sublist(i, end).join('\n'),
+            isMultiLine: end > i + 1,
+          ),
+        );
+        i = end;
+        continue;
+      }
+
+      // Nested list/continuation block:
+      // Group a list item with its indented continuation lines (including
+      // nested markers) so single-tap editing on nested markdown replaces the
+      // whole logical unit instead of only one rendered <li>/<p> fragment.
+      if (RegExp(r'^\s*(?:[-*+]|\d+\.)\s+').hasMatch(trimmed)) {
+        int end = i + 1;
+        while (end < lines.length) {
+          final next = lines[end];
+          final nextTrim = next.trim();
+          if (nextTrim.isEmpty) {
+            end++;
+            continue;
+          }
+          final isIndented = RegExp(r'^\s{2,}\S').hasMatch(next);
+          final isNestedListMarker = RegExp(r'^\s{2,}(?:[-*+]|\d+\.)\s+').hasMatch(next);
+          if (!isIndented && !isNestedListMarker) break;
           end++;
         }
         blocks.add(
