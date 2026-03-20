@@ -187,9 +187,13 @@ class MyApp extends StatelessWidget {
     required AppButtonStyleMode buttonStyleMode,
     required double cardOpacity,
   }) {
+    final effectiveColorScheme = _applyGlobalCardOpacity(
+      colorScheme,
+      cardOpacity,
+    );
     final appStyle = AppStyleTheme.resolve(
       brightness: brightness,
-      colorScheme: colorScheme,
+      colorScheme: effectiveColorScheme,
       textSecondary: textSecondaryColor,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,
@@ -200,22 +204,22 @@ class MyApp extends StatelessWidget {
         : Colors.white;
     final buttonBackground = appStyle.useBorderlessButtons
         ? appStyle.strongSurface
-        : colorScheme.primary.withValues(alpha: appStyle.cardOpacity);
+        : effectiveColorScheme.primary.withValues(alpha: appStyle.cardOpacity);
 
     ThemeData theme = ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      colorScheme: colorScheme,
+      colorScheme: effectiveColorScheme,
       scaffoldBackgroundColor: backgroundColor,
       extensions: [appStyle],
       appBarTheme: AppBarTheme(
-        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.92),
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.92),
         foregroundColor: textColor,
         elevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: appStyle.cardSurfaceColor(colorScheme),
+        color: appStyle.cardSurfaceColor(effectiveColorScheme),
         elevation: appStyle.useBorderlessButtons ? 4 : 0,
         shadowColor: Colors.black.withValues(alpha: 0.14),
         shape: RoundedRectangleBorder(
@@ -303,17 +307,17 @@ class MyApp extends StatelessWidget {
         thickness: 1,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
+        color: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: appStyle.useBorderlessButtons ? 0 : 8,
       ),
@@ -321,7 +325,7 @@ class MyApp extends StatelessWidget {
         textStyle: TextStyle(color: textColor),
         menuStyle: MenuStyle(
           backgroundColor: WidgetStatePropertyAll(
-            appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
+            appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
           ),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -333,7 +337,7 @@ class MyApp extends StatelessWidget {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         contentTextStyle: TextStyle(color: textColor),
       ),
       textTheme: TextTheme(
@@ -353,6 +357,24 @@ class MyApp extends StatelessWidget {
     }
 
     return theme;
+  }
+
+  ColorScheme _applyGlobalCardOpacity(
+    ColorScheme colorScheme,
+    double cardOpacity,
+  ) {
+    Color applyOpacity(Color color) => color.withValues(alpha: cardOpacity);
+
+    return colorScheme.copyWith(
+      surface: applyOpacity(colorScheme.surface),
+      surfaceDim: applyOpacity(colorScheme.surfaceDim),
+      surfaceBright: applyOpacity(colorScheme.surfaceBright),
+      surfaceContainerLowest: applyOpacity(colorScheme.surfaceContainerLowest),
+      surfaceContainerLow: applyOpacity(colorScheme.surfaceContainerLow),
+      surfaceContainer: applyOpacity(colorScheme.surfaceContainer),
+      surfaceContainerHigh: applyOpacity(colorScheme.surfaceContainerHigh),
+      surfaceContainerHighest: applyOpacity(colorScheme.surfaceContainerHighest),
+    );
   }
 
   OutlineInputBorder _buildInputBorder(AppStyleTheme appStyle, Color color) {
