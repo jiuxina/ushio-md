@@ -460,11 +460,26 @@ class PluginProvider extends ChangeNotifier {
     final extensions = <PluginWidgetExtension>[];
     
     for (final plugin in enabledPlugins) {
-      final widgetConfig = plugin.extensions['widget'];
-      if (widgetConfig != null && widgetConfig is Map<String, dynamic>) {
+      // Prefer manifest key "widgets" (array), keep "widget" (single object)
+      // for backward compatibility.
+      final widgetsConfig = plugin.extensions['widgets'];
+      if (widgetsConfig is List) {
+        for (final item in widgetsConfig) {
+          if (item is! Map<String, dynamic>) continue;
+          try {
+            extensions.add(PluginWidgetExtension.fromJson(item, plugin.id));
+          } catch (e) {
+            continue;
+          }
+        }
+        continue;
+      }
+
+      final legacyWidgetConfig = plugin.extensions['widget'];
+      if (legacyWidgetConfig is Map<String, dynamic>) {
         try {
           extensions.add(PluginWidgetExtension.fromJson(
-            widgetConfig,
+            legacyWidgetConfig,
             plugin.id,
           ));
         } catch (e) {

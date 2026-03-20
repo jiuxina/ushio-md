@@ -136,7 +136,19 @@ class PluginWidgetExtension {
   Widget _buildButton(BuildContext context) {
     return FilledButton(
       onPressed: () {
-        // TODO: 执行插件定义的动作
+        final action = (config['action'] as String?)?.trim();
+        final message = (config['message'] as String?)?.trim();
+        final fallback =
+            message?.isNotEmpty == true ? message! : '插件按钮: ${config['label'] as String? ?? 'Button'}';
+        if (action == null || action.isEmpty) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(content: Text(fallback)),
+          );
+          return;
+        }
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('插件动作: $action')),
+        );
       },
       child: Text(config['label'] as String? ?? 'Button'),
     );
