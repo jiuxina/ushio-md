@@ -907,6 +907,8 @@ $body
   });
 
   // ── Unified click handler (links + checkboxes + double-tap edit) ─────
+  var _doubleTapThresholdMs = 350;
+  var _tapKeyTextMaxLength = 120;
   function _editableTapKey(target) {
     if (!target) return null;
     var node = target;
@@ -922,9 +924,9 @@ $body
         var ci = Array.from(row.querySelectorAll('td,th')).indexOf(node);
         return 'cell:' + ti + ':' + ri + ':' + ci;
       }
-      if (tag === 'BLOCKQUOTE') return 'bq:' + ((node.innerText || node.textContent || '').trim().slice(0, 120));
+      if (tag === 'BLOCKQUOTE') return 'bq:' + ((node.innerText || node.textContent || '').trim().slice(0, _tapKeyTextMaxLength));
       if (['P','H1','H2','H3','H4','H5','H6','LI','PRE'].indexOf(tag) !== -1) {
-        return tag + ':' + ((node.innerText || node.textContent || '').trim().slice(0, 120));
+        return tag + ':' + ((node.innerText || node.textContent || '').trim().slice(0, _tapKeyTextMaxLength));
       }
       node = node.parentElement || node.parentNode;
     }
@@ -961,7 +963,7 @@ $body
     if (!tapKey) return;
     var now = Date.now();
     var isSameTarget = _lastEditableTapKey === tapKey;
-    if (isSameTarget && (now - _lastEditableTapTs) <= 350) {
+    if (isSameTarget && (now - _lastEditableTapTs) <= _doubleTapThresholdMs) {
       _lastEditableTapTs = 0;
       _lastEditableTapKey = null;
       _handleEditTap(t);
