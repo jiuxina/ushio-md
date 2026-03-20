@@ -17,8 +17,6 @@ import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
 import 'editor/components/fullscreen_preview_page.dart';
-import '../providers/plugin_provider.dart';
-import '../plugins/extensions/shortcut_extension.dart';
 import '../services/export_service.dart';
 
 enum EditorMode { edit, preview, split }
@@ -218,49 +216,6 @@ class _EditorScreenState extends State<EditorScreen>
       _recordHistorySnapshot();
     }
 
-    // 自动补全处理
-    if (!_isAutoCompleting) {
-      final text = _textController.text;
-      final selection = _textController.selection;
-      if (!selection.isValid || selection.start != selection.end) return;
-
-      final pluginProvider = context.read<PluginProvider>();
-      for (final ext in pluginProvider.getEditorExtensions()) {
-        for (final rule in ext.autoCompleteRules) {
-          if (rule.trigger.isEmpty) continue;
-
-          if (selection.start >= rule.trigger.length) {
-            final beforeCursor = text.substring(
-              selection.start - rule.trigger.length,
-              selection.start,
-            );
-            if (beforeCursor == rule.trigger) {
-              _isAutoCompleting = true;
-
-              final newText = text.replaceRange(
-                selection.start - rule.trigger.length,
-                selection.start,
-                rule.completion,
-              );
-
-              final newSelectionOffset =
-                  selection.start -
-                  rule.trigger.length +
-                  rule.completion.length +
-                  rule.cursorOffset;
-
-              _textController.value = TextEditingValue(
-                text: newText,
-                selection: TextSelection.collapsed(offset: newSelectionOffset),
-              );
-
-              _isAutoCompleting = false;
-              return;
-            }
-          }
-        }
-      }
-    }
   }
 
   void _recordHistorySnapshot({
@@ -1838,81 +1793,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Map<ShortcutActivator, VoidCallback> _buildShortcutBindings() {
-    final bindings = <ShortcutActivator, VoidCallback>{};
-    final pluginProvider = context.read<PluginProvider>();
-
-    for (final ext in pluginProvider.getShortcutExtensions()) {
-      if (ext.logicalKeys.isEmpty) continue;
-
-      final triggerKey = ext.logicalKeys.last;
-      final hasControl =
-          ext.logicalKeys.contains(LogicalKeyboardKey.control) ||
-          ext.logicalKeys.contains(LogicalKeyboardKey.meta);
-      final hasShift = ext.logicalKeys.contains(LogicalKeyboardKey.shift);
-      final hasAlt = ext.logicalKeys.contains(LogicalKeyboardKey.alt);
-
-      final activator = SingleActivator(
-        triggerKey,
-        control: hasControl,
-        shift: hasShift,
-        alt: hasAlt,
-      );
-
-      bindings[activator] = () {
-        _handlePluginShortcut(ext);
-      };
-    }
-
-    return bindings;
-  }
-
-  void _handlePluginShortcut(PluginShortcutExtension ext) {
-    debugPrint('Triggered shortcut: ${ext.shortcutId}');
-    switch (ext.actionType) {
-      case ShortcutActionType.insertText:
-        final text = ext.actionParams['text'] as String?;
-        if (text != null) {
-          final selection = _textController.selection;
-          final newText = _textController.text.replaceRange(
-            selection.start,
-            selection.end,
-            text,
-          );
-          _textController.value = TextEditingValue(
-            text: newText,
-            selection: TextSelection.collapsed(
-              offset: selection.start + text.length,
-            ),
-          );
-          _onTextChanged();
-        }
-        break;
-      case ShortcutActionType.toggleMode:
-        final modeStr = ext.actionParams['mode'] as String?;
-        if (modeStr == 'preview') {
-          setState(
-            () => _mode = _mode == EditorMode.preview
-                ? EditorMode.edit
-                : EditorMode.preview,
-          );
-        } else if (modeStr == 'split') {
-          setState(
-            () => _mode = _mode == EditorMode.split
-                ? EditorMode.edit
-                : EditorMode.split,
-          );
-        }
-        break;
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('插件快捷键: ${ext.description} (未实现)')),
-        );
-    }
+    return <ShortcutActivator, VoidCallback>{};
   }
 
   void _showMoreMenu() {
-    final pluginProvider = context.read<PluginProvider>();
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1969,19 +1853,6 @@ class _EditorScreenState extends State<EditorScreen>
                 );
               },
             ),
-            ...pluginProvider.getExportExtensions().map((ext) {
-              return ListTile(
-                leading: const Icon(Icons.extension),
-                title: Text('导出为 ${ext.formatName}'),
-                subtitle: Text(ext.formatId),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('插件导出: ${ext.formatName} (待实现)')),
-                  );
-                },
-              );
-            }),
             const SizedBox(height: 16),
           ],
         ),

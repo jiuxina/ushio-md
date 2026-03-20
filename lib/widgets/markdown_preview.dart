@@ -5,10 +5,7 @@ import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:flutter_highlight/themes/atom-one-light.dart';
 import 'package:markdown/markdown.dart' as md;
-import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import '../providers/plugin_provider.dart';
-// import '../plugins/extensions/preview_extension.dart';
 
 class MarkdownPreview extends StatelessWidget {
   final String data;
@@ -43,24 +40,10 @@ class MarkdownPreview extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     int checkboxIndex = 0;
 
-    // 获取插件扩展样式
-    final pluginProvider = context.watch<PluginProvider>();
-    final previewExtensions = pluginProvider.getPreviewExtensions();
-    
-    // 计算最终样式配置 (插件覆盖设置)
-    String? pluginFontFamily;
-    double? pluginLineHeight;
-    // String? pluginCodeTheme;
-    
-    for (final ext in previewExtensions) {
-      if (ext.fontFamily != null) pluginFontFamily = ext.fontFamily;
-      if (ext.lineHeight != null) pluginLineHeight = ext.lineHeight;
-      // if (ext.codeTheme != null) pluginCodeTheme = ext.codeTheme;
-    }
-    
-    // 最终使用的样式值
-    final fontFamily = pluginFontFamily ?? (settings.editorFontFamily == 'System' ? null : settings.editorFontFamily);
-    final lineHeight = pluginLineHeight ?? 1.6;
+    final fontFamily = settings.editorFontFamily == 'System'
+        ? null
+        : settings.editorFontFamily;
+    final lineHeight = 1.6;
 
     final styleSheet = MarkdownStyleSheet(
       p: TextStyle(

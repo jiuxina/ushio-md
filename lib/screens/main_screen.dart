@@ -16,8 +16,6 @@ import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
 import 'main/tabs/settings_tab.dart';
 import 'main/components/permission_screen.dart';
-import '../providers/plugin_provider.dart';
-import '../plugins/extensions/navigation_extension.dart';
 import '../services/update_service.dart';
 
 class MainScreen extends StatefulWidget {
@@ -299,69 +297,33 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDrawer() {
-    return Consumer<PluginProvider>(
-      builder: (context, pluginProvider, child) {
-        final navExtensions = pluginProvider.getNavigationExtensions()
-            .where((ext) => ext.position == NavigationPosition.drawer)
-            .toList();
-
-        // Sort by priority
-        navExtensions.sort((a, b) => a.priority.compareTo(b.priority));
-
-        return Drawer(
-          child: Column(
-            children: [
-              UserAccountsDrawerHeader(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                accountName: const Text('汐 Markdown'),
-                accountEmail: Text(AppConstants.appVersion),
-                currentAccountPicture: const CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: Image(image: AssetImage('app.png')),
-                ),
-              ),
-              if (navExtensions.isEmpty)
-                const ListTile(
-                  title: Text('暂无插件导航项'),
-                  leading: Icon(Icons.extension_off),
-                ),
-              ...navExtensions.map((ext) {
-                return ListTile(
-                  leading: Icon(ext.iconData),
-                  title: Text(ext.title),
-                  onTap: () {
-                    Navigator.pop(context); // Close drawer
-                    final path = ext.contentPath?.trim();
-                    final hasPath = path != null && path.isNotEmpty;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          hasPath
-                              ? '插件页面: ${ext.title} (${ext.contentType.name}: $path)'
-                              : '插件页面: ${ext.title} (${ext.contentType.name})',
-                        ),
-                      ),
-                    );
-                  },
-                );
-              }),
-              const Spacer(),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('设置'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _switchTab(3); // Switch to Settings tab
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
+    return Drawer(
+      child: Column(
+        children: [
+          UserAccountsDrawerHeader(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            accountName: const Text('汐 Markdown'),
+            accountEmail: Text(AppConstants.appVersion),
+            currentAccountPicture: const CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Image(image: AssetImage('app.png')),
+            ),
           ),
-        );
-      },
+          const Spacer(),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('设置'),
+            onTap: () {
+              Navigator.pop(context);
+              _switchTab(3); // Switch to Settings tab
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
     );
   }
 }

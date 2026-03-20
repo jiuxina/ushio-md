@@ -14,6 +14,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   final Color outlineColor;
   final Color mutedSurface;
   final Color strongSurface;
+  final Color cardSurface;
   final List<BoxShadow> surfaceShadow;
   final List<BoxShadow> prominentShadow;
   final double cardOpacity;
@@ -23,6 +24,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     required this.outlineColor,
     required this.mutedSurface,
     required this.strongSurface,
+    required this.cardSurface,
     required this.surfaceShadow,
     required this.prominentShadow,
     required this.cardOpacity,
@@ -55,6 +57,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
         Colors.white.withValues(alpha: isDark ? 0.03 : 0.7),
         colorScheme.surface,
       ),
+      cardSurface: colorScheme.surface.withValues(alpha: cardOpacity),
       surfaceShadow: buttonStyleMode == AppButtonStyleMode.softShadow
           ? [
               BoxShadow(
@@ -96,7 +99,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   }
 
   Color cardSurfaceColor(ColorScheme colorScheme) {
-    return colorScheme.surface.withValues(alpha: cardOpacity);
+    return cardSurface;
   }
 
   BoxDecoration surfaceDecoration({
@@ -106,7 +109,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     Border? border,
   }) {
     return BoxDecoration(
-      color: color ?? strongSurface,
+      color: color ?? cardSurface,
       borderRadius: borderRadius,
       border: border ?? surfaceBorder(),
       boxShadow: prominent ? prominentShadow : surfaceShadow,
@@ -119,6 +122,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     Color? outlineColor,
     Color? mutedSurface,
     Color? strongSurface,
+    Color? cardSurface,
     List<BoxShadow>? surfaceShadow,
     List<BoxShadow>? prominentShadow,
     double? cardOpacity,
@@ -128,6 +132,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       outlineColor: outlineColor ?? this.outlineColor,
       mutedSurface: mutedSurface ?? this.mutedSurface,
       strongSurface: strongSurface ?? this.strongSurface,
+      cardSurface: cardSurface ?? this.cardSurface,
       surfaceShadow: surfaceShadow ?? this.surfaceShadow,
       prominentShadow: prominentShadow ?? this.prominentShadow,
       cardOpacity: cardOpacity ?? this.cardOpacity,
@@ -142,6 +147,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       outlineColor: Color.lerp(outlineColor, other.outlineColor, t) ?? outlineColor,
       mutedSurface: Color.lerp(mutedSurface, other.mutedSurface, t) ?? mutedSurface,
       strongSurface: Color.lerp(strongSurface, other.strongSurface, t) ?? strongSurface,
+      cardSurface: Color.lerp(cardSurface, other.cardSurface, t) ?? cardSurface,
       surfaceShadow: t < 0.5 ? surfaceShadow : other.surfaceShadow,
       prominentShadow: t < 0.5 ? prominentShadow : other.prominentShadow,
       cardOpacity: lerpDouble(cardOpacity, other.cardOpacity, t) ?? cardOpacity,

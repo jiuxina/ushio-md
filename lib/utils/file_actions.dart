@@ -6,8 +6,6 @@ import '../providers/settings_provider.dart';
 import '../services/share_service.dart';
 import '../services/export_service.dart';
 import '../screens/folder_browser_screen.dart';
-import '../providers/plugin_provider.dart';
-import '../plugins/extensions/file_action_extension.dart';
 import '../screens/editor/components/fullscreen_preview_page.dart';
 import 'editor_navigation_helper.dart';
 
@@ -30,8 +28,6 @@ class FileActions {
     // Use source if provided, otherwise infer from bools (for backward compatibility if any)
     final effectiveSource = source ?? (isPinned ? FileSource.pinned : (isRecent ? FileSource.history : FileSource.myFiles));
     
-    final pluginProvider = context.read<PluginProvider>();
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -126,29 +122,6 @@ class FileActions {
             // Pinned: No delete/remove option requested
             // So we add nothing else for pinned.
 
-            // 5. Plugin Actions
-            ...pluginProvider.getFileActionExtensions().where((ext) => ext.supportsFile(path)).map((ext) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _buildContextMenuItem(
-                  context,
-                  icon: ext.iconData,
-                  label: ext.actionName,
-                  color: Colors.teal, // Plugin default color
-                  onTap: () {
-                    Navigator.pop(context);
-                    final script = ext.script?.trim();
-                    final msg = (script != null && script.isNotEmpty)
-                        ? '插件操作: ${ext.actionName} -> $script'
-                        : '插件操作: ${ext.actionName} (ID: ${ext.actionId})';
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(msg)),
-                    );
-                  },
-                ),
-              );
-            }),
-
             const SizedBox(height: 16),
           ],
         ),
@@ -166,8 +139,6 @@ class FileActions {
     // Assuming we might want to implement zip share later or share path string.
     // For now, adding the visual option as requested.
     final shareService = ShareService(); 
-    final pluginProvider = context.read<PluginProvider>();
-
     final folderName = path.split(Platform.pathSeparator).last;
     final isCurrentlyPinned = fileProvider.isFolderPinned(path);
     final effectiveSource = source ?? (isPinned ? FileSource.pinned : FileSource.myFiles); 
@@ -287,25 +258,6 @@ class FileActions {
               ),
 
              // Pinned folders: No delete option requested.
-
-            // 5. Plugin Actions (Folders)
-            ...pluginProvider.getFileActionExtensions().where((ext) => ext.supportsFile(path) && ext.actionType == FileActionType.custom).map((ext) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _buildContextMenuItem(
-                  context,
-                  icon: ext.iconData,
-                  label: ext.actionName,
-                  color: Colors.teal,
-                  onTap: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('插件操作: ${ext.actionName} (ID: ${ext.actionId})')),
-                    );
-                  },
-                ),
-              );
-            }),
 
             const SizedBox(height: 16),
           ],
