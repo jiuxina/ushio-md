@@ -99,6 +99,50 @@ void main() {
       );
     });
 
+    test('OnImageErrorPayload.fromJson throws when src missing', () {
+      expect(
+        () => OnImageErrorPayload.fromJson({'reason': 'load_failed'}),
+        throwsFormatException,
+      );
+    });
+
+    test('OnLinkClickPayload serializes and deserializes', () {
+      const payload = OnLinkClickPayload(
+        href: 'https://example.com',
+        text: 'example',
+        title: 'go',
+        isExternal: true,
+      );
+      expect(payload.toJson(), {
+        'href': 'https://example.com',
+        'text': 'example',
+        'title': 'go',
+        'isExternal': true,
+      });
+      expect(OnLinkClickPayload.fromJson(payload.toJson()).toJson(), payload.toJson());
+    });
+
+    test('OnOutlineUpdatePayload serializes and deserializes', () {
+      const payload = OnOutlineUpdatePayload(
+        outline: [
+          OutlineNodePayload(id: 'line-0', level: 1, text: 'Title'),
+          OutlineNodePayload(id: 'line-2', level: 2, text: 'Section'),
+        ],
+        docId: 'doc-1',
+      );
+      expect(payload.toJson(), {
+        'outline': [
+          {'id': 'line-0', 'level': 1, 'text': 'Title'},
+          {'id': 'line-2', 'level': 2, 'text': 'Section'},
+        ],
+        'docId': 'doc-1',
+      });
+      expect(
+        OnOutlineUpdatePayload.fromJson(payload.toJson()).toJson(),
+        payload.toJson(),
+      );
+    });
+
     test('createBridgeRequestId creates non-empty IDs', () {
       final id = createBridgeRequestId();
       expect(id, isNotEmpty);

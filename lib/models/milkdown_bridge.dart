@@ -1,6 +1,6 @@
 import 'dart:math';
 
-const _bridgeRequestSaltRange = 1 << 20;
+const _bridgeRequestSaltLimit = 1 << 20;
 
 class BridgeEnvelope<T> {
   final int v;
@@ -122,8 +122,101 @@ class OnImageErrorPayload {
       };
 }
 
+class OutlineNodePayload {
+  final String id;
+  final int level;
+  final String text;
+
+  const OutlineNodePayload({
+    required this.id,
+    required this.level,
+    required this.text,
+  });
+
+  factory OutlineNodePayload.fromJson(Map<String, dynamic> json) {
+    final levelRaw = json['level'];
+    final level = levelRaw is int ? levelRaw : int.tryParse(levelRaw?.toString() ?? '') ?? 1;
+    return OutlineNodePayload(
+      id: json['id']?.toString() ?? '',
+      level: level,
+      text: json['text']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'level': level,
+        'text': text,
+      };
+}
+
+class OnOutlineUpdatePayload {
+  final List<OutlineNodePayload> outline;
+  final String? docId;
+
+  const OnOutlineUpdatePayload({
+    required this.outline,
+    this.docId,
+  });
+
+  factory OnOutlineUpdatePayload.fromJson(Map<String, dynamic> json) {
+    final raw = json['outline'];
+    final list = raw is List
+        ? raw
+            .whereType<Map>()
+            .map((item) => OutlineNodePayload.fromJson(
+                  Map<String, dynamic>.from(item),
+                ))
+            .toList(growable: false)
+        : const <OutlineNodePayload>[];
+    return OnOutlineUpdatePayload(
+      outline: list,
+      docId: json['docId']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'outline': outline.map((e) => e.toJson()).toList(growable: false),
+        if (docId != null) 'docId': docId,
+      };
+}
+
+class OnLinkClickPayload {
+  final String href;
+  final String? text;
+  final String? title;
+  final bool isExternal;
+
+  const OnLinkClickPayload({
+    required this.href,
+    this.text,
+    this.title,
+    required this.isExternal,
+  });
+
+  factory OnLinkClickPayload.fromJson(Map<String, dynamic> json) {
+    final href = json['href']?.toString();
+    if (href == null || href.isEmpty) {
+      throw const FormatException('OnLinkClickPayload.href is required');
+    }
+    return OnLinkClickPayload(
+      href: href,
+      text: json['text']?.toString(),
+      title: json['title']?.toString(),
+      isExternal: json['isExternal'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'href': href,
+        if (text != null) 'text': text,
+        if (title != null) 'title': title,
+        'isExternal': isExternal,
+      };
+}
+
 String createBridgeRequestId() {
   final now = DateTime.now();
-  final salt = Random.secure().nextInt(_bridgeRequestSaltRange);
+  final salt = Random.secure().nextInt(_bridgeRequestSaltLimit);
   return '${now.microsecondsSinceEpoch}-$salt';
 }
