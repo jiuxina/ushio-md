@@ -34,6 +34,9 @@
         width: 100%;
         height: 100%;
         background: transparent !important;
+        -webkit-touch-callout: none;
+        -webkit-user-select: text;
+        user-select: text;
       }
       #app {
         box-sizing: border-box;
@@ -210,6 +213,28 @@
           exec: (payload) => onFlutterMessage({ type: 'exec_cmd', payload }),
           onFlutterMessage
         };
+
+        document.addEventListener(
+          'contextmenu',
+          (e) => {
+            e.preventDefault();
+          },
+          { passive: false }
+        );
+
+        window.addEventListener('resize', () => {
+          setTimeout(() => {
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return;
+            let node = null;
+            if (sel.anchorNode instanceof Element) {
+              node = sel.anchorNode;
+            } else if (sel.anchorNode && sel.anchorNode.parentElement) {
+              node = sel.anchorNode.parentElement;
+            }
+            node?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 200);
+        });
       })();
     </script>
   </body>

@@ -57,6 +57,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final String initialMarkdown;
   final ValueChanged<String>? onContentChange;
   final MilkdownBridgeMessageHandler? onBridgeMessage;
+  final ValueChanged<OnImageErrorPayload>? onImageError;
   final MilkdownWebViewController? controller;
   final String? bodyFont;
   final String? monoFont;
@@ -68,6 +69,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
     required this.initialMarkdown,
     this.onContentChange,
     this.onBridgeMessage,
+    this.onImageError,
     this.controller,
     this.bodyFont,
     this.monoFont,
@@ -227,6 +229,13 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         if (markdown is String) {
           widget.onContentChange?.call(markdown);
         }
+      }
+    } else if (type == 'on_image_error') {
+      final payload = map['payload'];
+      if (payload is Map) {
+        widget.onImageError?.call(
+          OnImageErrorPayload.fromJson(Map<String, dynamic>.from(payload)),
+        );
       }
     }
   }
