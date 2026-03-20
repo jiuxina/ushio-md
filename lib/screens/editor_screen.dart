@@ -10,6 +10,7 @@ import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
+import '../utils/app_style.dart';
 import '../widgets/markdown_toolbar.dart';
 import '../widgets/webview_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
@@ -1375,6 +1376,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final theme = Theme.of(context);
+    final appStyle = theme.extension<AppStyleTheme>()!;
     final displayMatches = _searchMatches.take(5).toList(growable: false);
     final showCandidates =
         _showSearchCandidates && _searchController.text.trim().isNotEmpty;
@@ -1386,7 +1388,10 @@ class _EditorScreenState extends State<EditorScreen>
         children: [
           Container(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.97),
+              color: appStyle.scaledSurfaceColor(
+                theme.colorScheme,
+                alpha: 0.97,
+              ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: theme.colorScheme.outline.withValues(alpha: 0.22),
@@ -1442,7 +1447,10 @@ class _EditorScreenState extends State<EditorScreen>
                       width: double.infinity,
                       constraints: const BoxConstraints(maxHeight: 220),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.surface.withValues(alpha: 0.98),
+                        color: appStyle.scaledSurfaceColor(
+                          theme.colorScheme,
+                          alpha: 0.98,
+                        ),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: theme.colorScheme.outline.withValues(alpha: 0.2),

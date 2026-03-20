@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
+import '../../../../utils/app_style.dart';
 import '../../../../utils/constants.dart';
 import '../../../../widgets/webview_markdown_preview.dart';
 import '../../../../services/export_service.dart';
@@ -203,6 +204,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -211,7 +213,10 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+              color: appStyle.scaledSurfaceColor(
+                Theme.of(context).colorScheme,
+                alpha: 0.8,
+              ),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
