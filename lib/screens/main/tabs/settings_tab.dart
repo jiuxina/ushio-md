@@ -6,14 +6,11 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../providers/plugin_provider.dart';
 import '../../../utils/app_style.dart';
 import '../../settings/appearance_settings_screen.dart';
 import '../../settings/editor_settings_screen.dart';
 import '../../settings/cloud_sync_screen.dart';
 import '../../settings/storage_settings_screen.dart';
-import '../../settings/plugin_settings_screen.dart';
 import '../../settings/about_screen.dart';
 
 class SettingsTab extends StatelessWidget {
@@ -73,21 +70,6 @@ class SettingsTab extends StatelessWidget {
             ),
           ),
 
-          Consumer<PluginProvider>(
-            builder: (context, _, child) {
-              return _buildSettingsItem(
-                context,
-                icon: Icons.extension,
-                iconColor: Colors.deepPurple,
-                title: '插件',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PluginSettingsScreen()),
-                ),
-              );
-            },
-          ),
-
           _buildSettingsItem(
             context,
             icon: Icons.info,
@@ -127,12 +109,6 @@ class SettingsTab extends StatelessWidget {
                 '设置',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
-                    ),
-              ),
-              Text(
-                '自定义你的应用体验',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
                     ),
               ),
             ],
