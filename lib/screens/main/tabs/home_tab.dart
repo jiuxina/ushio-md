@@ -1,10 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../../providers/file_provider.dart';
-import '../../../../providers/plugin_provider.dart';
 import '../../../../providers/settings_provider.dart';
-import '../../../../plugins/extensions/widget_extension.dart';
 import '../../../../utils/file_actions.dart';
 
 import '../components/quick_actions.dart';
@@ -33,7 +30,6 @@ class _HomeTabState extends State<HomeTab> {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  ..._buildPluginWidgets(),
                   QuickActions(fileProvider: widget.fileProvider),
 
                   // Pinned files section
@@ -225,22 +221,4 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  List<Widget> _buildPluginWidgets() {
-    final pluginProvider = context.watch<PluginProvider>();
-    final widgets =
-        pluginProvider
-            .getWidgetExtensions()
-            .where((ext) => ext.injectionPoint == WidgetInjectionPoint.homeTab)
-            .toList()
-          ..sort(
-            (a, b) => b.priority.compareTo(a.priority),
-          ); // High priority first
-
-    return widgets.map((ext) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: ext.build(context),
-      );
-    }).toList();
-  }
 } // End of State class
