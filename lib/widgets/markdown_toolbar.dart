@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/my_files_service.dart';
+import '../utils/app_style.dart';
 
 /// Markdown editing toolbar with beautiful gradient buttons
 class MarkdownToolbar extends StatelessWidget {
@@ -27,13 +28,17 @@ class MarkdownToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final showCustomUndoRedo =
         undoController == null && onUndo != null && onRedo != null;
 
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.95,
+        ),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(

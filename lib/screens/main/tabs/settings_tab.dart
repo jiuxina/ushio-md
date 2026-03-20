@@ -130,7 +130,10 @@ class SettingsTab extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.7,
+        ),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(

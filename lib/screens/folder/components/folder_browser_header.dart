@@ -132,7 +132,7 @@ class FolderBrowserHeader extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: appStyle.surfaceDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: colorScheme.surface.withValues(alpha: 0.5),
+                color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
                 prominent: appStyle.useBorderlessButtons,
                 border: appStyle.useBorderlessButtons
                     ? null
@@ -189,7 +189,7 @@ class FolderBrowserHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               color: isActive
                   ? colorScheme.primary.withValues(alpha: 0.1)
-                  : colorScheme.surface.withValues(alpha: 0.5),
+                  : appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
               prominent: isActive && appStyle.useBorderlessButtons,
               border: appStyle.useBorderlessButtons
                   ? null
@@ -224,7 +224,10 @@ class FolderBrowserHeader extends StatelessWidget {
             alignment: Alignment.center,
             decoration: appStyle.surfaceDecoration(
               borderRadius: BorderRadius.circular(12),
-              color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.5),
+              color: appStyle.scaledSurfaceColor(
+                Theme.of(context).colorScheme,
+                alpha: 0.5,
+              ),
               prominent: appStyle.useBorderlessButtons,
             ),
             child: const Icon(Icons.sort, size: 20),
