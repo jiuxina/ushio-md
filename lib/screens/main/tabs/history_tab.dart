@@ -118,7 +118,10 @@ class _HistoryTabState extends State<HistoryTab> {
     return Container(
       decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.8,
+        ),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
