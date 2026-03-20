@@ -56,7 +56,10 @@ class EditorSettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.7,
+        ),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(

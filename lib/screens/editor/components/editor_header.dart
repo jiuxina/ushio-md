@@ -76,7 +76,10 @@ class EditorHeader extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: appStyle.surfaceDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.82),
+          color: appStyle.scaledSurfaceColor(
+            Theme.of(context).colorScheme,
+            alpha: 0.82,
+          ),
           prominent: appStyle.useBorderlessButtons,
         ),
         child: Icon(
@@ -109,7 +112,7 @@ class EditorHeader extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: appStyle.surfaceDecoration(
               borderRadius: BorderRadius.circular(12),
-              color: colorScheme.surface.withValues(alpha: 0.82),
+              color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.82),
               prominent: appStyle.useBorderlessButtons,
             ),
             child: AnimatedSwitcher(

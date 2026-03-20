@@ -102,6 +102,13 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     return cardSurface;
   }
 
+  /// 为局部 surface 颜色提供统一的透明度缩放：
+  /// 传入的 [alpha] 会与全局卡片透明度相乘，确保“卡片透明度”全局生效。
+  Color scaledSurfaceColor(ColorScheme colorScheme, {double alpha = 1}) {
+    final effectiveAlpha = (cardOpacity * alpha).clamp(0.0, 1.0);
+    return colorScheme.surface.withValues(alpha: effectiveAlpha);
+  }
+
   BoxDecoration surfaceDecoration({
     required BorderRadius borderRadius,
     Color? color,
