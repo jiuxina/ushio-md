@@ -137,10 +137,13 @@ class FileActions {
                   color: Colors.teal, // Plugin default color
                   onTap: () {
                     Navigator.pop(context);
+                    final script = ext.script?.trim();
+                    final msg = (script != null && script.isNotEmpty)
+                        ? '插件操作: ${ext.actionName} -> $script'
+                        : '插件操作: ${ext.actionName} (ID: ${ext.actionId})';
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('插件操作: ${ext.actionName} (ID: ${ext.actionId})')),
+                      SnackBar(content: Text(msg)),
                     );
-                    // TODO: Execute plugin script
                   },
                 ),
               );
