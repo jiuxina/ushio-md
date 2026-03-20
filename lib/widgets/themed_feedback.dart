@@ -28,6 +28,7 @@ class ThemedProgressDialog extends StatelessWidget {
           colorScheme: colorScheme,
           textSecondary: colorScheme.onSurfaceVariant,
           buttonStyleMode: AppButtonStyleMode.classic,
+          cardOpacity: 0.72,
         );
     final accent = iconColor ?? colorScheme.primary;
     final surface = Color.alphaBlend(
@@ -144,6 +145,7 @@ void showThemedSnackBar(
         colorScheme: colorScheme,
         textSecondary: colorScheme.onSurfaceVariant,
         buttonStyleMode: AppButtonStyleMode.classic,
+        cardOpacity: 0.72,
       );
   final accent = accentColor ?? colorScheme.primary;
 
