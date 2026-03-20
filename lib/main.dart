@@ -200,7 +200,7 @@ class MyApp extends StatelessWidget {
         : Colors.white;
     final buttonBackground = appStyle.useBorderlessButtons
         ? appStyle.strongSurface
-        : colorScheme.primary;
+        : colorScheme.primary.withValues(alpha: appStyle.cardOpacity);
 
     ThemeData theme = ThemeData(
       useMaterial3: true,
@@ -209,7 +209,7 @@ class MyApp extends StatelessWidget {
       scaffoldBackgroundColor: backgroundColor,
       extensions: [appStyle],
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.92),
         foregroundColor: textColor,
         elevation: 0,
         centerTitle: false,
@@ -303,24 +303,26 @@ class MyApp extends StatelessWidget {
         thickness: 1,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: colorScheme.surface,
+        color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: appStyle.useBorderlessButtons ? 0 : 8,
       ),
       dropdownMenuTheme: DropdownMenuThemeData(
         textStyle: TextStyle(color: textColor),
         menuStyle: MenuStyle(
-          backgroundColor: WidgetStatePropertyAll(colorScheme.surface),
+          backgroundColor: WidgetStatePropertyAll(
+            appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
+          ),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
@@ -331,7 +333,7 @@ class MyApp extends StatelessWidget {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.95),
         contentTextStyle: TextStyle(color: textColor),
       ),
       textTheme: TextTheme(
