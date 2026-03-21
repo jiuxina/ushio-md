@@ -198,9 +198,10 @@ const createEditor = async () => {
     .config((ctx) => {
       ctx.set(rootCtx, app);
       ctx.set(defaultValueCtx, currentMarkdown);
-      ctx.set(editorViewOptionsCtx, {
+      ctx.update(editorViewOptionsCtx, (prev) => ({
+        ...prev,
         editable: () => !currentReadOnly,
-      });
+      }));
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
         if (markdown === prev) return;
         currentMarkdown = markdown;
