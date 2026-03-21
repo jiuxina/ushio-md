@@ -12,7 +12,7 @@ import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../utils/app_style.dart';
 import '../widgets/markdown_toolbar.dart';
-import '../widgets/webview_markdown_preview.dart';
+import '../widgets/hybrid_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
@@ -20,7 +20,7 @@ import 'editor/components/toc_overlay.dart';
 import 'editor/components/fullscreen_preview_page.dart';
 import '../services/export_service.dart';
 
-enum EditorMode { edit, preview, split }
+enum EditorMode { edit, preview }
 
 /// Represents a logical block of markdown content for inline editing
 class _MarkdownBlock {
@@ -88,8 +88,8 @@ class _EditorScreenState extends State<EditorScreen>
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
 
-  // WebView controller for heading navigation in preview/split modes
-  final _previewWebViewController = MarkdownWebViewController();
+  // WebView controller for heading navigation in the rendered preview page
+  final _previewWebViewController = HybridMarkdownPreviewController();
 
   // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
@@ -388,7 +388,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
       _flashLineHighlight(item.lineNumber);
     } else {
-      // WebView preview/split mode — scroll via JavaScript.
+      // Rendered preview page — scroll via JavaScript.
       // The JS also handles the visual flash on the target heading.
       final headingIndex = _tocItems.indexOf(item);
       if (headingIndex >= 0) {
@@ -705,6 +705,15 @@ class _EditorScreenState extends State<EditorScreen>
       _textController.addListener(_onTextChanged);
       setState(() => _isModified = true);
     }
+  }
+
+  void _handleMilkdownContentChange(String markdown) {
+    if (markdown == _textController.text) return;
+    _textController.removeListener(_onTextChanged);
+    _textController.text = markdown;
+    _textController.addListener(_onTextChanged);
+    _onTextChanged();
+    _updateToc();
   }
 
   /// Handle link tap in preview
@@ -1184,7 +1193,7 @@ class _EditorScreenState extends State<EditorScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = _themeSchemeColors(settings);
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    return WebViewMarkdownPreview(
+    return HybridMarkdownPreview(
       data: _textController.text,
       isDark: isDark,
       fontSize: settings.fontSize,
@@ -1201,6 +1210,8 @@ class _EditorScreenState extends State<EditorScreen>
       onCheckboxChanged: _toggleCheckbox,
       onGetMarkdown: _handleGetMarkdown,
       onInPlaceEdit: _applyInPlaceEdit,
+      onMilkdownContentChange: _handleMilkdownContentChange,
+      readOnly: false,
       controller: _previewWebViewController,
       bottomPadding: safeBottom,
     );
@@ -1601,49 +1612,6 @@ class _EditorScreenState extends State<EditorScreen>
             child: _buildInlineEditablePreview(settings),
           ),
         );
-      case EditorMode.split:
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).dividerColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: _buildEditPanel(settings),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).dividerColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: _buildPreviewPanel(settings),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
     }
   }
 
@@ -1702,8 +1670,6 @@ class _EditorScreenState extends State<EditorScreen>
             ],
           ),
         );
-      case EditorMode.split:
-        return const SizedBox.shrink();
     }
   }
 
@@ -1771,32 +1737,6 @@ class _EditorScreenState extends State<EditorScreen>
             },
           ),
       ],
-    );
-  }
-
-  /// Build the WebView-based preview panel for EditorMode.split.
-  Widget _buildPreviewPanel(SettingsProvider settings) {
-    if (_hidePlatformViews) return const SizedBox.expand();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = _themeSchemeColors(settings);
-    return WebViewMarkdownPreview(
-      data: _textController.text,
-      isDark: isDark,
-      fontSize: settings.fontSize,
-      fontFamily: settings.editorFontFamily == 'System'
-          ? null
-          : settings.editorFontFamily,
-      bgColor: colors.bg,
-      fgColor: colors.fg,
-      codeFont: settings.codeFontFamily == 'System'
-          ? null
-          : settings.codeFontFamily,
-      baseDirectory: File(widget.filePath).parent.path,
-      onTapLink: _handleLinkTap,
-      onCheckboxChanged: _toggleCheckbox,
-      onGetMarkdown: _handleGetMarkdown,
-      onInPlaceEdit: _applyInPlaceEdit,
-      controller: _previewWebViewController,
     );
   }
 

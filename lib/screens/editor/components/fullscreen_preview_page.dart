@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../utils/app_style.dart';
 import '../../../../utils/constants.dart';
-import '../../../../widgets/webview_markdown_preview.dart';
+import '../../../../widgets/hybrid_markdown_preview.dart';
 import '../../../../services/export_service.dart';
 
 class FullscreenPreviewPage extends StatefulWidget {
@@ -33,7 +33,7 @@ class FullscreenPreviewPage extends StatefulWidget {
 class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
   bool _isExporting = false;
   bool _autoSharePending = false;
-  final _webViewController = MarkdownWebViewController();
+  final _webViewController = HybridMarkdownPreviewController();
   
   @override
   void initState() {
@@ -131,7 +131,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return null;
 
-    final bgController = MarkdownWebViewController();
+    final bgController = HybridMarkdownPreviewController();
     final loadCompleter = Completer<void>();
     OverlayEntry? entry;
 
@@ -164,7 +164,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
           height: screenSize.height,
           child: Material(
             color: bg,
-            child: WebViewMarkdownPreview(
+            child: HybridMarkdownPreview(
               data: widget.controller.text,
               isDark: isDark,
               fontSize: widget.settings.fontSize,
@@ -177,6 +177,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
                   ? null
                   : widget.settings.codeFontFamily,
               onCheckboxChanged: (_, __) {},
+              readOnly: true,
               hidePageScrollbar: true,
               onLoadFinished: () {
                 if (!loadCompleter.isCompleted) loadCompleter.complete();
@@ -302,7 +303,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
               bg = schemes[idx].background;
               fg = schemes[idx].text;
             }
-            return WebViewMarkdownPreview(
+            return HybridMarkdownPreview(
               data: widget.controller.text,
               isDark: isDark,
               fontSize: widget.settings.fontSize,
@@ -315,6 +316,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
                   ? null
                   : widget.settings.codeFontFamily,
               onCheckboxChanged: widget.onCheckboxChanged,
+              readOnly: true,
               hidePageScrollbar: true,
               onLoadFinished: _onPreviewLoaded,
               controller: _webViewController,
