@@ -6,6 +6,7 @@ import {
 } from 'https://esm.sh/@milkdown/core@7.5.0';
 import { listener, listenerCtx } from 'https://esm.sh/@milkdown/plugin-listener@7.5.0';
 import { math } from 'https://esm.sh/@milkdown/plugin-math@7.5.0';
+import { commonmark } from 'https://esm.sh/@milkdown/preset-commonmark@7.5.0';
 import { prism } from 'https://esm.sh/@milkdown/plugin-prism@7.5.0';
 import { gfm } from 'https://esm.sh/@milkdown/preset-gfm@7.5.0';
 import { nord } from 'https://esm.sh/@milkdown/theme-nord@7.5.0';
@@ -195,6 +196,7 @@ const showBootstrapError = (error) => {
 
 const createEditor = async () => {
   const editor = Editor.make()
+    .config(nord)
     .config((ctx) => {
       ctx.set(rootCtx, app);
       ctx.set(defaultValueCtx, currentMarkdown);
@@ -215,7 +217,7 @@ const createEditor = async () => {
         notifyRenderComplete();
       });
     })
-    .use(nord)
+    .use(commonmark)
     .use(gfm)
     .use(math)
     .use(prism)

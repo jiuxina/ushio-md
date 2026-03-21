@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -8,11 +7,10 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
-import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../utils/app_style.dart';
 import '../widgets/markdown_toolbar.dart';
-import '../widgets/webview_markdown_preview.dart';
+import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
@@ -89,7 +87,7 @@ class _EditorScreenState extends State<EditorScreen>
   late Animation<double> _highlightAnimation;
 
   // WebView controller for heading navigation in the rendered preview page
-  final _previewWebViewController = MarkdownWebViewController();
+  final _previewWebViewController = MilkdownWebViewController();
 
   // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
@@ -766,244 +764,13 @@ class _EditorScreenState extends State<EditorScreen>
 
   // ==================== Block Parsing & Inline Editing ====================
 
-  // ── In-place editing helpers ──────────────────────────────────────────
-
-  /// Strip markdown formatting from text so it can be compared to HTML
-  /// innerText returned by the WebView.
-  String _stripMarkdown(String text) {
-    return text
-        // Strip fenced code block opening/closing lines (```lang or ```)
-        .replaceAll(RegExp(r'^```[^\n]*\n?', multiLine: true), '')
-        .replaceAll(RegExp(r'^~~~[^\n]*\n?', multiLine: true), '')
-        // Strip GitHub Alert markers [!NOTE] etc.
-        .replaceAll(
-          RegExp(
-            r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*',
-            multiLine: true,
-            caseSensitive: false,
-          ),
-          '',
-        )
-        .replaceAll(RegExp(r'\*{1,3}([^*]+)\*{1,3}'), r'$1')
-        .replaceAll(RegExp(r'_{1,3}([^_]+)_{1,3}'), r'$1')
-        .replaceAll(RegExp(r'`+([^`]+)`+'), r'$1')
-        .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
-        .replaceAll(RegExp(r'==([^=]+)=='), r'$1')
-        .replaceAll(RegExp(r'!\[[^\]]*\]\([^\)]*\)'), '')
-        .replaceAll(RegExp(r'\[([^\]]*)\]\([^\)]*\)'), r'$1')
-        .replaceAll(RegExp(r'^#+\s*', multiLine: true), '')
-        .replaceAll(RegExp(r'^[-*+]\s+', multiLine: true), '')
-        .replaceAll(RegExp(r'^\d+\.\s+', multiLine: true), '')
-        // Strip ALL leading blockquote markers (handles nested > > > lines)
-        .replaceAll(RegExp(r'^\s*(>\s*)+', multiLine: true), '')
-        .trim()
-        .toLowerCase();
-  }
-
-  /// Returns the raw markdown source for a table cell (for in-place editing).
-  String _getCellMarkdown(int tableIdx, int rowIdx, int colIdx) {
-    final blocks = _parseBlocks(_textController.text);
-    final tableBlocks = blocks
-        .where((b) => b.isMultiLine && b.content.contains('|'))
-        .toList();
-    if (tableIdx >= tableBlocks.length) return '';
-    // Skip separator rows (lines that consist only of |, -, :, and spaces)
-    final sepRow = RegExp(r'^[\|\s\-:]+$');
-    final tableLines = tableBlocks[tableIdx].content
-        .split('\n')
-        .where((l) => l.trim().isNotEmpty && !sepRow.hasMatch(l.trim()))
-        .toList();
-    if (rowIdx >= tableLines.length) return '';
-    final parts = tableLines[rowIdx].split('|');
-    final idx = colIdx + 1;
-    if (idx >= parts.length) return '';
-    return parts[idx].trim();
-  }
-
-  /// Returns the raw markdown source for the block whose rendered innerText
-  /// best matches [innerText].
-  String _getBlockMarkdown(String innerText) {
-    final blocks = _parseBlocks(_textController.text);
-    final normalizedHtml = _stripMarkdown(innerText);
-    int bestIndex = -1;
-    int bestLen = 0;
-    for (int i = 0; i < blocks.length; i++) {
-      final norm = _stripMarkdown(blocks[i].content);
-      if (norm.isEmpty) continue;
-      final shorter = norm.length <= normalizedHtml.length
-          ? norm
-          : normalizedHtml;
-      final longer = norm.length > normalizedHtml.length
-          ? norm
-          : normalizedHtml;
-      if (longer.contains(shorter) && shorter.length > bestLen) {
-        bestLen = shorter.length;
-        bestIndex = i;
-      }
-    }
-    return bestIndex >= 0 ? blocks[bestIndex].content : innerText;
-  }
-
-  /// Callback for `onGetMarkdown` from [WebViewMarkdownPreview].
-  String _handleGetMarkdown(String type, int p1, int p2, int p3, String extra) {
-    if (type == 'cell') return _getCellMarkdown(p1, p2, p3);
-    return _getBlockMarkdown(extra);
-  }
-
-  /// Apply an in-place edit committed by the WebView contenteditable.
-  ///
-  /// [key] is either `'cell:ti:ri:ci'` or `'block:<innerText prefix>'`.
-  /// [newText] is the raw markdown the user typed.
-  void _applyInPlaceEdit(String key, String newText) {
-    if (!mounted) return;
-    if (key.startsWith('cell:')) {
-      final parts = key.split(':');
-      if (parts.length < 4) return;
-      final ti = int.tryParse(parts[1]) ?? 0;
-      final ri = int.tryParse(parts[2]) ?? 0;
-      final ci = int.tryParse(parts[3]) ?? 0;
-      final blocks = _parseBlocks(_textController.text);
-      final tableBlocks = blocks
-          .where((b) => b.isMultiLine && b.content.contains('|'))
-          .toList();
-      if (ti >= tableBlocks.length) return;
-      _inlineEditController.text = newText;
-      _applyCellEdit(tableBlocks[ti], ri, ci);
-    } else if (key.startsWith('blocksrc:') || key.startsWith('block:')) {
-      final blocks = _parseBlocks(_textController.text);
-      int bestIndex = -1;
-      String? decodedBlockSource;
-
-      if (key.startsWith('blocksrc:')) {
-        final payload = key.substring('blocksrc:'.length);
-        final sep = payload.lastIndexOf(':');
-        final encoded = sep > 0 ? payload.substring(0, sep) : payload;
-        final hintedIndex = sep > 0 ? int.tryParse(payload.substring(sep + 1)) : null;
-        try {
-          final originalMd = utf8.decode(base64Decode(encoded));
-          decodedBlockSource = originalMd;
-          if (hintedIndex != null && hintedIndex >= 0 && hintedIndex < blocks.length &&
-              blocks[hintedIndex].content == originalMd) {
-            bestIndex = hintedIndex;
-          } else {
-            bestIndex = blocks.indexWhere((b) => b.content == originalMd);
-          }
-        } catch (_) {
-          bestIndex = -1;
-        }
-      }
-
-      if (bestIndex < 0 && decodedBlockSource != null) {
-        // Fallback for cases where JS-side block indexing differs from Dart
-        // parsing (for example when empty lines are included/excluded).
-        final normalized = _stripMarkdown(decodedBlockSource);
-        int bestLen = 0;
-        for (int i = 0; i < blocks.length; i++) {
-          final norm = _stripMarkdown(blocks[i].content);
-          if (norm.isEmpty) continue;
-          final shorter = norm.length <= normalized.length ? norm : normalized;
-          final longer = norm.length > normalized.length ? norm : normalized;
-          if (longer.contains(shorter) && shorter.length > bestLen) {
-            bestLen = shorter.length;
-            bestIndex = i;
-          }
-        }
-      }
-
-      if (bestIndex < 0 && key.startsWith('block:')) {
-        // Legacy key: fuzzy-find by text prefix from rendered innerText.
-        final innerText = key.substring('block:'.length);
-        final normalized = _stripMarkdown(innerText);
-        int bestLen = 0;
-        for (int i = 0; i < blocks.length; i++) {
-          final norm = _stripMarkdown(blocks[i].content);
-          if (norm.isEmpty) continue;
-          final shorter = norm.length <= normalized.length ? norm : normalized;
-          final longer = norm.length > normalized.length ? norm : normalized;
-          if (longer.contains(shorter) && shorter.length > bestLen) {
-            bestLen = shorter.length;
-            bestIndex = i;
-          }
-        }
-      }
-
-      if (bestIndex >= 0) {
-        _inlineEditController.text = newText;
-        _applyBlockEdit(bestIndex, blocks);
-      }
-    }
-  }
-
-  /// Apply an edited cell back into the markdown text.
-  void _applyCellEdit(_MarkdownBlock tableBlock, int rowIdx, int colIdx) {
-    final allLines = _textController.text.split('\n');
-    // Skip separator rows (lines that consist only of |, -, :, and spaces)
-    final sepRow = RegExp(r'^[\|\s\-:]+$');
-    int tableRowCounter = 0;
-    for (
-      int i = tableBlock.startLine;
-      i <= tableBlock.endLine && i < allLines.length;
-      i++
-    ) {
-      final trimmed = allLines[i].trim();
-      if (trimmed.isEmpty) continue;
-      if (sepRow.hasMatch(trimmed)) continue; // skip separator
-      if (tableRowCounter == rowIdx) {
-        final parts = allLines[i].split('|');
-        final cellPartIdx = colIdx + 1;
-        if (cellPartIdx < parts.length) {
-          parts[cellPartIdx] = ' ${_inlineEditController.text} ';
-          allLines[i] = parts.join('|');
-        }
-        break;
-      }
-      tableRowCounter++;
-    }
-    final newText = allLines.join('\n');
-    if (newText != _textController.text) {
-      final rowLine = (tableBlock.startLine + rowIdx).clamp(0, allLines.length - 1);
-      final lineStart = allLines
-          .take(rowLine)
-          .fold<int>(0, (sum, line) => sum + line.length + 1);
-      final caret = TextSelection.collapsed(
-        offset: (lineStart + _inlineEditController.text.length)
-            .clamp(0, newText.length)
-            .toInt(),
-      );
-      _applyMainTextWithSelection(newText, caret);
-      setState(() => _isModified = true);
-    }
-  }
-
-  /// Apply the block editor result back into the full document.
-  void _applyBlockEdit(int blockIndex, List<_MarkdownBlock> blocks) {
-    if (blockIndex >= blocks.length) return;
-    final block = blocks[blockIndex];
-    final lines = _textController.text.split('\n');
-    final editedText = _inlineEditController.text;
-    // If user cleared the line, delete it
-    final editedLines = editedText.trim().isEmpty
-        ? <String>[]
-        : editedText.split('\n');
-    final newLines = <String>[
-      ...lines.sublist(0, block.startLine),
-      ...editedLines,
-      if (block.endLine + 1 < lines.length) ...lines.sublist(block.endLine + 1),
-    ];
-    final newText = newLines.join('\n');
-    if (newText != _textController.text) {
-      final caretOffset = newLines
-          .take(block.startLine + editedLines.length)
-          .join('\n')
-          .length
-          .clamp(0, newText.length)
-          .toInt();
-      _applyMainTextWithSelection(
-        newText,
-        TextSelection.collapsed(offset: caretOffset),
-      );
-      setState(() => _isModified = true);
-    }
+  void _handleMilkdownContentChange(String markdown) {
+    if (markdown == _textController.text) return;
+    _textController.removeListener(_onTextChanged);
+    _textController.text = markdown;
+    _textController.addListener(_onTextChanged);
+    _onTextChanged();
+    _updateToc();
   }
 
   /// Parse markdown text into logical blocks for inline editing.
@@ -1162,47 +929,28 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  /// Return the background and foreground colors for the active theme scheme.
-  ({Color bg, Color fg}) _themeSchemeColors(SettingsProvider settings) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (isDark) {
-      final schemes = AppConstants.darkThemeSchemes;
-      final idx = settings.darkThemeIndex.clamp(0, schemes.length - 1);
-      final s = schemes[idx];
-      return (bg: s.background, fg: s.text);
-    } else {
-      final schemes = AppConstants.lightThemeSchemes;
-      final idx = settings.lightThemeIndex.clamp(0, schemes.length - 1);
-      final s = schemes[idx];
-      return (bg: s.background, fg: s.text);
-    }
-  }
-
   /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = _themeSchemeColors(settings);
-    final safeBottom = MediaQuery.of(context).padding.bottom;
-    return WebViewMarkdownPreview(
-      data: _textController.text,
-      isDark: isDark,
+    return MilkdownWebViewEditor(
+      initialMarkdown: _textController.text,
+      readOnly: false,
       fontSize: settings.fontSize,
-      fontFamily: settings.editorFontFamily == 'System'
+      bodyFont: settings.editorFontFamily == 'System'
           ? null
           : settings.editorFontFamily,
-      bgColor: colors.bg,
-      fgColor: colors.fg,
-      codeFont: settings.codeFontFamily == 'System'
+      monoFont: settings.codeFontFamily == 'System'
           ? null
           : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
-      onTapLink: _handleLinkTap,
-      onCheckboxChanged: _toggleCheckbox,
-      onGetMarkdown: _handleGetMarkdown,
-      onInPlaceEdit: _applyInPlaceEdit,
+      onContentChange: _handleMilkdownContentChange,
+      onLinkClick: (payload) => _handleLinkTap(
+        payload.text ?? '',
+        payload.href,
+        payload.title ?? '',
+      ),
+      onCheckboxToggle: _toggleCheckbox,
       controller: _previewWebViewController,
-      bottomPadding: safeBottom,
     );
   }
 
