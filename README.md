@@ -103,7 +103,7 @@
 > 详见：[`docs/webview-milkdown-lld.md`](docs/webview-milkdown-lld.md)  
 > 覆盖内容：Vite 单文件构建、Milkdown 初始化、JS Bridge 协议、主题变量映射、Flutter `InAppWebView` 骨架、Android 平台调优。
 >
-> ✅ 当前迁移状态：**已全部迁移完成**（阶段 1～4 已在仓库内落地并完成首轮验收）。
+> ⚠️ 当前迁移状态：**尚未完全迁移完成**。当前仓库已完成 LLD 与部分 bridge/组件原型，但主编辑器仍运行在既有 WebView 渲染链路上；详见 [`docs/milkdown-migration-status.md`](docs/milkdown-migration-status.md)。
 
 ## 📦 安装
 
