@@ -18,6 +18,7 @@ let currentMarkdown = '';
 let currentBaseDirectory = '';
 let currentReadOnly = true;
 let isApplyingFromFlutter = false;
+let createEditorPromise = null;
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -188,6 +189,10 @@ const setMarkdown = (markdown, { emitContent = false } = {}) => {
   notifyRenderComplete();
 };
 
+const showBootstrapError = (error) => {
+  app.innerHTML = `<div style="padding:16px;font-family:sans-serif;color:#dc2626;line-height:1.6;">Milkdown 初始化失败：${String(error)}</div>`;
+};
+
 const createEditor = async () => {
   const editor = Editor.make()
     .config((ctx) => {
@@ -216,6 +221,7 @@ const createEditor = async () => {
     .use(listener);
 
   editorInstance = await editor.create();
+  notifyRenderComplete();
   emit('on_ready', {});
 };
 
@@ -247,6 +253,11 @@ app.addEventListener('change', (event) => {
   });
 });
 
+const ensureEditor = () => {
+  createEditorPromise ??= createEditor();
+  return createEditorPromise;
+};
+
 const onFlutterMessage = (message) => {
   let m = message;
   if (typeof message === 'string') {
@@ -263,7 +274,20 @@ const onFlutterMessage = (message) => {
     const payload = m.payload && typeof m.payload === 'object' ? m.payload : {};
     currentBaseDirectory = typeof payload.baseDirectory === 'string' ? payload.baseDirectory : '';
     currentReadOnly = payload.readOnly !== false;
-    setMarkdown(typeof payload.markdown === 'string' ? payload.markdown : '');
+    const markdown = typeof payload.markdown === 'string' ? payload.markdown : '';
+    currentMarkdown = markdown;
+    if (editorInstance) {
+      setMarkdown(markdown);
+    } else {
+      ensureEditor().catch((error) => {
+        console.error('Failed to initialize Milkdown', error);
+        showBootstrapError(error);
+        emit('on_image_error', {
+          src: 'milkdown_bootstrap',
+          reason: `init_failed:${String(error)}`,
+        });
+      });
+    }
     return;
   }
 
@@ -283,11 +307,3 @@ const onFlutterMessage = (message) => {
 window.__USHIO_BRIDGE__ = {
   onFlutterMessage,
 };
-
-createEditor().catch((error) => {
-  console.error('Failed to initialize Milkdown', error);
-  emit('on_image_error', {
-    src: 'milkdown_bootstrap',
-    reason: `init_failed:${String(error)}`,
-  });
-});

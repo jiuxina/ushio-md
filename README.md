@@ -41,7 +41,7 @@
 
 ### 📝 编辑功能
 - 完整 Markdown 语法支持（粗体、斜体、删除线、标题、列表、表格等）
-- 三种查看模式：编辑 / 预览 / 分屏
+- 两种工作模式：纯编辑 / 渲染编辑（点击编辑，失焦后回到渲染态）
 - 基于 WebView 的高保真预览渲染
 - 预览模式单击段落/表格单元格，直接原地编辑（含代码块、表格、多行引用与嵌套标记）
 - 自动保存，可自定义间隔
@@ -103,7 +103,7 @@
 > 详见：[`docs/webview-milkdown-lld.md`](docs/webview-milkdown-lld.md)  
 > 覆盖内容：Vite 单文件构建、Milkdown 初始化、JS Bridge 协议、主题变量映射、Flutter `InAppWebView` 骨架、Android 平台调优。
 >
-> ⚠️ 当前迁移状态：**Milkdown 基础设施已落地，但主预览链路暂未正式切换**。由于运行中存在预览白屏问题，当前 active path 已回退到稳定的既有 WebView 渲染方案；详见 [`docs/milkdown-migration-status.md`](docs/milkdown-migration-status.md)。
+> ⚠️ 当前迁移状态：**已按 Milkdown 目标继续推进，但仍处于“Milkdown 优先 + 失败回退”阶段**。当前产品形态只有“渲染编辑页 + 纯编辑页”两类界面，不包含分屏模式；详见 [`docs/milkdown-migration-status.md`](docs/milkdown-migration-status.md)。
 
 ## 📦 安装
 

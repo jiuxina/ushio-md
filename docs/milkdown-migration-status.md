@@ -2,106 +2,100 @@
 
 ## 1. 当前结论
 
-当前仓库 **还没有完成可稳定上线的 Milkdown 渲染迁移**。
+当前项目的正确目标是：
 
-更准确地说：
+- 一个 **渲染编辑页**：以渲染结果为主，点击后进入编辑，失焦后回到渲染态
+- 一个 **纯编辑页**：只做文本编辑，不承担渲染
 
-- Milkdown 的 **Flutter bridge、Web 资源页、本地 localhost 承载、Android cleartext 配置** 都已经落地。
-- 但在真实运行中，直接把编辑器预览区切到 Milkdown 会出现 **打开文档后预览白屏** 的稳定性问题。
-- 因此当前已经将 **编辑器预览 / 分屏 / 全屏预览主路径回退到原有 `WebViewMarkdownPreview`**，以保证文档可正常打开与预览。
-- Milkdown 相关代码与资源会继续保留在仓库中，作为后续继续迭代和调试的基础。
+**不存在分屏模式。**
 
-> 结论：**Milkdown 基础设施已落地，但主预览链路尚未稳定接管。**
+围绕这个目标，仓库当前已经完成了 Milkdown 基础设施接入，并把产品方向调整为 **Milkdown 优先**，但为了避免再次出现“打开文档后预览白屏”，当前实现增加了 **启动失败自动回退到旧预览内核** 的保护。
+
+> 结论：**方向仍然是迁移到 Milkdown，而不是退回旧方案；只是当前版本增加了稳定性 fallback。**
 
 ---
 
-## 2. 已完成落地的部分
+## 2. 当前已完成部分
 
-### 2.1 Flutter ↔ Web bridge 已建立
+### 2.1 Milkdown 基础设施已在仓库中落地
 
-当前已具备：
+已具备：
 
 - `MilkdownWebViewEditor`
 - `MilkdownWebViewController`
-- `init_doc` / `update_theme` / `exec_cmd`
-- `on_content_change` / `on_outline_update` / `on_link_click`
-- `on_image_error` / `on_checkbox_toggle` / `on_render_complete`
-
-### 2.2 Web 资源页与源码目录已存在
-
-当前仓库已包含：
-
-- `assets/milkdown_web/index.html`
-- `assets/milkdown_web/main.js`
-- `assets/milkdown_web/style.css`
+- `assets/milkdown_web/` 运行时页面
 - `web/milkdown/` 源码目录
-- `web/milkdown/package.json`
-- `web/milkdown/vite.config.mjs`
+- Android localhost cleartext 配置
+- `init_doc` / `update_theme` / `exec_cmd` bridge
+- `on_content_change` / `on_outline_update` / `on_link_click` 等回调
 
-### 2.3 Android localhost cleartext 问题已处理
+### 2.2 当前页面形态已按“两页模型”对齐
 
-为支持 `InAppLocalhostServer` 提供的 `http://localhost:<port>/index.html`，Android 侧已经加入 localhost 专用网络安全配置，避免 `net::ERR_CLEARTEXT_NOT_PERMITTED`。
+当前代码层面实际对应的是：
+
+- **纯编辑页**：Flutter 文本编辑界面
+- **渲染编辑页**：WebView 渲染界面，优先尝试 Milkdown，失败时自动回退
+- **全屏预览页**：同样走“Milkdown 优先 + fallback”策略
 
 ---
 
-## 3. 当前实际生效状态
+## 3. 当前生效策略
 
 | 模块 | 当前状态 | 说明 |
 | --- | --- | --- |
-| Milkdown 基础设施 | 已落地 | bridge、Web 资源、Android localhost 配置都在仓库中 |
-| Milkdown 预览主路径 | 暂未启用 | 运行时存在白屏问题，因此已回退 |
-| 编辑器预览链路 | 仍使用旧方案 | 当前 active path 为 `WebViewMarkdownPreview` |
-| 分屏预览链路 | 仍使用旧方案 | 为保证稳定性已回退 |
-| 全屏预览 / 截图导出 | 仍使用旧方案 | 为避免白屏影响分享导出已回退 |
-| 编辑输入引擎 | 未迁移 | 仍是 Flutter `TextField` |
+| 纯编辑页 | 已稳定 | 继续使用 Flutter 文本编辑 |
+| 渲染编辑页 | Milkdown 优先 | 初始化成功则走 Milkdown；失败则自动回退旧预览 |
+| 全屏预览页 | Milkdown 优先 | 与渲染编辑页一致，带 fallback |
+| 分屏模式 | 不存在 | 不应作为当前产品目标继续描述 |
+| Milkdown 基础设施 | 已落地 | bridge、Web 资源、本地 localhost、Android 配置均已进入仓库 |
 
 ---
 
-## 4. 为什么要回退主路径
+## 4. 为什么现在要用“Milkdown 优先 + fallback”
 
-本次回退不是放弃 Milkdown，而是为了先恢复可用性。
+因为当前阶段最重要的两件事必须同时满足：
 
-当前症状是：
+1. **方向不能退回旧方案**，仍然要继续朝 Milkdown 迁移。
+2. **用户不能再看到白屏**，文档打开后必须有可用预览。
 
-- 打开文档后，预览区出现白屏
-- 这会直接影响：预览、分屏、全屏预览、截图导出
+所以当前实现采用：
 
-在这种情况下，优先恢复稳定显示比继续让不稳定实现挂在主路径上更重要。
+- **优先尝试启动 Milkdown**
+- 如果启动超时或 bootstrap 失败，则自动回退到旧预览内核
+
+这是一种迁移保护措施，不是产品方向回退。
 
 ---
 
 ## 5. 下一步建议
 
-### P1：先查清白屏根因
+### P1：彻底定位 Milkdown 白屏根因
 
-重点方向：
+重点建议检查：
 
-- Milkdown 页面初始化是否抛错
-- 远端 ESM / CDN 资源在 Android WebView 中是否稳定可用
-- WebView 与 localhost 页面上的模块加载、样式加载是否完整
-- `Editor.create()` / `replaceAll()` / plugin 初始化链路是否在设备端异常
+- Android WebView 中远端 ESM / CDN 资源是否稳定可用
+- Milkdown 初始化链路是否在设备端抛错
+- 主题、插件、样式或资源路径是否阻塞渲染
 
-### P2：补一个“可观测”失败态
+### P2：把 fallback 从“保护措施”逐步过渡到“仅调试阶段可见”
 
-下一轮建议给 Milkdown Web 页增加：
+目标是：
 
-- DOM 内错误面板
-- 初始化失败日志上报到 Flutter
-- 初始化超时自动 fallback
+- 真机上确认 Milkdown 可稳定打开文档
+- 渲染编辑页不再依赖 fallback
+- 全屏预览与截图导出也稳定跑在 Milkdown 上
 
-### P3：确认稳定后再重新切主路径
+### P3：继续清理不符合产品模型的表述
 
-在以下条件满足前，不建议再把 active preview 切回 Milkdown：
+后续所有文档都应统一口径：
 
-- 至少一台 Android 真机可稳定打开文档
-- 预览、分屏、全屏三条链路均不白屏
-- 截图导出正常
-- 本地图片、链接、目录跳转正常
+- 只有“渲染编辑页”与“纯编辑页”
+- 不再描述“分屏模式”
 
 ---
 
 ## 6. 当前最终口径
 
-当前项目的准确表述应当是：
+当前项目状态应表述为：
 
-> **Milkdown 迁移的基础设施已经进入仓库，但由于预览白屏问题，主预览链路已暂时回退到旧渲染方案，尚未完成正式切换。**
+> **项目仍在朝 Milkdown 迁移；当前运行策略是 Milkdown 优先，若初始化失败则自动回退到旧预览内核，以保证渲染编辑页与全屏预览页不出现白屏。**
