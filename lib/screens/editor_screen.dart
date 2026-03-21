@@ -12,7 +12,7 @@ import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../utils/app_style.dart';
 import '../widgets/markdown_toolbar.dart';
-import '../widgets/milkdown_webview_editor.dart';
+import '../widgets/webview_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
@@ -89,7 +89,7 @@ class _EditorScreenState extends State<EditorScreen>
   late Animation<double> _highlightAnimation;
 
   // WebView controller for heading navigation in preview/split modes
-  final _previewWebViewController = MilkdownWebViewController();
+  final _previewWebViewController = MarkdownWebViewController();
 
   // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
@@ -1178,27 +1178,31 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  /// Build the Milkdown-based preview for EditorMode.preview.
+  /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
-    return MilkdownWebViewEditor(
-      initialMarkdown: _textController.text,
-      readOnly: true,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _themeSchemeColors(settings);
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return WebViewMarkdownPreview(
+      data: _textController.text,
+      isDark: isDark,
       fontSize: settings.fontSize,
-      bodyFont: settings.editorFontFamily == 'System'
+      fontFamily: settings.editorFontFamily == 'System'
           ? null
           : settings.editorFontFamily,
-      monoFont: settings.codeFontFamily == 'System'
+      bgColor: colors.bg,
+      fgColor: colors.fg,
+      codeFont: settings.codeFontFamily == 'System'
           ? null
           : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
-      onLinkClick: (payload) => _handleLinkTap(
-        payload.text ?? '',
-        payload.href,
-        payload.title ?? '',
-      ),
-      onCheckboxToggle: _toggleCheckbox,
+      onTapLink: _handleLinkTap,
+      onCheckboxChanged: _toggleCheckbox,
+      onGetMarkdown: _handleGetMarkdown,
+      onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
+      bottomPadding: safeBottom,
     );
   }
 
@@ -1770,26 +1774,28 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  /// Build the Milkdown-based preview panel for EditorMode.split.
+  /// Build the WebView-based preview panel for EditorMode.split.
   Widget _buildPreviewPanel(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
-    return MilkdownWebViewEditor(
-      initialMarkdown: _textController.text,
-      readOnly: true,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _themeSchemeColors(settings);
+    return WebViewMarkdownPreview(
+      data: _textController.text,
+      isDark: isDark,
       fontSize: settings.fontSize,
-      bodyFont: settings.editorFontFamily == 'System'
+      fontFamily: settings.editorFontFamily == 'System'
           ? null
           : settings.editorFontFamily,
-      monoFont: settings.codeFontFamily == 'System'
+      bgColor: colors.bg,
+      fgColor: colors.fg,
+      codeFont: settings.codeFontFamily == 'System'
           ? null
           : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
-      onLinkClick: (payload) => _handleLinkTap(
-        payload.text ?? '',
-        payload.href,
-        payload.title ?? '',
-      ),
-      onCheckboxToggle: _toggleCheckbox,
+      onTapLink: _handleLinkTap,
+      onCheckboxChanged: _toggleCheckbox,
+      onGetMarkdown: _handleGetMarkdown,
+      onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
     );
   }
