@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../utils/app_style.dart';
 import '../../../../utils/constants.dart';
-import '../../../../widgets/webview_markdown_preview.dart';
+import '../../../../widgets/milkdown_webview_editor.dart';
 import '../../../../services/export_service.dart';
 
 class FullscreenPreviewPage extends StatefulWidget {
@@ -33,7 +33,7 @@ class FullscreenPreviewPage extends StatefulWidget {
 class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
   bool _isExporting = false;
   bool _autoSharePending = false;
-  final _webViewController = MarkdownWebViewController();
+  final _webViewController = MilkdownWebViewController();
   
   @override
   void initState() {
@@ -131,7 +131,7 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return null;
 
-    final bgController = MarkdownWebViewController();
+    final bgController = MilkdownWebViewController();
     final loadCompleter = Completer<void>();
     OverlayEntry? entry;
 
@@ -139,17 +139,14 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
       final screenSize = MediaQuery.of(context).size;
       final isDark = Theme.of(context).brightness == Brightness.dark;
       Color bg;
-      Color fg;
       if (isDark) {
         final schemes = AppConstants.darkThemeSchemes;
         final idx = widget.settings.darkThemeIndex.clamp(0, schemes.length - 1);
         bg = schemes[idx].background;
-        fg = schemes[idx].text;
       } else {
         final schemes = AppConstants.lightThemeSchemes;
         final idx = widget.settings.lightThemeIndex.clamp(0, schemes.length - 1);
         bg = schemes[idx].background;
-        fg = schemes[idx].text;
       }
 
       // Use the same inner preview width (page width minus horizontal margins).
@@ -164,20 +161,16 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
           height: screenSize.height,
           child: Material(
             color: bg,
-            child: WebViewMarkdownPreview(
-              data: widget.controller.text,
-              isDark: isDark,
+            child: MilkdownWebViewEditor(
+              initialMarkdown: widget.controller.text,
+              readOnly: true,
               fontSize: widget.settings.fontSize,
-              fontFamily: widget.settings.editorFontFamily == 'System'
+              bodyFont: widget.settings.editorFontFamily == 'System'
                   ? null
                   : widget.settings.editorFontFamily,
-              bgColor: bg,
-              fgColor: fg,
-              codeFont: widget.settings.codeFontFamily == 'System'
+              monoFont: widget.settings.codeFontFamily == 'System'
                   ? null
                   : widget.settings.codeFontFamily,
-              onCheckboxChanged: (_, __) {},
-              hidePageScrollbar: true,
               onLoadFinished: () {
                 if (!loadCompleter.isCompleted) loadCompleter.complete();
               },
@@ -289,34 +282,17 @@ class _FullscreenPreviewPageState extends State<FullscreenPreviewPage> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: Builder(builder: (ctx) {
-            final isDark = Theme.of(ctx).brightness == Brightness.dark;
-            Color bg;
-            Color fg;
-            if (isDark) {
-              final schemes = AppConstants.darkThemeSchemes;
-              final idx = widget.settings.darkThemeIndex.clamp(0, schemes.length - 1);
-              bg = schemes[idx].background;
-              fg = schemes[idx].text;
-            } else {
-              final schemes = AppConstants.lightThemeSchemes;
-              final idx = widget.settings.lightThemeIndex.clamp(0, schemes.length - 1);
-              bg = schemes[idx].background;
-              fg = schemes[idx].text;
-            }
-            return WebViewMarkdownPreview(
-              data: widget.controller.text,
-              isDark: isDark,
+            return MilkdownWebViewEditor(
+              initialMarkdown: widget.controller.text,
+              readOnly: true,
               fontSize: widget.settings.fontSize,
-              fontFamily: widget.settings.editorFontFamily == 'System'
+              bodyFont: widget.settings.editorFontFamily == 'System'
                   ? null
                   : widget.settings.editorFontFamily,
-              bgColor: bg,
-              fgColor: fg,
-              codeFont: widget.settings.codeFontFamily == 'System'
+              monoFont: widget.settings.codeFontFamily == 'System'
                   ? null
                   : widget.settings.codeFontFamily,
-              onCheckboxChanged: widget.onCheckboxChanged,
-              hidePageScrollbar: true,
+              onCheckboxToggle: widget.onCheckboxChanged,
               onLoadFinished: _onPreviewLoaded,
               controller: _webViewController,
               baseDirectory:

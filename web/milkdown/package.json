@@ -13,6 +13,7 @@
     "@milkdown/plugin-listener": "7.5.0",
     "@milkdown/plugin-math": "7.5.0",
     "@milkdown/plugin-prism": "7.5.0",
+    "@milkdown/preset-commonmark": "7.5.0",
     "@milkdown/preset-gfm": "7.5.0",
     "@milkdown/theme-nord": "7.5.0",
     "@milkdown/utils": "7.5.0",

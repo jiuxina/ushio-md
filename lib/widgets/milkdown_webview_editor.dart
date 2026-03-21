@@ -16,6 +16,8 @@ const _defaultMonoFont = 'JetBrains Mono';
 const _defaultFontSize = 16.0;
 const _defaultLineHeight = 1.7;
 
+Future<void> warmUpMilkdownWebAssets() async {}
+
 class MilkdownWebViewController {
   _MilkdownWebViewEditorState? _state;
   InAppWebViewController? _webViewController;

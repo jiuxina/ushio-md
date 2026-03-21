@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 
 import '../providers/file_provider.dart';
 import '../screens/editor_screen.dart';
+import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/themed_feedback.dart';
-import '../widgets/webview_markdown_preview.dart';
 
 /// 统一处理进入编辑器前的预加载、初始化提示和缓存命中逻辑。
 class EditorNavigationHelper {
@@ -49,7 +49,7 @@ class EditorNavigationHelper {
 
     try {
       final preloadTasks = <Future<dynamic>>[
-        warmUpMarkdownPreviewAssets().timeout(const Duration(seconds: 8)),
+        warmUpMilkdownWebAssets().timeout(const Duration(seconds: 8)),
         initialContent != null
             ? Future<String>.value(initialContent)
             : fileService.preloadFile(filePath).timeout(
