@@ -1,16 +1,15 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/milkdown_bridge.dart';
 
 typedef MilkdownBridgeMessageHandler = void Function(Map<String, dynamic> msg);
+typedef MilkdownCheckboxToggleHandler = void Function(int index, bool value);
 
 const _defaultBodyFont = 'Noto Sans SC';
 const _defaultMonoFont = 'JetBrains Mono';
@@ -19,6 +18,7 @@ const _defaultLineHeight = 1.7;
 
 class MilkdownWebViewController {
   _MilkdownWebViewEditorState? _state;
+  InAppWebViewController? _webViewController;
 
   void _attach(_MilkdownWebViewEditorState state) {
     _state = state;
@@ -27,7 +27,16 @@ class MilkdownWebViewController {
   void _detach(_MilkdownWebViewEditorState state) {
     if (identical(_state, state)) {
       _state = null;
+      _webViewController = null;
     }
+  }
+
+  void _attachWebViewController(InAppWebViewController controller) {
+    _webViewController = controller;
+  }
+
+  void suppressNextReload() {
+    _state?._suppressNextReload = true;
   }
 
   Future<void> setMarkdown(String markdown) async {
@@ -53,34 +62,134 @@ class MilkdownWebViewController {
         'src': src,
         if (alt != null) 'alt': alt,
       });
+
+  Future<void> scrollToHeading(int headingIndex, {double topOffset = 32.0}) async {
+    await _webViewController?.evaluateJavascript(
+      source: '''
+        (function() {
+          var el = document.getElementById('heading-' + $headingIndex);
+          if (!el) return;
+          el.scrollIntoView({ block: 'start' });
+          window.scrollBy(0, -$topOffset);
+          el.classList.add('heading-flash');
+          setTimeout(function() { el.classList.remove('heading-flash'); }, 700);
+        })();
+      ''',
+    );
+  }
+
+  Future<Uint8List?> captureScreenshot() async {
+    try {
+      return await _webViewController?.takeScreenshot();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Uint8List?> captureFullPageScreenshot({
+    int maxShots = 30,
+    Duration settleDelay = const Duration(milliseconds: 80),
+  }) async {
+    final c = _webViewController;
+    if (c == null) return null;
+
+    try {
+      final originalYRaw = await c.evaluateJavascript(source: 'window.scrollY || 0');
+      final vhRaw = await c.evaluateJavascript(source: 'window.innerHeight || 0');
+      final shRaw = await c.evaluateJavascript(
+        source: 'Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) || 0',
+      );
+
+      final originalY =
+          (double.tryParse(originalYRaw?.toString() ?? '0') ?? 0.0).clamp(0.0, double.infinity);
+      final viewportHeightCss =
+          (double.tryParse(vhRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
+      final pageHeightCss =
+          (double.tryParse(shRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
+
+      final steps = <double>[];
+      for (double y = 0; y < pageHeightCss; y += viewportHeightCss) {
+        steps.add(y);
+        if (steps.length >= maxShots) break;
+      }
+
+      final captures = <({double yCss, Uint8List png})>[];
+      for (final y in steps) {
+        await c.evaluateJavascript(source: 'window.scrollTo(0, $y)');
+        await Future.delayed(settleDelay);
+        final png = await c.takeScreenshot();
+        if (png == null) continue;
+        captures.add((yCss: y, png: png));
+      }
+
+      await c.evaluateJavascript(source: 'window.scrollTo(0, $originalY)');
+
+      if (captures.isEmpty) return null;
+
+      final first = await _decodePng(captures.first.png);
+      final scale = first.height / viewportHeightCss;
+      final targetWidth = first.width;
+      final targetHeight = (pageHeightCss * scale).ceil();
+
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+
+      for (final cap in captures) {
+        final img = await _decodePng(cap.png);
+        final dy = (cap.yCss * scale).roundToDouble();
+        canvas.drawImage(img, ui.Offset(0, dy), ui.Paint());
+      }
+
+      final picture = recorder.endRecording();
+      final stitched = await picture.toImage(targetWidth, targetHeight);
+      final bytes = await stitched.toByteData(format: ui.ImageByteFormat.png);
+      return bytes?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<ui.Image> _decodePng(Uint8List pngBytes) async {
+    final codec = await ui.instantiateImageCodec(pngBytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
 }
 
 class MilkdownWebViewEditor extends StatefulWidget {
   final String initialMarkdown;
+  final bool readOnly;
   final ValueChanged<String>? onContentChange;
   final MilkdownBridgeMessageHandler? onBridgeMessage;
   final ValueChanged<OnImageErrorPayload>? onImageError;
   final ValueChanged<OnOutlineUpdatePayload>? onOutlineUpdate;
   final ValueChanged<OnLinkClickPayload>? onLinkClick;
+  final MilkdownCheckboxToggleHandler? onCheckboxToggle;
+  final VoidCallback? onLoadFinished;
   final MilkdownWebViewController? controller;
   final String? bodyFont;
   final String? monoFont;
   final double? fontSize;
   final double? lineHeight;
+  final String? baseDirectory;
 
   const MilkdownWebViewEditor({
     super.key,
     required this.initialMarkdown,
+    this.readOnly = false,
     this.onContentChange,
     this.onBridgeMessage,
     this.onImageError,
     this.onOutlineUpdate,
     this.onLinkClick,
+    this.onCheckboxToggle,
+    this.onLoadFinished,
     this.controller,
     this.bodyFont,
     this.monoFont,
     this.fontSize,
     this.lineHeight,
+    this.baseDirectory,
   });
 
   @override
@@ -88,52 +197,49 @@ class MilkdownWebViewEditor extends StatefulWidget {
 }
 
 class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
-  InAppWebViewController? _controller;
-  Uint8List? _htmlData;
-  String? _lastThemeSignature;
-  String? _imageBaseUrl;
+  static const _documentRoot = 'assets/milkdown_web';
 
-  static const _assetPath = 'assets/milkdown_web/index.html';
-  static const _imageDirName = 'md_images';
+  InAppWebViewController? _controller;
+  InAppLocalhostServer? _localhostServer;
+  String? _initialUrl;
+  String? _lastThemeSignature;
+  String? _lastSyncedMarkdown;
+  bool _isServerStarting = false;
+  bool _didFinishFirstRender = false;
+  bool _suppressNextReload = false;
 
   @override
   void initState() {
     super.initState();
-    _loadHtmlAsset();
-    _initImageRouting();
+    _lastSyncedMarkdown = widget.initialMarkdown;
+    _startLocalhostServer();
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
     }
   }
 
-  Future<void> _initImageRouting() async {
+  Future<void> _startLocalhostServer() async {
+    if (_isServerStarting || _localhostServer != null) return;
+    _isServerStarting = true;
     try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final imageDir = Directory.fromUri(appDir.uri.resolve(_imageDirName));
-      if (!await imageDir.exists()) {
-        await imageDir.create(recursive: true);
+      final server = InAppLocalhostServer(documentRoot: _documentRoot);
+      await server.start();
+      if (!mounted) {
+        await server.close();
+        return;
       }
-      if (!mounted) return;
-      final imageDirUrl = Uri.directory(imageDir.path).toString();
       setState(() {
-        _imageBaseUrl = imageDirUrl;
+        _localhostServer = server;
+        _initialUrl = 'http://localhost:${server.port}/index.html';
       });
     } catch (e) {
-      debugPrint(
-        'Milkdown image routing init failed (non-fatal, image base routing disabled): $e',
-      );
-    }
-  }
-
-  Future<void> _loadHtmlAsset() async {
-    try {
-      final html = await rootBundle.loadString(_assetPath);
+      debugPrint('Failed to start Milkdown localhost server: $e');
       if (!mounted) return;
-      setState(() => _htmlData = Uint8List.fromList(utf8.encode(html)));
-    } catch (e) {
-      debugPrint('Failed to load Milkdown asset $_assetPath: $e');
-      if (!mounted) return;
-      setState(() => _htmlData = Uint8List(0));
+      setState(() {
+        _initialUrl = '';
+      });
+    } finally {
+      _isServerStarting = false;
     }
   }
 
@@ -155,8 +261,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         'onSecondary': _toCssHex(colorScheme.onSecondary),
         'surface': _toCssHex(colorScheme.surface),
         'onSurface': _toCssHex(colorScheme.onSurface),
-        // Material 3 favors surface-based backgrounds; keep the same token for
-        // now to avoid introducing an app-specific background divergence.
         'background': _toCssHex(colorScheme.surface),
         'onBackground': _toCssHex(colorScheme.onSurface),
         'error': _toCssHex(colorScheme.error),
@@ -185,6 +289,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   }
 
   Future<void> _sendInitDoc({String? markdownOverride}) async {
+    final markdown = markdownOverride ?? widget.initialMarkdown;
+    _lastSyncedMarkdown = markdown;
     final msg = BridgeEnvelope<InitDocPayload>(
       v: 1,
       source: 'flutter',
@@ -192,7 +298,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       type: 'init_doc',
       requestId: createBridgeRequestId(),
       ts: DateTime.now().millisecondsSinceEpoch,
-      payload: InitDocPayload(markdown: markdownOverride ?? widget.initialMarkdown),
+      payload: InitDocPayload(
+        markdown: markdown,
+        baseDirectory: widget.baseDirectory,
+        readOnly: widget.readOnly,
+      ),
     );
     await _sendMessage(msg.toJson((payload) => payload.toJson()));
   }
@@ -255,38 +365,76 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       if (payload is Map) {
         final markdown = payload['markdown'];
         if (markdown is String) {
+          _lastSyncedMarkdown = markdown;
           widget.onContentChange?.call(markdown);
         }
       }
-    } else if (type == 'on_outline_update') {
+      return;
+    }
+
+    if (type == 'on_outline_update') {
       final payload = map['payload'];
       if (payload is Map) {
         widget.onOutlineUpdate?.call(
           OnOutlineUpdatePayload.fromJson(Map<String, dynamic>.from(payload)),
         );
       }
-    } else if (type == 'on_link_click') {
+      return;
+    }
+
+    if (type == 'on_link_click') {
       final payload = map['payload'];
       if (payload is Map) {
         widget.onLinkClick?.call(
           OnLinkClickPayload.fromJson(Map<String, dynamic>.from(payload)),
         );
       }
-    } else if (type == 'on_image_error') {
+      return;
+    }
+
+    if (type == 'on_image_error') {
       final payload = map['payload'];
       if (payload is Map) {
         widget.onImageError?.call(
           OnImageErrorPayload.fromJson(Map<String, dynamic>.from(payload)),
         );
       }
+      return;
+    }
+
+    if (type == 'on_checkbox_toggle') {
+      final payload = map['payload'];
+      if (payload is Map) {
+        final index = payload['index'];
+        final checked = payload['checked'];
+        final parsedIndex = index is int ? index : int.tryParse(index?.toString() ?? '');
+        if (parsedIndex != null && checked is bool) {
+          widget.onCheckboxToggle?.call(parsedIndex, checked);
+        }
+      }
+      return;
+    }
+
+    if (type == 'on_render_complete') {
+      if (!_didFinishFirstRender) {
+        _didFinishFirstRender = true;
+      }
+      widget.onLoadFinished?.call();
     }
   }
 
   @override
   void didUpdateWidget(covariant MilkdownWebViewEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialMarkdown != widget.initialMarkdown) {
-      _sendInitDoc();
+    final markdownChanged = oldWidget.initialMarkdown != widget.initialMarkdown;
+    final baseChanged = oldWidget.baseDirectory != widget.baseDirectory;
+    final readOnlyChanged = oldWidget.readOnly != widget.readOnly;
+    if (markdownChanged || baseChanged || readOnlyChanged) {
+      if (_suppressNextReload && markdownChanged) {
+        _suppressNextReload = false;
+      } else if (_lastSyncedMarkdown != widget.initialMarkdown || baseChanged || readOnlyChanged) {
+        _sendInitDoc();
+      }
     }
     if (oldWidget.bodyFont != widget.bodyFont ||
         oldWidget.monoFont != widget.monoFont ||
@@ -306,31 +454,30 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   @override
   void dispose() {
     widget.controller?._detach(this);
+    final server = _localhostServer;
+    _localhostServer = null;
+    if (server != null) {
+      server.close();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_htmlData == null) {
+    if (_initialUrl == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_htmlData!.isEmpty) {
-      return const Center(child: Text('Failed to load Milkdown assets'));
+    if (_initialUrl!.isEmpty) {
+      return const Center(child: Text('Failed to start Milkdown localhost server'));
     }
 
     return InAppWebView(
-      initialData: InAppWebViewInitialData(
-        data: utf8.decode(_htmlData!),
-        mimeType: 'text/html',
-        encoding: 'utf-8',
-      ),
+      initialUrlRequest: URLRequest(url: WebUri(_initialUrl!)),
       initialSettings: InAppWebViewSettings(
         transparentBackground: true,
-        allowFileAccessFromFileURLs: false,
-        allowUniversalAccessFromFileURLs: false,
-        // Needed for local file:// image rendering when src points to app-private
-        // directory URLs; cross-file-origin access remains disabled above.
+        allowFileAccessFromFileURLs: true,
+        allowUniversalAccessFromFileURLs: true,
         allowFileAccess: true,
         javaScriptEnabled: true,
         disableContextMenu: true,
@@ -341,6 +488,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onWebViewCreated: (controller) {
         _controller = controller;
         widget.controller?._attach(this);
+        widget.controller?._attachWebViewController(controller);
         controller.addJavaScriptHandler(
           handlerName: 'bridge',
           callback: (args) async {
@@ -351,9 +499,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       },
       onLoadStop: (controller, _) async {
         await _sendInitDoc();
-        if (_imageBaseUrl != null) {
-          await _sendExecCmd('set_image_base', args: {'baseUrl': _imageBaseUrl});
-        }
         await _sendTheme();
       },
     );
