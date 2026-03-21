@@ -8,10 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../utils/app_style.dart';
 import '../widgets/markdown_toolbar.dart';
-import '../widgets/milkdown_webview_editor.dart';
+import '../widgets/webview_markdown_preview.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import 'editor/components/editor_header.dart';
@@ -88,7 +89,7 @@ class _EditorScreenState extends State<EditorScreen>
   late Animation<double> _highlightAnimation;
 
   // WebView controller for heading navigation in the rendered preview page
-  final _previewWebViewController = MilkdownWebViewController();
+  final _previewWebViewController = MarkdownWebViewController();
 
   // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
@@ -706,15 +707,6 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  void _handleMilkdownContentChange(String markdown) {
-    if (markdown == _textController.text) return;
-    _textController.removeListener(_onTextChanged);
-    _textController.text = markdown;
-    _textController.addListener(_onTextChanged);
-    _onTextChanged();
-    _updateToc();
-  }
-
   /// Handle link tap in preview
   ///
   /// Opens external URLs in browser, navigates to local markdown files
@@ -1170,28 +1162,47 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  /// Return the background and foreground colors for the active theme scheme.
+  ({Color bg, Color fg}) _themeSchemeColors(SettingsProvider settings) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (isDark) {
+      final schemes = AppConstants.darkThemeSchemes;
+      final idx = settings.darkThemeIndex.clamp(0, schemes.length - 1);
+      final s = schemes[idx];
+      return (bg: s.background, fg: s.text);
+    } else {
+      final schemes = AppConstants.lightThemeSchemes;
+      final idx = settings.lightThemeIndex.clamp(0, schemes.length - 1);
+      final s = schemes[idx];
+      return (bg: s.background, fg: s.text);
+    }
+  }
+
   /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
-    return MilkdownWebViewEditor(
-      initialMarkdown: _textController.text,
-      readOnly: false,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = _themeSchemeColors(settings);
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return WebViewMarkdownPreview(
+      data: _textController.text,
+      isDark: isDark,
       fontSize: settings.fontSize,
-      bodyFont: settings.editorFontFamily == 'System'
+      fontFamily: settings.editorFontFamily == 'System'
           ? null
           : settings.editorFontFamily,
-      monoFont: settings.codeFontFamily == 'System'
+      bgColor: colors.bg,
+      fgColor: colors.fg,
+      codeFont: settings.codeFontFamily == 'System'
           ? null
           : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
-      onContentChange: _handleMilkdownContentChange,
-      onLinkClick: (payload) => _handleLinkTap(
-        payload.text ?? '',
-        payload.href,
-        payload.title ?? '',
-      ),
-      onCheckboxToggle: _toggleCheckbox,
+      onTapLink: _handleLinkTap,
+      onCheckboxChanged: _toggleCheckbox,
+      onGetMarkdown: _handleGetMarkdown,
+      onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
+      bottomPadding: safeBottom,
     );
   }
 
