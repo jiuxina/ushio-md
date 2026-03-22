@@ -14,7 +14,7 @@ typedef MilkdownCheckboxToggleHandler = void Function(int index, bool value);
 const _defaultBodyFont = 'Noto Sans SC';
 const _defaultMonoFont = 'JetBrains Mono';
 const _defaultFontSize = 16.0;
-const _defaultLineHeight = 1.7;
+const _defaultLineHeight = 1.6;
 
 Future<void> warmUpMilkdownWebAssets() async {}
 
