@@ -133,7 +133,7 @@
 - [x] 为 Dart bridge 模型与消息分发补充单元测试。
 - [x] 为核心回调链路补充 Widget/集成测试（至少覆盖 onContentChange/onLinkClick/onCheckboxToggle）。
 - [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）。
-- [ ] 固化性能基线（首屏时间、长文档输入响应、滚动流畅度）。
+- [x] 固化性能基线采样方法（指标、记录格式、阈值与判定规则）。
 
 **验收标准**
 - 迁移核心路径具备可重复执行的自动化验证。
@@ -197,6 +197,7 @@
 但从“迁移验收闭环”角度看，**仍未完全收官**，因为 Phase D 尚有两项质量基线未完成：
 
 - [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）
-- [ ] 固化性能基线（首屏时间、长文档输入响应、滚动流畅度）
+- [ ] 固化性能基线（Step 2 规范已完成，待 Step 3 真机实测数据回填）
 
-因此，下一步进入“收官验证计划”（见 `docs/milkdown-finalization-plan.md`）。
+因此，下一步进入“收官验证计划”（见 `docs/milkdown-finalization-plan.md`）。  
+其中 Step 2 已落地为 `docs/milkdown-performance-baseline.md`，下一步为 Step 3 真机首轮实测回填。
