@@ -105,6 +105,16 @@
 >
 > ✅ 当前迁移状态：**渲染编辑页与全屏预览页已切换到 Milkdown WebView 渲染链路**。当前产品形态只有“渲染编辑页 + 纯编辑页”两类界面，不包含分屏模式；详见 [`docs/milkdown-migration-status.md`](docs/milkdown-migration-status.md)。
 
+## 🧭 开发约束（Milkdown 单内核）
+
+- 生产渲染链路只允许使用 `MilkdownWebViewEditor`，不允许新增或恢复旧 WebView 预览双实现。
+- 涉及 Markdown 渲染/编辑的新功能默认在 Milkdown 链路落地，除非明确是 Flutter 纯编辑页能力。
+- 任何 Bridge 协议变更需同步更新：
+  - Flutter 端协议模型/分发逻辑
+  - Web 端 bridge 路由
+  - 对应自动化测试（至少覆盖核心回调链路）
+- 升级 Milkdown 依赖前，先检查上游 release 与 breaking changes；执行方式见 `docs/milkdown-migration-status.md` 的“上游跟踪策略”。
+
 ## 📦 安装
 
 1. 前往 [Releases](https://github.com/jiuxina/ushio-md/releases) 下载最新 APK
