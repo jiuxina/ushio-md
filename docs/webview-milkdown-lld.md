@@ -24,6 +24,7 @@
   "dependencies": {
     "@milkdown/core": "7.5.0",
     "@milkdown/ctx": "7.5.0",
+    "@milkdown/preset-commonmark": "7.5.0",
     "@milkdown/preset-gfm": "7.5.0",
     "@milkdown/plugin-math": "7.5.0",
     "@milkdown/plugin-listener": "7.5.0",
@@ -76,6 +77,7 @@ export default defineConfig({
 ```ts
 import { Editor, rootCtx, defaultValueCtx } from '@milkdown/core';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
+import { commonmark } from '@milkdown/preset-commonmark';
 import { gfm } from '@milkdown/preset-gfm';
 import { math } from '@milkdown/plugin-math';
 import { prism } from '@milkdown/plugin-prism';
@@ -120,6 +122,7 @@ const debouncedChange = debounce((markdown: string) => {
 }, 500);
 
 const editor = Editor.make()
+  .config(nord)
   .config((ctx) => {
     ctx.set(rootCtx, document.querySelector('#app') as HTMLElement);
     ctx.set(defaultValueCtx, '');
@@ -128,7 +131,7 @@ const editor = Editor.make()
       debouncedChange(markdown);
     });
   })
-  .use(nord)
+  .use(commonmark)
   .use(gfm)
   .use(math)
   .use(prism)

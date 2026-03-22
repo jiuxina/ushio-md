@@ -9,8 +9,8 @@ import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../widgets/app_background.dart';
+import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/themed_feedback.dart';
-import '../widgets/webview_markdown_preview.dart';
 import 'main/tabs/home_tab.dart';
 import 'main/tabs/my_files_tab.dart';
 import 'main/tabs/history_tab.dart';
@@ -93,7 +93,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     await fileProvider.initialize();
     await settingsProvider.initialize();
     await _runFirstLaunchWarmupIfNeeded();
-    unawaited(warmUpMarkdownPreviewAssets());
+    unawaited(warmUpMilkdownWebAssets());
     if (mounted) setState(() {});
 
     // 延迟2秒后检查更新（避免阻塞启动流程）
@@ -118,7 +118,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
 
     try {
-      await warmUpMarkdownPreviewAssets();
+      await warmUpMilkdownWebAssets();
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await prefs.setBool(warmupKey, true);
     } finally {

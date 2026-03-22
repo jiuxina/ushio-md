@@ -38,17 +38,23 @@ class InitDocPayload {
   final String markdown;
   final String? docId;
   final Map<String, int>? cursor;
+  final String? baseDirectory;
+  final bool? readOnly;
 
   const InitDocPayload({
     required this.markdown,
     this.docId,
     this.cursor,
+    this.baseDirectory,
+    this.readOnly,
   });
 
   Map<String, dynamic> toJson() => {
         'markdown': markdown,
         if (docId != null) 'docId': docId,
         if (cursor != null) 'cursor': cursor,
+        if (baseDirectory != null) 'baseDirectory': baseDirectory,
+        if (readOnly != null) 'readOnly': readOnly,
       };
 }
 

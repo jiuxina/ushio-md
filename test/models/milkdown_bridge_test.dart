@@ -8,12 +8,16 @@ void main() {
         markdown: '# title',
         docId: 'doc-1',
         cursor: {'from': 1, 'to': 2},
+        baseDirectory: '/tmp/demo',
+        readOnly: true,
       );
 
       expect(payload.toJson(), {
         'markdown': '# title',
         'docId': 'doc-1',
         'cursor': {'from': 1, 'to': 2},
+        'baseDirectory': '/tmp/demo',
+        'readOnly': true,
       });
     });
 
