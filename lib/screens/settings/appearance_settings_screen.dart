@@ -742,6 +742,25 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          // 背景透明度
+          Row(
+            children: [
+              const Text('背景透明度'),
+              Expanded(
+                child: Slider(
+                  value: settings.backgroundOverlayOpacity,
+                  min: 0,
+                  max: 1,
+                  divisions: 100,
+                  label: '${(settings.backgroundOverlayOpacity * 100).round()}%',
+                  onChanged: (value) =>
+                      settings.setBackgroundOverlayOpacity(value),
+                ),
+              ),
+              Text('${(settings.backgroundOverlayOpacity * 100).round()}%'),
+            ],
+          ),
+          const SizedBox(height: 8),
           // 背景效果选择
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

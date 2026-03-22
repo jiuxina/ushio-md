@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -1214,6 +1215,10 @@ class _EditorScreenState extends State<EditorScreen>
       onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
       bottomPadding: safeBottom,
+      backgroundImagePath: settings.backgroundImagePath,
+      backgroundImageOpacity: settings.backgroundOverlayOpacity,
+      backgroundImageBlurEnabled: settings.backgroundEffect == 'blur',
+      backgroundImageBlurSigma: settings.backgroundBlur,
     );
   }
 
@@ -1589,21 +1594,17 @@ class _EditorScreenState extends State<EditorScreen>
       case EditorMode.edit:
         // Top rounded corners at AppBar junction; clip ensures rounded corners
         // are visible on the WebView (platform view).
-        return ClipRRect(
+        return _buildEditorSurface(
+          settings,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: _buildEditPanel(settings, toolbarPadding: 56),
-          ),
+          child: _buildEditPanel(settings, toolbarPadding: 56),
         );
       case EditorMode.preview:
         // Top rounded corners at AppBar junction.
-        return ClipRRect(
+        return _buildEditorSurface(
+          settings,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: _buildInlineEditablePreview(settings),
-          ),
+          child: _buildInlineEditablePreview(settings),
         );
       case EditorMode.split:
         return Padding(
@@ -1621,7 +1622,8 @@ class _EditorScreenState extends State<EditorScreen>
                       ).dividerColor.withValues(alpha: 0.5),
                     ),
                   ),
-                  child: ClipRRect(
+                  child: _buildEditorSurface(
+                    settings,
                     borderRadius: BorderRadius.circular(16),
                     child: _buildEditPanel(settings),
                   ),
@@ -1639,7 +1641,8 @@ class _EditorScreenState extends State<EditorScreen>
                       ).dividerColor.withValues(alpha: 0.5),
                     ),
                   ),
-                  child: ClipRRect(
+                  child: _buildEditorSurface(
+                    settings,
                     borderRadius: BorderRadius.circular(16),
                     child: _buildPreviewPanel(settings),
                   ),
@@ -1801,6 +1804,65 @@ class _EditorScreenState extends State<EditorScreen>
       onGetMarkdown: _handleGetMarkdown,
       onInPlaceEdit: _applyInPlaceEdit,
       controller: _previewWebViewController,
+      backgroundImagePath: settings.backgroundImagePath,
+      backgroundImageOpacity: settings.backgroundOverlayOpacity,
+      backgroundImageBlurEnabled: settings.backgroundEffect == 'blur',
+      backgroundImageBlurSigma: settings.backgroundBlur,
+    );
+  }
+
+  Widget _buildEditorSurface(
+    SettingsProvider settings, {
+    required BorderRadius borderRadius,
+    required Widget child,
+  }) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+          ),
+          Positioned.fill(
+            child: _buildEditorBackgroundLayer(settings),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditorBackgroundLayer(SettingsProvider settings) {
+    final path = settings.backgroundImagePath;
+    if (path == null || path.isEmpty) return const SizedBox.shrink();
+
+    final bgFile = File(path);
+    if (!bgFile.existsSync()) return const SizedBox.shrink();
+
+    final blurSigma = settings.backgroundEffect == 'blur'
+        ? settings.backgroundBlur
+        : 0.0;
+
+    Widget layer = Image.file(
+      bgFile,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+
+    if (blurSigma > 0) {
+      layer = ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+        child: layer,
+      );
+    }
+
+    return IgnorePointer(
+      child: Opacity(
+        opacity: settings.backgroundOverlayOpacity.clamp(0.0, 1.0),
+        child: layer,
+      ),
     );
   }
 

@@ -86,5 +86,13 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('sync_folder_name'), 'MyFolder');
     });
+
+    test('setBackgroundOverlayOpacity 应更新内存和持久化存储', () async {
+      await provider.setBackgroundOverlayOpacity(0.37);
+      expect(provider.backgroundOverlayOpacity, 0.37);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getDouble('background_overlay_opacity'), 0.37);
+    });
   });
 }

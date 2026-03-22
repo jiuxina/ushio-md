@@ -44,4 +44,23 @@ After'''),
       );
     });
   });
+
+  group('webview preview background CSS vars', () {
+    test('supports background config fields from settings sync', () {
+      final widget = WebViewMarkdownPreview(
+        data: '# Title',
+        isDark: false,
+        fontSize: 16,
+        backgroundImagePath: '/tmp/bg.png',
+        backgroundImageOpacity: 0.42,
+        backgroundImageBlurEnabled: true,
+        backgroundImageBlurSigma: 12.0,
+        onCheckboxChanged: (_, __) {},
+      );
+      expect(widget.backgroundImagePath, '/tmp/bg.png');
+      expect(widget.backgroundImageOpacity, 0.42);
+      expect(widget.backgroundImageBlurEnabled, isTrue);
+      expect(widget.backgroundImageBlurSigma, 12.0);
+    });
+  });
 }

@@ -260,6 +260,14 @@ class WebViewMarkdownPreview extends StatefulWidget {
   /// Extra bottom padding (pixels) added to the HTML body to prevent content
   /// being obscured by a floating toolbar or the system navigation bar.
   final double bottomPadding;
+  /// Background image file path used by the preview background layer.
+  final String? backgroundImagePath;
+  /// Background layer opacity in [0, 1].
+  final double backgroundImageOpacity;
+  /// Whether blur effect is enabled on background layer.
+  final bool backgroundImageBlurEnabled;
+  /// Background blur sigma.
+  final double backgroundImageBlurSigma;
 
   const WebViewMarkdownPreview({
     super.key,
@@ -279,6 +287,10 @@ class WebViewMarkdownPreview extends StatefulWidget {
     this.controller,
     this.hidePageScrollbar = false,
     this.bottomPadding = 0,
+    this.backgroundImagePath,
+    this.backgroundImageOpacity = 0.5,
+    this.backgroundImageBlurEnabled = false,
+    this.backgroundImageBlurSigma = 10.0,
   });
 
   @override
@@ -331,7 +343,12 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
         oldWidget.fontFamily != widget.fontFamily ||
         oldWidget.bgColor != widget.bgColor ||
         oldWidget.fgColor != widget.fgColor ||
-        oldWidget.codeFont != widget.codeFont) {
+        oldWidget.codeFont != widget.codeFont ||
+        oldWidget.backgroundImagePath != widget.backgroundImagePath ||
+        oldWidget.backgroundImageOpacity != widget.backgroundImageOpacity ||
+        oldWidget.backgroundImageBlurEnabled !=
+            widget.backgroundImageBlurEnabled ||
+        oldWidget.backgroundImageBlurSigma != widget.backgroundImageBlurSigma) {
       if (_suppressNextReload) {
         _suppressNextReload = false;
         _debounceTimer?.cancel(); // prevent any pending reload from firing
@@ -540,6 +557,14 @@ class _WebViewMarkdownPreviewState extends State<WebViewMarkdownPreview> {
   onload="renderMathInElement(document.body,{delimiters:[{left:'\$\$',right:'\$\$',display:true},{left:'\$',right:'\$',display:false},{left:'\\\\(',right:'\\\\)',display:false},{left:'\\\\[',right:'\\\\]',display:true}],throwOnError:false});"></script>'''
         : '';
 
+    final bgOpacity = widget.backgroundImageOpacity.clamp(0.0, 1.0);
+    final bgBlur = widget.backgroundImageBlurEnabled
+        ? widget.backgroundImageBlurSigma
+        : 0.0;
+    final bgImageVarScript = _buildBackgroundImageVarScript(
+      widget.backgroundImagePath,
+    );
+
     return '''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -549,6 +574,9 @@ $mathAssets
 <style>
 $fontFaces
 *{box-sizing:border-box}
+html,body{height:100%}
+body{position:relative}
+body::before{content:'';position:fixed;inset:0;background-image:var(--ushio-md-preview-bg-image, none);background-size:cover;background-position:center;background-repeat:no-repeat;opacity:var(--ushio-md-preview-bg-opacity,0);filter:blur(var(--ushio-md-preview-bg-blur,0px));z-index:-1;pointer-events:none}
 body{background:$bg;color:$fg;font-family:$bodyFont;font-size:${fs}px;line-height:1.6;padding:16px 16px ${(16 + widget.bottomPadding).toInt()}px 16px;margin:0;word-wrap:break-word;overflow-wrap:break-word;touch-action:manipulation}
 h1,h2,h3,h4,h5,h6{color:$hColor;font-weight:bold;line-height:1.4;margin:1em 0 0.5em;border-radius:4px}
 h1{font-size:${fs * 2}px;border-bottom:2px solid $hrColor;padding-bottom:0.3em}
@@ -601,6 +629,10 @@ pre[data-language]::before{content:attr(data-language);position:absolute;top:6px
 $body
 <script>
 (function(){
+  document.body.style.setProperty('--ushio-md-preview-bg-opacity', '${bgOpacity.toStringAsFixed(3)}');
+  document.body.style.setProperty('--ushio-md-preview-bg-blur', '${bgBlur.toStringAsFixed(1)}px');
+  $bgImageVarScript
+
   // ── Embedded raw markdown (JSON-encoded by Dart) ──────────────────────
   var __rawMd = $rawMdJson;
 
@@ -939,12 +971,21 @@ $body
 </html>''';
   }
 
+  String _buildBackgroundImageVarScript(String? path) {
+    if (path == null || path.isEmpty) {
+      return "document.body.style.setProperty('--ushio-md-preview-bg-image', 'none');";
+    }
+    final uri = Uri.file(path).toString();
+    final encoded = jsonEncode(uri);
+    return "document.body.style.setProperty('--ushio-md-preview-bg-image', 'url(' + $encoded + ')');";
+  }
+
   @override
   Widget build(BuildContext context) {
     final html = _buildHtml();
     final baseUrl = _makeBaseUrl();
 
-    return InAppWebView(
+    final webView = InAppWebView(
       initialData: InAppWebViewInitialData(
         data: html,
         mimeType: 'text/html',
@@ -1038,6 +1079,49 @@ $body
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         return NavigationActionPolicy.CANCEL;
       },
+    );
+
+    return _buildWithBackgroundLayer(child: webView);
+  }
+
+  Widget _buildWithBackgroundLayer({required Widget child}) {
+    final path = widget.backgroundImagePath;
+    if (path == null || path.isEmpty) return child;
+
+    final bgFile = File(path);
+    if (!bgFile.existsSync()) return child;
+
+    final blurSigma = widget.backgroundImageBlurEnabled
+        ? widget.backgroundImageBlurSigma
+        : 0.0;
+
+    Widget layer = Image.file(
+      bgFile,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+
+    if (blurSigma > 0) {
+      layer = ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+        child: layer,
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: widget.backgroundImageOpacity.clamp(0.0, 1.0),
+              child: layer,
+            ),
+          ),
+        ),
+        child,
+      ],
     );
   }
 }
