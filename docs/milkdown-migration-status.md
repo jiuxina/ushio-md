@@ -104,15 +104,15 @@
 
 #### Phase B：补齐命令系统与编辑能力（核心功能）
 
-- [ ] 在 Web 侧实现 `exec_cmd` 全命令路由：
-  - [ ] `undo`
-  - [ ] `redo`
-  - [ ] `toggle_bold`
-  - [ ] `toggle_italic`
-  - [ ] `insert_table`
-  - [ ] `insert_image`
-- [ ] 对 `insert_image` 完成路径策略统一（相对路径、file 路径、baseDirectory 解析）。
-- [ ] 明确失败回执（命令不支持/执行失败时的 bridge 反馈）。
+- [x] 在 Web 侧实现 `exec_cmd` 全命令路由：
+  - [x] `undo`
+  - [x] `redo`
+  - [x] `toggle_bold`
+  - [x] `toggle_italic`
+  - [x] `insert_table`
+  - [x] `insert_image`
+- [x] 对 `insert_image` 完成路径策略统一（相对路径、file 路径、baseDirectory 解析）。
+- [x] 明确失败回执（命令不支持/执行失败时的 bridge 反馈）。
 
 **验收标准**
 - Flutter 工具栏触发上述命令时，Milkdown 编辑区行为与现有用户预期一致。

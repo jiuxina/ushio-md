@@ -417,6 +417,19 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       return;
     }
 
+    if (type == 'on_cmd_result') {
+      final payload = map['payload'];
+      if (payload is Map) {
+        final cmd = payload['cmd']?.toString() ?? '';
+        final ok = payload['ok'] == true;
+        final reason = payload['reason']?.toString();
+        if (!ok) {
+          debugPrint('Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}');
+        }
+      }
+      return;
+    }
+
     if (type == 'on_render_complete') {
       if (!_didFinishFirstRender) {
         _didFinishFirstRender = true;
