@@ -75,6 +75,7 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen>
     with TickerProviderStateMixin {
+  static const double _editorToolbarPadding = 56;
   bool _isAutoCompleting = false;
   static const int _maxEditHistory = 100;
   final List<_EditHistoryEntry> _editHistory = <_EditHistoryEntry>[];
@@ -1597,7 +1598,10 @@ class _EditorScreenState extends State<EditorScreen>
         return _buildEditorSurface(
           settings,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: _buildEditPanel(settings, toolbarPadding: 56),
+          child: _buildEditPanel(
+            settings,
+            toolbarPadding: _editorToolbarPadding,
+          ),
         );
       case EditorMode.preview:
         // Top rounded corners at AppBar junction.
