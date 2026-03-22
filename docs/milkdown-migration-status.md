@@ -130,8 +130,8 @@
 
 #### Phase D：测试与观测补齐（质量兜底）
 
-- [ ] 为 Dart bridge 模型与消息分发补充单元测试。
-- [ ] 为核心回调链路补充 Widget/集成测试（至少覆盖 onContentChange/onLinkClick/onCheckboxToggle）。
+- [x] 为 Dart bridge 模型与消息分发补充单元测试。
+- [x] 为核心回调链路补充 Widget/集成测试（至少覆盖 onContentChange/onLinkClick/onCheckboxToggle）。
 - [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）。
 - [ ] 固化性能基线（首屏时间、长文档输入响应、滚动流畅度）。
 
