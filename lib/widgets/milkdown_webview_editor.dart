@@ -360,82 +360,28 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     }
     final map = Map<String, dynamic>.from(args.first as Map);
     widget.onBridgeMessage?.call(map);
-
-    final type = map['type'] as String?;
-    if (type == 'on_content_change') {
-      final payload = map['payload'];
-      if (payload is Map) {
-        final markdown = payload['markdown'];
-        if (markdown is String) {
-          _lastSyncedMarkdown = markdown;
-          widget.onContentChange?.call(markdown);
-        }
-      }
-      return;
-    }
-
-    if (type == 'on_outline_update') {
-      final payload = map['payload'];
-      if (payload is Map) {
-        widget.onOutlineUpdate?.call(
-          OnOutlineUpdatePayload.fromJson(Map<String, dynamic>.from(payload)),
-        );
-      }
-      return;
-    }
-
-    if (type == 'on_link_click') {
-      final payload = map['payload'];
-      if (payload is Map) {
-        widget.onLinkClick?.call(
-          OnLinkClickPayload.fromJson(Map<String, dynamic>.from(payload)),
-        );
-      }
-      return;
-    }
-
-    if (type == 'on_image_error') {
-      final payload = map['payload'];
-      if (payload is Map) {
-        widget.onImageError?.call(
-          OnImageErrorPayload.fromJson(Map<String, dynamic>.from(payload)),
-        );
-      }
-      return;
-    }
-
-    if (type == 'on_checkbox_toggle') {
-      final payload = map['payload'];
-      if (payload is Map) {
-        final index = payload['index'];
-        final checked = payload['checked'];
-        final parsedIndex = index is int ? index : int.tryParse(index?.toString() ?? '');
-        if (parsedIndex != null && checked is bool) {
-          widget.onCheckboxToggle?.call(parsedIndex, checked);
-        }
-      }
-      return;
-    }
-
-    if (type == 'on_cmd_result') {
-      final payload = map['payload'];
-      if (payload is Map) {
-        final cmd = payload['cmd']?.toString() ?? '';
-        final ok = payload['ok'] == true;
-        final reason = payload['reason']?.toString();
+    dispatchMilkdownBridgeMessage(
+      map,
+      onContentChange: (markdown) {
+        _lastSyncedMarkdown = markdown;
+        widget.onContentChange?.call(markdown);
+      },
+      onOutlineUpdate: widget.onOutlineUpdate,
+      onLinkClick: widget.onLinkClick,
+      onImageError: widget.onImageError,
+      onCheckboxToggle: widget.onCheckboxToggle,
+      onCmdResult: (cmd, ok, reason) {
         if (!ok) {
           debugPrint('Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}');
         }
-      }
-      return;
-    }
-
-    if (type == 'on_render_complete') {
-      if (!_didFinishFirstRender) {
-        _didFinishFirstRender = true;
-      }
-      widget.onLoadFinished?.call();
-    }
+      },
+      onRenderComplete: () {
+        if (!_didFinishFirstRender) {
+          _didFinishFirstRender = true;
+        }
+        widget.onLoadFinished?.call();
+      },
+    );
   }
 
   @override
