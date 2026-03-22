@@ -87,7 +87,7 @@ class SettingsProvider extends ChangeNotifier {
   /// 模糊效果强度（0-30）
   double _backgroundBlur = 10.0;
 
-  /// 遮罩透明度（0-1，保留但当前 UI 未使用）
+  /// 背景层透明度（0-1）
   double _backgroundOverlayOpacity = 0.5;
 
   // ==================== 粒子效果设置 ====================
