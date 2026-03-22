@@ -141,13 +141,34 @@
 
 #### Phase E：旧链路收口与长期维护（最终阶段）
 
-- [ ] 删除/归档旧 WebView 预览实现文档与残余资产（仅在确认无运行时引用后）。
-- [ ] 将“Milkdown 为唯一渲染内核”写入 README 与开发约束。
-- [ ] 建立上游跟踪策略（参考 `https://github.com/Milkdown/milkdown` 的版本更新与 breaking changes）。
+- [x] 删除/归档旧 WebView 预览实现文档与残余资产（仅在确认无运行时引用后）。
+- [x] 将“Milkdown 为唯一渲染内核”写入 README 与开发约束。
+- [x] 建立上游跟踪策略（参考 `https://github.com/Milkdown/milkdown` 的版本更新与 breaking changes）。
 
 **验收标准**
 - 仓库内不再存在可被生产路径启用的旧预览内核接线。
 - 新功能默认在 Milkdown 链路实现，不再双实现。
+
+### 5.4 上游跟踪策略（Milkdown）
+
+为避免后续升级引入隐性回归，统一采用以下节奏：
+
+1. **版本监控**
+   - 每次准备发版前检查 `https://github.com/Milkdown/milkdown/releases`。
+   - 若出现 minor/major 升级，必须阅读 release note 中的 breaking changes。
+
+2. **升级流程**
+   - 先在 `web/milkdown/` 升级依赖并本地构建 `dist/index.html`；
+   - 同步替换 `assets/milkdown_web/index.html`；
+   - 保持 bridge 协议字段兼容（`init_doc/update_theme/exec_cmd` 及核心回调）。
+
+3. **回归基线**
+   - 至少覆盖：内容回写、链接点击、任务列表勾选、工具栏命令（undo/redo/bold/italic/table/image）。
+   - 若命令路由或 payload 结构变化，必须先补测试再改实现。
+
+4. **风险控制**
+   - 发现不兼容时优先回滚到上一可用版本，避免在主干带病升级。
+   - 禁止引入“Milkdown + 旧 WebView 预览”双实现作为临时方案。
 
 ### 5.3 每一步迁移的执行模板（建议）
 
