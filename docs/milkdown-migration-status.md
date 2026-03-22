@@ -77,8 +77,8 @@
 当前代码已完成页面接入迁移，但仍有关键收尾项：
 
 1. **Web 运行时资源尚未完全本地化**
-   - `assets/milkdown_web/main.js` 当前仍通过 `https://esm.sh/...` 远端导入 Milkdown 包。
-   - 这会带来离线不可用、首屏受网络影响、第三方源变更风险。
+   - ✅ 已完成：运行时已切换为 `assets/milkdown_web/index.html` 单文件产物（本地构建内联 JS/CSS）。
+   - ✅ 已完成：移除 `assets/milkdown_web/main.js` / `style.css` 运行时依赖，不再通过 `esm.sh` 远端导入。
 
 2. **`exec_cmd` 命令集已建桥，但 Web 侧只实装了 `focus_editor`**
    - Flutter 侧已下发 `undo/redo/toggle_bold/toggle_italic/insert_table/insert_image`。
@@ -93,10 +93,10 @@
 
 #### Phase A：构建与运行时收敛（先做）
 
-- [ ] 将 `web/milkdown/` 作为唯一源码入口，固定依赖版本并锁定 lockfile。
-- [ ] 用 Vite 构建本地产物（`index.html/main.js/style.css`）覆盖 `assets/milkdown_web/`。
-- [ ] 去除 `assets/milkdown_web/main.js` 中对 `esm.sh` 的远端依赖，确保完全离线可运行。
-- [ ] 在文档补充“源码 -> 构建 -> 产物同步”命令与发布前检查项。
+- [x] 将 `web/milkdown/` 作为唯一源码入口，固定依赖版本并锁定 lockfile。
+- [x] 用 Vite 构建本地产物（单文件 `dist/index.html`）覆盖 `assets/milkdown_web/`。
+- [x] 去除运行时对 `esm.sh` 的远端依赖，确保完全离线可运行。
+- [x] 在文档补充“源码 -> 构建 -> 产物同步”命令与发布前检查项。
 
 **验收标准**
 - 飞行模式/断网环境下，渲染编辑页与全屏预览页可正常打开、编辑、渲染。

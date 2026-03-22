@@ -3,14 +3,17 @@ import {
   defaultValueCtx,
   editorViewOptionsCtx,
   rootCtx,
-} from 'https://esm.sh/@milkdown/core@7.5.0';
-import { listener, listenerCtx } from 'https://esm.sh/@milkdown/plugin-listener@7.5.0';
-import { math } from 'https://esm.sh/@milkdown/plugin-math@7.5.0';
-import { commonmark } from 'https://esm.sh/@milkdown/preset-commonmark@7.5.0';
-import { prism } from 'https://esm.sh/@milkdown/plugin-prism@7.5.0';
-import { gfm } from 'https://esm.sh/@milkdown/preset-gfm@7.5.0';
-import { nord } from 'https://esm.sh/@milkdown/theme-nord@7.5.0';
-import { replaceAll } from 'https://esm.sh/@milkdown/utils@7.5.0';
+} from '@milkdown/core';
+import { listener, listenerCtx } from '@milkdown/plugin-listener';
+import { math } from '@milkdown/plugin-math';
+import { commonmark } from '@milkdown/preset-commonmark';
+import { prism } from '@milkdown/plugin-prism';
+import { gfm } from '@milkdown/preset-gfm';
+import { nord } from '@milkdown/theme-nord';
+import { replaceAll } from '@milkdown/utils';
+import 'katex/dist/katex.min.css';
+import 'prismjs/themes/prism.css';
+import './style.css';
 
 const app = document.getElementById('app');
 let bridgeSeq = 0;
