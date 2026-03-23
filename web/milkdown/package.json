@@ -11,8 +11,11 @@
   "dependencies": {
     "@milkdown/core": "7.19.1",
     "@milkdown/plugin-listener": "7.19.1",
+    "@milkdown/plugin-history": "7.19.1",
     "@milkdown/plugin-math": "7.5.9",
     "@milkdown/plugin-prism": "7.19.1",
+    "@milkdown/plugin-slash": "7.19.1",
+    "@milkdown/plugin-tooltip": "7.19.1",
     "@milkdown/preset-commonmark": "7.19.1",
     "@milkdown/preset-gfm": "7.19.1",
     "@milkdown/theme-nord": "7.19.1",
