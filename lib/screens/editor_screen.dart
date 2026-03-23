@@ -1397,6 +1397,16 @@ class _EditorScreenState extends State<EditorScreen>
       height: double.infinity,
     );
 
+    imageLayer = ColorFiltered(
+      colorFilter: ColorFilter.matrix([
+        settings.editorBackgroundBrightness, 0, 0, 0, 0,
+        0, settings.editorBackgroundBrightness, 0, 0, 0,
+        0, 0, settings.editorBackgroundBrightness, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+      child: imageLayer,
+    );
+
     if (settings.editorBackgroundBlurEnabled) {
       imageLayer = ImageFiltered(
         imageFilter: ImageFilter.blur(

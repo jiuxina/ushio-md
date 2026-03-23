@@ -97,5 +97,17 @@ void main() {
       expect(prefs.getBool('editor_background_blur_enabled'), isTrue);
       expect(prefs.getDouble('editor_background_blur'), 18.0);
     });
+
+    test('背景亮度设置应更新并持久化', () async {
+      await provider.setBackgroundBrightness(1.25);
+      await provider.setEditorBackgroundBrightness(0.8);
+
+      expect(provider.backgroundBrightness, 1.25);
+      expect(provider.editorBackgroundBrightness, 0.8);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getDouble('background_brightness'), 1.25);
+      expect(prefs.getDouble('editor_background_brightness'), 0.8);
+    });
   });
 }
