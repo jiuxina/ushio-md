@@ -80,6 +80,7 @@ let codeLanguagePopupAnchor = null;
 let codeLanguagePopupBlock = null;
 let codeLanguagePopupCandidates = [];
 const highlightParser = createRefractorParser(refractor);
+const TRANSPARENT_IMAGE_DATA_URL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
   .filter((name) => typeof name === 'string' && /^[a-z0-9_+-]+$/i.test(name))
   .sort((a, b) => a.localeCompare(b));
@@ -639,7 +640,10 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
   const trigger = codeBlock?.querySelector('.ushio-custom-language-trigger');
   if (!(trigger instanceof HTMLButtonElement)) return;
   const normalized = typeof language === 'string' ? language.trim() : '';
-  trigger.querySelector('.ushio-language-text')?.replaceChildren(document.createTextNode(normalized || 'plain'));
+  const textNode = trigger.querySelector('.ushio-language-text');
+  if (textNode instanceof HTMLElement) {
+    textNode.textContent = normalized || 'plain';
+  }
 };
 
 const hideCodeLanguagePopup = () => {
@@ -749,12 +753,20 @@ const syncRenderedDom = () => {
   root.querySelectorAll('img').forEach((img) => {
     const rawSrc = img.getAttribute('src') || '';
     const resolvedSrc = resolveHref(rawSrc);
-    if (resolvedSrc && img.src !== resolvedSrc) {
-      img.src = resolvedSrc;
+    if (resolvedSrc && img.getAttribute('src') !== resolvedSrc) {
+      img.setAttribute('src', resolvedSrc);
+      img.classList.remove('ushio-image-load-failed');
+      img.closest('.milkdown-image-block')?.classList.remove('ushio-image-load-failed');
     }
     if (!img.dataset.ushioErrorBound) {
       img.dataset.ushioErrorBound = '1';
       img.addEventListener('error', () => {
+        img.classList.add('ushio-image-load-failed');
+        img.closest('.milkdown-image-block')?.classList.add('ushio-image-load-failed');
+        if (img.dataset.ushioFallbackApplied !== '1') {
+          img.dataset.ushioFallbackApplied = '1';
+          img.setAttribute('src', TRANSPARENT_IMAGE_DATA_URL);
+        }
         emit('on_image_error', {
           src: resolvedSrc || rawSrc,
           reason: 'load_failed',
@@ -798,9 +810,11 @@ const syncRenderedDom = () => {
 
   root.querySelectorAll('input[type="checkbox"]').forEach((checkbox, index) => {
     checkbox.dataset.checkboxIndex = String(index);
+    checkbox.setAttribute('tabindex', '-1');
   });
 
   root.querySelectorAll('.milkdown-code-block').forEach((codeBlock) => {
+    try {
     const tools = codeBlock.querySelector('.tools');
     if (!(tools instanceof HTMLElement)) return;
 
@@ -831,6 +845,33 @@ const syncRenderedDom = () => {
       copyButton = button;
     });
 
+    if (!(copyButton instanceof HTMLButtonElement)) {
+      copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'ushio-copy-icon-btn';
+      copyButton.setAttribute('title', '复制');
+      copyButton.setAttribute('aria-label', '复制');
+      copyButton.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
+      copyButton.addEventListener('mousedown', (event) => event.preventDefault());
+      copyButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const codeText = codeBlock.querySelector('.cm-content')?.textContent ?? '';
+        try {
+          await navigator.clipboard.writeText(codeText);
+        } catch (_) {
+          const textarea = document.createElement('textarea');
+          textarea.value = codeText;
+          textarea.setAttribute('readonly', 'readonly');
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.append(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          textarea.remove();
+        }
+      });
+    }
+
     if (copyButton instanceof HTMLElement) {
       let actionCapsule = tools.querySelector('.ushio-code-action-capsule');
       if (!(actionCapsule instanceof HTMLElement)) {
@@ -859,6 +900,9 @@ const syncRenderedDom = () => {
       actionCapsule.append(customLanguageButton);
       copyButton.classList.add('ushio-code-copy-action');
       updateCodeLanguageButtonLabel(codeBlock, currentLanguage);
+    }
+    } catch (error) {
+      console.warn('sync code block tools failed', error);
     }
   });
 };
@@ -1190,6 +1234,15 @@ const createEditor = async () => {
 
 app.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  const checkbox = target?.closest('input[type="checkbox"]');
+  if (checkbox instanceof HTMLInputElement) {
+    event.preventDefault();
+    if (!currentReadOnly) {
+      checkbox.checked = !checkbox.checked;
+      emitCheckboxToggle(checkbox, checkbox.checked);
+    }
+    return;
+  }
   if (target?.matches('a, a *')) {
     app.querySelector('.ProseMirror')?.blur();
   }
@@ -1241,9 +1294,7 @@ app.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   const checkbox = target?.closest('input[type="checkbox"]');
   if (!(checkbox instanceof HTMLInputElement)) return;
-  if (currentReadOnly) {
-    event.preventDefault();
-  }
+  event.preventDefault();
 });
 
 app.addEventListener('focusin', (event) => {
@@ -1269,10 +1320,7 @@ app.addEventListener('focusout', (event) => {
 app.addEventListener('change', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
-  if (currentReadOnly) {
-    return;
-  }
-  emitCheckboxToggle(target, target.checked);
+  event.preventDefault();
 });
 
 app.addEventListener('focusin', (event) => {
