@@ -268,15 +268,38 @@ const scheduleContentChange = (markdown) => {
 const emitOutlineUpdate = () => {
   const lines = currentMarkdown.split('\n');
   const outline = [];
-  lines.forEach((line, index) => {
-    const match = line.match(/^(#{1,6})\s+(.+)$/);
-    if (!match) return;
-    outline.push({
-      id: `line-${index}`,
-      level: match[1].length,
-      text: match[2].trim(),
-    });
-  });
+  let inCodeBlock = false;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (/^\s*```/.test(trimmed)) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
+    if (atxMatch) {
+      outline.push({
+        id: `line-${index}`,
+        level: atxMatch[1].length,
+        text: atxMatch[2].trim(),
+      });
+      continue;
+    }
+
+    if (trimmed && index + 1 < lines.length) {
+      const nextTrimmed = lines[index + 1].trim();
+      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
+        outline.push({
+          id: `line-${index}`,
+          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
+          text: trimmed,
+        });
+        index += 1;
+      }
+    }
+  }
   emit('on_outline_update', { outline });
 };
 
