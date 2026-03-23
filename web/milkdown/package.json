@@ -20,7 +20,6 @@
     "@milkdown/plugin-indent": "7.19.1",
     "@milkdown/plugin-listener": "7.19.1",
     "@milkdown/plugin-math": "7.5.9",
-    "@milkdown/plugin-prism": "7.19.1",
     "@milkdown/plugin-slash": "7.19.1",
     "@milkdown/plugin-tooltip": "7.19.1",
     "@milkdown/plugin-trailing": "7.19.1",
@@ -30,7 +29,8 @@
     "@milkdown/theme-nord": "7.19.1",
     "@milkdown/utils": "7.19.1",
     "katex": "0.16.25",
-    "prismjs": "1.30.0"
+    "prismjs": "1.30.0",
+    "refractor": "^5.0.0"
   },
   "devDependencies": {
     "vite": "^7.1.0",

@@ -11,7 +11,7 @@ import { automd } from '@milkdown/plugin-automd';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
 import { emoji } from '@milkdown/plugin-emoji';
-import { highlight } from '@milkdown/plugin-highlight';
+import { highlight, highlightPluginConfig } from '@milkdown/plugin-highlight';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
 import { indent } from '@milkdown/plugin-indent';
@@ -46,7 +46,8 @@ import {
   toggleStrikethroughCommand,
 } from '@milkdown/preset-gfm';
 import { deleteColumn, deleteRow, isInTable } from '@milkdown/prose/tables';
-import { prism } from '@milkdown/plugin-prism';
+import { createParser as createRefractorParser } from 'prosemirror-highlight/refractor';
+import { refractor } from 'refractor/all';
 import { gfm } from '@milkdown/preset-gfm';
 import { nord } from '@milkdown/theme-nord';
 import { replaceAll } from '@milkdown/utils';
@@ -81,6 +82,7 @@ let uploadFailureWindowStart = Date.now();
 
 const tooltip = tooltipFactory('ushio-tooltip');
 const slash = slashFactory('ushio-slash');
+const highlightParser = createRefractorParser(refractor);
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -550,9 +552,6 @@ const runSlashAction = (actionId) => {
       case 'table_large':
         commands.call(insertTableCommand.key, { row: 5, col: 5 });
         break;
-      case 'highlight':
-        insertTextAtSelection(view, '==高亮文本==');
-        break;
       case 'emoji':
         insertTextAtSelection(view, '😀');
         break;
@@ -681,7 +680,6 @@ const createSlashElement = () => {
     ['code_js', '代码块 · JavaScript'],
     ['table', '表格 3x3'],
     ['table_large', '表格 5x5'],
-    ['highlight', '高亮文本'],
     ['emoji', 'Emoji 😀'],
     ['image', '图片'],
   ];
@@ -711,6 +709,9 @@ const createEditor = async () => {
         }
         isApplyingFromFlutter = false;
         notifyRenderComplete();
+      });
+      ctx.set(highlightPluginConfig.key, {
+        parser: highlightParser,
       });
       ctx.update(uploadConfig.key, (prev) => ({
         ...prev,
@@ -772,7 +773,6 @@ const createEditor = async () => {
     .use(emoji)
     .use(highlight)
     .use(math)
-    .use(prism)
     .use(listener)
     .use(block)
     .use(cursor)
@@ -1004,7 +1004,6 @@ const executeCommand = (cmd, args = {}) => {
       cmd === 'toggle_bold' ||
       cmd === 'toggle_italic' ||
       cmd === 'toggle_strikethrough' ||
-      cmd === 'toggle_highlight' ||
       cmd === 'toggle_inline_code' ||
       cmd === 'toggle_link' ||
       cmd === 'set_heading' ||
@@ -1044,11 +1043,6 @@ const executeCommand = (cmd, args = {}) => {
         }
         if (cmd === 'toggle_strikethrough') {
           ok = commands.call(toggleStrikethroughCommand.key);
-          return;
-        }
-        if (cmd === 'toggle_highlight') {
-          insertTextAtSelection(view, '==高亮文本==');
-          ok = true;
           return;
         }
         if (cmd === 'toggle_inline_code') {
