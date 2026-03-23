@@ -1453,7 +1453,10 @@ class _EditorScreenState extends State<EditorScreen>
           child: _AnimatedFAB(
             icon: Icons.visibility,
             color: Theme.of(context).colorScheme.primary,
-            onTap: () => setState(() => _mode = EditorMode.preview),
+            onTap: () => setState(() {
+              _mode = EditorMode.preview;
+              _isMilkdownEditorFocused = false;
+            }),
           ),
         );
       case EditorMode.preview:
@@ -1469,7 +1472,10 @@ class _EditorScreenState extends State<EditorScreen>
               _AnimatedFAB(
                 icon: Icons.edit,
                 color: Theme.of(context).colorScheme.tertiary,
-                onTap: () => setState(() => _mode = EditorMode.edit),
+                onTap: () => setState(() {
+                  _mode = EditorMode.edit;
+                  _isMilkdownEditorFocused = false;
+                }),
               ),
               const SizedBox(height: 12),
               _AnimatedFAB(
