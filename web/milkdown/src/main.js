@@ -73,7 +73,16 @@ let pendingContentMarkdown = null;
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
 let caretViewportSyncRafId = null;
+let codeLanguagePopupElement = null;
+let codeLanguagePopupInput = null;
+let codeLanguagePopupList = null;
+let codeLanguagePopupAnchor = null;
+let codeLanguagePopupBlock = null;
+let codeLanguagePopupCandidates = [];
 const highlightParser = createRefractorParser(refractor);
+const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
+  .filter((name) => typeof name === 'string' && /^[a-z0-9_+-]+$/i.test(name))
+  .sort((a, b) => a.localeCompare(b));
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -567,6 +576,174 @@ const emitOutlineUpdate = () => {
   emit('on_outline_update', { outline });
 };
 
+const findCodeBlockPosAtSelection = (state, pos) => {
+  const $pos = state.doc.resolve(Math.max(0, Math.min(pos, state.doc.content.size)));
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node?.type?.name === 'code_block') {
+      return $pos.before(depth);
+    }
+  }
+  return null;
+};
+
+const setCodeBlockLanguage = (codeBlock, language) => {
+  if (!editorInstance || !codeBlock) return false;
+  let ok = false;
+  const nextLanguage = typeof language === 'string' ? language.trim().toLowerCase() : '';
+  editorInstance.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const { state } = view;
+    let codeBlockPos = null;
+
+    const { $from } = state.selection;
+    for (let depth = $from.depth; depth > 0; depth -= 1) {
+      const node = $from.node(depth);
+      if (node?.type?.name === 'code_block') {
+        codeBlockPos = $from.before(depth);
+        break;
+      }
+    }
+
+    if (codeBlockPos == null) {
+      const anchorDom = codeBlock.querySelector('.cm-content') || codeBlock.querySelector('.cm-editor') || codeBlock;
+      try {
+        const domPos = view.posAtDOM(anchorDom, 0);
+        codeBlockPos = findCodeBlockPosAtSelection(state, domPos);
+      } catch (_) {
+        codeBlockPos = null;
+      }
+    }
+
+    if (codeBlockPos == null) return;
+    const node = state.doc.nodeAt(codeBlockPos);
+    if (!node || node.type.name !== 'code_block') return;
+
+    const currentLanguage = typeof node.attrs?.language === 'string' ? node.attrs.language.trim().toLowerCase() : '';
+    if (currentLanguage === nextLanguage) {
+      ok = true;
+      return;
+    }
+
+    const nextAttrs = {
+      ...node.attrs,
+      language: nextLanguage || undefined,
+    };
+    view.dispatch(state.tr.setNodeMarkup(codeBlockPos, undefined, nextAttrs));
+    ok = true;
+  });
+  return ok;
+};
+
+const updateCodeLanguageButtonLabel = (codeBlock, language) => {
+  const trigger = codeBlock?.querySelector('.ushio-custom-language-trigger');
+  if (!(trigger instanceof HTMLButtonElement)) return;
+  const normalized = typeof language === 'string' ? language.trim() : '';
+  trigger.querySelector('.ushio-language-text')?.replaceChildren(document.createTextNode(normalized || 'plain'));
+};
+
+const hideCodeLanguagePopup = () => {
+  if (!codeLanguagePopupElement) return;
+  codeLanguagePopupElement.dataset.show = 'false';
+  codeLanguagePopupAnchor = null;
+  codeLanguagePopupBlock = null;
+};
+
+const renderCodeLanguagePopupList = (query = '') => {
+  if (!codeLanguagePopupList) return;
+  const keyword = query.trim().toLowerCase();
+  const options = KNOWN_CODE_LANGUAGES.filter((item) => !keyword || item.includes(keyword)).slice(0, 120);
+  codeLanguagePopupCandidates = options;
+  codeLanguagePopupList.innerHTML = '';
+  if (options.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'ushio-language-popup-empty';
+    empty.textContent = '没有匹配的语言';
+    codeLanguagePopupList.append(empty);
+    return;
+  }
+  options.forEach((item) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ushio-language-popup-item';
+    btn.textContent = item;
+    btn.addEventListener('mousedown', (event) => event.preventDefault());
+    btn.addEventListener('click', () => {
+      if (!(codeLanguagePopupBlock instanceof HTMLElement)) return;
+      const applied = setCodeBlockLanguage(codeLanguagePopupBlock, item);
+      if (applied) {
+        updateCodeLanguageButtonLabel(codeLanguagePopupBlock, item);
+      }
+      hideCodeLanguagePopup();
+    });
+    codeLanguagePopupList.append(btn);
+  });
+};
+
+const ensureCodeLanguagePopup = () => {
+  if (codeLanguagePopupElement) return;
+  const panel = document.createElement('div');
+  panel.className = 'ushio-language-popup';
+  panel.dataset.show = 'false';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ushio-language-popup-input';
+  input.placeholder = '搜索语言...';
+  input.setAttribute('aria-label', '搜索代码语言');
+  input.addEventListener('input', () => {
+    renderCodeLanguagePopupList(input.value);
+  });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      hideCodeLanguagePopup();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const first = codeLanguagePopupCandidates[0];
+      if (!(codeLanguagePopupBlock instanceof HTMLElement)) return;
+      const applied = setCodeBlockLanguage(codeLanguagePopupBlock, first || '');
+      if (applied) {
+        updateCodeLanguageButtonLabel(codeLanguagePopupBlock, first || '');
+      }
+      hideCodeLanguagePopup();
+    }
+  });
+
+  const list = document.createElement('div');
+  list.className = 'ushio-language-popup-list';
+
+  panel.append(input, list);
+  app.append(panel);
+  codeLanguagePopupElement = panel;
+  codeLanguagePopupInput = input;
+  codeLanguagePopupList = list;
+};
+
+const showCodeLanguagePopup = (anchor, codeBlock, currentLanguage = '') => {
+  if (!(anchor instanceof HTMLElement) || !(codeBlock instanceof HTMLElement)) return;
+  ensureCodeLanguagePopup();
+  if (!(codeLanguagePopupElement instanceof HTMLElement) || !(codeLanguagePopupInput instanceof HTMLInputElement)) return;
+
+  codeLanguagePopupAnchor = anchor;
+  codeLanguagePopupBlock = codeBlock;
+  codeLanguagePopupInput.value = currentLanguage || '';
+  renderCodeLanguagePopupList(currentLanguage || '');
+  codeLanguagePopupElement.dataset.show = 'true';
+
+  const anchorRect = anchor.getBoundingClientRect();
+  const panelWidth = Math.min(320, Math.max(220, window.innerWidth - 16));
+  const panelLeft = Math.max(8, Math.min(anchorRect.right - panelWidth, window.innerWidth - panelWidth - 8));
+  const panelTop = Math.min(anchorRect.bottom + 8, window.innerHeight - 280);
+  codeLanguagePopupElement.style.width = `${panelWidth}px`;
+  codeLanguagePopupElement.style.left = `${panelLeft}px`;
+  codeLanguagePopupElement.style.top = `${Math.max(8, panelTop)}px`;
+
+  requestAnimationFrame(() => codeLanguagePopupInput?.focus());
+};
+
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
   root.querySelectorAll('img').forEach((img) => {
@@ -628,14 +805,14 @@ const syncRenderedDom = () => {
     if (!(tools instanceof HTMLElement)) return;
 
     const languageButton = tools.querySelector('.language-button');
+    const picker = tools.querySelector('.language-picker');
+    const currentLanguage = (languageButton?.textContent || '').trim().toLowerCase() || 'plain';
     if (languageButton instanceof HTMLElement) {
-      languageButton.classList.add('ushio-language-trigger');
-      languageButton.setAttribute('title', '代码语言');
-      languageButton.setAttribute('aria-label', '代码语言');
-      const picker = tools.querySelector('.language-picker');
-      if (picker instanceof HTMLElement) {
-        picker.classList.add('ushio-language-picker');
-      }
+      languageButton.classList.add('ushio-native-language-button');
+      languageButton.setAttribute('aria-hidden', 'true');
+    }
+    if (picker instanceof HTMLElement) {
+      picker.classList.add('ushio-native-language-picker');
     }
 
     const toolButtons = Array.from(tools.querySelectorAll('.tools-button-group button'));
@@ -654,17 +831,34 @@ const syncRenderedDom = () => {
       copyButton = button;
     });
 
-    if (languageButton instanceof HTMLElement && copyButton instanceof HTMLElement) {
+    if (copyButton instanceof HTMLElement) {
       let actionCapsule = tools.querySelector('.ushio-code-action-capsule');
       if (!(actionCapsule instanceof HTMLElement)) {
         actionCapsule = document.createElement('div');
         actionCapsule.className = 'ushio-code-action-capsule';
         tools.append(actionCapsule);
       }
+      let customLanguageButton = tools.querySelector('.ushio-custom-language-trigger');
+      if (!(customLanguageButton instanceof HTMLButtonElement)) {
+        customLanguageButton = document.createElement('button');
+        customLanguageButton.type = 'button';
+        customLanguageButton.className = 'ushio-custom-language-trigger';
+        customLanguageButton.innerHTML = '<span class="ushio-language-text"></span><span class="ushio-language-caret">▾</span>';
+        customLanguageButton.addEventListener('mousedown', (event) => event.preventDefault());
+        customLanguageButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (currentReadOnly) return;
+          const code = customLanguageButton.closest('.milkdown-code-block');
+          if (!(code instanceof HTMLElement)) return;
+          const current = (customLanguageButton.querySelector('.ushio-language-text')?.textContent || '').trim().toLowerCase();
+          showCodeLanguagePopup(customLanguageButton, code, current);
+        });
+      }
       actionCapsule.append(copyButton);
-      actionCapsule.append(languageButton);
+      actionCapsule.append(customLanguageButton);
       copyButton.classList.add('ushio-code-copy-action');
-      languageButton.classList.add('ushio-code-language-label');
+      updateCodeLanguageButtonLabel(codeBlock, currentLanguage);
     }
   });
 };
@@ -1137,6 +1331,10 @@ document.addEventListener('selectionchange', scheduleCaretIntoUpperViewport, tru
 document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  const isLanguagePopupClick = Boolean(target?.closest('.ushio-language-popup, .ushio-custom-language-trigger'));
+  if (!isLanguagePopupClick) {
+    hideCodeLanguagePopup();
+  }
   if (!target?.closest('.ushio-context-menu')) {
     hideContextMenu();
   }
@@ -1153,6 +1351,11 @@ const ensureEditor = () => {
 };
 
 const handleEditorShortcut = (event) => {
+  if (event.key === 'Escape' && codeLanguagePopupElement?.dataset.show === 'true') {
+    event.preventDefault();
+    hideCodeLanguagePopup();
+    return;
+  }
   if (currentReadOnly) return;
   if (event.key === 'Escape') {
     const focusedNode = document.activeElement instanceof Element ? document.activeElement : null;

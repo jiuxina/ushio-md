@@ -160,8 +160,8 @@ body {
 
 .milkdown .milkdown-code-block {
   border-radius: 14px !important;
-  overflow: hidden;
-  margin: 1em 0;
+  overflow: visible;
+  margin: 1em 0 2.8em;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -172,39 +172,51 @@ body {
 
 .milkdown .milkdown-code-block .tools {
   position: absolute;
-  right: 10px;
-  bottom: 8px;
+  right: 0;
+  top: calc(100% + 6px);
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 0;
+  gap: 8px;
   margin: 0;
-  width: auto;
+  width: 100%;
   z-index: 20;
   order: 1;
+  pointer-events: none;
+}
+
+.milkdown .milkdown-code-block .tools > * {
+  pointer-events: auto;
 }
 
 .milkdown .milkdown-code-block .tools .tools-button-group {
   display: none;
 }
 
+.milkdown .milkdown-code-block .tools .language-button.ushio-native-language-button,
+.milkdown .milkdown-code-block .tools .language-picker.ushio-native-language-picker {
+  display: none !important;
+}
+
 .milkdown .milkdown-code-block .tools .ushio-code-action-capsule {
   display: inline-flex;
   align-items: center;
   overflow: hidden;
-  height: 30px;
-  border-radius: 999px;
+  height: 32px;
+  margin-left: auto;
+  margin-right: 8px;
+  border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
-  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, #ffffff 8%);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%);
   box-shadow: 0 6px 18px color-mix(in srgb, var(--milkdown-color-shadow) 60%, transparent);
 }
 
 .milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action,
-.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label {
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger {
   margin: 0;
   border: 0;
   border-radius: 0;
-  height: 30px;
+  height: 32px;
   background: transparent;
   color: var(--milkdown-color-on-surface);
   opacity: 1;
@@ -218,107 +230,95 @@ body {
   justify-content: center;
 }
 
-.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label {
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger {
   min-width: 96px;
-  max-width: 180px;
-  padding: 0 12px 0 10px;
+  max-width: 200px;
+  padding: 0 10px;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
+  font-weight: 600;
   border-left: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent);
-}
-
-.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label svg,
-.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label .arrow,
-.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label img {
-  display: none !important;
-}
-
-.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action:hover,
-.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label:hover {
-  background: color-mix(in srgb, var(--milkdown-color-primary) 10%, transparent);
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker {
-  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--milkdown-color-surface) 96%, #ffffff 4%);
-  box-shadow: 0 12px 28px var(--milkdown-color-shadow);
-  overflow: hidden;
-  min-width: 220px;
-  max-width: min(92vw, 320px);
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .list-wrapper {
-  padding: 8px;
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .search-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .search-icon,
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .clear-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: var(--milkdown-color-on-surface);
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .search-icon svg,
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .search-icon img,
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .clear-icon svg,
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .clear-icon img {
-  width: 14px !important;
-  height: 14px !important;
-  max-width: 14px;
-  max-height: 14px;
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .search-input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent);
-  border-radius: 8px;
-  color: var(--milkdown-color-on-surface);
-  background: color-mix(in srgb, var(--milkdown-color-surface) 95%, #ffffff 5%);
-  outline: none;
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .search-input:focus {
-  border-color: var(--milkdown-color-primary);
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .language-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 220px;
-  overflow: auto;
-}
-
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .language-list-item {
-  border-radius: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 6px 8px;
   cursor: pointer;
 }
 
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .language-list-item[aria-selected='true'] {
-  background: color-mix(in srgb, var(--milkdown-color-primary) 14%, transparent);
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger .ushio-language-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: lowercase;
 }
 
-.milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker .language-list-item:hover {
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action:hover,
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger:hover {
   background: color-mix(in srgb, var(--milkdown-color-primary) 10%, transparent);
+}
+
+.ushio-language-popup {
+  position: fixed;
+  z-index: 110;
+  display: none;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 96%, #ffffff 4%);
+  box-shadow: 0 14px 32px var(--milkdown-color-shadow);
+  padding: 10px;
+  box-sizing: border-box;
+  backdrop-filter: blur(4px);
+}
+
+.ushio-language-popup[data-show='true'] {
+  display: block;
+}
+
+.ushio-language-popup-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%);
+  color: var(--milkdown-color-on-surface);
+  outline: none;
+}
+
+.ushio-language-popup-input:focus {
+  border-color: var(--milkdown-color-primary);
+}
+
+.ushio-language-popup-list {
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ushio-language-popup-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--milkdown-color-on-surface);
+  cursor: pointer;
+}
+
+.ushio-language-popup-item:hover {
+  background: color-mix(in srgb, var(--milkdown-color-primary) 12%, transparent);
+}
+
+.ushio-language-popup-empty {
+  padding: 10px 8px;
+  border: 1px dashed color-mix(in srgb, var(--milkdown-color-outline) 70%, transparent);
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--milkdown-color-on-surface) 72%, transparent);
+  font-size: 12px;
 }
 
 .milkdown .milkdown-code-block .tools .tools-button-group button {
