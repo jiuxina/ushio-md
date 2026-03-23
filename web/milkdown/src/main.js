@@ -6,10 +6,13 @@ import {
   editorViewOptionsCtx,
   rootCtx,
 } from '@milkdown/core';
+import { block, BlockProvider, blockSpec } from '@milkdown/plugin-block';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
+import { indent } from '@milkdown/plugin-indent';
 import { math } from '@milkdown/plugin-math';
 import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
+import { trailing } from '@milkdown/plugin-trailing';
 import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip';
 import {
   commonmark,
@@ -25,7 +28,6 @@ import {
 import { insertTableCommand } from '@milkdown/preset-gfm';
 import { prism } from '@milkdown/plugin-prism';
 import { gfm } from '@milkdown/preset-gfm';
-import { Plugin } from '@milkdown/prose/state';
 import { nord } from '@milkdown/theme-nord';
 import { replaceAll } from '@milkdown/utils';
 import 'katex/dist/katex.min.css';
@@ -40,6 +42,7 @@ let currentBaseDirectory = '';
 let currentReadOnly = true;
 let isApplyingFromFlutter = false;
 let createEditorPromise = null;
+let blockProvider = null;
 let tooltipProvider = null;
 let slashProvider = null;
 
@@ -234,6 +237,16 @@ const showBootstrapError = (error) => {
   app.innerHTML = `<div style="padding:16px;font-family:sans-serif;color:#dc2626;line-height:1.6;">Milkdown 初始化失败：${String(error)}</div>`;
 };
 
+const createBlockHandleElement = () => {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = 'ushio-block-handle';
+  element.title = '拖拽块';
+  element.setAttribute('aria-label', '拖拽块');
+  element.textContent = '⋮⋮';
+  return element;
+};
+
 const buildFloatingButton = (label, title, className, onClick) => {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -353,6 +366,22 @@ const createEditor = async () => {
         isApplyingFromFlutter = false;
         notifyRenderComplete();
       });
+      ctx.set(blockSpec.key, {
+        view: () => {
+          blockProvider = new BlockProvider({
+            ctx,
+            content: createBlockHandleElement(),
+            getOffset: () => ({ mainAxis: 0, crossAxis: -8 }),
+          });
+          return {
+            update: blockProvider.update,
+            destroy: () => {
+              blockProvider?.destroy();
+              blockProvider = null;
+            },
+          };
+        },
+      });
       ctx.set(tooltip.key, {
         view: () => {
           tooltipProvider = new TooltipProvider({
@@ -392,7 +421,10 @@ const createEditor = async () => {
     .use(math)
     .use(prism)
     .use(listener)
+    .use(block)
     .use(history)
+    .use(indent)
+    .use(trailing)
     .use(tooltip)
     .use(slash);
 
