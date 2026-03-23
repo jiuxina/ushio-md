@@ -83,5 +83,32 @@ void main() {
 
       expect(called, isFalse);
     });
+
+    test('dispatches on_upload_images_request payload', () {
+      OnUploadImagesRequestPayload? payload;
+
+      dispatchMilkdownBridgeMessage(
+        {
+          'type': 'on_upload_images_request',
+          'payload': {
+            'requestId': 'upload-1',
+            'files': [
+              {
+                'name': 'a.png',
+                'type': 'image/png',
+                'size': 10,
+                'dataUrl': 'data:image/png;base64,AA==',
+              },
+            ],
+          },
+        },
+        onUploadImagesRequest: (value) => payload = value,
+      );
+
+      expect(payload, isNotNull);
+      expect(payload!.requestId, 'upload-1');
+      expect(payload!.files.length, 1);
+      expect(payload!.files.first.name, 'a.png');
+    });
   });
 }

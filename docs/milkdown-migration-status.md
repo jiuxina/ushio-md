@@ -135,6 +135,17 @@
 - [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）。
 - [x] 固化性能基线采样方法（指标、记录格式、阈值与判定规则）。
 
+#### Step 8 / Step 9 / Step 10 最新进展（2026-03-23）
+
+- [x] Step 8：已接入 `@milkdown/plugin-clipboard`，Web 端复制粘贴行为切到官方插件处理。
+- [x] Step 9：已接入 `@milkdown/plugin-upload`，并通过 `on_upload_images_request` + `upload_images_result` 桥接 Flutter 侧图片落盘与插入。
+- [x] Step 10：已补充 bridge 模型/分发测试（upload 请求场景），并更新实现计划文档与回归清单项。
+
+当前命令与消息口径新增：
+
+- Web -> Flutter：`on_upload_images_request`（携带 requestId 与 dataUrl 文件列表）
+- Flutter -> Web：`exec_cmd(upload_images_result)`（回传 requestId、images、reason）
+
 **验收标准**
 - 迁移核心路径具备可重复执行的自动化验证。
 - 关键性能指标在可接受阈值内且可复测。

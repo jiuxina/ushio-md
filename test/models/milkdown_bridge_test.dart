@@ -157,5 +157,50 @@ void main() {
       final ids = List.generate(1000, (_) => createBridgeRequestId()).toSet();
       expect(ids.length, 1000);
     });
+
+    test('OnUploadImagesRequestPayload serializes and deserializes', () {
+      const payload = OnUploadImagesRequestPayload(
+        requestId: 'upload-1',
+        files: [
+          UploadImageFilePayload(
+            name: 'a.png',
+            type: 'image/png',
+            size: 12,
+            dataUrl: 'data:image/png;base64,AA==',
+          ),
+        ],
+      );
+      expect(payload.toJson(), {
+        'requestId': 'upload-1',
+        'files': [
+          {
+            'name': 'a.png',
+            'type': 'image/png',
+            'size': 12,
+            'dataUrl': 'data:image/png;base64,AA==',
+          },
+        ],
+      });
+      expect(
+        OnUploadImagesRequestPayload.fromJson(payload.toJson()).toJson(),
+        payload.toJson(),
+      );
+    });
+
+    test('OnUploadImagesRequestPayload.fromJson throws when requestId missing', () {
+      expect(
+        () => OnUploadImagesRequestPayload.fromJson({
+          'files': [
+            {
+              'name': 'a.png',
+              'type': 'image/png',
+              'size': 12,
+              'dataUrl': 'data:image/png;base64,AA==',
+            },
+          ],
+        }),
+        throwsFormatException,
+      );
+    });
   });
 }
