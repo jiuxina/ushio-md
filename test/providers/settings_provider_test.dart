@@ -86,5 +86,16 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('sync_folder_name'), 'MyFolder');
     });
+
+    test('编辑器背景模糊设置应更新并持久化', () async {
+      await provider.setEditorBackgroundBlurEnabled(true);
+      await provider.setEditorBackgroundBlur(18.0);
+      expect(provider.editorBackgroundBlurEnabled, isTrue);
+      expect(provider.editorBackgroundBlur, 18.0);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('editor_background_blur_enabled'), isTrue);
+      expect(prefs.getDouble('editor_background_blur'), 18.0);
+    });
   });
 }

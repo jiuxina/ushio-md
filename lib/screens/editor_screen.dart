@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -302,7 +303,7 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() => _tocItems = items);
   }
 
-  void _jumpToHeading(TocItem item) {
+  void _jumpToHeading(int headingIndex, TocItem item) {
     if (_showToc) {
       _tocOverlayController.close();
     }
@@ -326,12 +327,6 @@ class _EditorScreenState extends State<EditorScreen>
     } else {
       // Rendered preview page — scroll via JavaScript.
       // The JS also handles the visual flash on the target heading.
-      final headingIndex = _tocItems.indexWhere(
-        (node) =>
-            node.lineNumber == item.lineNumber &&
-            node.level == item.level &&
-            node.title == item.title,
-      );
       if (headingIndex >= 0) {
         _previewWebViewController.scrollToHeading(
           headingIndex,
@@ -702,9 +697,10 @@ class _EditorScreenState extends State<EditorScreen>
       final rawFragment = Uri.decodeComponent(href.substring(1)).trim();
       if (rawFragment.isNotEmpty) {
         final normalizedFragment = _slugifyHeading(rawFragment);
-        for (final item in _tocItems) {
+        for (var i = 0; i < _tocItems.length; i++) {
+          final item = _tocItems[i];
           if (_slugifyHeading(item.title) == normalizedFragment) {
-            _jumpToHeading(item);
+            _jumpToHeading(i, item);
             return;
           }
         }
@@ -1351,6 +1347,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Widget _buildEditor() {
     final settings = context.watch<SettingsProvider>();
+    final editorBackground = _buildEditorBackgroundLayer(settings);
 
     switch (_mode) {
       case EditorMode.edit:
@@ -1358,21 +1355,59 @@ class _EditorScreenState extends State<EditorScreen>
         // are visible on the WebView (platform view).
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: _buildEditPanel(settings, toolbarPadding: 56),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (editorBackground != null) editorBackground,
+              Container(
+                color: editorBackground == null ? Theme.of(context).colorScheme.surface : Colors.transparent,
+                child: _buildEditPanel(settings, toolbarPadding: 56),
+              ),
+            ],
           ),
         );
       case EditorMode.preview:
         // Top rounded corners at AppBar junction.
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: _buildInlineEditablePreview(settings),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (editorBackground != null) editorBackground,
+              Container(
+                color: editorBackground == null ? Theme.of(context).colorScheme.surface : Colors.transparent,
+                child: _buildInlineEditablePreview(settings),
+              ),
+            ],
           ),
         );
     }
+  }
+
+  Widget? _buildEditorBackgroundLayer(SettingsProvider settings) {
+    final path = settings.editorBackgroundImagePath;
+    if (path == null) return null;
+    final file = File(path);
+    if (!file.existsSync()) return null;
+
+    Widget imageLayer = Image.file(
+      file,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+
+    if (settings.editorBackgroundBlurEnabled) {
+      imageLayer = ImageFiltered(
+        imageFilter: ImageFilter.blur(
+          sigmaX: settings.editorBackgroundBlur,
+          sigmaY: settings.editorBackgroundBlur,
+        ),
+        child: imageLayer,
+      );
+    }
+
+    return imageLayer;
   }
 
   /// Floating action buttons that stay as fixed as possible at the

@@ -81,11 +81,20 @@ class SettingsProvider extends ChangeNotifier {
   /// 背景图片路径（null 表示无背景图）
   String? _backgroundImagePath;
 
+  /// 编辑器背景图片路径（null 表示无背景图）
+  String? _editorBackgroundImagePath;
+
   /// 背景效果类型：none（无）、blur（模糊）
   String _backgroundEffect = 'none';
 
   /// 模糊效果强度（0-30）
   double _backgroundBlur = 10.0;
+
+  /// 编辑器背景是否启用模糊
+  bool _editorBackgroundBlurEnabled = false;
+
+  /// 编辑器背景模糊强度（0-30）
+  double _editorBackgroundBlur = 10.0;
 
   /// 遮罩透明度（0-1，保留但当前 UI 未使用）
   double _backgroundOverlayOpacity = 0.5;
@@ -201,8 +210,11 @@ class SettingsProvider extends ChangeNotifier {
   int get primaryColorIndex => _primaryColorIndex;
   Color get primaryColor => themeColors[_primaryColorIndex];
   String? get backgroundImagePath => _backgroundImagePath;
+  String? get editorBackgroundImagePath => _editorBackgroundImagePath;
   String get backgroundEffect => _backgroundEffect;
   double get backgroundBlur => _backgroundBlur;
+  bool get editorBackgroundBlurEnabled => _editorBackgroundBlurEnabled;
+  double get editorBackgroundBlur => _editorBackgroundBlur;
   double get backgroundOverlayOpacity => _backgroundOverlayOpacity;
 
   bool get autoCheckUpdate => _autoCheckUpdate;
@@ -324,8 +336,11 @@ class SettingsProvider extends ChangeNotifier {
 
     // 背景设置
     _backgroundImagePath = prefs.getString('background_image_path');
+    _editorBackgroundImagePath = prefs.getString('editor_background_image_path');
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
     _backgroundBlur = prefs.getDouble('background_blur') ?? 10.0;
+    _editorBackgroundBlurEnabled = prefs.getBool('editor_background_blur_enabled') ?? false;
+    _editorBackgroundBlur = prefs.getDouble('editor_background_blur') ?? 10.0;
     _backgroundOverlayOpacity =
         prefs.getDouble('background_overlay_opacity') ?? 0.5;
 
@@ -507,6 +522,64 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
+  /// 设置编辑器背景图片
+  ///
+  /// 将图片复制到应用私有目录，避免清理缓存后图片丢失
+  Future<void> setEditorBackgroundImage(String? path) async {
+    if (path == null) {
+      // 清除编辑器背景图片
+      if (_editorBackgroundImagePath != null) {
+        try {
+          final oldFile = File(_editorBackgroundImagePath!);
+          if (await oldFile.exists()) {
+            await oldFile.delete();
+          }
+        } catch (_) {}
+      }
+      _editorBackgroundImagePath = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('editor_background_image_path');
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final appDir = await getApplicationSupportDirectory();
+      final bgDir = Directory('${appDir.path}/editor_backgrounds');
+      if (!await bgDir.exists()) {
+        await bgDir.create(recursive: true);
+      }
+
+      final sourceFile = File(path);
+      final fileName =
+          'editor_background_${DateTime.now().millisecondsSinceEpoch}.${path.split('.').last}';
+      final destPath = '${bgDir.path}/$fileName';
+
+      await sourceFile.copy(destPath);
+
+      if (_editorBackgroundImagePath != null &&
+          _editorBackgroundImagePath != destPath) {
+        try {
+          final oldFile = File(_editorBackgroundImagePath!);
+          if (await oldFile.exists()) {
+            await oldFile.delete();
+          }
+        } catch (_) {}
+      }
+
+      _editorBackgroundImagePath = destPath;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('editor_background_image_path', destPath);
+      notifyListeners();
+    } catch (e) {
+      // 如果复制失败，直接使用原路径（回退方案）
+      _editorBackgroundImagePath = path;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('editor_background_image_path', path);
+      notifyListeners();
+    }
+  }
+
   /// 设置背景效果
   Future<void> setBackgroundEffect(String effect) async {
     _backgroundEffect = effect;
@@ -520,6 +593,22 @@ class SettingsProvider extends ChangeNotifier {
     _backgroundBlur = blur;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('background_blur', blur);
+    notifyListeners();
+  }
+
+  /// 设置编辑器背景模糊开关
+  Future<void> setEditorBackgroundBlurEnabled(bool enabled) async {
+    _editorBackgroundBlurEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('editor_background_blur_enabled', enabled);
+    notifyListeners();
+  }
+
+  /// 设置编辑器背景模糊强度
+  Future<void> setEditorBackgroundBlur(double blur) async {
+    _editorBackgroundBlur = blur;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('editor_background_blur', blur);
     notifyListeners();
   }
 
