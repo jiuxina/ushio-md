@@ -830,7 +830,7 @@ const syncRenderedDom = () => {
     }
 
     const toolButtons = Array.from(tools.querySelectorAll('.tools-button-group button'));
-    let copyButton = null;
+    let nativeCopyButton = null;
     toolButtons.forEach((button) => {
       if (!(button instanceof HTMLButtonElement)) return;
       const text = (button.textContent || '').trim().toLowerCase();
@@ -842,13 +842,14 @@ const syncRenderedDom = () => {
       button.setAttribute('title', '复制');
       button.setAttribute('aria-label', '复制');
       button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
-      copyButton = button;
+      nativeCopyButton = button;
     });
 
+    let copyButton = nativeCopyButton || tools.querySelector('.ushio-fallback-copy-button');
     if (!(copyButton instanceof HTMLButtonElement)) {
       copyButton = document.createElement('button');
       copyButton.type = 'button';
-      copyButton.className = 'ushio-copy-icon-btn';
+      copyButton.className = 'ushio-copy-icon-btn ushio-fallback-copy-button';
       copyButton.setAttribute('title', '复制');
       copyButton.setAttribute('aria-label', '复制');
       copyButton.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
@@ -896,8 +897,7 @@ const syncRenderedDom = () => {
           showCodeLanguagePopup(customLanguageButton, code, current);
         });
       }
-      actionCapsule.append(copyButton);
-      actionCapsule.append(customLanguageButton);
+      actionCapsule.replaceChildren(copyButton, customLanguageButton);
       copyButton.classList.add('ushio-code-copy-action');
       updateCodeLanguageButtonLabel(codeBlock, currentLanguage);
     }
@@ -1275,10 +1275,16 @@ app.addEventListener('mousedown', (event) => {
     event.preventDefault();
     return;
   }
-  if (currentReadOnly && target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
+  if (target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
     event.preventDefault();
   }
 });
+
+app.addEventListener('touchstart', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.matches('input[type="checkbox"], input[type="checkbox"] *')) return;
+  event.preventDefault();
+}, { passive: false });
 
 const emitCheckboxToggle = (checkbox, checked) => {
   const index = Number.parseInt(checkbox.dataset.checkboxIndex || '-1', 10);
