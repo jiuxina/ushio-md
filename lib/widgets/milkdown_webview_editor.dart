@@ -61,7 +61,17 @@ class MilkdownWebViewController {
   Future<void> toggleBold() => execCmd('toggle_bold');
   Future<void> toggleItalic() => execCmd('toggle_italic');
   Future<void> insertTable() => execCmd('insert_table');
+  Future<void> insertHorizontalRule() => execCmd('insert_hr');
   Future<void> focusEditor() => execCmd('focus_editor');
+  Future<void> toggleStrikethrough() => execCmd('toggle_strikethrough');
+  Future<void> toggleInlineCode() => execCmd('toggle_inline_code');
+  Future<void> toggleLink({String href = 'https://', String? title}) =>
+      execCmd('toggle_link', args: {
+        'href': href,
+        if (title != null) 'title': title,
+      });
+  Future<void> goToNextTableCell() => execCmd('table_next_cell');
+  Future<void> goToPrevTableCell() => execCmd('table_prev_cell');
   Future<void> insertImage({required String src, String? alt}) =>
       execCmd('insert_image', args: {
         'src': src,
