@@ -147,6 +147,19 @@ void main() {
       );
     });
 
+    test('OnOutlineUpdatePayload tolerates outline items with string level and invalid line id', () {
+      final payload = OnOutlineUpdatePayload.fromJson({
+        'outline': [
+          {'id': 'line-3', 'level': '2', 'text': 'Section'},
+          {'id': 'not-a-line', 'level': 'bad', 'text': 'Fallback'},
+        ],
+      });
+      expect(payload.outline.length, 2);
+      expect(payload.outline[0].level, 2);
+      expect(payload.outline[1].level, 1);
+      expect(payload.outline[1].id, 'not-a-line');
+    });
+
     test('createBridgeRequestId creates non-empty IDs', () {
       final id = createBridgeRequestId();
       expect(id, isNotEmpty);
