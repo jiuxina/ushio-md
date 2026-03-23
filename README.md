@@ -115,6 +115,10 @@
   - Flutter 端协议模型/分发逻辑
   - Web 端 bridge 路由
   - 对应自动化测试（至少覆盖核心回调链路）
+- 当前上传桥接新增口径：
+  - Web -> Flutter：`on_upload_images_request`
+  - Flutter -> Web：`exec_cmd(upload_images_result)`
+  - 若调整上传协议，需同时更新 `web/milkdown/src/main.js`、`lib/models/milkdown_bridge.dart` 与相关测试。
 - 升级 Milkdown 依赖前，先检查上游 release 与 breaking changes；执行方式见 `docs/milkdown-migration-status.md` 的“上游跟踪策略”。
 
 ## 📦 安装
