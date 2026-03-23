@@ -20,7 +20,7 @@ class TocOverlayController {
 class TocOverlay extends StatefulWidget {
   final List<TocItem> items;
   final VoidCallback onClose;
-  final Function(TocItem) onJumpToHeading;
+  final void Function(int index, TocItem item) onJumpToHeading;
   final TocOverlayController? controller;
 
   const TocOverlay({
@@ -170,7 +170,7 @@ class _TocOverlayState extends State<TocOverlay>
                                     itemCount: widget.items.length,
                                     itemBuilder: (context, index) {
                                       final item = widget.items[index];
-                                      return _buildTocItem(context, item);
+                                      return _buildTocItem(context, item, index);
                                     },
                                   ),
                                 ),
@@ -187,7 +187,7 @@ class _TocOverlayState extends State<TocOverlay>
     );
   }
 
-  Widget _buildTocItem(BuildContext context, TocItem item) {
+  Widget _buildTocItem(BuildContext context, TocItem item, int index) {
     final indent = (item.level - 1) * 16.0;
     final colors = [
       Theme.of(context).colorScheme.primary,
@@ -205,7 +205,7 @@ class _TocOverlayState extends State<TocOverlay>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => widget.onJumpToHeading(item),
+          onTap: () => widget.onJumpToHeading(index, item),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
