@@ -136,16 +136,26 @@ body {
     var(--milkdown-color-primary) 10%
   );
   box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable both-edges;
+  touch-action: pan-x pan-y;
 }
 
 .milkdown .ProseMirror pre code {
   display: block;
+  width: max-content;
+  min-width: 100%;
   padding: 0;
   background: transparent;
   color: var(--milkdown-color-on-surface);
   line-height: 1.55;
-  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .milkdown .milkdown-code-block {
@@ -338,17 +348,54 @@ body {
 
 .milkdown table {
   border-collapse: collapse;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
   margin: 1em 0;
 }
 
 .milkdown .milkdown-table-block {
   margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable both-edges;
+  touch-action: pan-x pan-y;
 }
 
 .milkdown table th,
 .milkdown table td {
   border: 1px solid var(--milkdown-color-outline);
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  vertical-align: top;
+  line-height: 1.45;
+  padding: 6px 10px;
+}
+
+.milkdown table th.ushio-path-column,
+.milkdown table td.ushio-path-column {
+  font-family: var(--milkdown-font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.milkdown .ushio-horizontal-scroll {
+  scrollbar-width: thin;
+}
+
+.milkdown .ushio-horizontal-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.milkdown .ushio-horizontal-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--milkdown-color-outline) 78%, transparent);
+}
+
+.milkdown .ushio-horizontal-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, transparent);
 }
 
 .milkdown img {
