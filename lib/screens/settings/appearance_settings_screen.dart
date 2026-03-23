@@ -761,6 +761,23 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text('亮度'),
+              Expanded(
+                child: Slider(
+                  value: settings.backgroundBrightness,
+                  min: 0.2,
+                  max: 1.8,
+                  divisions: 32,
+                  label: '${(settings.backgroundBrightness * 100).round()}%',
+                  onChanged: (value) => settings.setBackgroundBrightness(value),
+                ),
+              ),
+              Text('${(settings.backgroundBrightness * 100).round()}%'),
+            ],
+          ),
           // 模糊强度滑块
           if (settings.backgroundEffect == 'blur') ...[
             const SizedBox(height: 8),
@@ -842,6 +859,26 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   settings.setEditorBackgroundBlurEnabled(value);
                 },
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text('亮度'),
+              Expanded(
+                child: Slider(
+                  value: settings.editorBackgroundBrightness,
+                  min: 0.2,
+                  max: 1.8,
+                  divisions: 32,
+                  label:
+                      '${(settings.editorBackgroundBrightness * 100).round()}%',
+                  onChanged: (value) {
+                    settings.setEditorBackgroundBrightness(value);
+                  },
+                ),
+              ),
+              Text('${(settings.editorBackgroundBrightness * 100).round()}%'),
             ],
           ),
           if (settings.editorBackgroundBlurEnabled) ...[
