@@ -87,6 +87,16 @@ class AppBackground extends StatelessWidget {
           width: double.infinity,
           height: double.infinity,
         );
+
+        bgImage = ColorFiltered(
+          colorFilter: ColorFilter.matrix([
+            settings.backgroundBrightness, 0, 0, 0, 0,
+            0, settings.backgroundBrightness, 0, 0, 0,
+            0, 0, settings.backgroundBrightness, 0, 0,
+            0, 0, 0, 1, 0,
+          ]),
+          child: bgImage,
+        );
         
         // Apply blur effect
         if (settings.backgroundEffect == 'blur') {

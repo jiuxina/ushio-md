@@ -90,11 +90,17 @@ class SettingsProvider extends ChangeNotifier {
   /// 模糊效果强度（0-30）
   double _backgroundBlur = 10.0;
 
+  /// 主背景亮度（0.2-1.8，1.0 为原始亮度）
+  double _backgroundBrightness = 1.0;
+
   /// 编辑器背景是否启用模糊
   bool _editorBackgroundBlurEnabled = false;
 
   /// 编辑器背景模糊强度（0-30）
   double _editorBackgroundBlur = 10.0;
+
+  /// 编辑器背景亮度（0.2-1.8，1.0 为原始亮度）
+  double _editorBackgroundBrightness = 1.0;
 
   /// 遮罩透明度（0-1，保留但当前 UI 未使用）
   double _backgroundOverlayOpacity = 0.5;
@@ -213,8 +219,10 @@ class SettingsProvider extends ChangeNotifier {
   String? get editorBackgroundImagePath => _editorBackgroundImagePath;
   String get backgroundEffect => _backgroundEffect;
   double get backgroundBlur => _backgroundBlur;
+  double get backgroundBrightness => _backgroundBrightness;
   bool get editorBackgroundBlurEnabled => _editorBackgroundBlurEnabled;
   double get editorBackgroundBlur => _editorBackgroundBlur;
+  double get editorBackgroundBrightness => _editorBackgroundBrightness;
   double get backgroundOverlayOpacity => _backgroundOverlayOpacity;
 
   bool get autoCheckUpdate => _autoCheckUpdate;
@@ -339,8 +347,11 @@ class SettingsProvider extends ChangeNotifier {
     _editorBackgroundImagePath = prefs.getString('editor_background_image_path');
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
     _backgroundBlur = prefs.getDouble('background_blur') ?? 10.0;
+    _backgroundBrightness = prefs.getDouble('background_brightness') ?? 1.0;
     _editorBackgroundBlurEnabled = prefs.getBool('editor_background_blur_enabled') ?? false;
     _editorBackgroundBlur = prefs.getDouble('editor_background_blur') ?? 10.0;
+    _editorBackgroundBrightness =
+        prefs.getDouble('editor_background_brightness') ?? 1.0;
     _backgroundOverlayOpacity =
         prefs.getDouble('background_overlay_opacity') ?? 0.5;
 
@@ -596,6 +607,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 设置背景亮度
+  Future<void> setBackgroundBrightness(double brightness) async {
+    _backgroundBrightness = brightness;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('background_brightness', brightness);
+    notifyListeners();
+  }
+
   /// 设置编辑器背景模糊开关
   Future<void> setEditorBackgroundBlurEnabled(bool enabled) async {
     _editorBackgroundBlurEnabled = enabled;
@@ -609,6 +628,14 @@ class SettingsProvider extends ChangeNotifier {
     _editorBackgroundBlur = blur;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('editor_background_blur', blur);
+    notifyListeners();
+  }
+
+  /// 设置编辑器背景亮度
+  Future<void> setEditorBackgroundBrightness(double brightness) async {
+    _editorBackgroundBrightness = brightness;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('editor_background_brightness', brightness);
     notifyListeners();
   }
 
