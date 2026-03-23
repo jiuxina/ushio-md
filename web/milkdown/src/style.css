@@ -126,7 +126,7 @@ body {
 
 .milkdown .ProseMirror pre {
   margin: 1em 0;
-  padding: 12px 12px 44px;
+  padding: 12px;
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
   background: color-mix(
@@ -149,26 +149,61 @@ body {
 .milkdown .milkdown-code-block {
   border-radius: 14px !important;
   overflow: hidden;
+  margin: 1em 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .milkdown .milkdown-code-block .tools {
-  position: absolute;
-  right: 10px;
-  bottom: 8px;
+  position: static;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
   z-index: 20;
+  order: 2;
 }
 
-.milkdown .milkdown-code-block .tools .language-button {
+.milkdown .milkdown-code-block .tools .language-button.ushio-hidden-language-button {
+  display: none;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-language-input {
   margin: 0;
-  opacity: 1;
+  min-width: 108px;
+  max-width: 160px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: 0 10px;
+  color: var(--milkdown-color-on-surface);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 93%, #ffffff 7%);
+  font-size: 12px;
+  line-height: 1;
+  outline: none;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-language-input:focus {
+  border-color: var(--milkdown-color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--milkdown-color-primary) 18%, transparent);
 }
 
 .milkdown .milkdown-code-block .tools .tools-button-group button {
   opacity: 1;
-  padding: 4px 8px;
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.milkdown .milkdown-code-block .tools .tools-button-group .ushio-copy-icon-btn svg {
+  display: block;
 }
 
 .milkdown .milkdown-code-block .cm-panel {
@@ -182,6 +217,11 @@ body {
 .milkdown table {
   border-collapse: collapse;
   width: 100%;
+  margin: 1em 0;
+}
+
+.milkdown .milkdown-table-block {
+  margin: 1em 0;
 }
 
 .milkdown table th,
