@@ -52,6 +52,9 @@ const cmdFailureAggregate = new Map();
 const MAX_UPLOAD_FILES = 6;
 const MAX_UPLOAD_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
+const CONTENT_CHANGE_DEBOUNCE_MS = 120;
+let contentChangeTimerId = null;
+let pendingContentMarkdown = null;
 
 const tooltip = tooltipFactory('ushio-tooltip');
 const slash = slashFactory('ushio-slash');
@@ -241,6 +244,27 @@ const customUploadHandler = async (files, schema) => {
   }
 };
 
+const flushContentChange = () => {
+  if (pendingContentMarkdown == null) return;
+  const markdown = pendingContentMarkdown;
+  pendingContentMarkdown = null;
+  emit('on_content_change', {
+    mode: 'full',
+    markdown,
+  });
+};
+
+const scheduleContentChange = (markdown) => {
+  pendingContentMarkdown = markdown;
+  if (contentChangeTimerId != null) {
+    clearTimeout(contentChangeTimerId);
+  }
+  contentChangeTimerId = setTimeout(() => {
+    contentChangeTimerId = null;
+    flushContentChange();
+  }, CONTENT_CHANGE_DEBOUNCE_MS);
+};
+
 const emitOutlineUpdate = () => {
   const lines = currentMarkdown.split('\n');
   const outline = [];
@@ -303,6 +327,11 @@ const notifyRenderComplete = () => {
 
 const setMarkdown = (markdown, { emitContent = false } = {}) => {
   const nextMarkdown = typeof markdown === 'string' ? markdown : '';
+  if (contentChangeTimerId != null) {
+    clearTimeout(contentChangeTimerId);
+    contentChangeTimerId = null;
+  }
+  pendingContentMarkdown = null;
   currentMarkdown = nextMarkdown;
   if (!editorInstance) return;
   isApplyingFromFlutter = !emitContent;
@@ -382,10 +411,16 @@ const runSlashAction = (actionId) => {
       case 'table':
         commands.call(insertTableCommand.key, { row: 3, col: 3 });
         break;
+      case 'table_large':
+        commands.call(insertTableCommand.key, { row: 5, col: 5 });
+        break;
       default:
         break;
     }
   });
+  if (actionId === 'image') {
+    executeCommand('insert_image_prompt');
+  }
   slashProvider?.hide();
   notifyRenderComplete();
 };
@@ -396,6 +431,8 @@ const createTooltipElement = () => {
   element.append(
     buildFloatingButton('B', '加粗', '', () => executeCommand('toggle_bold')),
     buildFloatingButton('I', '斜体', '', () => executeCommand('toggle_italic')),
+    buildFloatingButton('表', '插入表格', '', () => executeCommand('insert_table', { row: 3, col: 3 })),
+    buildFloatingButton('图', '插入图片', '', () => executeCommand('insert_image_prompt')),
   );
   return element;
 };
@@ -411,7 +448,9 @@ const createSlashElement = () => {
     ['ordered', '有序列表'],
     ['quote', '引用'],
     ['code', '代码块'],
-    ['table', '表格'],
+    ['table', '表格 3x3'],
+    ['table_large', '表格 5x5'],
+    ['image', '图片'],
   ];
   actions.forEach(([id, label]) => {
     element.append(
@@ -435,10 +474,7 @@ const createEditor = async () => {
         if (markdown === prev) return;
         currentMarkdown = markdown;
         if (!isApplyingFromFlutter) {
-          emit('on_content_change', {
-            mode: 'full',
-            markdown,
-          });
+          scheduleContentChange(markdown);
         }
         isApplyingFromFlutter = false;
         notifyRenderComplete();
@@ -605,7 +641,7 @@ const executeCommand = (cmd, args = {}) => {
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
-    if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image') {
+    if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image' || cmd === 'insert_image_prompt') {
       let ok = false;
       editorInstance.action((ctx) => {
         const commands = ctx.get(commandsCtx);
@@ -634,12 +670,27 @@ const executeCommand = (cmd, args = {}) => {
           }
           const alt = typeof args?.alt === 'string' ? args.alt : '';
           ok = commands.call(insertImageCommand.key, { src, alt });
+          return;
+        }
+        if (cmd === 'insert_image_prompt') {
+          const inputSrc = window.prompt('输入图片 URL', '');
+          const src = resolveInsertImageSrc(inputSrc);
+          if (!src) {
+            ok = false;
+            return;
+          }
+          const alt = window.prompt('输入图片描述（可选）', '') ?? '';
+          ok = commands.call(insertImageCommand.key, { src, alt });
         }
       });
       emitCmdResult(
         cmd,
         ok,
-        ok ? null : cmd === 'insert_image' ? 'invalid_args_or_not_applicable' : 'not_applicable',
+        ok
+          ? null
+          : (cmd === 'insert_image' || cmd === 'insert_image_prompt')
+            ? 'invalid_args_or_not_applicable'
+            : 'not_applicable',
         startedAt,
       );
       if (ok) {
