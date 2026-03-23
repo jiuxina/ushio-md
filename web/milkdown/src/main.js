@@ -63,6 +63,8 @@ const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
 const CONTENT_CHANGE_DEBOUNCE_MS = 120;
 let contentChangeTimerId = null;
 let pendingContentMarkdown = null;
+let uploadFailureCount = 0;
+let uploadFailureWindowStart = Date.now();
 
 const tooltip = tooltipFactory('ushio-tooltip');
 const slash = slashFactory('ushio-slash');
@@ -87,6 +89,20 @@ const emit = (type, payload = {}) => {
     requestId: nextRequestId(),
     ts: Date.now(),
     payload,
+  });
+};
+
+const recordUploadFailure = (reason) => {
+  const now = Date.now();
+  if (now - uploadFailureWindowStart > 10 * 60 * 1000) {
+    uploadFailureWindowStart = now;
+    uploadFailureCount = 0;
+  }
+  uploadFailureCount += 1;
+  emit('on_cmd_failure_aggregate', {
+    cmd: 'upload_images',
+    reason: reason || 'unknown',
+    count: uploadFailureCount,
   });
 };
 
@@ -133,6 +149,20 @@ const applyTheme = (payload) => {
   if (payload.mode === 'light' || payload.mode === 'dark') {
     root.setAttribute('data-theme-mode', payload.mode);
   }
+};
+
+const updateViewportMetrics = () => {
+  const root = document.documentElement;
+  const vv = window.visualViewport;
+  if (!vv) {
+    root.style.setProperty('--ushio-viewport-height', `${window.innerHeight}px`);
+    root.style.setProperty('--ushio-keyboard-inset', '0px');
+    return;
+  }
+  const viewportHeight = Math.max(0, vv.height);
+  const keyboardInset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+  root.style.setProperty('--ushio-viewport-height', `${viewportHeight}px`);
+  root.style.setProperty('--ushio-keyboard-inset', `${keyboardInset}px`);
 };
 
 const ensureFileBaseUrl = (baseDirectory) => {
@@ -474,6 +504,11 @@ const runSlashAction = (actionId) => {
   if (actionId === 'image') {
     executeCommand('insert_image_prompt');
   }
+  emit('on_cmd_metric', {
+    cmd: `slash_action:${actionId}`,
+    ok: true,
+    durationMs: 0,
+  });
   slashProvider?.hide();
   notifyRenderComplete();
 };
@@ -643,6 +678,48 @@ app.addEventListener('change', (event) => {
 const ensureEditor = () => {
   createEditorPromise ??= createEditor();
   return createEditorPromise;
+};
+
+const handleEditorShortcut = (event) => {
+  if (currentReadOnly) return;
+  const key = (event.key || '').toLowerCase();
+  const withPrimary = event.metaKey || event.ctrlKey;
+  if (!withPrimary || event.altKey) return;
+
+  if (key === 'b') {
+    event.preventDefault();
+    executeCommand('toggle_bold');
+    return;
+  }
+  if (key === 'i') {
+    event.preventDefault();
+    executeCommand('toggle_italic');
+    return;
+  }
+  if (key === 'k') {
+    event.preventDefault();
+    executeCommand('toggle_link', { href: 'https://' });
+    return;
+  }
+  if (key === 'e') {
+    event.preventDefault();
+    executeCommand('toggle_inline_code');
+    return;
+  }
+  if (key === 'x' && event.shiftKey) {
+    event.preventDefault();
+    executeCommand('toggle_strikethrough');
+    return;
+  }
+  if (key === 'z') {
+    event.preventDefault();
+    executeCommand(event.shiftKey ? 'redo' : 'undo');
+    return;
+  }
+  if (key === 'y') {
+    event.preventDefault();
+    executeCommand('redo');
+  }
 };
 
 const emitCmdTelemetry = (cmd, ok, reason = null, durationMs = null) => {
@@ -901,8 +978,19 @@ const executeCommand = (cmd, args = {}) => {
       }
       pendingUploadResolvers.delete(requestId);
       const reason = typeof args?.reason === 'string' ? args.reason : '';
+      const failureReason = typeof args?.failureReason === 'string' ? args.failureReason : '';
+      const failureCountRaw = Number.parseInt(args?.failureCount, 10);
+      const failureCount = Number.isNaN(failureCountRaw) ? 0 : failureCountRaw;
+      if (failureReason && failureCount > 0) {
+        emit('on_cmd_failure_aggregate', {
+          cmd: 'upload_images',
+          reason: failureReason,
+          count: failureCount,
+        });
+      }
       if (reason) {
         pending.reject(new Error(reason));
+        recordUploadFailure(reason);
         emitCmdResult(cmd, false, reason, startedAt);
         return;
       }
@@ -918,6 +1006,13 @@ const executeCommand = (cmd, args = {}) => {
     emitCmdResult(cmd, false, `exec_failed:${String(error)}`, startedAt);
   }
 };
+
+updateViewportMetrics();
+window.addEventListener('resize', updateViewportMetrics);
+window.addEventListener('orientationchange', updateViewportMetrics);
+window.visualViewport?.addEventListener('resize', updateViewportMetrics);
+window.visualViewport?.addEventListener('scroll', updateViewportMetrics);
+document.addEventListener('keydown', handleEditorShortcut, true);
 
 const onFlutterMessage = (message) => {
   let m = message;
