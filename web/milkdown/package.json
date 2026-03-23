@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "@milkdown/core": "7.19.1",
+    "@milkdown/plugin-automd": "7.19.1",
     "@milkdown/plugin-block": "7.19.1",
     "@milkdown/plugin-clipboard": "7.19.1",
     "@milkdown/plugin-cursor": "7.19.1",
+    "@milkdown/plugin-emoji": "7.19.1",
+    "@milkdown/plugin-highlight": "7.19.1",
     "@milkdown/plugin-history": "7.19.1",
     "@milkdown/plugin-indent": "7.19.1",
     "@milkdown/plugin-listener": "7.19.1",
