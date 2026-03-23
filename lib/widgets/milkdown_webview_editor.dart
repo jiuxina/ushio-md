@@ -97,26 +97,18 @@ class MilkdownWebViewController {
   Future<void> insertEmoji({String emoji = '😀'}) =>
       execCmd('insert_emoji', args: {'emoji': emoji});
 
-  Future<void> scrollToHeading(int headingIndex, {double topOffset = 32.0}) async {
-    await _webViewController?.evaluateJavascript(
-      source: '''
-        (function() {
-          var el = document.getElementById('heading-' + $headingIndex);
-          if (!el) return;
-          var scroller = document.scrollingElement || document.documentElement || document.body;
-          var rect = el.getBoundingClientRect();
-          var currentTop = scroller ? scroller.scrollTop : (window.pageYOffset || 0);
-          var targetTop = Math.max(0, currentTop + rect.top - $topOffset);
-          if (scroller && typeof scroller.scrollTo === 'function') {
-            scroller.scrollTo({ top: targetTop, behavior: 'auto' });
-          } else {
-            window.scrollTo(0, targetTop);
-          }
-          el.classList.add('heading-flash');
-          setTimeout(function() { el.classList.remove('heading-flash'); }, 700);
-        })();
-      ''',
-    );
+  Future<void> scrollToHeading({
+    required int headingIndex,
+    required int lineNumber,
+    required String headingText,
+    double topOffset = 32.0,
+  }) async {
+    await execCmd('toc_jump', args: {
+      'headingIndex': headingIndex,
+      'lineNumber': lineNumber,
+      'headingText': headingText,
+      'topOffset': topOffset,
+    });
   }
 
   Future<Uint8List?> captureScreenshot() async {

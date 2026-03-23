@@ -71,6 +71,7 @@ let contentChangeTimerId = null;
 let pendingContentMarkdown = null;
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
+let caretViewportSyncRafId = null;
 const highlightParser = createRefractorParser(refractor);
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
@@ -167,6 +168,116 @@ const updateViewportMetrics = () => {
   const keyboardInset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
   root.style.setProperty('--ushio-viewport-height', `${viewportHeight}px`);
   root.style.setProperty('--ushio-keyboard-inset', `${keyboardInset}px`);
+  if (keyboardInset > 0) {
+    scheduleCaretIntoUpperViewport();
+  }
+};
+
+const slugifyHeading = (input) => {
+  if (typeof input !== 'string') return '';
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^\d+[\.\-_\s]+/u, '')
+    .replace(/[^\p{L}\p{N}\s\-]/gu, '')
+    .replace(/\s+/gu, '-')
+    .replace(/-+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+};
+
+const parseMarkdownOutline = (markdown) => {
+  const lines = markdown.split('\n');
+  const outline = [];
+  let inCodeBlock = false;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (/^\s*```/.test(trimmed)) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
+    if (atxMatch) {
+      outline.push({
+        id: `line-${index}`,
+        lineNumber: index,
+        level: atxMatch[1].length,
+        text: atxMatch[2].trim(),
+      });
+      continue;
+    }
+
+    if (trimmed && index + 1 < lines.length) {
+      const nextTrimmed = lines[index + 1].trim();
+      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
+        outline.push({
+          id: `line-${index}`,
+          lineNumber: index,
+          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
+          text: trimmed,
+        });
+        index += 1;
+      }
+    }
+  }
+  return outline;
+};
+
+const scrollNodeToViewport = (node, topOffset = 32) => {
+  if (!(node instanceof Element)) return false;
+  const vv = window.visualViewport;
+  const viewportHeight = Math.max(1, vv?.height ?? window.innerHeight);
+  const offset = Number.isFinite(topOffset) ? Math.max(0, topOffset) : 32;
+  const targetTop = Math.max(24, viewportHeight * 0.28 - offset);
+  const rect = node.getBoundingClientRect();
+  const deltaY = rect.top - targetTop;
+  const scroller = document.scrollingElement || document.documentElement || document.body;
+  if (scroller && typeof scroller.scrollTo === 'function') {
+    const currentTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
+    scroller.scrollTo({ top: Math.max(0, currentTop + deltaY), behavior: 'auto' });
+  } else {
+    window.scrollBy(0, deltaY);
+  }
+  node.classList.add('heading-flash');
+  setTimeout(() => node.classList.remove('heading-flash'), 700);
+  return true;
+};
+
+const ensureCaretInUpperViewport = () => {
+  if (currentReadOnly) return;
+  if (getKeyboardInset() <= 0) return;
+  const active = document.activeElement instanceof Element ? document.activeElement : null;
+  if (!active?.closest('.ProseMirror')) return;
+  const selection = window.getSelection();
+  const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+  const targetNode = range?.startContainer?.parentElement
+    ?? range?.commonAncestorContainer?.parentElement
+    ?? active;
+  if (!(targetNode instanceof Element)) return;
+  const vv = window.visualViewport;
+  const viewportHeight = Math.max(1, vv?.height ?? window.innerHeight);
+  const desiredTop = viewportHeight * 0.28;
+  const rect = targetNode.getBoundingClientRect();
+  if (rect.top >= desiredTop - 20 && rect.top <= viewportHeight * 0.5) return;
+  const scroller = document.scrollingElement || document.documentElement || document.body;
+  const delta = rect.top - desiredTop;
+  if (Math.abs(delta) < 4) return;
+  if (scroller && typeof scroller.scrollTo === 'function') {
+    const currentTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
+    scroller.scrollTo({ top: Math.max(0, currentTop + delta), behavior: 'auto' });
+  } else {
+    window.scrollBy(0, delta);
+  }
+};
+
+const scheduleCaretIntoUpperViewport = () => {
+  if (caretViewportSyncRafId != null) return;
+  caretViewportSyncRafId = requestAnimationFrame(() => {
+    caretViewportSyncRafId = null;
+    ensureCaretInUpperViewport();
+  });
 };
 
 const ensureFileBaseUrl = (baseDirectory) => {
@@ -347,40 +458,11 @@ const scheduleContentChange = (markdown) => {
 };
 
 const emitOutlineUpdate = () => {
-  const lines = currentMarkdown.split('\n');
-  const outline = [];
-  let inCodeBlock = false;
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    const trimmed = line.trim();
-    if (/^\s*```/.test(trimmed)) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (inCodeBlock) continue;
-
-    const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
-    if (atxMatch) {
-      outline.push({
-        id: `line-${index}`,
-        level: atxMatch[1].length,
-        text: atxMatch[2].trim(),
-      });
-      continue;
-    }
-
-    if (trimmed && index + 1 < lines.length) {
-      const nextTrimmed = lines[index + 1].trim();
-      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
-        outline.push({
-          id: `line-${index}`,
-          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
-          text: trimmed,
-        });
-        index += 1;
-      }
-    }
-  }
+  const outline = parseMarkdownOutline(currentMarkdown).map(({ id, level, text }) => ({
+    id,
+    level,
+    text,
+  }));
   emit('on_outline_update', { outline });
 };
 
@@ -412,8 +494,14 @@ const syncRenderedDom = () => {
     }
   });
 
+  const headingOutline = parseMarkdownOutline(currentMarkdown);
   root.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading, index) => {
-    heading.id = `heading-${index}`;
+    const outlineNode = headingOutline[index];
+    const text = (outlineNode?.text || heading.textContent || '').trim();
+    const lineNumber = Number.isFinite(outlineNode?.lineNumber) ? outlineNode.lineNumber : index;
+    heading.id = `heading-line-${lineNumber}`;
+    heading.dataset.headingLine = String(lineNumber);
+    heading.dataset.headingSlug = slugifyHeading(text);
   });
 
   root.querySelectorAll('input[type="checkbox"]').forEach((checkbox, index) => {
@@ -799,11 +887,13 @@ app.addEventListener('click', (event) => {
     event.preventDefault();
     const rawHref = anchor.getAttribute('href') || '';
     const resolvedHref = anchor.getAttribute('data-ushio-href') || resolveHref(rawHref);
+    const anchorText = anchor.textContent?.trim() || null;
+    const fallbackHref = !resolvedHref && !rawHref && anchorText ? `#${anchorText}` : '';
     emit('on_link_click', {
-      href: resolvedHref || rawHref,
-      text: anchor.textContent?.trim() || null,
+      href: resolvedHref || rawHref || fallbackHref,
+      text: anchorText,
       title: anchor.getAttribute('title'),
-      isExternal: isExternalHref(resolvedHref || rawHref),
+      isExternal: isExternalHref(resolvedHref || rawHref || fallbackHref),
     });
     return;
   }
@@ -852,6 +942,7 @@ app.addEventListener('focusin', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (target?.closest('.ProseMirror')) {
     emitEditorFocus(true);
+    scheduleCaretIntoUpperViewport();
   }
 });
 
@@ -929,6 +1020,7 @@ app.addEventListener('pointercancel', clearMobileLongPress);
 document.addEventListener('scroll', hideContextMenu, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
 document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
+document.addEventListener('selectionchange', scheduleCaretIntoUpperViewport, true);
 document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
@@ -1342,11 +1434,44 @@ const executeCommand = (cmd, args = {}) => {
       selection?.removeAllRanges();
       selection?.addRange(target);
       const node = target.startContainer.parentElement ?? target.commonAncestorContainer.parentElement;
-      node?.scrollIntoView({ block: 'center', behavior: 'auto' });
-      if (node) {
-        node.classList.add('heading-flash');
-        setTimeout(() => node.classList.remove('heading-flash'), 700);
+      scrollNodeToViewport(node, Number.parseFloat(args?.topOffset) || 32);
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+    if (cmd === 'toc_jump') {
+      const headingText = typeof args?.headingText === 'string' ? args.headingText.trim() : '';
+      const headingSlug = typeof args?.headingSlug === 'string' ? args.headingSlug.trim() : '';
+      const lineNumberRaw = Number.parseInt(args?.lineNumber, 10);
+      const headingIndexRaw = Number.parseInt(args?.headingIndex, 10);
+      const topOffsetRaw = Number.parseFloat(args?.topOffset);
+      const topOffset = Number.isFinite(topOffsetRaw) ? topOffsetRaw : 32;
+      const headings = Array.from(
+        (app.querySelector('.milkdown .ProseMirror') || app).querySelectorAll('h1, h2, h3, h4, h5, h6'),
+      );
+      if (!headings.length) {
+        emitCmdResult(cmd, false, 'not_found', startedAt);
+        return;
       }
+
+      let target = null;
+      if (!Number.isNaN(lineNumberRaw) && lineNumberRaw >= 0) {
+        target = headings.find((heading) => Number.parseInt(heading.dataset.headingLine || '-1', 10) === lineNumberRaw);
+      }
+      if (!(target instanceof Element) && headingSlug) {
+        target = headings.find((heading) => (heading.dataset.headingSlug || '') === headingSlug);
+      }
+      if (!(target instanceof Element) && headingText) {
+        const normalized = slugifyHeading(headingText);
+        target = headings.find((heading) => (heading.dataset.headingSlug || slugifyHeading(heading.textContent || '')) === normalized);
+      }
+      if (!(target instanceof Element) && !Number.isNaN(headingIndexRaw) && headingIndexRaw >= 0) {
+        target = headings[Math.min(headingIndexRaw, headings.length - 1)];
+      }
+      if (!(target instanceof Element)) {
+        emitCmdResult(cmd, false, 'not_found', startedAt);
+        return;
+      }
+      scrollNodeToViewport(target, topOffset);
       emitCmdResult(cmd, true, null, startedAt);
       return;
     }
