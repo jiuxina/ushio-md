@@ -64,6 +64,7 @@ class MilkdownWebViewController {
   Future<void> insertHorizontalRule() => execCmd('insert_hr');
   Future<void> focusEditor() => execCmd('focus_editor');
   Future<void> toggleStrikethrough() => execCmd('toggle_strikethrough');
+  Future<void> toggleHighlight() => execCmd('toggle_highlight');
   Future<void> toggleInlineCode() => execCmd('toggle_inline_code');
   Future<void> setHeading(int level) => execCmd('set_heading', args: {'level': level});
   Future<void> toggleBlockquote() => execCmd('toggle_blockquote');
@@ -93,6 +94,8 @@ class MilkdownWebViewController {
         'src': src,
         if (alt != null) 'alt': alt,
       });
+  Future<void> insertEmoji({String emoji = '😀'}) =>
+      execCmd('insert_emoji', args: {'emoji': emoji});
 
   Future<void> scrollToHeading(int headingIndex, {double topOffset = 32.0}) async {
     await _webViewController?.evaluateJavascript(

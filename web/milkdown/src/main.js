@@ -7,8 +7,11 @@ import {
   rootCtx,
 } from '@milkdown/core';
 import { block, BlockProvider, blockSpec } from '@milkdown/plugin-block';
+import { automd } from '@milkdown/plugin-automd';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
+import { emoji } from '@milkdown/plugin-emoji';
+import { highlight } from '@milkdown/plugin-highlight';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
 import { indent } from '@milkdown/plugin-indent';
@@ -508,6 +511,12 @@ const runSlashAction = (actionId) => {
       case 'table_large':
         commands.call(insertTableCommand.key, { row: 5, col: 5 });
         break;
+      case 'highlight':
+        insertTextAtSelection(view, '==高亮文本==');
+        break;
+      case 'emoji':
+        insertTextAtSelection(view, '😀');
+        break;
       default:
         break;
     }
@@ -633,6 +642,8 @@ const createSlashElement = () => {
     ['code_js', '代码块 · JavaScript'],
     ['table', '表格 3x3'],
     ['table_large', '表格 5x5'],
+    ['highlight', '高亮文本'],
+    ['emoji', 'Emoji 😀'],
     ['image', '图片'],
   ];
   actions.forEach(([id, label]) => {
@@ -718,6 +729,9 @@ const createEditor = async () => {
     })
     .use(commonmark)
     .use(gfm)
+    .use(automd)
+    .use(emoji)
+    .use(highlight)
     .use(math)
     .use(prism)
     .use(listener)
@@ -951,6 +965,7 @@ const executeCommand = (cmd, args = {}) => {
       cmd === 'toggle_bold' ||
       cmd === 'toggle_italic' ||
       cmd === 'toggle_strikethrough' ||
+      cmd === 'toggle_highlight' ||
       cmd === 'toggle_inline_code' ||
       cmd === 'toggle_link' ||
       cmd === 'set_heading' ||
@@ -971,6 +986,7 @@ const executeCommand = (cmd, args = {}) => {
       cmd === 'table_delete_col' ||
       cmd === 'table_delete_selected' ||
       cmd === 'insert_image' ||
+      cmd === 'insert_emoji' ||
       cmd === 'insert_image_prompt'
     ) {
       let ok = false;
@@ -989,6 +1005,11 @@ const executeCommand = (cmd, args = {}) => {
         }
         if (cmd === 'toggle_strikethrough') {
           ok = commands.call(toggleStrikethroughCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_highlight') {
+          insertTextAtSelection(view, '==高亮文本==');
+          ok = true;
           return;
         }
         if (cmd === 'toggle_inline_code') {
@@ -1091,6 +1112,12 @@ const executeCommand = (cmd, args = {}) => {
           }
           const alt = typeof args?.alt === 'string' ? args.alt : '';
           ok = commands.call(insertImageCommand.key, { src, alt });
+          return;
+        }
+        if (cmd === 'insert_emoji') {
+          const emojiText = typeof args?.emoji === 'string' ? args.emoji : '😀';
+          insertTextAtSelection(view, emojiText || '😀');
+          ok = true;
           return;
         }
         if (cmd === 'insert_image_prompt') {
