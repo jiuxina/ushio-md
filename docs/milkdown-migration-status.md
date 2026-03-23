@@ -194,10 +194,11 @@
 ### 结论
 
 从“功能接线与运行时资产”角度看，已完成 Milkdown 单内核迁移；  
-但从“迁移验收闭环”角度看，**仍未完全收官**，因为 Phase D 尚有两项质量基线未完成：
+但从“迁移验收闭环”角度看，**仍未完全收官**，当前状态为：
 
-- [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）
-- [ ] 固化性能基线（Step 2 规范已完成，待 Step 3 真机实测数据回填）
+- [x] 建立真机回归清单（模板已建立）
+- [x] 固化性能基线采样方法（Step 2 已完成）
+- [ ] 完成真机版本矩阵实测并回填（Step 3 已回填阻塞结果，待真实设备执行）
 
-因此，下一步进入“收官验证计划”（见 `docs/milkdown-finalization-plan.md`）。  
-其中 Step 2 已落地为 `docs/milkdown-performance-baseline.md`，下一步为 Step 3 真机首轮实测回填。
+已完成 Step 3 首轮结果回填（见 `docs/milkdown-step3-first-pass-results.md`），  
+并进入后续计划 v2（见 `docs/milkdown-migration-plan-v2.md` 与 `docs/milkdown-v2-device-execution-template.md`）。
