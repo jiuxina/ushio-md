@@ -51,6 +51,7 @@ import './style.css';
 const app = document.getElementById('app');
 let bridgeSeq = 0;
 let editorInstance = null;
+let crepeInstance = null;
 let currentMarkdown = '';
 let currentBaseDirectory = '';
 let currentReadOnly = true;
@@ -359,6 +360,14 @@ const lockViewportZoom = () => {
       event.preventDefault();
     }
   }, { passive: false });
+};
+
+const applyReadOnlyState = () => {
+  if (currentReadOnly) {
+    app.setAttribute('data-ushio-read-only', 'true');
+  } else {
+    app.removeAttribute('data-ushio-read-only');
+  }
 };
 
 const attachHorizontalWheelScroll = () => {
@@ -970,7 +979,9 @@ const createEditor = async () => {
     .use(upload);
 
   await crepe.create();
+  crepeInstance = crepe;
   crepe.setReadonly(currentReadOnly);
+  applyReadOnlyState();
   editorInstance = crepe.editor;
 
   contextMenuElement = createContextMenuElement();
@@ -1013,7 +1024,11 @@ app.addEventListener('click', (event) => {
 
 app.addEventListener('mousedown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  if (target?.matches('a, a *, input[type="checkbox"], input[type="checkbox"] *')) {
+  if (target?.matches('a, a *')) {
+    event.preventDefault();
+    return;
+  }
+  if (currentReadOnly && target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
     event.preventDefault();
   }
 });
@@ -1034,14 +1049,7 @@ app.addEventListener('pointerdown', (event) => {
   if (!(checkbox instanceof HTMLInputElement)) return;
   if (currentReadOnly) {
     event.preventDefault();
-    return;
   }
-  event.preventDefault();
-  event.stopPropagation();
-  const nextChecked = !checkbox.checked;
-  checkbox.checked = nextChecked;
-  checkbox.dataset.ushioSkipNextChange = '1';
-  emitCheckboxToggle(checkbox, nextChecked);
 });
 
 app.addEventListener('focusin', (event) => {
@@ -1067,8 +1075,7 @@ app.addEventListener('focusout', (event) => {
 app.addEventListener('change', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
-  if (target.dataset.ushioSkipNextChange === '1') {
-    delete target.dataset.ushioSkipNextChange;
+  if (currentReadOnly) {
     return;
   }
   emitCheckboxToggle(target, target.checked);
@@ -1647,9 +1654,11 @@ const onFlutterMessage = (message) => {
     const payload = m.payload && typeof m.payload === 'object' ? m.payload : {};
     currentBaseDirectory = typeof payload.baseDirectory === 'string' ? payload.baseDirectory : '';
     currentReadOnly = payload.readOnly !== false;
+    applyReadOnlyState();
     const markdown = typeof payload.markdown === 'string' ? payload.markdown : '';
     currentMarkdown = markdown;
     if (editorInstance) {
+      crepeInstance?.setReadonly?.(currentReadOnly);
       setMarkdown(markdown);
     } else {
       ensureEditor().catch((error) => {

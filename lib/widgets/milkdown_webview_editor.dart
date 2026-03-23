@@ -531,6 +531,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   Future<Map<String, String>?> _showInsertImageUrlDialog() async {
     if (!mounted || !widget.enableInsertImageUrl) return null;
     final urlController = TextEditingController();
+    final altController = TextEditingController();
     try {
       return await showDialog<Map<String, String>>(
         context: context,
@@ -566,6 +567,18 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: altController,
+                  decoration: InputDecoration(
+                    labelText: '替代文本（可选）',
+                    hintText: '用于无障碍与图片说明',
+                    prefixIcon: const Icon(Icons.image_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -580,7 +593,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                 if (url.isNotEmpty) {
                   Navigator.pop(context, {
                     'url': url,
-                    'alt': '',
+                    'alt': _sanitizeInsertImageAlt(altController.text),
                   });
                 }
               },
@@ -592,6 +605,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       );
     } finally {
       urlController.dispose();
+      altController.dispose();
     }
   }
 

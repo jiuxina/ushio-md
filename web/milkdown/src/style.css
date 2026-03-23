@@ -227,7 +227,6 @@ body {
   justify-content: flex-start;
   font-size: 12px;
   border-left: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent);
-  pointer-events: none;
 }
 
 .milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label svg,
@@ -403,7 +402,7 @@ body {
   height: auto;
 }
 
-.milkdown .milkdown-image-block > .caption-input {
+.milkdown[data-ushio-read-only='true'] .milkdown-image-block > .caption-input {
   display: none !important;
 }
 
