@@ -1,146 +1,128 @@
-# Milkdown 实现深度分析与官方特性差异对照（ushio-md）
+# Milkdown 深度实现分析与官方特性差异对照（ushio-md）
 
 > 分析时间：2026-03-23  
-> 分析范围：`web/milkdown/` 源码、`lib/widgets/milkdown_webview_editor.dart` Bridge 接线、当前依赖版本与 npm 官方包生态
+> 分析范围：`web/milkdown/`、`lib/widgets/milkdown_webview_editor.dart`、`lib/models/milkdown_bridge.dart`、相关测试与迁移文档
 
 ---
 
-## 1. 核心实现识别（初始化与插件加载）
+## 1. 核心实现识别
 
-### 1.1 Milkdown 初始化入口
+### 1.1 Milkdown 初始化位置
 
-当前项目的 Milkdown 初始化位于：
+当前唯一初始化入口：
 
 - `/home/runner/work/ushio-md/ushio-md/web/milkdown/src/main.js`
-  - `createEditor()`：第 224 行开始
-  - `Editor.make()`：第 225 行
-  - `ensureEditor()`：第 286 行（懒初始化）
-  - `onFlutterMessage(type === 'init_doc')`：第 381 行触发初始化
+  - `createEditor()`：创建 `Editor.make()`、配置主题/插件、建立 listener 与 bridge 回写
+  - `ensureEditor()`：懒初始化
+  - `onFlutterMessage(type === 'init_doc')`：首包驱动初始化与文档装载
 
-### 1.2 当前已加载的官方能力（`use(...)` / `config(...)`）
+Flutter 承载入口：
 
-在 `createEditor()` 中，当前加载链路为：
+- `/home/runner/work/ushio-md/ushio-md/lib/widgets/milkdown_webview_editor.dart`
+  - `MilkdownWebViewEditor`：WebView 生命周期、bridge handler 注册、`init_doc/update_theme/exec_cmd` 下发
+  - `_handleBridgeArgs()`：统一分发 Web -> Flutter 消息（含 upload 请求）
 
-- `config(nord)`：`@milkdown/theme-nord`（官方主题）
-- `.use(commonmark)`：`@milkdown/preset-commonmark`
-- `.use(gfm)`：`@milkdown/preset-gfm`
-- `.use(math)`：`@milkdown/plugin-math`
-- `.use(prism)`：`@milkdown/plugin-prism`
-- `.use(listener)`：`@milkdown/plugin-listener`
+### 1.2 当前已加载的官方插件（已完成 Step1-10）
 
-并且命令侧使用了：
+`web/milkdown/src/main.js` 中实际启用链路：
 
-- `toggleStrongCommand`、`toggleEmphasisCommand`、`insertImageCommand`（来自 `preset-commonmark`）
-- `insertTableCommand`（来自 `preset-gfm`）
-- `undo` / `redo`（来自 `@milkdown/prose/history`）
-
-### 1.3 自定义插件识别结果
-
-当前**未发现通过 `.use(customPlugin)` 注册的 Milkdown 自定义插件**。  
-项目的“自定义能力”主要通过 Web 层扩展逻辑实现，而非 Milkdown 插件 API：
-
-- Flutter ↔ Web Bridge 协议封装：`init_doc / update_theme / exec_cmd` 与回调分发
-- 渲染后 DOM 增强：链接拦截、checkbox 索引映射、图片错误上报
-- 目录提取：基于 Markdown 行文本正则提取标题并上报 `on_outline_update`
-- 资源路径解析：`baseDirectory` + 相对路径转绝对 `file://`
-
----
-
-## 2. Milkdown 官方核心特性与官方插件生态（最新）
-
-> 基于当前 npm 官方包可见生态（`@milkdown/*`）与 v7 体系。  
-> 版本检查结果：`@milkdown/core` 最新为 `7.19.1`，而本项目当前为 `7.5.0`。
-
-### 2.1 官方核心能力（平台层）
-
-- 核心编辑器与上下文系统：`@milkdown/core`、`@milkdown/ctx`
-- ProseMirror 能力导出：`@milkdown/prose`
-- Markdown 转换层：`@milkdown/transformer`
-- 工具与异常：`@milkdown/utils`、`@milkdown/exception`
-- 预设（Preset）：
-  - `@milkdown/preset-commonmark`
-  - `@milkdown/preset-gfm`
-- 开箱方案：
-  - `@milkdown/kit`（官方组合套件）
-  - `@milkdown/crepe`（开箱即用编辑器）
-- UI 集成：
-  - `@milkdown/react`
-  - `@milkdown/components`
-
-### 2.2 官方插件生态（主要）
-
+- `@milkdown/preset-commonmark`
+- `@milkdown/preset-gfm`
+- `@milkdown/plugin-math`
+- `@milkdown/plugin-prism`
 - `@milkdown/plugin-listener`
-- `@milkdown/plugin-slash`
-- `@milkdown/plugin-tooltip`
 - `@milkdown/plugin-block`
-- `@milkdown/plugin-upload`
 - `@milkdown/plugin-history`
 - `@milkdown/plugin-indent`
-- `@milkdown/plugin-clipboard`
 - `@milkdown/plugin-trailing`
-- `@milkdown/plugin-prism`
-- `@milkdown/plugin-math`（npm 标记 deprecated，仍可安装，最新 `7.5.9`）
+- `@milkdown/plugin-clipboard`
+- `@milkdown/plugin-upload`
+- `@milkdown/plugin-tooltip`
+- `@milkdown/plugin-slash`
+- 主题：`@milkdown/theme-nord`（`config(nord)`）
+
+### 1.3 自定义插件识别
+
+未发现通过 `.use(customPlugin)` 注册的 Milkdown 自定义插件。  
+当前自定义能力主要在“Bridge 与业务层”：
+
+- 上传桥接：
+  - Web -> Flutter：`on_upload_images_request`（携带 dataUrl 文件）
+  - Flutter -> Web：`exec_cmd(upload_images_result)`（回传解析后的 `images`）
+- 本地图片落盘策略（`images/` 子目录）：
+  - `/home/runner/work/ushio-md/ushio-md/lib/widgets/milkdown_webview_editor.dart`
+  - `/home/runner/work/ushio-md/ushio-md/lib/services/my_files_service.dart`
+- 渲染后 DOM 同步：链接、checkbox、heading id、图片错误回调
 
 ---
 
-## 3. 差异对照表（官方全量 vs 本项目）
+## 2. 官方核心特性与插件生态（基于 v7 最新稳定线认知）
+
+### 2.1 官方核心能力
+
+- 核心：`@milkdown/core`、`@milkdown/ctx`、`@milkdown/prose`、`@milkdown/utils`
+- 转换层：`@milkdown/transformer`
+- 预设：`@milkdown/preset-commonmark`、`@milkdown/preset-gfm`
+- 主题与 UI：`@milkdown/theme-*`、`@milkdown/components`、`@milkdown/react`
+- 开箱组合：`@milkdown/kit`、`@milkdown/crepe`
+
+### 2.2 官方插件生态（本项目相关）
+
+- listener / history / tooltip / slash / block / indent / trailing / clipboard / upload / prism / math
+
+---
+
+## 3. 差异对照表
 
 | 特性/插件名称 | 官方状态 | 本项目是否实现 | 本地实现路径/说明 | 差异点/待补齐功能 |
 | --- | --- | --- | --- | --- |
-| Core Editor (`@milkdown/core`) | 官方核心，活跃（7.19.1） | 是 | `web/milkdown/src/main.js` `Editor.make()` | 版本落后（7.5.0） |
-| Context/Utils/Prose 基础能力 | 官方核心能力 | 部分 | `main.js` 使用 `commandsCtx`、`editorViewCtx`、`@milkdown/prose/history` | 未系统引入 `@milkdown/kit` 的统一编排能力 |
-| CommonMark Preset | 官方核心预设，活跃 | 是 | `.use(commonmark)` | 版本落后 |
-| GFM Preset（含表格等） | 官方核心预设，活跃 | 是 | `.use(gfm)` + `insertTableCommand` | 版本落后；未显式利用更多 GFM 相关命令/UI |
-| Listener Plugin | 官方插件，活跃 | 是 | `.use(listener)` + `markdownUpdated` | 当前回写无防抖，长文档可能增加桥接压力 |
-| Prism Plugin | 官方插件，活跃 | 是 | `.use(prism)` | 版本落后 |
-| Math Plugin | 官方插件（npm 标记 deprecated） | 是 | `.use(math)` | 当前固定 `7.5.0`；需评估后续替代路线/兼容方案 |
-| Nord Theme | 官方主题，活跃 | 是 | `.config(nord)` | 版本落后；目前仅使用 nord 主题方案 |
-| Slash Plugin | 官方插件，活跃 | 否 | 无 | 未实现 `/` 命令面板能力 |
-| Tooltip Plugin | 官方插件，活跃 | 否 | 无 | 未实现浮层工具提示/格式化 UI |
-| Block Plugin | 官方插件，活跃 | 否 | 无 | 未实现块级操作增强 |
-| Upload Plugin | 官方插件，活跃 | 否 | 无 | 现为 Flutter 侧图片选择 + `insert_image`，无官方 upload 插件链路 |
-| History Plugin（官方封装） | 官方插件，活跃 | 部分 | 使用 `@milkdown/prose/history` 的 `undo/redo` | 未采用 `@milkdown/plugin-history` 封装能力 |
-| Indent Plugin | 官方插件，活跃 | 否 | 无 | 未提供缩进增强能力 |
-| Clipboard Plugin | 官方插件，活跃 | 否 | 无 | 未启用官方剪贴板增强 |
-| Trailing Plugin | 官方插件，活跃 | 否 | 无 | 未启用尾随段落/输入体验增强 |
-| Kit（官方组合套件） | 官方推荐开箱组合，活跃 | 否 | 无 | 目前手工拼装插件，升级与扩展成本更高 |
-| Crepe（开箱编辑器） | 官方开箱方案，活跃 | 否 | 无 | 当前是自建 WebView + Bridge，不是 Crepe 路线 |
-| React/Components 生态 | 官方 UI 生态，活跃 | 否（不适用） | Flutter + WebView 架构 | 架构差异导致该能力不直接适用 |
-| 自定义 Milkdown 插件（`.use(custom)`) | 官方支持扩展机制 | 否 | 无自定义插件注册 | 当前自定义能力在 DOM/Bridge 层，非标准插件层 |
+| Core Editor (`@milkdown/core`) | 官方核心，活跃（7.19.1） | 是 | `web/milkdown/src/main.js` | 已对齐主版本 |
+| CommonMark Preset | 官方核心预设 | 是 | `.use(commonmark)` | 已实现 |
+| GFM Preset | 官方核心预设 | 是 | `.use(gfm)` + `insertTableCommand` | 已实现 |
+| Theme (`theme-nord`) | 官方主题 | 是 | `config(nord)` | 主题体系单一，可扩展更多主题策略 |
+| Listener Plugin | 官方插件 | 是 | `.use(listener)` + `markdownUpdated` | 长文档回写仍是全量 markdown，上报压力可优化 |
+| Prism Plugin | 官方插件 | 是 | `.use(prism)` | 已实现 |
+| Math Plugin | 官方插件（deprecated） | 是 | `.use(math)` | 需长期关注替代方案或上游后续路线 |
+| History Plugin | 官方插件 | 是 | `.use(history)` + undo/redo command | 已实现 |
+| Tooltip Plugin | 官方插件 | 是 | `.use(tooltip)` + `TooltipProvider` | 当前仅最小按钮集（B/I） |
+| Slash Plugin | 官方插件 | 是 | `.use(slash)` + `SlashProvider` | 当前动作集较小，可继续扩展 |
+| Block Plugin | 官方插件 | 是 | `.use(block)` + `BlockProvider` | 已最小接入，可增加块菜单能力 |
+| Indent Plugin | 官方插件 | 是 | `.use(indent)` | 已实现 |
+| Trailing Plugin | 官方插件 | 是 | `.use(trailing)` | 已实现 |
+| Clipboard Plugin | 官方插件 | 是 | `.use(clipboard)` | 已实现，需真机矩阵验证各 WebView 行为差异 |
+| Upload Plugin | 官方插件 | 是 | `.use(upload)` + `uploadConfig` 自定义 uploader | 已桥接 Flutter 落盘，尚可优化为二进制通道避免 dataUrl 膨胀 |
+| Upload 业务桥接（非官方插件） | 官方可扩展能力 | 是（自定义实现） | `main.js` + `milkdown_webview_editor.dart` + `milkdown_bridge.dart` | 已实现 request/result 协议，但需要更完善失败态与限流策略 |
+| Kit / Crepe | 官方开箱方案 | 否 | 未接入 | 当前 Flutter + WebView 架构不强依赖，可按需评估 |
+| 自定义 Milkdown 插件（`.use(custom)`) | 官方支持扩展 | 否 | 无 | 当前定制集中在 bridge 层，不是插件层 |
 
 ---
 
-## 4. 优化建议（结合本项目现状）
+## 4. 优化建议
 
-1. **优先处理版本滞后**
-   - 当前 `web/milkdown/package.json` 中多数依赖为 `7.5.0`，与最新 `7.19.1` 有明显差距。
-   - 建议先建立“最小升级批次”（例如先升 `core/preset/listener/prism/theme`，保留现有 bridge 协议不变）并做回归。
+1. **上传链路优化（优先）**
+   - 当前 upload 桥接基于 dataUrl 透传，图片体积大会放大 JS bridge 负载。
+   - 建议后续改为“文件句柄/临时路径 + 原生侧读写”或分片策略，减少 bridge 压力与 OOM 风险。
 
-2. **评估 `plugin-math` 的后续策略**
-   - npm 已标记 `@milkdown/plugin-math` deprecated（最新 `7.5.9`），建议在升级时明确：
-     - 是继续沿用当前能力并锁版本；
-     - 还是切换到官方后续推荐路径（若上游发布替代方案）。
+2. **命令与回执可观测性增强**
+   - 已有 `on_cmd_result`，建议统一埋点命令耗时、失败原因聚合（upload timeout / request_not_found 等）。
+   - 便于定位不同 WebView 版本兼容差异。
 
-3. **补齐缺失的官方高价值插件**
-   - 若目标是“编辑器体验增强”，优先顺序建议：
-     1) `plugin-tooltip`
-     2) `plugin-slash`
-     3) `plugin-history`（替换当前直接调用 prose history 的方式）
-   - 这三项与现有工具栏/命令模型兼容度较高，改造收益明显。
+3. **内容回写策略优化**
+   - 当前 `on_content_change` 为全量 markdown 回写，长文档频繁编辑时成本较高。
+   - 建议引入最小防抖窗口或增量策略（前提是 Flutter 侧消费模型可兼容）。
 
-4. **Bridge 性能与一致性优化**
-   - 当前 `on_content_change` 是逐次更新上报，建议评估加入短防抖（如 150~300ms）或条件上报，降低长文档输入压力。
-   - 当前目录提取依赖正则匹配 `#` 标题，建议后续考虑基于编辑器状态/语法树提取，减少与真实渲染结构不一致的边界情况。
+4. **插件能力继续扩展**
+   - `tooltip` 与 `slash` 当前是最小可用动作集，可逐步对齐现有工具栏能力（如图片、表格参数化、更多块类型）。
+   - `block` 可结合自定义块菜单提升“拖拽 + 块操作”体验。
 
-5. **插件层与业务层解耦**
-   - 当前项目把较多能力放在 DOM 后处理（链接、图片、checkbox、heading id）层。
-   - 后续可将稳定能力逐步迁移到 Milkdown 官方插件能力或规范插件扩展层，提升可维护性与升级可控性。
+5. **测试与真机验收收口**
+   - 代码层已补充 upload bridge 单测，但当前环境缺 `flutter/dart` 可执行能力，未跑完整测试。
+   - 建议在 CI 或本地完整跑：`flutter test` + 设备矩阵 checklist（clipboard/upload/大文档）。
 
 ---
 
-## 5. 关键结论（简版）
+## 5. 结论
 
-- 当前项目已经完成 Milkdown 主干接入，核心可用链路完整。
-- 但与官方最新生态相比，主要差异是：**版本滞后 + 官方插件利用率偏低（Slash/Tooltip/Block/Upload 等未使用）**。
-- 短期建议：**先升级核心版本，再小步引入高价值官方插件**，并保持现有 Flutter Bridge 协议稳定。
-
+- Step1-10 对照计划已在代码与文档层完成接入。
+- 项目当前已经覆盖官方主要编辑插件生态（含 clipboard/upload）。
+- 现阶段的主要差异不在“有没有”，而在“高负载场景下的桥接效率、可观测性与真机矩阵稳定性”。
