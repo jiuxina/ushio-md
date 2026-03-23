@@ -532,6 +532,15 @@ const clearActiveMarkdownHints = () => {
   });
 };
 
+let editorFocusState = false;
+
+const emitEditorFocus = (focused) => {
+  const normalized = focused === true;
+  if (editorFocusState === normalized) return;
+  editorFocusState = normalized;
+  emit('on_editor_focus', { focused: normalized });
+};
+
 const updateActiveMarkdownHints = () => {
   clearActiveMarkdownHints();
   const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
@@ -604,6 +613,25 @@ app.addEventListener('click', (event) => {
     });
     return;
   }
+});
+
+app.addEventListener('focusin', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest('.ProseMirror')) {
+    emitEditorFocus(true);
+  }
+});
+
+app.addEventListener('focusout', (event) => {
+  const next = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+  if (next?.closest('.ProseMirror')) {
+    return;
+  }
+  const active = document.activeElement instanceof Element ? document.activeElement : null;
+  if (active?.closest('.ProseMirror')) {
+    return;
+  }
+  emitEditorFocus(false);
 });
 
 app.addEventListener('change', (event) => {
