@@ -73,6 +73,10 @@ body {
   display: none !important;
 }
 
+.milkdown .milkdown-latex-inline-edit {
+  display: none !important;
+}
+
 .milkdown .ProseMirror {
   min-height: 100%;
   padding: 0;
@@ -415,6 +419,10 @@ body {
 .milkdown img {
   max-width: 100%;
   height: auto;
+}
+
+.milkdown .milkdown-image-block > .image-wrapper .operation {
+  display: none !important;
 }
 
 .milkdown .milkdown-image-block.ushio-image-load-failed .caption-input,
