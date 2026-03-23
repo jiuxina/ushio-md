@@ -7,6 +7,7 @@ import {
   rootCtx,
 } from '@milkdown/core';
 import { block, BlockProvider, blockSpec } from '@milkdown/plugin-block';
+import { clipboard } from '@milkdown/plugin-clipboard';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
 import { indent } from '@milkdown/plugin-indent';
@@ -14,6 +15,7 @@ import { math } from '@milkdown/plugin-math';
 import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
 import { trailing } from '@milkdown/plugin-trailing';
 import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip';
+import { upload, uploadConfig } from '@milkdown/plugin-upload';
 import {
   commonmark,
   createCodeBlockCommand,
@@ -45,6 +47,7 @@ let createEditorPromise = null;
 let blockProvider = null;
 let tooltipProvider = null;
 let slashProvider = null;
+const pendingUploadResolvers = new Map();
 
 const tooltip = tooltipFactory('ushio-tooltip');
 const slash = slashFactory('ushio-slash');
@@ -162,6 +165,53 @@ const resolveInsertImageSrc = (src) => {
   } catch (_) {
     return trimmed;
   }
+};
+
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(reader.error ?? new Error('file_read_failed'));
+  reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+  reader.readAsDataURL(file);
+});
+
+const createUploadImageNode = (schema, item) => {
+  const srcRaw = typeof item?.src === 'string' ? item.src.trim() : '';
+  if (!srcRaw) return null;
+  const src = resolveInsertImageSrc(srcRaw);
+  if (!src) return null;
+  const alt = typeof item?.alt === 'string' ? item.alt : '';
+  const imageNodeType = schema.nodes?.image;
+  if (!imageNodeType) return null;
+  return imageNodeType.create({ src, alt });
+};
+
+const customUploadHandler = async (files, schema) => {
+  const normalizedFiles = Array.from(files ?? []);
+  if (normalizedFiles.length <= 0) return [];
+  const requestId = nextRequestId();
+  const filePayload = await Promise.all(
+    normalizedFiles.map(async (file) => ({
+      name: file.name ?? '',
+      type: file.type ?? '',
+      size: Number.isFinite(file.size) ? file.size : 0,
+      dataUrl: await readFileAsDataUrl(file),
+    })),
+  );
+  const resultPromise = new Promise((resolve, reject) => {
+    pendingUploadResolvers.set(requestId, { resolve, reject });
+    setTimeout(() => {
+      if (!pendingUploadResolvers.has(requestId)) return;
+      pendingUploadResolvers.delete(requestId);
+      reject(new Error('upload_timeout'));
+    }, 120000);
+  });
+  emit('on_upload_images_request', { requestId, files: filePayload });
+  const result = await resultPromise;
+  if (!result || typeof result !== 'object') return [];
+  const images = Array.isArray(result.images) ? result.images : [];
+  return images
+    .map((item) => createUploadImageNode(schema, item))
+    .filter(Boolean);
 };
 
 const emitOutlineUpdate = () => {
@@ -366,6 +416,10 @@ const createEditor = async () => {
         isApplyingFromFlutter = false;
         notifyRenderComplete();
       });
+      ctx.update(uploadConfig.key, (prev) => ({
+        ...prev,
+        uploader: (files, schema) => customUploadHandler(files, schema),
+      }));
       ctx.set(blockSpec.key, {
         view: () => {
           blockProvider = new BlockProvider({
@@ -425,6 +479,8 @@ const createEditor = async () => {
     .use(history)
     .use(indent)
     .use(trailing)
+    .use(clipboard)
+    .use(upload)
     .use(tooltip)
     .use(slash);
 
@@ -535,6 +591,30 @@ const executeCommand = (cmd, args = {}) => {
       if (ok) {
         notifyRenderComplete();
       }
+      return;
+    }
+    if (cmd === 'upload_images_result') {
+      const requestId = typeof args?.requestId === 'string' ? args.requestId : '';
+      if (!requestId) {
+        emitCmdResult(cmd, false, 'invalid_args');
+        return;
+      }
+      const pending = pendingUploadResolvers.get(requestId);
+      if (!pending) {
+        emitCmdResult(cmd, false, 'request_not_found');
+        return;
+      }
+      pendingUploadResolvers.delete(requestId);
+      const reason = typeof args?.reason === 'string' ? args.reason : '';
+      if (reason) {
+        pending.reject(new Error(reason));
+        emitCmdResult(cmd, false, reason);
+        return;
+      }
+      pending.resolve({
+        images: Array.isArray(args?.images) ? args.images : [],
+      });
+      emitCmdResult(cmd, true);
       return;
     }
     emitCmdResult(cmd, false, 'unsupported_cmd');

@@ -221,6 +221,77 @@ class OnLinkClickPayload {
       };
 }
 
+class UploadImageFilePayload {
+  final String name;
+  final String type;
+  final int size;
+  final String dataUrl;
+
+  const UploadImageFilePayload({
+    required this.name,
+    required this.type,
+    required this.size,
+    required this.dataUrl,
+  });
+
+  factory UploadImageFilePayload.fromJson(Map<String, dynamic> json) {
+    final dataUrl = json['dataUrl']?.toString();
+    if (dataUrl == null || dataUrl.isEmpty) {
+      throw const FormatException('UploadImageFilePayload.dataUrl is required');
+    }
+    final sizeRaw = json['size'];
+    final size = sizeRaw is int ? sizeRaw : int.tryParse(sizeRaw?.toString() ?? '') ?? 0;
+    return UploadImageFilePayload(
+      name: json['name']?.toString() ?? '',
+      type: json['type']?.toString() ?? '',
+      size: size,
+      dataUrl: dataUrl,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'type': type,
+        'size': size,
+        'dataUrl': dataUrl,
+      };
+}
+
+class OnUploadImagesRequestPayload {
+  final String requestId;
+  final List<UploadImageFilePayload> files;
+
+  const OnUploadImagesRequestPayload({
+    required this.requestId,
+    required this.files,
+  });
+
+  factory OnUploadImagesRequestPayload.fromJson(Map<String, dynamic> json) {
+    final requestId = json['requestId']?.toString();
+    if (requestId == null || requestId.isEmpty) {
+      throw const FormatException('OnUploadImagesRequestPayload.requestId is required');
+    }
+    final rawFiles = json['files'];
+    final files = rawFiles is List
+        ? rawFiles
+            .whereType<Map>()
+            .map((item) => UploadImageFilePayload.fromJson(
+                  Map<String, dynamic>.from(item),
+                ))
+            .toList(growable: false)
+        : const <UploadImageFilePayload>[];
+    return OnUploadImagesRequestPayload(
+      requestId: requestId,
+      files: files,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'requestId': requestId,
+        'files': files.map((e) => e.toJson()).toList(growable: false),
+      };
+}
+
 String createBridgeRequestId() {
   final now = DateTime.now();
   final salt = Random.secure().nextInt(_bridgeRequestSaltLimit);
@@ -238,6 +309,7 @@ void dispatchMilkdownBridgeMessage(
   void Function(OnOutlineUpdatePayload payload)? onOutlineUpdate,
   void Function(OnLinkClickPayload payload)? onLinkClick,
   void Function(OnImageErrorPayload payload)? onImageError,
+  void Function(OnUploadImagesRequestPayload payload)? onUploadImagesRequest,
   void Function(int index, bool checked)? onCheckboxToggle,
   void Function(String cmd, bool ok, String? reason)? onCmdResult,
   void Function()? onRenderComplete,
@@ -283,6 +355,15 @@ void dispatchMilkdownBridgeMessage(
   if (type == 'on_image_error') {
     try {
       onImageError?.call(OnImageErrorPayload.fromJson(payloadMap));
+    } on FormatException {
+      // Ignore malformed payload.
+    }
+    return;
+  }
+
+  if (type == 'on_upload_images_request') {
+    try {
+      onUploadImagesRequest?.call(OnUploadImagesRequestPayload.fromJson(payloadMap));
     } on FormatException {
       // Ignore malformed payload.
     }
