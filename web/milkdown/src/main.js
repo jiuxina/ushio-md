@@ -2,7 +2,7 @@ import {
   commandsCtx,
   editorViewCtx,
 } from '@milkdown/core';
-import { CrepeBuilder } from '@milkdown/crepe/builder';
+import { Crepe } from '@milkdown/crepe';
 import { automd } from '@milkdown/plugin-automd';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
@@ -14,9 +14,6 @@ import { indent } from '@milkdown/plugin-indent';
 import { math } from '@milkdown/plugin-math';
 import { trailing } from '@milkdown/plugin-trailing';
 import { upload, uploadConfig } from '@milkdown/plugin-upload';
-import { blockEdit } from '@milkdown/crepe/feature/block-edit';
-import { toolbar } from '@milkdown/crepe/feature/toolbar';
-import { linkTooltip } from '@milkdown/crepe/feature/link-tooltip';
 import {
   insertHrCommand,
   createCodeBlockCommand,
@@ -551,12 +548,12 @@ const updateActiveMarkdownHints = () => {
 };
 
 const createEditor = async () => {
-  const crepe = new CrepeBuilder({
+  const crepe = new Crepe({
     root: app,
     defaultValue: currentMarkdown,
   });
   crepe.setReadonly(currentReadOnly);
-  const editor = crepe.editor
+  crepe.editor
     .config(nord)
     .config((ctx) => {
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
@@ -583,15 +580,8 @@ const createEditor = async () => {
     .use(cursor)
     .use(upload);
 
-  blockEdit(editor, {
-    advancedGroup: {
-      image: null,
-    },
-  });
-  toolbar(editor);
-  linkTooltip(editor);
-
-  editorInstance = await editor.create();
+  await crepe.create();
+  editorInstance = crepe.editor;
   contextMenuElement = createContextMenuElement();
   app.append(contextMenuElement);
   notifyRenderComplete();
