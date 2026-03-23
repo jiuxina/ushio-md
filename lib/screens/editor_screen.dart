@@ -48,11 +48,13 @@ class _SearchMatch {
   final int position;
   final int length;
   final String preview;
+  final int occurrence;
 
   const _SearchMatch({
     required this.position,
     required this.length,
     required this.preview,
+    required this.occurrence,
   });
 }
 
@@ -493,7 +495,6 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     setState(() {
-      _mode = EditorMode.edit;
       _showSearchBar = true;
     });
 
@@ -538,6 +539,7 @@ class _EditorScreenState extends State<EditorScreen>
         position: index,
         length: normalizedQuery.length,
         preview: preview,
+        occurrence: matches.length,
       ));
       index += normalizedQuery.length;
     }
@@ -549,6 +551,22 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _jumpToSearchMatch(_SearchMatch match) {
+    if (_mode == EditorMode.preview) {
+      final query = _searchController.text.trim();
+      if (query.isNotEmpty) {
+        _previewWebViewController.execCmd(
+          'search_jump',
+          args: {
+            'query': query,
+            'occurrence': match.occurrence,
+          },
+        );
+      }
+      _searchFocusNode.unfocus();
+      setState(() => _showSearchCandidates = false);
+      return;
+    }
+
     final position = match.position;
     final length = match.length;
     _textController.selection = TextSelection(
