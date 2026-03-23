@@ -292,6 +292,71 @@ class OnUploadImagesRequestPayload {
       };
 }
 
+class OnCmdMetricPayload {
+  final String cmd;
+  final bool ok;
+  final String? reason;
+  final int? durationMs;
+
+  const OnCmdMetricPayload({
+    required this.cmd,
+    required this.ok,
+    this.reason,
+    this.durationMs,
+  });
+
+  factory OnCmdMetricPayload.fromJson(Map<String, dynamic> json) {
+    final cmd = json['cmd']?.toString() ?? '';
+    final durationRaw = json['durationMs'];
+    final durationMs = durationRaw is int
+        ? durationRaw
+        : int.tryParse(durationRaw?.toString() ?? '');
+    return OnCmdMetricPayload(
+      cmd: cmd,
+      ok: json['ok'] == true,
+      reason: json['reason']?.toString(),
+      durationMs: durationMs,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'cmd': cmd,
+        'ok': ok,
+        if (reason != null) 'reason': reason,
+        if (durationMs != null) 'durationMs': durationMs,
+      };
+}
+
+class OnCmdFailureAggregatePayload {
+  final String cmd;
+  final String reason;
+  final int count;
+
+  const OnCmdFailureAggregatePayload({
+    required this.cmd,
+    required this.reason,
+    required this.count,
+  });
+
+  factory OnCmdFailureAggregatePayload.fromJson(Map<String, dynamic> json) {
+    final cmd = json['cmd']?.toString() ?? '';
+    final reason = json['reason']?.toString() ?? 'unknown';
+    final countRaw = json['count'];
+    final count = countRaw is int ? countRaw : int.tryParse(countRaw?.toString() ?? '') ?? 0;
+    return OnCmdFailureAggregatePayload(
+      cmd: cmd,
+      reason: reason,
+      count: count,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'cmd': cmd,
+        'reason': reason,
+        'count': count,
+      };
+}
+
 String createBridgeRequestId() {
   final now = DateTime.now();
   final salt = Random.secure().nextInt(_bridgeRequestSaltLimit);
@@ -310,6 +375,8 @@ void dispatchMilkdownBridgeMessage(
   void Function(OnLinkClickPayload payload)? onLinkClick,
   void Function(OnImageErrorPayload payload)? onImageError,
   void Function(OnUploadImagesRequestPayload payload)? onUploadImagesRequest,
+  void Function(OnCmdMetricPayload payload)? onCmdMetric,
+  void Function(OnCmdFailureAggregatePayload payload)? onCmdFailureAggregate,
   void Function(int index, bool checked)? onCheckboxToggle,
   void Function(String cmd, bool ok, String? reason)? onCmdResult,
   void Function()? onRenderComplete,
@@ -367,6 +434,16 @@ void dispatchMilkdownBridgeMessage(
     } on FormatException {
       // Ignore malformed payload.
     }
+    return;
+  }
+
+  if (type == 'on_cmd_metric') {
+    onCmdMetric?.call(OnCmdMetricPayload.fromJson(payloadMap));
+    return;
+  }
+
+  if (type == 'on_cmd_failure_aggregate') {
+    onCmdFailureAggregate?.call(OnCmdFailureAggregatePayload.fromJson(payloadMap));
     return;
   }
 
