@@ -121,6 +121,10 @@ unlinked_spec.ds
 # Coverage
 coverage/
 
+# Web milkdown local artifacts
+web/milkdown/node_modules/
+web/milkdown/dist/
+
 # Symbols
 app.*.symbols
 
