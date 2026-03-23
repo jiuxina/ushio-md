@@ -527,6 +527,12 @@ const hideTableFloatingUi = () => {
   if (tableFloatingPanelElement) tableFloatingPanelElement.dataset.show = 'false';
 };
 
+const getKeyboardInset = () => {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--ushio-keyboard-inset');
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+};
+
 const updateTableFloatingUiPosition = (table) => {
   if (!tableFloatingButtonElement || !tableFloatingPanelElement) return;
   if (!table || currentReadOnly) {
@@ -535,13 +541,32 @@ const updateTableFloatingUiPosition = (table) => {
   }
   const appRect = app.getBoundingClientRect();
   const tableRect = table.getBoundingClientRect();
-  const left = Math.max(8, tableRect.left - appRect.left + 6);
-  const top = Math.max(8, tableRect.top - appRect.top + 6);
-  tableFloatingButtonElement.style.left = `${left}px`;
-  tableFloatingButtonElement.style.top = `${top}px`;
+  const baseLeft = tableRect.left - appRect.left + 6;
+  const baseTop = tableRect.top - appRect.top + 6;
+  const minMargin = 8;
+  const keyboardInset = getKeyboardInset();
+
+  const buttonWidth = tableFloatingButtonElement.offsetWidth || 52;
+  const buttonHeight = tableFloatingButtonElement.offsetHeight || 26;
+  const panelWidth = tableFloatingPanelElement.offsetWidth || 320;
+  const panelHeight = tableFloatingPanelElement.offsetHeight || 180;
+
+  const maxButtonLeft = Math.max(minMargin, appRect.width - buttonWidth - minMargin);
+  const maxButtonTop = Math.max(minMargin, appRect.height - keyboardInset - buttonHeight - minMargin);
+  const clampedButtonLeft = Math.min(Math.max(baseLeft, minMargin), maxButtonLeft);
+  const clampedButtonTop = Math.min(Math.max(baseTop, minMargin), maxButtonTop);
+
+  tableFloatingButtonElement.style.left = `${clampedButtonLeft}px`;
+  tableFloatingButtonElement.style.top = `${clampedButtonTop}px`;
   tableFloatingButtonElement.dataset.show = 'true';
-  tableFloatingPanelElement.style.left = `${left}px`;
-  tableFloatingPanelElement.style.top = `${top + 34}px`;
+
+  const panelBaseTop = clampedButtonTop + buttonHeight + 8;
+  const maxPanelLeft = Math.max(minMargin, appRect.width - panelWidth - minMargin);
+  const maxPanelTop = Math.max(minMargin, appRect.height - keyboardInset - panelHeight - minMargin);
+  const clampedPanelLeft = Math.min(Math.max(clampedButtonLeft, minMargin), maxPanelLeft);
+  const clampedPanelTop = Math.min(Math.max(panelBaseTop, minMargin), maxPanelTop);
+  tableFloatingPanelElement.style.left = `${clampedPanelLeft}px`;
+  tableFloatingPanelElement.style.top = `${clampedPanelTop}px`;
 };
 
 const findCurrentTable = (sourceNode = null) => {
@@ -557,6 +582,21 @@ const findCurrentTable = (sourceNode = null) => {
 const syncTableFloatingUi = (sourceNode = null) => {
   const table = findCurrentTable(sourceNode);
   updateTableFloatingUiPosition(table);
+};
+
+let syncTableFloatingUiScheduled = false;
+const scheduleSyncTableFloatingUi = (sourceNode = null) => {
+  if (syncTableFloatingUiScheduled) return;
+  if (!tableFloatingButtonElement || !tableFloatingPanelElement) return;
+  if (currentReadOnly) {
+    hideTableFloatingUi();
+    return;
+  }
+  syncTableFloatingUiScheduled = true;
+  window.requestAnimationFrame(() => {
+    syncTableFloatingUiScheduled = false;
+    syncTableFloatingUi(sourceNode);
+  });
 };
 
 const createContextMenuElement = () => {
@@ -719,7 +759,7 @@ app.addEventListener('click', (event) => {
       tableFloatingPanelElement.dataset.show = 'false';
     }
   }
-  syncTableFloatingUi(target);
+  scheduleSyncTableFloatingUi(target);
 });
 
 app.addEventListener('mousedown', (event) => {
@@ -805,8 +845,8 @@ app.addEventListener('pointerup', clearMobileLongPress);
 app.addEventListener('pointercancel', clearMobileLongPress);
 document.addEventListener('scroll', hideContextMenu, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
-document.addEventListener('selectionchange', () => syncTableFloatingUi(), true);
-document.addEventListener('scroll', () => syncTableFloatingUi(), true);
+document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
+document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest('.ushio-context-menu')) {
