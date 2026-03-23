@@ -111,6 +111,23 @@ void main() {
       expect(payload!.files.first.name, 'a.png');
     });
 
+    test('dispatches on_insert_image_request payload', () {
+      OnInsertImageRequestPayload? payload;
+
+      dispatchMilkdownBridgeMessage(
+        {
+          'type': 'on_insert_image_request',
+          'payload': {
+            'requestId': 'insert-image-1',
+          },
+        },
+        onInsertImageRequest: (value) => payload = value,
+      );
+
+      expect(payload, isNotNull);
+      expect(payload!.requestId, 'insert-image-1');
+    });
+
     test('dispatches on_cmd_metric payload', () {
       OnCmdMetricPayload? payload;
 

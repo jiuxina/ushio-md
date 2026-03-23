@@ -350,6 +350,9 @@ const notifyRenderComplete = () => {
 
 const setMarkdown = (markdown, { emitContent = false } = {}) => {
   const nextMarkdown = typeof markdown === 'string' ? markdown : '';
+  if (nextMarkdown === currentMarkdown) {
+    return;
+  }
   if (contentChangeTimerId != null) {
     clearTimeout(contentChangeTimerId);
     contentChangeTimerId = null;
@@ -666,6 +669,8 @@ const executeCommand = (cmd, args = {}) => {
     }
     if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image' || cmd === 'insert_image_prompt') {
       let ok = false;
+      let insertImagePromptRequestId = null;
+      let insertImagePromptTimeoutId = null;
       editorInstance.action((ctx) => {
         const commands = ctx.get(commandsCtx);
         if (cmd === 'toggle_bold') {
@@ -696,16 +701,54 @@ const executeCommand = (cmd, args = {}) => {
           return;
         }
         if (cmd === 'insert_image_prompt') {
-          const inputSrc = window.prompt('输入图片 URL', '');
-          const src = resolveInsertImageSrc(inputSrc);
-          if (!src) {
-            ok = false;
-            return;
-          }
-          const alt = window.prompt('输入图片描述（可选）', '') ?? '';
-          ok = commands.call(insertImageCommand.key, { src, alt });
+          insertImagePromptRequestId = nextRequestId();
+          insertImagePromptTimeoutId = setTimeout(() => {
+            const pending = pendingUploadResolvers.get(insertImagePromptRequestId);
+            if (!pending) return;
+            pendingUploadResolvers.delete(insertImagePromptRequestId);
+            pending.reject(new Error('insert_image_timeout'));
+          }, 120000);
+          pendingUploadResolvers.set(insertImagePromptRequestId, {
+            resolve: (result) => {
+              if (insertImagePromptTimeoutId != null) {
+                clearTimeout(insertImagePromptTimeoutId);
+              }
+              const images = Array.isArray(result?.images) ? result.images : [];
+              const item = images.find((x) => typeof x?.src === 'string' && x.src.trim().length > 0);
+              if (!item) {
+                emitCmdResult(cmd, false, 'insert_image_cancelled_or_invalid', startedAt);
+                return;
+              }
+              const src = resolveInsertImageSrc(item.src);
+              if (!src) {
+                emitCmdResult(cmd, false, 'insert_image_invalid_src', startedAt);
+                return;
+              }
+              const alt = typeof item.alt === 'string' ? item.alt : '';
+              let inserted = false;
+              editorInstance.action((innerCtx) => {
+                const innerCommands = innerCtx.get(commandsCtx);
+                inserted = innerCommands.call(insertImageCommand.key, { src, alt });
+              });
+              emitCmdResult(cmd, inserted, inserted ? null : 'not_applicable', startedAt);
+              if (inserted) {
+                notifyRenderComplete();
+              }
+            },
+            reject: (error) => {
+              if (insertImagePromptTimeoutId != null) {
+                clearTimeout(insertImagePromptTimeoutId);
+              }
+              emitCmdResult(cmd, false, String(error?.message || 'insert_image_failed'), startedAt);
+            },
+          });
+          emit('on_insert_image_request', { requestId: insertImagePromptRequestId });
+          return;
         }
       });
+      if (cmd === 'insert_image_prompt') {
+        return;
+      }
       emitCmdResult(
         cmd,
         ok,

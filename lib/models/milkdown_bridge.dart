@@ -292,6 +292,26 @@ class OnUploadImagesRequestPayload {
       };
 }
 
+class OnInsertImageRequestPayload {
+  final String requestId;
+
+  const OnInsertImageRequestPayload({
+    required this.requestId,
+  });
+
+  factory OnInsertImageRequestPayload.fromJson(Map<String, dynamic> json) {
+    final requestId = json['requestId']?.toString();
+    if (requestId == null || requestId.isEmpty) {
+      throw const FormatException('OnInsertImageRequestPayload.requestId is required');
+    }
+    return OnInsertImageRequestPayload(requestId: requestId);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'requestId': requestId,
+      };
+}
+
 class OnCmdMetricPayload {
   final String cmd;
   final bool ok;
@@ -375,6 +395,7 @@ void dispatchMilkdownBridgeMessage(
   void Function(OnLinkClickPayload payload)? onLinkClick,
   void Function(OnImageErrorPayload payload)? onImageError,
   void Function(OnUploadImagesRequestPayload payload)? onUploadImagesRequest,
+  void Function(OnInsertImageRequestPayload payload)? onInsertImageRequest,
   void Function(OnCmdMetricPayload payload)? onCmdMetric,
   void Function(OnCmdFailureAggregatePayload payload)? onCmdFailureAggregate,
   void Function(int index, bool checked)? onCheckboxToggle,
@@ -431,6 +452,15 @@ void dispatchMilkdownBridgeMessage(
   if (type == 'on_upload_images_request') {
     try {
       onUploadImagesRequest?.call(OnUploadImagesRequestPayload.fromJson(payloadMap));
+    } on FormatException {
+      // Ignore malformed payload.
+    }
+    return;
+  }
+
+  if (type == 'on_insert_image_request') {
+    try {
+      onInsertImageRequest?.call(OnInsertImageRequestPayload.fromJson(payloadMap));
     } on FormatException {
       // Ignore malformed payload.
     }
