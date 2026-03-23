@@ -28,9 +28,9 @@
 | `@milkdown/plugin-upload` | 图片/文件上传扩展点（可接管上传逻辑） | ✅ 已接入（已桥接 Flutter） |
 | `@milkdown/plugin-prism` | 代码块语法高亮（Prism） | ✅ 已接入 |
 | `@milkdown/plugin-math` | 数学公式节点与渲染集成（KaTeX） | ✅ 已接入（官方已标 deprecated） |
-| `@milkdown/plugin-automd` | Markdown 输入自动转换规则（auto markdown） | ❌ 未接入 |
-| `@milkdown/plugin-emoji` | Emoji 补全/输入支持 | ❌ 未接入 |
-| `@milkdown/plugin-highlight` | 高亮标记扩展（`==highlight==`） | ❌ 未接入 |
+| `@milkdown/plugin-automd` | Markdown 输入自动转换规则（auto markdown） | ✅ 已接入 |
+| `@milkdown/plugin-emoji` | Emoji 补全/输入支持 | ✅ 已接入 |
+| `@milkdown/plugin-highlight` | 高亮标记扩展（`==highlight==`） | ✅ 已接入 |
 | `@milkdown/plugin-collab` | 协同编辑能力（Yjs 等协作栈） | ❌ 未接入 |
 
 ### 1.3 Components（交互组件）
@@ -59,6 +59,8 @@
 | 历史记录 | 已切换为官方 `plugin-history` 的 undo/redo | `web/milkdown/src/main.js` |
 | 监听回写 | 已接入 `plugin-listener`，并有内容变更防抖 | `web/milkdown/src/main.js` |
 | 代码高亮 | `plugin-prism` + Prism 主题可用 | `web/milkdown/src/main.js` |
+| Markdown 自动转换 | `plugin-automd` 已接入输入自动转换链路 | `web/milkdown/src/main.js` |
+| Emoji 与高亮语法扩展 | `plugin-emoji` / `plugin-highlight` 已接入 | `web/milkdown/src/main.js` |
 | 基础交互插件 | `block/cursor/indent/trailing/clipboard` 已进入正式链路 | `web/milkdown/src/main.js` |
 | 上传桥接主链路 | `plugin-upload` 已与 Flutter bridge 联动，支持回执 | `web/milkdown/src/main.js`、`lib/widgets/milkdown_webview_editor.dart`、`lib/models/milkdown_bridge.dart` |
 | 主题基线 | 使用 `theme-nord` + CSS 变量映射深浅色 | `web/milkdown/src/main.js`、`web/milkdown/src/style.css` |
@@ -78,7 +80,7 @@
 
 | 分类 | 未接入项 | 说明 |
 | --- | --- | --- |
-| Plugins | `plugin-automd`、`plugin-emoji`、`plugin-highlight`、`plugin-collab` | 分别对应自动转换、emoji、文本高亮、协同编辑 |
+| Plugins | `plugin-collab` | 协同编辑能力（Yjs 等协作栈） |
 | Components | `@milkdown/components`、`@milkdown/crepe`、`@milkdown/react` | 当前项目主架构是 Flutter + WebView，自定义 UI 为主 |
 | Themes | 除 `theme-nord` 外暂无多主题包并行接入 | 当前依赖 CSS 变量适配深浅色，未做官方主题包切换体系 |
 

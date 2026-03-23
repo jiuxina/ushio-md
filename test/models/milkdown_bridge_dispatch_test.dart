@@ -17,6 +17,21 @@ void main() {
       expect(markdown, '# hello');
     });
 
+    test('preserves markdown syntax for highlight and emoji in on_content_change', () {
+      String? markdown;
+      const input = '==重点== 😀\n\n- [ ] task';
+
+      dispatchMilkdownBridgeMessage(
+        {
+          'type': 'on_content_change',
+          'payload': {'mode': 'full', 'markdown': input},
+        },
+        onContentChange: (value) => markdown = value,
+      );
+
+      expect(markdown, input);
+    });
+
     test('dispatches on_link_click payload', () {
       OnLinkClickPayload? payload;
 
@@ -147,6 +162,29 @@ void main() {
       expect(payload!.cmd, 'undo');
       expect(payload!.ok, isTrue);
       expect(payload!.durationMs, 12);
+    });
+
+    test('dispatches on_cmd_metric payload with reason for failed command', () {
+      OnCmdMetricPayload? payload;
+
+      dispatchMilkdownBridgeMessage(
+        {
+          'type': 'on_cmd_metric',
+          'payload': {
+            'cmd': 'toggle_highlight',
+            'ok': false,
+            'reason': 'not_applicable',
+            'durationMs': 7,
+          },
+        },
+        onCmdMetric: (value) => payload = value,
+      );
+
+      expect(payload, isNotNull);
+      expect(payload!.cmd, 'toggle_highlight');
+      expect(payload!.ok, isFalse);
+      expect(payload!.reason, 'not_applicable');
+      expect(payload!.durationMs, 7);
     });
 
     test('dispatches on_cmd_failure_aggregate payload', () {
