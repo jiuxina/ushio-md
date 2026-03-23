@@ -63,6 +63,7 @@ body {
   min-height: 100%;
   padding: 0;
   outline: none;
+  caret-color: var(--milkdown-color-primary);
 }
 
 .milkdown pre,
@@ -131,6 +132,25 @@ body {
   margin-bottom: calc(8px + var(--ushio-keyboard-inset));
 }
 
+.ushio-context-menu {
+  position: absolute;
+  z-index: 60;
+  display: none;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid var(--milkdown-color-outline);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, #ffffff 8%);
+  box-shadow: 0 12px 28px var(--milkdown-color-shadow);
+  padding: 6px;
+  gap: 6px;
+  max-width: min(92vw, 360px);
+  flex-wrap: wrap;
+}
+
+.ushio-context-menu[data-show='true'] {
+  display: flex;
+}
+
 .ushio-tooltip[data-show='true'],
 .ushio-slash[data-show='true'] {
   display: flex;
@@ -165,9 +185,42 @@ body {
   width: 100%;
 }
 
+.ushio-context-btn[hidden] {
+  display: none;
+}
+
+.milkdown .ProseMirror [data-ushio-active-node='true'] {
+  position: relative;
+}
+
+.milkdown .ProseMirror [data-ushio-active-node='true']:is(h1, h2, h3, h4, h5, h6)::before {
+  content: '# ';
+  opacity: 0.45;
+}
+
+.milkdown .ProseMirror [data-ushio-active-node='true']:is(li)::before {
+  content: '- ';
+  opacity: 0.45;
+}
+
+.milkdown .ProseMirror [data-ushio-active-node='true']:is(blockquote)::before {
+  content: '> ';
+  opacity: 0.45;
+}
+
+.milkdown .ProseMirror [data-ushio-active-node='true']:is(pre)::before {
+  content: '```';
+  position: absolute;
+  left: 8px;
+  top: -0.9em;
+  opacity: 0.5;
+  font-size: 12px;
+}
+
 @media (pointer: coarse) {
   .ushio-tooltip,
-  .ushio-slash {
+  .ushio-slash,
+  .ushio-context-menu {
     padding: 8px;
     gap: 8px;
     border-radius: 12px;
@@ -177,6 +230,10 @@ body {
     min-height: 40px;
     padding: 8px 12px;
     font-size: 13px;
+  }
+
+  .ushio-context-menu {
+    max-width: min(96vw, 420px);
   }
 }
 

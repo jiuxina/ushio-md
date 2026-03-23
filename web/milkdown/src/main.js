@@ -8,6 +8,7 @@ import {
 } from '@milkdown/core';
 import { block, BlockProvider, blockSpec } from '@milkdown/plugin-block';
 import { clipboard } from '@milkdown/plugin-clipboard';
+import { cursor } from '@milkdown/plugin-cursor';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
 import { indent } from '@milkdown/plugin-indent';
@@ -32,10 +33,16 @@ import {
 } from '@milkdown/preset-commonmark';
 import { insertTableCommand } from '@milkdown/preset-gfm';
 import {
+  addColAfterCommand,
+  addColBeforeCommand,
+  addRowAfterCommand,
+  addRowBeforeCommand,
+  deleteSelectedCellsCommand,
   goToNextTableCellCommand,
   goToPrevTableCellCommand,
   toggleStrikethroughCommand,
 } from '@milkdown/preset-gfm';
+import { deleteColumn, deleteRow, isInTable } from '@milkdown/prose/tables';
 import { prism } from '@milkdown/plugin-prism';
 import { gfm } from '@milkdown/preset-gfm';
 import { nord } from '@milkdown/theme-nord';
@@ -55,6 +62,9 @@ let createEditorPromise = null;
 let blockProvider = null;
 let tooltipProvider = null;
 let slashProvider = null;
+let contextMenuElement = null;
+let mobileLongPressTimer = null;
+let mobileLongPressStartPoint = null;
 const pendingUploadResolvers = new Map();
 const cmdFailureAggregate = new Map();
 const MAX_UPLOAD_FILES = 6;
@@ -381,6 +391,7 @@ const syncRenderedDom = () => {
 const notifyRenderComplete = () => {
   requestAnimationFrame(() => {
     syncRenderedDom();
+    updateActiveMarkdownHints();
     emitOutlineUpdate();
     emit('on_render_complete', {});
   });
@@ -528,6 +539,83 @@ const createTooltipElement = () => {
   return element;
 };
 
+const createContextMenuElement = () => {
+  const element = document.createElement('div');
+  element.className = 'ushio-context-menu';
+  const appendButton = (label, title, cmd, args = null, className = '') => {
+    element.append(
+      buildFloatingButton(label, title, className, () => executeCommand(cmd, args ?? {})),
+    );
+  };
+  appendButton('B', '加粗', 'toggle_bold', null, 'ushio-context-btn');
+  appendButton('I', '斜体', 'toggle_italic', null, 'ushio-context-btn');
+  appendButton('S', '删除线', 'toggle_strikethrough', null, 'ushio-context-btn');
+  appendButton('</>', '行内代码', 'toggle_inline_code', null, 'ushio-context-btn');
+  appendButton('链', '链接', 'toggle_link', { href: 'https://' }, 'ushio-context-btn');
+  appendButton('图', '插入图片', 'insert_image_prompt', null, 'ushio-context-btn');
+  appendButton('行+', '表格：上方加行', 'table_add_row_before', null, 'ushio-context-btn is-table-only');
+  appendButton('行-', '表格：删行', 'table_delete_row', null, 'ushio-context-btn is-table-only');
+  appendButton('列+', '表格：左侧加列', 'table_add_col_before', null, 'ushio-context-btn is-table-only');
+  appendButton('列-', '表格：删列', 'table_delete_col', null, 'ushio-context-btn is-table-only');
+  appendButton('删元', '表格：删除选中单元格', 'table_delete_selected', null, 'ushio-context-btn is-table-only');
+  return element;
+};
+
+const hideContextMenu = () => {
+  if (!contextMenuElement) return;
+  contextMenuElement.dataset.show = 'false';
+};
+
+const updateContextMenuForTarget = (target) => {
+  if (!contextMenuElement) return;
+  const inTable = Boolean(target?.closest?.('table'));
+  contextMenuElement.querySelectorAll('.is-table-only').forEach((button) => {
+    button.toggleAttribute('hidden', !inTable);
+  });
+};
+
+const showContextMenuAt = (clientX, clientY, target) => {
+  if (currentReadOnly || !contextMenuElement) return;
+  updateContextMenuForTarget(target);
+  contextMenuElement.dataset.show = 'true';
+  const appRect = app.getBoundingClientRect();
+  const menuWidth = contextMenuElement.offsetWidth || 240;
+  const menuHeight = contextMenuElement.offsetHeight || 160;
+  const keyboardInset =
+    Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--ushio-keyboard-inset'),
+    ) || 0;
+  const maxLeft = Math.max(8, appRect.width - menuWidth - 8);
+  const maxTop = Math.max(8, appRect.height - menuHeight - keyboardInset - 8);
+  const left = Math.max(8, Math.min(clientX - appRect.left, maxLeft));
+  const top = Math.max(8, Math.min(clientY - appRect.top, maxTop));
+  contextMenuElement.style.left = `${left}px`;
+  contextMenuElement.style.top = `${top}px`;
+};
+
+const clearActiveMarkdownHints = () => {
+  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+  if (!root) return;
+  root.querySelectorAll('[data-ushio-active-node="true"]').forEach((node) => {
+    node.removeAttribute('data-ushio-active-node');
+  });
+};
+
+const updateActiveMarkdownHints = () => {
+  clearActiveMarkdownHints();
+  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+  if (!root) return;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount <= 0) return;
+  const anchorNode = selection.anchorNode;
+  if (!anchorNode || !root.contains(anchorNode)) return;
+  const anchorElement = anchorNode instanceof Element ? anchorNode : anchorNode.parentElement;
+  const active = anchorElement?.closest?.('h1, h2, h3, h4, h5, h6, blockquote, li, pre');
+  if (active) {
+    active.setAttribute('data-ushio-active-node', 'true');
+  }
+};
+
 const createSlashElement = () => {
   const element = document.createElement('div');
   element.className = 'ushio-slash';
@@ -634,6 +722,7 @@ const createEditor = async () => {
     .use(prism)
     .use(listener)
     .use(block)
+    .use(cursor)
     .use(history)
     .use(indent)
     .use(trailing)
@@ -643,6 +732,8 @@ const createEditor = async () => {
     .use(slash);
 
   editorInstance = await editor.create();
+  contextMenuElement = createContextMenuElement();
+  app.append(contextMenuElement);
   notifyRenderComplete();
   emit('on_ready', {});
 };
@@ -673,6 +764,58 @@ app.addEventListener('change', (event) => {
     index,
     checked: target.checked,
   });
+});
+
+app.addEventListener('contextmenu', (event) => {
+  if (currentReadOnly) return;
+  const target = event.target instanceof Element ? event.target : null;
+  const inEditor = Boolean(target?.closest('.ProseMirror'));
+  if (!inEditor) {
+    hideContextMenu();
+    return;
+  }
+  event.preventDefault();
+  showContextMenuAt(event.clientX, event.clientY, target);
+});
+
+const clearMobileLongPress = () => {
+  if (mobileLongPressTimer != null) {
+    clearTimeout(mobileLongPressTimer);
+    mobileLongPressTimer = null;
+  }
+  mobileLongPressStartPoint = null;
+};
+
+app.addEventListener('pointerdown', (event) => {
+  if (event.pointerType !== 'touch' || currentReadOnly) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.closest('.ProseMirror')) return;
+  clearMobileLongPress();
+  mobileLongPressStartPoint = { x: event.clientX, y: event.clientY };
+  mobileLongPressTimer = setTimeout(() => {
+    mobileLongPressTimer = null;
+    showContextMenuAt(event.clientX, event.clientY, target);
+  }, 420);
+});
+
+app.addEventListener('pointermove', (event) => {
+  if (event.pointerType !== 'touch' || !mobileLongPressStartPoint) return;
+  const dx = Math.abs(event.clientX - mobileLongPressStartPoint.x);
+  const dy = Math.abs(event.clientY - mobileLongPressStartPoint.y);
+  if (dx > 14 || dy > 14) {
+    clearMobileLongPress();
+  }
+});
+
+app.addEventListener('pointerup', clearMobileLongPress);
+app.addEventListener('pointercancel', clearMobileLongPress);
+document.addEventListener('scroll', hideContextMenu, true);
+document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
+document.addEventListener('pointerdown', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.closest('.ushio-context-menu')) {
+    hideContextMenu();
+  }
 });
 
 const ensureEditor = () => {
@@ -719,6 +862,32 @@ const handleEditorShortcut = (event) => {
   if (key === 'y') {
     event.preventDefault();
     executeCommand('redo');
+    return;
+  }
+  if (key === '1' || key === '2' || key === '3') {
+    event.preventDefault();
+    executeCommand('set_heading', { level: Number.parseInt(key, 10) });
+    return;
+  }
+  if (key === '7' && event.shiftKey) {
+    event.preventDefault();
+    executeCommand('toggle_ordered_list');
+    return;
+  }
+  if (key === '8' && event.shiftKey) {
+    event.preventDefault();
+    executeCommand('toggle_bullet_list');
+    return;
+  }
+  if (key === '.' && event.shiftKey) {
+    event.preventDefault();
+    executeCommand('toggle_blockquote');
+    return;
+  }
+  if (key === 'm' && event.shiftKey) {
+    event.preventDefault();
+    executeCommand('insert_math_block');
+    return;
   }
 };
 
@@ -784,10 +953,23 @@ const executeCommand = (cmd, args = {}) => {
       cmd === 'toggle_strikethrough' ||
       cmd === 'toggle_inline_code' ||
       cmd === 'toggle_link' ||
+      cmd === 'set_heading' ||
+      cmd === 'toggle_blockquote' ||
+      cmd === 'toggle_bullet_list' ||
+      cmd === 'toggle_ordered_list' ||
+      cmd === 'insert_code_block' ||
+      cmd === 'insert_math_block' ||
       cmd === 'insert_table' ||
       cmd === 'insert_hr' ||
       cmd === 'table_next_cell' ||
       cmd === 'table_prev_cell' ||
+      cmd === 'table_add_row_before' ||
+      cmd === 'table_add_row_after' ||
+      cmd === 'table_add_col_before' ||
+      cmd === 'table_add_col_after' ||
+      cmd === 'table_delete_row' ||
+      cmd === 'table_delete_col' ||
+      cmd === 'table_delete_selected' ||
       cmd === 'insert_image' ||
       cmd === 'insert_image_prompt'
     ) {
@@ -796,6 +978,7 @@ const executeCommand = (cmd, args = {}) => {
       let insertImagePromptTimeoutId = null;
       editorInstance.action((ctx) => {
         const commands = ctx.get(commandsCtx);
+        const view = ctx.get(editorViewCtx);
         if (cmd === 'toggle_bold') {
           ok = commands.call(toggleStrongCommand.key);
           return;
@@ -821,6 +1004,34 @@ const executeCommand = (cmd, args = {}) => {
           });
           return;
         }
+        if (cmd === 'set_heading') {
+          const levelRaw = Number.parseInt(args?.level, 10);
+          const level = Number.isNaN(levelRaw) ? 1 : Math.max(1, Math.min(levelRaw, 6));
+          ok = commands.call(wrapInHeadingCommand.key, level);
+          return;
+        }
+        if (cmd === 'toggle_blockquote') {
+          ok = commands.call(wrapInBlockquoteCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_bullet_list') {
+          ok = commands.call(wrapInBulletListCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_ordered_list') {
+          ok = commands.call(wrapInOrderedListCommand.key);
+          return;
+        }
+        if (cmd === 'insert_code_block') {
+          const language = typeof args?.language === 'string' ? args.language.trim() : '';
+          ok = commands.call(createCodeBlockCommand.key, language || undefined);
+          return;
+        }
+        if (cmd === 'insert_math_block') {
+          insertTextAtSelection(view, '$$\n\n$$');
+          ok = true;
+          return;
+        }
         if (cmd === 'insert_hr') {
           ok = commands.call(insertHrCommand.key);
           return;
@@ -840,6 +1051,36 @@ const executeCommand = (cmd, args = {}) => {
         }
         if (cmd === 'table_prev_cell') {
           ok = commands.call(goToPrevTableCellCommand.key);
+          return;
+        }
+        if (cmd === 'table_add_row_before') {
+          ok = commands.call(addRowBeforeCommand.key);
+          return;
+        }
+        if (cmd === 'table_add_row_after') {
+          ok = commands.call(addRowAfterCommand.key);
+          return;
+        }
+        if (cmd === 'table_add_col_before') {
+          ok = commands.call(addColBeforeCommand.key);
+          return;
+        }
+        if (cmd === 'table_add_col_after') {
+          ok = commands.call(addColAfterCommand.key);
+          return;
+        }
+        if (cmd === 'table_delete_selected') {
+          ok = commands.call(deleteSelectedCellsCommand.key);
+          return;
+        }
+        if (cmd === 'table_delete_row') {
+          const { state, dispatch } = view;
+          ok = isInTable(state) ? deleteRow(state, dispatch) : false;
+          return;
+        }
+        if (cmd === 'table_delete_col') {
+          const { state, dispatch } = view;
+          ok = isInTable(state) ? deleteColumn(state, dispatch) : false;
           return;
         }
         if (cmd === 'insert_image') {
