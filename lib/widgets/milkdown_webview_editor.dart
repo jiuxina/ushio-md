@@ -103,8 +103,15 @@ class MilkdownWebViewController {
         (function() {
           var el = document.getElementById('heading-' + $headingIndex);
           if (!el) return;
-          el.scrollIntoView({ block: 'start' });
-          window.scrollBy(0, -$topOffset);
+          var scroller = document.scrollingElement || document.documentElement || document.body;
+          var rect = el.getBoundingClientRect();
+          var currentTop = scroller ? scroller.scrollTop : (window.pageYOffset || 0);
+          var targetTop = Math.max(0, currentTop + rect.top - $topOffset);
+          if (scroller && typeof scroller.scrollTo === 'function') {
+            scroller.scrollTo({ top: targetTop, behavior: 'auto' });
+          } else {
+            window.scrollTo(0, targetTop);
+          }
           el.classList.add('heading-flash');
           setTimeout(function() { el.classList.remove('heading-flash'); }, 700);
         })();
@@ -532,7 +539,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   Future<Map<String, String>?> _showInsertImageUrlDialog() async {
     if (!mounted || !widget.enableInsertImageUrl) return null;
     final urlController = TextEditingController();
-    final altController = TextEditingController(text: '图片描述');
     try {
       return await showDialog<Map<String, String>>(
         context: context,
@@ -568,17 +574,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: altController,
-                  decoration: InputDecoration(
-                    labelText: '图片描述 (Alt 文本)',
-                    prefixIcon: const Icon(Icons.description),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -593,7 +588,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                 if (url.isNotEmpty) {
                   Navigator.pop(context, {
                     'url': url,
-                    'alt': _sanitizeInsertImageAlt(altController.text),
+                    'alt': '',
                   });
                 }
               },
@@ -605,7 +600,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       );
     } finally {
       urlController.dispose();
-      altController.dispose();
     }
   }
 

@@ -419,6 +419,77 @@ const syncRenderedDom = () => {
   root.querySelectorAll('input[type="checkbox"]').forEach((checkbox, index) => {
     checkbox.dataset.checkboxIndex = String(index);
   });
+
+  root.querySelectorAll('.milkdown-code-block').forEach((codeBlock) => {
+    const tools = codeBlock.querySelector('.tools');
+    if (!(tools instanceof HTMLElement)) return;
+
+    const languageButton = tools.querySelector('.language-button');
+    if (languageButton instanceof HTMLElement) {
+      languageButton.classList.add('ushio-hidden-language-button');
+      let languageInput = tools.querySelector('.ushio-code-language-input');
+      if (!(languageInput instanceof HTMLInputElement)) {
+        languageInput = document.createElement('input');
+        languageInput.type = 'text';
+        languageInput.className = 'ushio-code-language-input';
+        languageInput.placeholder = '语言';
+        languageInput.spellcheck = false;
+        tools.prepend(languageInput);
+
+        const submitLanguage = () => {
+          const nextLanguage = languageInput.value.trim();
+          if (!nextLanguage) return;
+          if (nextLanguage.toLowerCase() === (languageButton.textContent || '').trim().toLowerCase()) {
+            return;
+          }
+          languageButton.click();
+          requestAnimationFrame(() => {
+            const picker = tools.querySelector('.language-picker');
+            if (!(picker instanceof HTMLElement)) return;
+            const searchInput = picker.querySelector('.search-input');
+            if (searchInput instanceof HTMLInputElement) {
+              searchInput.value = nextLanguage;
+              searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            const candidates = Array.from(picker.querySelectorAll('.language-list-item[data-language]'));
+            const matched = candidates.find(
+              (item) => item instanceof HTMLElement
+                && item.dataset.language
+                && item.dataset.language.toLowerCase() === nextLanguage.toLowerCase(),
+            );
+            if (matched instanceof HTMLElement) {
+              matched.click();
+            } else if (languageButton.dataset.expanded === 'true') {
+              languageButton.click();
+            }
+            languageInput.value = (languageButton.textContent || '').trim();
+          });
+        };
+
+        languageInput.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          submitLanguage();
+        });
+        languageInput.addEventListener('blur', submitLanguage);
+      }
+      languageInput.value = (languageButton.textContent || '').trim();
+    }
+
+    const toolButtons = Array.from(tools.querySelectorAll('.tools-button-group button'));
+    toolButtons.forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) return;
+      const text = (button.textContent || '').trim().toLowerCase();
+      const title = (button.getAttribute('title') || '').trim().toLowerCase();
+      if (text !== 'copy' && title !== 'copy' && title !== '复制') return;
+      if (button.dataset.ushioCopyIconApplied === '1') return;
+      button.dataset.ushioCopyIconApplied = '1';
+      button.classList.add('ushio-copy-icon-btn');
+      button.setAttribute('title', '复制');
+      button.setAttribute('aria-label', '复制');
+      button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
+    });
+  });
 };
 
 const notifyRenderComplete = () => {
@@ -764,7 +835,7 @@ app.addEventListener('click', (event) => {
 
 app.addEventListener('mousedown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  if (target?.matches('a, a *, input[type="checkbox"]')) {
+  if (target?.matches('a, a *, input[type="checkbox"], input[type="checkbox"] *')) {
     event.preventDefault();
   }
 });
@@ -798,6 +869,12 @@ app.addEventListener('change', (event) => {
     index,
     checked: target.checked,
   });
+});
+
+app.addEventListener('focusin', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
+  target.blur();
 });
 
 app.addEventListener('contextmenu', (event) => {
