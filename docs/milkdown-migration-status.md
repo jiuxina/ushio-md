@@ -136,6 +136,7 @@
 - [x] 为核心回调链路补充 Widget/集成测试（至少覆盖 onContentChange/onLinkClick/onCheckboxToggle）。
 - [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）。
 - [x] 固化性能基线采样方法（指标、记录格式、阈值与判定规则）。
+- [x] Step D 收口实现：上传失败重试与错误分型、命令失败可读提示、失败聚合埋点增强。
 
 #### Step 8 / Step 9 / Step 10 最新进展（2026-03-23）
 
