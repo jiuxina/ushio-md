@@ -158,6 +158,22 @@
    - 修改点：`main.js` 命令层按键映射（Ctrl/Cmd 兼容）。
    - 验证点：外接键盘下高频操作无需触屏点击。
 
+#### Step C 实施记录（2026-03-23）
+
+- 已增加移动端视口/软键盘适配变量：
+  - `--ushio-viewport-height`
+  - `--ushio-keyboard-inset`
+- 已在 Web 侧监听 `window.visualViewport` 的 `resize/scroll` 与窗口 `resize/orientationchange`，动态更新浮层与编辑区可视高度；
+- 已让 slash/tooltip 与编辑容器在软键盘弹出时自动避让（含底部 inset 补偿）；
+- 已补齐桌面快捷键映射（Ctrl/Cmd）：
+  - `B` 加粗
+  - `I` 斜体
+  - `K` 链接
+  - `E` 行内代码
+  - `Shift+X` 删除线
+  - `Z` 撤销 / `Shift+Z` 重做
+  - `Y` 重做
+
 ---
 
 ### Step D（P2-P3）：性能、稳定性、可观测性收口
@@ -175,6 +191,19 @@
 3. 文档与回归清单同步
    - 修改点：更新 `docs/milkdown-migration-status.md`、`docs/milkdown-device-regression-checklist.md`。
    - 验证点：每次迭代有统一验收记录，便于回归。
+
+#### Step D 实施记录（2026-03-23）
+
+- 上传失败恢复：
+  - Flutter 侧新增上传落盘重试（最多 2 次）；
+  - 失败原因细分为：`upload_empty_file` / `upload_decode_failed` / `upload_write_failed` / `upload_persist_retries_exhausted` / `upload_failed`；
+  - 上传失败时提供可读 SnackBar，并支持“一键重试”；
+- 可观测性增强：
+  - Slash 动作新增 `on_cmd_metric` 埋点（`cmd=slash_action:*`）；
+  - 上传失败聚合上报增强（`cmd=upload_images`，含 reason/count）；
+  - Flutter 侧 `on_cmd_result` 失败时增加用户可读提示（SnackBar）；
+- 产物同步：
+  - 保持 `web/milkdown` 构建后同步 `assets/milkdown_web/index.html`。
 
 ---
 

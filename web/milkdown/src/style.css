@@ -15,6 +15,8 @@
   --milkdown-font-mono: "JetBrains Mono", monospace;
   --milkdown-font-size: 16px;
   --milkdown-line-height: 1.7;
+  --ushio-keyboard-inset: 0px;
+  --ushio-viewport-height: 100vh;
 }
 
 html,
@@ -40,8 +42,9 @@ body {
 
 #app {
   box-sizing: border-box;
-  min-height: 100%;
+  min-height: var(--ushio-viewport-height);
   padding: 16px;
+  padding-bottom: calc(16px + var(--ushio-keyboard-inset));
 }
 
 .milkdown {
@@ -125,6 +128,7 @@ body {
   box-shadow: 0 8px 24px var(--milkdown-color-shadow);
   padding: 6px;
   gap: 6px;
+  margin-bottom: calc(8px + var(--ushio-keyboard-inset));
 }
 
 .ushio-tooltip[data-show='true'],
@@ -135,7 +139,7 @@ body {
 .ushio-slash {
   flex-direction: column;
   min-width: 168px;
-  max-height: min(52vh, 360px);
+  max-height: min(calc(var(--ushio-viewport-height) * 0.52), 360px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }

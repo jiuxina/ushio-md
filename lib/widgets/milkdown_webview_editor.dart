@@ -219,6 +219,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
 
 class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   static const _documentRoot = 'assets/milkdown_web';
+  static const int _maxUploadPersistRetries = 2;
 
   InAppWebViewController? _controller;
   InAppLocalhostServer? _localhostServer;
@@ -360,6 +361,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     String requestId, {
     required List<Map<String, dynamic>> images,
     String? reason,
+    String? failureReason,
+    int? failureCount,
   }) async {
     await _sendExecCmd(
       'upload_images_result',
@@ -367,6 +370,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         'requestId': requestId,
         'images': images,
         if (reason != null && reason.isNotEmpty) 'reason': reason,
+        if (failureReason != null && failureReason.isNotEmpty) 'failureReason': failureReason,
+        if (failureCount != null && failureCount > 0) 'failureCount': failureCount,
       },
     );
   }
@@ -433,22 +438,69 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     };
   }
 
+  Future<Map<String, dynamic>> _persistUploadedImageWithRetry(
+    UploadImageFilePayload file,
+  ) async {
+    Object? lastError;
+    for (var attempt = 0; attempt <= _maxUploadPersistRetries; attempt++) {
+      try {
+        return await _persistUploadedImage(file);
+      } catch (e) {
+        lastError = e;
+        if (attempt >= _maxUploadPersistRetries) break;
+        await Future<void>.delayed(Duration(milliseconds: 120 * (attempt + 1)));
+      }
+    }
+    throw Exception('persist_image_retries_exhausted:$lastError');
+  }
+
   Future<void> _handleUploadImagesRequest(OnUploadImagesRequestPayload payload) async {
     widget.onUploadImagesRequest?.call(payload);
+    var failureCount = 0;
+    String? failureReason;
     try {
       final images = <Map<String, dynamic>>[];
       for (final file in payload.files) {
-        images.add(await _persistUploadedImage(file));
+        images.add(await _persistUploadedImageWithRetry(file));
       }
       await _sendUploadImagesResult(
         payload.requestId,
         images: images,
       );
     } catch (e) {
+      failureCount += 1;
+      final errorText = e.toString();
+      if (errorText.contains('empty_upload_image')) {
+        failureReason = 'upload_empty_file';
+      } else if (errorText.contains('FormatException')) {
+        failureReason = 'upload_decode_failed';
+      } else if (errorText.contains('FileSystemException')) {
+        failureReason = 'upload_write_failed';
+      } else if (errorText.contains('persist_image_retries_exhausted')) {
+        failureReason = 'upload_persist_retries_exhausted';
+      } else {
+        failureReason = 'upload_failed';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('图片上传失败：$failureReason，可重试'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: '重试',
+              onPressed: () {
+                _handleUploadImagesRequest(payload);
+              },
+            ),
+          ),
+        );
+      }
       await _sendUploadImagesResult(
         payload.requestId,
         images: const [],
-        reason: 'upload_failed:$e',
+        reason: '$failureReason:$e',
+        failureReason: failureReason,
+        failureCount: failureCount,
       );
     }
   }
@@ -699,6 +751,14 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onCmdResult: (cmd, ok, reason) {
         if (!ok) {
           debugPrint('Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}');
+          if (mounted && reason != null && reason.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('编辑命令失败：$cmd（$reason）'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       },
       onRenderComplete: () {
