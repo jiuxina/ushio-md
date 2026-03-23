@@ -127,8 +127,8 @@ body {
 
 .milkdown .ProseMirror pre {
   margin: 1em 0;
-  padding: 12px;
-  border-radius: 14px;
+  padding: 12px 12px 44px;
+  border-radius: 14px !important;
   border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
   background: color-mix(
     in srgb,
@@ -136,7 +136,7 @@ body {
     var(--milkdown-color-primary) 10%
   );
   box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .milkdown .ProseMirror pre code {
@@ -145,6 +145,7 @@ body {
   background: transparent;
   color: var(--milkdown-color-on-surface);
   line-height: 1.55;
+  overflow-x: auto;
 }
 
 .milkdown .milkdown-code-block {
@@ -153,35 +154,81 @@ body {
   margin: 1em 0;
   display: flex;
   flex-direction: column;
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 90%, var(--milkdown-color-primary) 10%);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
 }
 
 .milkdown .milkdown-code-block .tools {
-  position: static;
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  width: 100%;
+  gap: 0;
+  margin: 0;
+  width: auto;
   z-index: 20;
-  order: 2;
+  order: 1;
 }
 
-.milkdown .milkdown-code-block .tools .language-button.ushio-language-trigger {
-  margin: 0;
-  opacity: 1;
-  min-width: 96px;
-  max-width: 180px;
-  height: 28px;
-  border-radius: 999px;
-  padding: 0 10px;
+.milkdown .milkdown-code-block .tools .tools-button-group {
+  display: none;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  color: var(--milkdown-color-on-surface);
+  overflow: hidden;
+  height: 30px;
+  border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
-  background: color-mix(in srgb, var(--milkdown-color-surface) 93%, #ffffff 7%);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, #ffffff 8%);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--milkdown-color-shadow) 60%, transparent);
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action,
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  height: 30px;
+  background: transparent;
+  color: var(--milkdown-color-on-surface);
+  opacity: 1;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action {
+  width: 36px;
+  min-width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label {
+  min-width: 96px;
+  max-width: 180px;
+  padding: 0 12px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: 12px;
+  border-left: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent);
+  pointer-events: none;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label svg,
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label .arrow,
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label img {
+  display: none !important;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action:hover,
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .language-button.ushio-code-language-label:hover {
+  background: color-mix(in srgb, var(--milkdown-color-primary) 10%, transparent);
 }
 
 .milkdown .milkdown-code-block .tools .language-picker.ushio-language-picker {
