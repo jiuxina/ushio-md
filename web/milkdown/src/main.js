@@ -7,17 +7,25 @@ import {
   rootCtx,
 } from '@milkdown/core';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
+import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
 import { math } from '@milkdown/plugin-math';
+import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
+import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip';
 import {
   commonmark,
+  createCodeBlockCommand,
   insertImageCommand,
+  wrapInBlockquoteCommand,
+  wrapInBulletListCommand,
+  wrapInHeadingCommand,
+  wrapInOrderedListCommand,
   toggleEmphasisCommand,
   toggleStrongCommand,
 } from '@milkdown/preset-commonmark';
 import { insertTableCommand } from '@milkdown/preset-gfm';
 import { prism } from '@milkdown/plugin-prism';
 import { gfm } from '@milkdown/preset-gfm';
-import { undo, redo } from '@milkdown/prose/history';
+import { Plugin } from '@milkdown/prose/state';
 import { nord } from '@milkdown/theme-nord';
 import { replaceAll } from '@milkdown/utils';
 import 'katex/dist/katex.min.css';
@@ -32,6 +40,11 @@ let currentBaseDirectory = '';
 let currentReadOnly = true;
 let isApplyingFromFlutter = false;
 let createEditorPromise = null;
+let tooltipProvider = null;
+let slashProvider = null;
+
+const tooltip = tooltipFactory('ushio-tooltip');
+const slash = slashFactory('ushio-slash');
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -221,6 +234,103 @@ const showBootstrapError = (error) => {
   app.innerHTML = `<div style="padding:16px;font-family:sans-serif;color:#dc2626;line-height:1.6;">Milkdown 初始化失败：${String(error)}</div>`;
 };
 
+const buildFloatingButton = (label, title, className, onClick) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `ushio-float-btn ${className}`.trim();
+  btn.textContent = label;
+  btn.title = title;
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    onClick();
+  });
+  return btn;
+};
+
+const removeTrailingSlashTrigger = (view) => {
+  const { state } = view;
+  const { selection } = state;
+  if (!selection.empty) return;
+  const { $from } = selection;
+  if ($from.parentOffset <= 0) return;
+  const prevChar = $from.parent.textBetween($from.parentOffset - 1, $from.parentOffset, undefined, '\uFFFC');
+  if (prevChar !== '/') return;
+  const from = $from.pos - 1;
+  const to = $from.pos;
+  view.dispatch(state.tr.delete(from, to));
+};
+
+const runSlashAction = (actionId) => {
+  if (!editorInstance || currentReadOnly) return;
+  editorInstance.action((ctx) => {
+    const commands = ctx.get(commandsCtx);
+    const view = ctx.get(editorViewCtx);
+    removeTrailingSlashTrigger(view);
+    switch (actionId) {
+      case 'h1':
+        commands.call(wrapInHeadingCommand.key, 1);
+        break;
+      case 'h2':
+        commands.call(wrapInHeadingCommand.key, 2);
+        break;
+      case 'h3':
+        commands.call(wrapInHeadingCommand.key, 3);
+        break;
+      case 'bullet':
+        commands.call(wrapInBulletListCommand.key);
+        break;
+      case 'ordered':
+        commands.call(wrapInOrderedListCommand.key);
+        break;
+      case 'quote':
+        commands.call(wrapInBlockquoteCommand.key);
+        break;
+      case 'code':
+        commands.call(createCodeBlockCommand.key);
+        break;
+      case 'table':
+        commands.call(insertTableCommand.key, { row: 3, col: 3 });
+        break;
+      default:
+        break;
+    }
+  });
+  slashProvider?.hide();
+  notifyRenderComplete();
+};
+
+const createTooltipElement = () => {
+  const element = document.createElement('div');
+  element.className = 'ushio-tooltip';
+  element.append(
+    buildFloatingButton('B', '加粗', '', () => executeCommand('toggle_bold')),
+    buildFloatingButton('I', '斜体', '', () => executeCommand('toggle_italic')),
+  );
+  return element;
+};
+
+const createSlashElement = () => {
+  const element = document.createElement('div');
+  element.className = 'ushio-slash';
+  const actions = [
+    ['h1', '标题 1'],
+    ['h2', '标题 2'],
+    ['h3', '标题 3'],
+    ['bullet', '无序列表'],
+    ['ordered', '有序列表'],
+    ['quote', '引用'],
+    ['code', '代码块'],
+    ['table', '表格'],
+  ];
+  actions.forEach(([id, label]) => {
+    element.append(
+      buildFloatingButton(label, label, 'ushio-slash-btn', () => runSlashAction(id)),
+    );
+  });
+  return element;
+};
+
 const createEditor = async () => {
   const editor = Editor.make()
     .config(nord)
@@ -243,12 +353,48 @@ const createEditor = async () => {
         isApplyingFromFlutter = false;
         notifyRenderComplete();
       });
+      ctx.set(tooltip.key, {
+        view: () => {
+          tooltipProvider = new TooltipProvider({
+            content: createTooltipElement(),
+            debounce: 120,
+            offset: 12,
+          });
+          return {
+            update: tooltipProvider.update,
+            destroy: () => {
+              tooltipProvider?.destroy();
+              tooltipProvider = null;
+            },
+          };
+        },
+      });
+      ctx.set(slash.key, {
+        view: () => {
+          slashProvider = new SlashProvider({
+            content: createSlashElement(),
+            debounce: 80,
+            offset: 8,
+            trigger: '/',
+          });
+          return {
+            update: slashProvider.update,
+            destroy: () => {
+              slashProvider?.destroy();
+              slashProvider = null;
+            },
+          };
+        },
+      });
     })
     .use(commonmark)
     .use(gfm)
     .use(math)
     .use(prism)
-    .use(listener);
+    .use(listener)
+    .use(history)
+    .use(tooltip)
+    .use(slash);
 
   editorInstance = await editor.create();
   notifyRenderComplete();
@@ -314,10 +460,10 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'undo' || cmd === 'redo') {
       let ok = false;
       editorInstance.action((ctx) => {
-        const view = ctx.get(editorViewCtx);
+        const commands = ctx.get(commandsCtx);
         ok = cmd === 'undo'
-          ? undo(view.state, view.dispatch)
-          : redo(view.state, view.dispatch);
+          ? commands.call(undoCommand.key)
+          : commands.call(redoCommand.key);
       });
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable');
       return;

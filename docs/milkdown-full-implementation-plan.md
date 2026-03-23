@@ -13,16 +13,16 @@
   - 重新生成 web lockfile，重建单文件运行时产物并同步到 `assets/milkdown_web/index.html`。
   - 验证 `web/milkdown` 构建通过，保持现有 bridge 与命令行为不变。
 
-- [ ] **Step 2：接入官方 `plugin-history` 并替换当前部分实现**
+- [x] **Step 2：接入官方 `plugin-history` 并替换当前部分实现（已完成）**
   - 从“直接调用 `@milkdown/prose/history`”迁移到官方 history 插件封装。
   - 保持 `exec_cmd -> undo/redo -> on_cmd_result` 回执协议不变。
   - 补单测/回归用例，确保撤销重做行为一致。
 
-- [ ] **Step 3：接入官方 `plugin-tooltip`**
+- [x] **Step 3：接入官方 `plugin-tooltip`（已完成）**
   - 落地基础 tooltip 体验（链接/格式化提示能力）并与现有样式融合。
   - 校验只读态与编辑态的 tooltip 行为差异。
 
-- [ ] **Step 4：接入官方 `plugin-slash`**
+- [x] **Step 4：接入官方 `plugin-slash`（已完成）**
   - 实现最小可用斜杠菜单（标题、列表、表格、引用、代码块、图片等常用项）。
   - 与现有工具栏命令体系并存，避免功能冲突。
 
@@ -74,4 +74,3 @@
 ### 已完成验证
 
 - 在 `web/milkdown` 执行 `npm run build` 通过（升级后构建成功）。
-
