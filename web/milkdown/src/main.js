@@ -73,6 +73,7 @@ let pendingContentMarkdown = null;
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
 let caretViewportSyncRafId = null;
+let suppressNextCaretViewportSync = false;
 let codeLanguagePopupElement = null;
 let codeLanguagePopupInput = null;
 let codeLanguagePopupList = null;
@@ -80,7 +81,6 @@ let codeLanguagePopupAnchor = null;
 let codeLanguagePopupBlock = null;
 let codeLanguagePopupCandidates = [];
 const highlightParser = createRefractorParser(refractor);
-const TRANSPARENT_IMAGE_DATA_URL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
   .filter((name) => typeof name === 'string' && /^[a-z0-9_+-]+$/i.test(name))
   .sort((a, b) => a.localeCompare(b));
@@ -438,6 +438,78 @@ const resolveInsertImageSrc = (src) => {
   }
 };
 
+const sanitizeImageSource = (src) => {
+  if (typeof src !== 'string') return '';
+  const trimmed = src.trim();
+  if (!trimmed) return '';
+  const markdownTitleMatch = trimmed.match(/^(\S+)\s+["'“”][\s\S]*["'“”]$/);
+  if (markdownTitleMatch && markdownTitleMatch[1]) {
+    return markdownTitleMatch[1].trim();
+  }
+  const firstSpace = trimmed.indexOf(' ');
+  if (firstSpace > 0) {
+    const suffix = trimmed.slice(firstSpace + 1).trim();
+    if (suffix.startsWith('"') || suffix.startsWith("'") || suffix.startsWith('“')) {
+      return trimmed.slice(0, firstSpace).trim();
+    }
+  }
+  return trimmed;
+};
+
+const decodeFileUriPath = (value) => {
+  if (typeof value !== 'string' || !value.startsWith('file://')) return '';
+  try {
+    return decodeURIComponent(new URL(value).pathname || '');
+  } catch (_) {
+    return value.replace(/^file:\/\//i, '');
+  }
+};
+
+const normalizeBaseDirectoryPath = (baseDirectory) => {
+  if (typeof baseDirectory !== 'string' || !baseDirectory.trim()) return '';
+  const trimmed = baseDirectory.trim();
+  if (trimmed.startsWith('file://')) {
+    return decodeFileUriPath(trimmed);
+  }
+  return trimmed.replace(/\\/g, '/');
+};
+
+const toAbsoluteLocalPath = (pathLike) => {
+  if (typeof pathLike !== 'string') return '';
+  const raw = pathLike.trim();
+  if (!raw) return '';
+  if (raw.startsWith('file://')) {
+    return decodeFileUriPath(raw);
+  }
+  if (raw.startsWith('/')) return raw;
+  const base = normalizeBaseDirectoryPath(currentBaseDirectory);
+  if (!base) return '';
+  const normalizedBase = base.replace(/\/+$/, '');
+  const normalizedRaw = raw.replace(/\\/g, '/').replace(/^\.\//, '');
+  return `${normalizedBase}/${normalizedRaw}`;
+};
+
+const buildLocalFileProxyUrl = (absolutePath) => {
+  if (typeof absolutePath !== 'string' || !absolutePath) return '';
+  const origin = window.location?.origin || '';
+  if (!origin) return '';
+  return `${origin}/__ushio_local_file__?path=${encodeURIComponent(absolutePath)}`;
+};
+
+const resolveImageSrc = (src) => {
+  const sanitized = sanitizeImageSource(src);
+  if (!sanitized) return '';
+  if (isExternalHref(sanitized) || sanitized.startsWith('data:') || sanitized.startsWith('blob:')) {
+    return sanitized;
+  }
+  const absolutePath = toAbsoluteLocalPath(sanitized);
+  if (!absolutePath) {
+    return resolveHref(sanitized);
+  }
+  const proxyUrl = buildLocalFileProxyUrl(absolutePath);
+  return proxyUrl || resolveHref(sanitized);
+};
+
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onerror = () => reject(reader.error ?? new Error('file_read_failed'));
@@ -752,23 +824,28 @@ const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
   root.querySelectorAll('img').forEach((img) => {
     const rawSrc = img.getAttribute('src') || '';
-    const resolvedSrc = resolveHref(rawSrc);
+    const sanitizedRawSrc = sanitizeImageSource(rawSrc);
+    if (sanitizedRawSrc && sanitizedRawSrc !== rawSrc) {
+      img.setAttribute('src', sanitizedRawSrc);
+    }
+    const resolvedSrc = resolveImageSrc(sanitizedRawSrc || rawSrc);
     if (resolvedSrc && img.getAttribute('src') !== resolvedSrc) {
       img.setAttribute('src', resolvedSrc);
-      img.classList.remove('ushio-image-load-failed');
-      img.closest('.milkdown-image-block')?.classList.remove('ushio-image-load-failed');
+    }
+    if (!img.dataset.ushioLoadBound) {
+      img.dataset.ushioLoadBound = '1';
+      img.addEventListener('load', () => {
+        img.classList.remove('ushio-image-load-failed');
+        img.closest('.milkdown-image-block')?.classList.remove('ushio-image-load-failed');
+      });
     }
     if (!img.dataset.ushioErrorBound) {
       img.dataset.ushioErrorBound = '1';
       img.addEventListener('error', () => {
         img.classList.add('ushio-image-load-failed');
         img.closest('.milkdown-image-block')?.classList.add('ushio-image-load-failed');
-        if (img.dataset.ushioFallbackApplied !== '1') {
-          img.dataset.ushioFallbackApplied = '1';
-          img.setAttribute('src', TRANSPARENT_IMAGE_DATA_URL);
-        }
         emit('on_image_error', {
-          src: resolvedSrc || rawSrc,
+          src: resolvedSrc || sanitizedRawSrc || rawSrc,
           reason: 'load_failed',
         });
       });
@@ -1237,9 +1314,14 @@ app.addEventListener('click', (event) => {
   const checkbox = target?.closest('input[type="checkbox"]');
   if (checkbox instanceof HTMLInputElement) {
     event.preventDefault();
+    event.stopPropagation();
     if (!currentReadOnly) {
+      suppressNextCaretViewportSync = true;
       checkbox.checked = !checkbox.checked;
       emitCheckboxToggle(checkbox, checkbox.checked);
+      setTimeout(() => {
+        suppressNextCaretViewportSync = false;
+      }, 0);
     }
     return;
   }
@@ -1277,6 +1359,7 @@ app.addEventListener('mousedown', (event) => {
   }
   if (target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
     event.preventDefault();
+    event.stopPropagation();
   }
 });
 
@@ -1284,12 +1367,12 @@ app.addEventListener('touchstart', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.matches('input[type="checkbox"], input[type="checkbox"] *')) return;
   event.preventDefault();
+  event.stopPropagation();
 }, { passive: false });
 
 const emitCheckboxToggle = (checkbox, checked) => {
   const index = Number.parseInt(checkbox.dataset.checkboxIndex || '-1', 10);
   if (Number.isNaN(index) || index < 0) return;
-  app.querySelector('.ProseMirror')?.blur();
   emit('on_checkbox_toggle', {
     index,
     checked,
@@ -1301,11 +1384,17 @@ app.addEventListener('pointerdown', (event) => {
   const checkbox = target?.closest('input[type="checkbox"]');
   if (!(checkbox instanceof HTMLInputElement)) return;
   event.preventDefault();
+  event.stopPropagation();
 });
 
 app.addEventListener('focusin', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (target?.matches('input[type="checkbox"]')) {
+    target.blur();
+    return;
+  }
   if (target?.closest('.ProseMirror')) {
+    if (suppressNextCaretViewportSync) return;
     emitEditorFocus(true);
     scheduleCaretIntoUpperViewport();
   }
@@ -1327,6 +1416,7 @@ app.addEventListener('change', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
   event.preventDefault();
+  event.stopPropagation();
 });
 
 app.addEventListener('focusin', (event) => {

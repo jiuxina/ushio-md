@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:mime/mime.dart';
 
 import '../models/milkdown_bridge.dart';
 import '../services/my_files_service.dart';
@@ -247,6 +248,34 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   bool _isServerStarting = false;
   bool _didFinishFirstRender = false;
   bool _suppressNextReload = false;
+
+  Future<CustomSchemeResponse?> _serveLocalFileRequest(Uri uri) async {
+    if (uri.path != '/__ushio_local_file__') return null;
+    final encodedPath = uri.queryParameters['path'] ?? '';
+    if (encodedPath.isEmpty) {
+      return CustomSchemeResponse(
+        data: Uint8List(0),
+        contentType: 'text/plain',
+        contentEncoding: 'utf-8',
+      );
+    }
+    final requestedPath = Uri.decodeComponent(encodedPath);
+    final file = File(requestedPath);
+    if (!await file.exists()) {
+      return CustomSchemeResponse(
+        data: Uint8List(0),
+        contentType: 'text/plain',
+        contentEncoding: 'utf-8',
+      );
+    }
+    final bytes = await file.readAsBytes();
+    final mime = lookupMimeType(requestedPath) ?? 'application/octet-stream';
+    return CustomSchemeResponse(
+      data: bytes,
+      contentType: mime,
+      contentEncoding: 'binary',
+    );
+  }
 
   @override
   void initState() {
@@ -856,6 +885,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         supportZoom: false,
         builtInZoomControls: false,
         displayZoomControls: false,
+        resourceCustomSchemes: ['http', 'https'],
       ),
       onWebViewCreated: (controller) {
         _controller = controller;
@@ -872,6 +902,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onLoadStop: (controller, _) async {
         await _sendInitDoc();
         await _sendTheme();
+      },
+      onLoadResourceWithCustomScheme: (controller, request) async {
+        final url = request.url;
+        if (url == null) return null;
+        return _serveLocalFileRequest(Uri.parse(url.toString()));
       },
     );
   }
