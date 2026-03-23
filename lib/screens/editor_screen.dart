@@ -957,13 +957,19 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final shouldInterceptForMilkdownBlur =
+        _mode == EditorMode.preview && _isMilkdownEditorFocused;
     return PopScope(
-      canPop: !_isModified,
+      canPop: !_isModified && !shouldInterceptForMilkdownBlur,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
           // Clear the WebView platform surface immediately so the native view
           // doesn't linger as a ghost during the route-pop animation.
           if (mounted) setState(() => _hidePlatformViews = true);
+          return;
+        }
+        if (shouldInterceptForMilkdownBlur) {
+          await _previewWebViewController.execCmd('blur_editor');
           return;
         }
         if (!didPop) {

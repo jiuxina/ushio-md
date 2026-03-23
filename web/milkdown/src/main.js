@@ -426,54 +426,13 @@ const syncRenderedDom = () => {
 
     const languageButton = tools.querySelector('.language-button');
     if (languageButton instanceof HTMLElement) {
-      languageButton.classList.add('ushio-hidden-language-button');
-      let languageInput = tools.querySelector('.ushio-code-language-input');
-      if (!(languageInput instanceof HTMLInputElement)) {
-        languageInput = document.createElement('input');
-        languageInput.type = 'text';
-        languageInput.className = 'ushio-code-language-input';
-        languageInput.placeholder = '语言';
-        languageInput.spellcheck = false;
-        tools.prepend(languageInput);
-
-        const submitLanguage = () => {
-          const nextLanguage = languageInput.value.trim();
-          if (!nextLanguage) return;
-          if (nextLanguage.toLowerCase() === (languageButton.textContent || '').trim().toLowerCase()) {
-            return;
-          }
-          languageButton.click();
-          requestAnimationFrame(() => {
-            const picker = tools.querySelector('.language-picker');
-            if (!(picker instanceof HTMLElement)) return;
-            const searchInput = picker.querySelector('.search-input');
-            if (searchInput instanceof HTMLInputElement) {
-              searchInput.value = nextLanguage;
-              searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            const candidates = Array.from(picker.querySelectorAll('.language-list-item[data-language]'));
-            const matched = candidates.find(
-              (item) => item instanceof HTMLElement
-                && item.dataset.language
-                && item.dataset.language.toLowerCase() === nextLanguage.toLowerCase(),
-            );
-            if (matched instanceof HTMLElement) {
-              matched.click();
-            } else if (languageButton.dataset.expanded === 'true') {
-              languageButton.click();
-            }
-            languageInput.value = (languageButton.textContent || '').trim();
-          });
-        };
-
-        languageInput.addEventListener('keydown', (event) => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          submitLanguage();
-        });
-        languageInput.addEventListener('blur', submitLanguage);
+      languageButton.classList.add('ushio-language-trigger');
+      languageButton.setAttribute('title', '代码语言');
+      languageButton.setAttribute('aria-label', '代码语言');
+      const picker = tools.querySelector('.language-picker');
+      if (picker instanceof HTMLElement) {
+        picker.classList.add('ushio-language-picker');
       }
-      languageInput.value = (languageButton.textContent || '').trim();
     }
 
     const toolButtons = Array.from(tools.querySelectorAll('.tools-button-group button'));
@@ -756,6 +715,14 @@ const updateActiveMarkdownHints = () => {
   }
 };
 
+const blurEditorFocus = () => {
+  const editor = app.querySelector('.ProseMirror');
+  if (!(editor instanceof HTMLElement)) return false;
+  editor.blur();
+  emitEditorFocus(false);
+  return true;
+};
+
 const createEditor = async () => {
   const crepe = new Crepe({
     root: app,
@@ -943,6 +910,14 @@ const ensureEditor = () => {
 
 const handleEditorShortcut = (event) => {
   if (currentReadOnly) return;
+  if (event.key === 'Escape') {
+    const focusedNode = document.activeElement instanceof Element ? document.activeElement : null;
+    if (focusedNode?.closest('.ProseMirror')) {
+      event.preventDefault();
+      blurEditorFocus();
+      return;
+    }
+  }
   const key = (event.key || '').toLowerCase();
   const withPrimary = event.metaKey || event.ctrlKey;
   if (!withPrimary || event.altKey) return;
@@ -1044,7 +1019,7 @@ const executeCommand = (cmd, args = {}) => {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
-  if (currentReadOnly && cmd !== 'focus_editor') {
+  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
@@ -1052,6 +1027,11 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'focus_editor') {
       app.querySelector('.ProseMirror')?.focus();
       emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+    if (cmd === 'blur_editor') {
+      const ok = blurEditorFocus();
+      emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
     if (cmd === 'undo' || cmd === 'redo') {
