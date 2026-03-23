@@ -3,7 +3,17 @@
 > 更新时间：2026-03-23  
 > 范围：`web/milkdown`、`lib/widgets/milkdown_webview_editor.dart`、`lib/models/milkdown_bridge.dart`
 
-## 1) 官方组件全量审计（Milkdown V7）
+## 1) 本地现有 Markdown 功能实现清单（迁移前后）
+
+| 功能域 | 迁移前本地实现 | 当前实现（2026-03-23） | 代码位置 |
+| --- | --- | --- | --- |
+| 块手柄 / 块菜单（Block） | `BlockProvider + blockSpec` 手写 DOM (`createBlockHandleElement`) | ✅ 已迁移为官方 `@milkdown/crepe` 的 `blockEdit` | `web/milkdown/src/main.js` |
+| 浮动格式工具条（Tooltip） | `tooltipFactory + TooltipProvider` 手写 DOM (`createTooltipElement`) | ✅ 已迁移为官方 `@milkdown/crepe` 的 `toolbar` + `linkTooltip` | `web/milkdown/src/main.js` |
+| Slash 命令面板 | `slashFactory + SlashProvider` 手写 DOM (`createSlashElement` + `runSlashAction`) | ✅ 已迁移为官方 `@milkdown/crepe` 的 `blockEdit` 菜单 | `web/milkdown/src/main.js` |
+| 右键/长按上下文菜单 | 本地 `ushio-context-menu` 自定义实现 | ⏸ 保留（官方组件无 Flutter WebView 右键/长按一键替代能力） | `web/milkdown/src/main.js`、`web/milkdown/src/style.css` |
+| 命令桥接（exec_cmd / telemetry） | 本地桥接协议 | ✅ 保留（属于 Flutter 集成层，不属于 Milkdown 通用 UI 组件） | `web/milkdown/src/main.js`、`lib/models/milkdown_bridge.dart` |
+
+## 2) 官方组件全量审计（Milkdown V7）
 
 ### 1.1 Presets（预设）
 
@@ -49,9 +59,9 @@
 
 ---
 
-## 2) 存量与差异分析（Gap Analysis）
+## 3) 存量与差异分析（Gap Analysis）
 
-### 2.1 已完全接入（稳定运行）
+### 3.1 已完全接入（稳定运行）
 
 | 能力 | 现状说明 | 代码位置 |
 | --- | --- | --- |
@@ -64,29 +74,28 @@
 | 基础交互插件 | `block/cursor/indent/trailing/clipboard` 已进入正式链路 | `web/milkdown/src/main.js` |
 | 上传桥接主链路 | `plugin-upload` 已与 Flutter bridge 联动，支持回执 | `web/milkdown/src/main.js`、`lib/widgets/milkdown_webview_editor.dart`、`lib/models/milkdown_bridge.dart` |
 | 主题基线 | 使用 `theme-nord` + CSS 变量映射深浅色 | `web/milkdown/src/main.js`、`web/milkdown/src/style.css` |
+| 官方交互组件替换 | 已将本地 block/tooltip/slash 自定义实现迁移到 `@milkdown/crepe`（`blockEdit`/`toolbar`/`linkTooltip`） | `web/milkdown/src/main.js` |
 
-### 2.2 部分接入 / 待优化
+### 3.2 部分接入 / 待优化
 
 | 能力 | 当前问题 | 优化方向 |
 | --- | --- | --- |
-| `plugin-tooltip` | 已可用但动作集仍偏精简 | 继续补齐链接/分割线/任务列表等高频动作 |
-| `plugin-slash` | 已有常用命令，但仍可继续对标官方演示丰富度 | 按场景补齐更多 block/模板命令 |
-| `plugin-block` | 当前以最小接入为主 | 增强块级菜单能力与可发现性 |
+| `@milkdown/crepe` block 菜单配置 | 已接管 block/slash 主入口，但当前对图片项保持 Flutter 桥接主链路（禁用 crepe 默认 image） | 按需继续扩展 crepe 菜单项与本地桥接映射 |
 | `plugin-upload` | 当前 Web->Flutter 以 dataUrl 传输，长图/多图桥接开销高 | 引入二进制/分片/临时文件句柄通道 |
 | `plugin-listener` 回写策略 | 当前仍是全量 markdown 回写（已做 120ms 防抖） | 评估增量回写或批量提交策略 |
 | `plugin-math` | 依赖官方 deprecated 包 | 制定替代方案观察窗口与降级策略 |
 
-### 2.3 完全未接入（官方能力）
+### 3.3 完全未接入（官方能力）
 
 | 分类 | 未接入项 | 说明 |
 | --- | --- | --- |
 | Plugins | `plugin-collab` | 协同编辑能力（Yjs 等协作栈） |
-| Components | `@milkdown/components`、`@milkdown/crepe`、`@milkdown/react` | 当前项目主架构是 Flutter + WebView，自定义 UI 为主 |
+| Components | `@milkdown/components`、`@milkdown/react` | 当前项目主架构是 Flutter + WebView，已接入 `@milkdown/crepe`，未接入 React 层 |
 | Themes | 除 `theme-nord` 外暂无多主题包并行接入 | 当前依赖 CSS 变量适配深浅色，未做官方主题包切换体系 |
 
 ---
 
-## 3) 全量接入实施计划（分阶段）
+## 4) 全量接入实施计划（分阶段）
 
 ### 阶段 A：基础核心层（稳定内核与协议）
 
@@ -108,7 +117,7 @@
 
 | 目标 | 技术步骤（安装 / 配置 / 集成点） |
 | --- | --- |
-| 扩展 Slash / Tooltip / Block | ✅ 已完成高频动作补齐与错误提示，且与 Flutter 命令口径对齐（含图片/表格/高亮/emoji） |
+| 扩展 Slash / Tooltip / Block | ✅ 已完成从本地自定义实现到官方 `@milkdown/crepe` 组件迁移，并保留 Flutter 图片桥接兼容 |
 | 上传链路性能升级 | ✅ 已完成失败重试、批量限制、失败分型与阶段化 telemetry（upload_encode / upload_bridge_wait / upload_apply_result / upload_pipeline）；⏭ 二进制/临时路径协议列入后续增量优化 |
 | 可编辑性细节优化 | ✅ 已完成光标/表格命令、快捷键映射与 Android 键盘视觉视口避让 |
 
@@ -117,12 +126,12 @@
 | 目标 | 技术步骤（安装 / 配置 / 集成点） |
 | --- | --- |
 | 主题体系增强 | ✅ 已建立 `theme-nord` + CSS 变量 token 层，并完成 Flutter 主题映射（字体/字号/行高/色板） |
-| 评估官方组件集接入 | ✅ 已形成“保持自定义组件为主、官方组件 PoC 作为可回滚增量项”的策略（当前不阻塞收官） |
+| 评估官方组件集接入 | ✅ 已完成 block/toolbar/link-tooltip 三类核心交互组件迁移到 `@milkdown/crepe` |
 | 端到端体验收官 | ✅ 已具备真机矩阵与性能基线模板；当前收官门槛聚焦“按模板完成真实设备回填”（受执行环境限制，留待设备侧执行） |
 
 ---
 
-## 4) 技术考量与注意事项
+## 5) 技术考量与注意事项
 
 | 维度 | 风险点 | 建议策略 |
 | --- | --- | --- |
@@ -134,7 +143,7 @@
 
 ---
 
-## 5) 建议执行顺序（最小风险）
+## 6) 建议执行顺序（最小风险）
 
 1. 先完成 **阶段 A**（版本、协议、可观测性）。  
 2. 再推进 **阶段 B**（语法插件补齐）并做 Markdown 一致性回归。  

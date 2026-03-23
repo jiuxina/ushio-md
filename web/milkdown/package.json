@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@milkdown/core": "7.19.1",
+    "@milkdown/crepe": "^7.19.1",
     "@milkdown/plugin-automd": "7.19.1",
-    "@milkdown/plugin-block": "7.19.1",
     "@milkdown/plugin-clipboard": "7.19.1",
     "@milkdown/plugin-cursor": "7.19.1",
     "@milkdown/plugin-emoji": "7.19.1",
@@ -20,8 +20,6 @@
     "@milkdown/plugin-indent": "7.19.1",
     "@milkdown/plugin-listener": "7.19.1",
     "@milkdown/plugin-math": "7.5.9",
-    "@milkdown/plugin-slash": "7.19.1",
-    "@milkdown/plugin-tooltip": "7.19.1",
     "@milkdown/plugin-trailing": "7.19.1",
     "@milkdown/plugin-upload": "7.19.1",
     "@milkdown/preset-commonmark": "7.19.1",
