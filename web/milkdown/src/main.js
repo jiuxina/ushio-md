@@ -582,6 +582,7 @@ const createEditor = async () => {
 
   await crepe.create();
   editorInstance = crepe.editor;
+
   contextMenuElement = createContextMenuElement();
   app.append(contextMenuElement);
   notifyRenderComplete();
