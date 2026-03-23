@@ -1,12 +1,8 @@
 import {
-  Editor,
   commandsCtx,
-  defaultValueCtx,
   editorViewCtx,
-  editorViewOptionsCtx,
-  rootCtx,
 } from '@milkdown/core';
-import { block, BlockProvider, blockSpec } from '@milkdown/plugin-block';
+import { CrepeBuilder } from '@milkdown/crepe/builder';
 import { automd } from '@milkdown/plugin-automd';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
@@ -16,13 +12,13 @@ import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
 import { indent } from '@milkdown/plugin-indent';
 import { math } from '@milkdown/plugin-math';
-import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
 import { trailing } from '@milkdown/plugin-trailing';
-import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip';
 import { upload, uploadConfig } from '@milkdown/plugin-upload';
+import { blockEdit } from '@milkdown/crepe/feature/block-edit';
+import { toolbar } from '@milkdown/crepe/feature/toolbar';
+import { linkTooltip } from '@milkdown/crepe/feature/link-tooltip';
 import {
   insertHrCommand,
-  commonmark,
   createCodeBlockCommand,
   insertImageCommand,
   toggleInlineCodeCommand,
@@ -48,9 +44,9 @@ import {
 import { deleteColumn, deleteRow, isInTable } from '@milkdown/prose/tables';
 import { createParser as createRefractorParser } from 'prosemirror-highlight/refractor';
 import { refractor } from 'refractor/all';
-import { gfm } from '@milkdown/preset-gfm';
 import { nord } from '@milkdown/theme-nord';
 import { replaceAll } from '@milkdown/utils';
+import '@milkdown/crepe/theme/nord.css';
 import 'katex/dist/katex.min.css';
 import 'prismjs/themes/prism.css';
 import './style.css';
@@ -63,9 +59,6 @@ let currentBaseDirectory = '';
 let currentReadOnly = true;
 let isApplyingFromFlutter = false;
 let createEditorPromise = null;
-let blockProvider = null;
-let tooltipProvider = null;
-let slashProvider = null;
 let contextMenuElement = null;
 let mobileLongPressTimer = null;
 let mobileLongPressStartPoint = null;
@@ -79,9 +72,6 @@ let contentChangeTimerId = null;
 let pendingContentMarkdown = null;
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
-
-const tooltip = tooltipFactory('ushio-tooltip');
-const slash = slashFactory('ushio-slash');
 const highlightParser = createRefractorParser(refractor);
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
@@ -462,16 +452,6 @@ const showBootstrapError = (error) => {
   app.innerHTML = `<div style="padding:16px;font-family:sans-serif;color:#dc2626;line-height:1.6;">Milkdown 初始化失败：${String(error)}</div>`;
 };
 
-const createBlockHandleElement = () => {
-  const element = document.createElement('button');
-  element.type = 'button';
-  element.className = 'ushio-block-handle';
-  element.title = '拖拽块';
-  element.setAttribute('aria-label', '拖拽块');
-  element.textContent = '⋮⋮';
-  return element;
-};
-
 const insertTextAtSelection = (view, text) => {
   const { state } = view;
   const { from, to } = state.selection;
@@ -491,99 +471,6 @@ const buildFloatingButton = (label, title, className, onClick) => {
     onClick();
   });
   return btn;
-};
-
-const removeTrailingSlashTrigger = (view) => {
-  const { state } = view;
-  const { selection } = state;
-  if (!selection.empty) return;
-  const { $from } = selection;
-  if ($from.parentOffset <= 0) return;
-  const prevChar = $from.parent.textBetween($from.parentOffset - 1, $from.parentOffset, undefined, '\uFFFC');
-  if (prevChar !== '/') return;
-  const from = $from.pos - 1;
-  const to = $from.pos;
-  view.dispatch(state.tr.delete(from, to));
-};
-
-const runSlashAction = (actionId) => {
-  if (!editorInstance || currentReadOnly) return;
-  editorInstance.action((ctx) => {
-    const commands = ctx.get(commandsCtx);
-    const view = ctx.get(editorViewCtx);
-    removeTrailingSlashTrigger(view);
-    switch (actionId) {
-      case 'h1':
-        commands.call(wrapInHeadingCommand.key, 1);
-        break;
-      case 'h2':
-        commands.call(wrapInHeadingCommand.key, 2);
-        break;
-      case 'h3':
-        commands.call(wrapInHeadingCommand.key, 3);
-        break;
-      case 'bullet':
-        commands.call(wrapInBulletListCommand.key);
-        break;
-      case 'ordered':
-        commands.call(wrapInOrderedListCommand.key);
-        break;
-      case 'quote':
-        commands.call(wrapInBlockquoteCommand.key);
-        break;
-      case 'quote_nested':
-        insertTextAtSelection(view, '> > ');
-        break;
-      case 'code':
-        commands.call(createCodeBlockCommand.key);
-        break;
-      case 'code_js':
-        commands.call(createCodeBlockCommand.key, 'javascript');
-        break;
-      case 'task':
-        insertTextAtSelection(view, '- [ ] ');
-        break;
-      case 'hr':
-        commands.call(insertHrCommand.key);
-        break;
-      case 'table':
-        commands.call(insertTableCommand.key, { row: 3, col: 3 });
-        break;
-      case 'table_large':
-        commands.call(insertTableCommand.key, { row: 5, col: 5 });
-        break;
-      case 'emoji':
-        insertTextAtSelection(view, '😀');
-        break;
-      default:
-        break;
-    }
-  });
-  if (actionId === 'image') {
-    executeCommand('insert_image_prompt');
-  }
-  emit('on_cmd_metric', {
-    cmd: `slash_action:${actionId}`,
-    ok: true,
-    durationMs: 0,
-  });
-  slashProvider?.hide();
-  notifyRenderComplete();
-};
-
-const createTooltipElement = () => {
-  const element = document.createElement('div');
-  element.className = 'ushio-tooltip';
-  element.append(
-    buildFloatingButton('B', '加粗', '', () => executeCommand('toggle_bold')),
-    buildFloatingButton('I', '斜体', '', () => executeCommand('toggle_italic')),
-    buildFloatingButton('S', '删除线', '', () => executeCommand('toggle_strikethrough')),
-    buildFloatingButton('</>', '行内代码', '', () => executeCommand('toggle_inline_code')),
-    buildFloatingButton('链', '链接', '', () => executeCommand('toggle_link', { href: 'https://' })),
-    buildFloatingButton('表', '插入表格', '', () => executeCommand('insert_table', { row: 3, col: 3 })),
-    buildFloatingButton('图', '插入图片', '', () => executeCommand('insert_image_prompt')),
-  );
-  return element;
 };
 
 const createContextMenuElement = () => {
@@ -663,44 +550,15 @@ const updateActiveMarkdownHints = () => {
   }
 };
 
-const createSlashElement = () => {
-  const element = document.createElement('div');
-  element.className = 'ushio-slash';
-  const actions = [
-    ['h1', '标题 1'],
-    ['h2', '标题 2'],
-    ['h3', '标题 3'],
-    ['bullet', '无序列表'],
-    ['task', '任务列表'],
-    ['ordered', '有序列表'],
-    ['quote', '引用'],
-    ['quote_nested', '二级引用'],
-    ['hr', '分割线'],
-    ['code', '代码块'],
-    ['code_js', '代码块 · JavaScript'],
-    ['table', '表格 3x3'],
-    ['table_large', '表格 5x5'],
-    ['emoji', 'Emoji 😀'],
-    ['image', '图片'],
-  ];
-  actions.forEach(([id, label]) => {
-    element.append(
-      buildFloatingButton(label, label, 'ushio-slash-btn', () => runSlashAction(id)),
-    );
-  });
-  return element;
-};
-
 const createEditor = async () => {
-  const editor = Editor.make()
+  const crepe = new CrepeBuilder({
+    root: app,
+    defaultValue: currentMarkdown,
+  });
+  crepe.setReadonly(currentReadOnly);
+  const editor = crepe.editor
     .config(nord)
     .config((ctx) => {
-      ctx.set(rootCtx, app);
-      ctx.set(defaultValueCtx, currentMarkdown);
-      ctx.update(editorViewOptionsCtx, (prev) => ({
-        ...prev,
-        editable: () => !currentReadOnly,
-      }));
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
         if (markdown === prev) return;
         currentMarkdown = markdown;
@@ -717,72 +575,21 @@ const createEditor = async () => {
         ...prev,
         uploader: (files, schema) => customUploadHandler(files, schema),
       }));
-      ctx.set(blockSpec.key, {
-        view: () => {
-          blockProvider = new BlockProvider({
-            ctx,
-            content: createBlockHandleElement(),
-            getOffset: () => ({ mainAxis: 0, crossAxis: -8 }),
-          });
-          return {
-            update: blockProvider.update,
-            destroy: () => {
-              blockProvider?.destroy();
-              blockProvider = null;
-            },
-          };
-        },
-      });
-      ctx.set(tooltip.key, {
-        view: () => {
-          tooltipProvider = new TooltipProvider({
-            content: createTooltipElement(),
-            debounce: 120,
-            offset: 12,
-          });
-          return {
-            update: tooltipProvider.update,
-            destroy: () => {
-              tooltipProvider?.destroy();
-              tooltipProvider = null;
-            },
-          };
-        },
-      });
-      ctx.set(slash.key, {
-        view: () => {
-          slashProvider = new SlashProvider({
-            content: createSlashElement(),
-            debounce: 80,
-            offset: 8,
-            trigger: '/',
-          });
-          return {
-            update: slashProvider.update,
-            destroy: () => {
-              slashProvider?.destroy();
-              slashProvider = null;
-            },
-          };
-        },
-      });
     })
-    .use(commonmark)
-    .use(gfm)
     .use(automd)
     .use(emoji)
     .use(highlight)
     .use(math)
-    .use(listener)
-    .use(block)
     .use(cursor)
-    .use(history)
-    .use(indent)
-    .use(trailing)
-    .use(clipboard)
-    .use(upload)
-    .use(tooltip)
-    .use(slash);
+    .use(upload);
+
+  blockEdit(editor, {
+    advancedGroup: {
+      image: null,
+    },
+  });
+  toolbar(editor);
+  linkTooltip(editor);
 
   editorInstance = await editor.create();
   contextMenuElement = createContextMenuElement();
