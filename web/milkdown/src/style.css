@@ -128,14 +128,10 @@ body {
 .milkdown .ProseMirror pre {
   margin: 1em 0;
   padding: 12px 12px 44px;
-  border-radius: 14px !important;
-  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--milkdown-color-surface) 90%,
-    var(--milkdown-color-primary) 10%
-  );
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
+  border-radius: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
@@ -220,10 +216,14 @@ body {
   height: 32px;
   margin-left: auto;
   margin-right: 8px;
+  margin-bottom: 0;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
   background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%);
   box-shadow: 0 6px 18px color-mix(in srgb, var(--milkdown-color-shadow) 60%, transparent);
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
 }
 
 .milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action,

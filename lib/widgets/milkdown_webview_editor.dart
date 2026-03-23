@@ -239,6 +239,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
 class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   static const _documentRoot = 'assets/milkdown_web';
   static const int _maxUploadPersistRetries = 2;
+  static const String _localFileScheme = 'ushio-local-file';
 
   InAppWebViewController? _controller;
   InAppLocalhostServer? _localhostServer;
@@ -250,16 +251,16 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   bool _suppressNextReload = false;
 
   Future<CustomSchemeResponse?> _serveLocalFileRequest(Uri uri) async {
-    if (uri.path != '/__ushio_local_file__') return null;
-    final encodedPath = uri.queryParameters['path'] ?? '';
-    if (encodedPath.isEmpty) {
+    if (uri.scheme != _localFileScheme) return null;
+    final requestedPathRaw = uri.queryParameters['path'] ?? '';
+    if (requestedPathRaw.isEmpty) {
       return CustomSchemeResponse(
         data: Uint8List(0),
         contentType: 'text/plain',
         contentEncoding: 'utf-8',
       );
     }
-    final requestedPath = Uri.decodeComponent(encodedPath);
+    final requestedPath = requestedPathRaw.trim();
     final file = File(requestedPath);
     if (!await file.exists()) {
       return CustomSchemeResponse(
@@ -885,7 +886,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         supportZoom: false,
         builtInZoomControls: false,
         displayZoomControls: false,
-        resourceCustomSchemes: ['http', 'https'],
+        resourceCustomSchemes: [_localFileScheme],
       ),
       onWebViewCreated: (controller) {
         _controller = controller;

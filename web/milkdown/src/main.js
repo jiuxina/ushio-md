@@ -84,6 +84,7 @@ const highlightParser = createRefractorParser(refractor);
 const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
   .filter((name) => typeof name === 'string' && /^[a-z0-9_+-]+$/i.test(name))
   .sort((a, b) => a.localeCompare(b));
+const LOCAL_FILE_SCHEME = 'ushio-local-file';
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -491,9 +492,7 @@ const toAbsoluteLocalPath = (pathLike) => {
 
 const buildLocalFileProxyUrl = (absolutePath) => {
   if (typeof absolutePath !== 'string' || !absolutePath) return '';
-  const origin = window.location?.origin || '';
-  if (!origin) return '';
-  return `${origin}/__ushio_local_file__?path=${encodeURIComponent(absolutePath)}`;
+  return `${LOCAL_FILE_SCHEME}://local?path=${encodeURIComponent(absolutePath)}`;
 };
 
 const resolveImageSrc = (src) => {
