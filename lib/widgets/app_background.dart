@@ -88,15 +88,20 @@ class AppBackground extends StatelessWidget {
           height: double.infinity,
         );
 
-        bgImage = ColorFiltered(
-          colorFilter: ColorFilter.matrix([
-            settings.backgroundBrightness, 0, 0, 0, 0,
-            0, settings.backgroundBrightness, 0, 0, 0,
-            0, 0, settings.backgroundBrightness, 0, 0,
-            0, 0, 0, 1, 0,
-          ]),
-          child: bgImage,
-        );
+        final brightness = settings.backgroundBrightness;
+        // Skip ColorFiltered when brightness is effectively neutral (1.0),
+        // avoiding unnecessary compositing overhead at the default value.
+        if ((brightness - 1.0).abs() > 0.001) {
+          bgImage = ColorFiltered(
+            colorFilter: ColorFilter.matrix([
+              brightness, 0, 0, 0, 0,
+              0, brightness, 0, 0, 0,
+              0, 0, brightness, 0, 0,
+              0, 0, 0, 1, 0,
+            ]),
+            child: bgImage,
+          );
+        }
         
         // Apply blur effect
         if (settings.backgroundEffect == 'blur') {
