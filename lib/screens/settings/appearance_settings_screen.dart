@@ -129,6 +129,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 const SizedBox(height: 16),
 
+                _buildSection('编辑器背景图片', Icons.wallpaper, [
+                  _buildEditorBackgroundSettings(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
                 _buildSection('粒子效果', Icons.auto_awesome, [
                   _buildParticleSettings(settings),
                 ]),
@@ -787,6 +793,87 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
+  Widget _buildEditorBackgroundSettings(SettingsProvider settings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('编辑器背景图片'),
+            TextButton.icon(
+              onPressed: () => _pickEditorBackgroundImage(settings),
+              icon: const Icon(Icons.image, size: 18),
+              label: const Text('选择'),
+            ),
+          ],
+        ),
+        if (settings.editorBackgroundImagePath != null) ...[
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(settings.editorBackgroundImagePath!),
+              height: 100,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(child: Text('图片加载失败')),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('模糊效果'),
+              Switch(
+                value: settings.editorBackgroundBlurEnabled,
+                onChanged: (value) {
+                  settings.setEditorBackgroundBlurEnabled(value);
+                },
+              ),
+            ],
+          ),
+          if (settings.editorBackgroundBlurEnabled) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('模糊强度'),
+                Expanded(
+                  child: Slider(
+                    value: settings.editorBackgroundBlur,
+                    min: 0,
+                    max: 100,
+                    divisions: 100,
+                    label: settings.editorBackgroundBlur.round().toString(),
+                    onChanged: (value) => settings.setEditorBackgroundBlur(value),
+                  ),
+                ),
+                Text('${settings.editorBackgroundBlur.round()}'),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => settings.setEditorBackgroundImage(null),
+            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+            label: const Text('移除背景', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ],
+    );
+  }
+
   /// 构建粒子效果设置
   Widget _buildParticleSettings(SettingsProvider settings) {
     // 粒子效果类型定义
@@ -947,6 +1034,20 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       final path = result.files.first.path;
       if (path != null) {
         settings.setBackgroundImage(path);
+      }
+    }
+  }
+
+  Future<void> _pickEditorBackgroundImage(SettingsProvider settings) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.isNotEmpty) {
+      final path = result.files.first.path;
+      if (path != null) {
+        settings.setEditorBackgroundImage(path);
       }
     }
   }
