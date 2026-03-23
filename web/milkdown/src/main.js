@@ -48,6 +48,10 @@ let blockProvider = null;
 let tooltipProvider = null;
 let slashProvider = null;
 const pendingUploadResolvers = new Map();
+const cmdFailureAggregate = new Map();
+const MAX_UPLOAD_FILES = 6;
+const MAX_UPLOAD_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
 
 const tooltip = tooltipFactory('ushio-tooltip');
 const slash = slashFactory('ushio-slash');
@@ -188,30 +192,53 @@ const createUploadImageNode = (schema, item) => {
 const customUploadHandler = async (files, schema) => {
   const normalizedFiles = Array.from(files ?? []);
   if (normalizedFiles.length <= 0) return [];
-  const requestId = nextRequestId();
-  const filePayload = await Promise.all(
-    normalizedFiles.map(async (file) => ({
+  if (normalizedFiles.length > MAX_UPLOAD_FILES) {
+    throw new Error('upload_too_many_files');
+  }
+  let totalBytes = 0;
+  const filePayload = [];
+  for (const file of normalizedFiles) {
+    const size = Number.isFinite(file.size) ? file.size : 0;
+    if (size <= 0) {
+      throw new Error('upload_empty_file');
+    }
+    if (size > MAX_UPLOAD_FILE_BYTES) {
+      throw new Error('upload_file_too_large');
+    }
+    totalBytes += size;
+    if (totalBytes > MAX_UPLOAD_TOTAL_BYTES) {
+      throw new Error('upload_total_too_large');
+    }
+    filePayload.push({
       name: file.name ?? '',
       type: file.type ?? '',
-      size: Number.isFinite(file.size) ? file.size : 0,
+      size,
       dataUrl: await readFileAsDataUrl(file),
-    })),
-  );
+    });
+  }
+  const requestId = nextRequestId();
+  let timeoutId = null;
   const resultPromise = new Promise((resolve, reject) => {
     pendingUploadResolvers.set(requestId, { resolve, reject });
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       if (!pendingUploadResolvers.has(requestId)) return;
       pendingUploadResolvers.delete(requestId);
       reject(new Error('upload_timeout'));
     }, 120000);
   });
   emit('on_upload_images_request', { requestId, files: filePayload });
-  const result = await resultPromise;
-  if (!result || typeof result !== 'object') return [];
-  const images = Array.isArray(result.images) ? result.images : [];
-  return images
-    .map((item) => createUploadImageNode(schema, item))
-    .filter(Boolean);
+  try {
+    const result = await resultPromise;
+    if (!result || typeof result !== 'object') return [];
+    const images = Array.isArray(result.images) ? result.images : [];
+    return images
+      .map((item) => createUploadImageNode(schema, item))
+      .filter(Boolean);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
 };
 
 const emitOutlineUpdate = () => {
@@ -522,27 +549,49 @@ const ensureEditor = () => {
   return createEditorPromise;
 };
 
-const emitCmdResult = (cmd, ok, reason = null) => {
+const emitCmdTelemetry = (cmd, ok, reason = null, durationMs = null) => {
+  emit('on_cmd_metric', {
+    cmd,
+    ok,
+    reason,
+    durationMs,
+  });
+  if (!ok) {
+    const key = `${cmd || 'unknown'}::${reason || 'unknown'}`;
+    const nextCount = (cmdFailureAggregate.get(key) ?? 0) + 1;
+    cmdFailureAggregate.set(key, nextCount);
+    emit('on_cmd_failure_aggregate', {
+      cmd: cmd || 'unknown',
+      reason: reason || 'unknown',
+      count: nextCount,
+    });
+  }
+};
+
+const emitCmdResult = (cmd, ok, reason = null, startedAt = null) => {
+  const durationMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : null;
   emit('on_cmd_result', {
     cmd,
     ok,
     reason,
   });
+  emitCmdTelemetry(cmd, ok, reason, durationMs);
 };
 
 const executeCommand = (cmd, args = {}) => {
+  const startedAt = Date.now();
   if (!editorInstance) {
-    emitCmdResult(cmd, false, 'editor_not_ready');
+    emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
   if (currentReadOnly && cmd !== 'focus_editor') {
-    emitCmdResult(cmd, false, 'readonly');
+    emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
   try {
     if (cmd === 'focus_editor') {
       app.querySelector('.ProseMirror')?.focus();
-      emitCmdResult(cmd, true);
+      emitCmdResult(cmd, true, null, startedAt);
       return;
     }
     if (cmd === 'undo' || cmd === 'redo') {
@@ -553,7 +602,7 @@ const executeCommand = (cmd, args = {}) => {
           ? commands.call(undoCommand.key)
           : commands.call(redoCommand.key);
       });
-      emitCmdResult(cmd, ok, ok ? null : 'not_applicable');
+      emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
     if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image') {
@@ -587,7 +636,12 @@ const executeCommand = (cmd, args = {}) => {
           ok = commands.call(insertImageCommand.key, { src, alt });
         }
       });
-      emitCmdResult(cmd, ok, ok ? null : cmd === 'insert_image' ? 'invalid_args_or_not_applicable' : 'not_applicable');
+      emitCmdResult(
+        cmd,
+        ok,
+        ok ? null : cmd === 'insert_image' ? 'invalid_args_or_not_applicable' : 'not_applicable',
+        startedAt,
+      );
       if (ok) {
         notifyRenderComplete();
       }
@@ -596,31 +650,31 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'upload_images_result') {
       const requestId = typeof args?.requestId === 'string' ? args.requestId : '';
       if (!requestId) {
-        emitCmdResult(cmd, false, 'invalid_args');
+        emitCmdResult(cmd, false, 'invalid_args', startedAt);
         return;
       }
       const pending = pendingUploadResolvers.get(requestId);
       if (!pending) {
-        emitCmdResult(cmd, false, 'request_not_found');
+        emitCmdResult(cmd, false, 'request_not_found', startedAt);
         return;
       }
       pendingUploadResolvers.delete(requestId);
       const reason = typeof args?.reason === 'string' ? args.reason : '';
       if (reason) {
         pending.reject(new Error(reason));
-        emitCmdResult(cmd, false, reason);
+        emitCmdResult(cmd, false, reason, startedAt);
         return;
       }
       pending.resolve({
         images: Array.isArray(args?.images) ? args.images : [],
       });
-      emitCmdResult(cmd, true);
+      emitCmdResult(cmd, true, null, startedAt);
       return;
     }
-    emitCmdResult(cmd, false, 'unsupported_cmd');
+    emitCmdResult(cmd, false, 'unsupported_cmd', startedAt);
   } catch (error) {
     console.error('exec_cmd failed', cmd, error);
-    emitCmdResult(cmd, false, `exec_failed:${String(error)}`);
+    emitCmdResult(cmd, false, `exec_failed:${String(error)}`, startedAt);
   }
 };
 
@@ -666,7 +720,7 @@ const onFlutterMessage = (message) => {
     const cmd = m.payload && m.payload.cmd;
     const args = m.payload && typeof m.payload === 'object' ? m.payload.args : null;
     if (typeof cmd !== 'string' || !cmd) {
-      emitCmdResult('', false, 'invalid_cmd');
+      emitCmdResult('', false, 'invalid_cmd', Date.now());
       return;
     }
     executeCommand(cmd, args);

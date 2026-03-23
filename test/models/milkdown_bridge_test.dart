@@ -202,5 +202,38 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('OnCmdMetricPayload serializes and deserializes', () {
+      const payload = OnCmdMetricPayload(
+        cmd: 'insert_image',
+        ok: false,
+        reason: 'upload_timeout',
+        durationMs: 1200,
+      );
+      expect(payload.toJson(), {
+        'cmd': 'insert_image',
+        'ok': false,
+        'reason': 'upload_timeout',
+        'durationMs': 1200,
+      });
+      expect(OnCmdMetricPayload.fromJson(payload.toJson()).toJson(), payload.toJson());
+    });
+
+    test('OnCmdFailureAggregatePayload serializes and deserializes', () {
+      const payload = OnCmdFailureAggregatePayload(
+        cmd: 'upload_images_result',
+        reason: 'request_not_found',
+        count: 3,
+      );
+      expect(payload.toJson(), {
+        'cmd': 'upload_images_result',
+        'reason': 'request_not_found',
+        'count': 3,
+      });
+      expect(
+        OnCmdFailureAggregatePayload.fromJson(payload.toJson()).toJson(),
+        payload.toJson(),
+      );
+    });
   });
 }
