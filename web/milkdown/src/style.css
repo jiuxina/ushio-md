@@ -66,6 +66,32 @@ body {
   caret-color: var(--milkdown-color-primary);
 }
 
+.milkdown .ProseMirror blockquote {
+  border-left: 4px solid var(--milkdown-color-primary);
+  padding-left: 1em;
+}
+
+.milkdown .ProseMirror ul,
+.milkdown .ProseMirror ol {
+  margin: 0.6em 0;
+  padding-left: 0;
+}
+
+.milkdown .milkdown-list-item-block > .list-item {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+}
+
+.milkdown .milkdown-list-item-block > .list-item > .children {
+  min-width: 0;
+  flex: 1;
+}
+
+.milkdown .milkdown-list-item-block > .list-item p {
+  margin: 0;
+}
+
 .milkdown pre,
 .milkdown code,
 .katex,
@@ -174,7 +200,7 @@ body {
 }
 
 .milkdown .ProseMirror [data-ushio-active-node='true']:is(li)::before {
-  content: '- ';
+  content: '';
   opacity: 0.45;
 }
 
