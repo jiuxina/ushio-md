@@ -127,8 +127,22 @@
    - 验证点：选中文本后 1 次点击可完成常见格式化。
 
 3. 表格内编辑流优化
-   - 修改点：`main.js` 表格相关命令与按键行为；必要时桥接 Flutter 辅助菜单。
-   - 验证点：表格录入可连续横向/纵向移动，接近 Typora 体验。
+    - 修改点：`main.js` 表格相关命令与按键行为；必要时桥接 Flutter 辅助菜单。
+    - 验证点：表格录入可连续横向/纵向移动，接近 Typora 体验。
+
+#### Step B 实施记录（2026-03-23）
+
+- 已扩展 Slash 菜单高频项：任务列表、分割线、二级引用、`JavaScript` 代码块模板；
+- 已扩展 Tooltip 按钮集：删除线、行内代码、链接；
+- 已新增表格连续编辑命令：`table_next_cell` / `table_prev_cell`（映射到 GFM `goToNextTableCellCommand` / `goToPrevTableCellCommand`）；
+- 已补充 `exec_cmd` 路由命令：
+  - `toggle_strikethrough`
+  - `toggle_inline_code`
+  - `toggle_link`
+  - `insert_hr`
+  - `table_next_cell`
+  - `table_prev_cell`
+- 已优化触控样式：Slash 面板滚动与按钮点击面积提升（coarse pointer 下放大）。
 
 ---
 
@@ -195,4 +209,3 @@
 - 有分阶段优化步骤（Step A-D）；
 - 明确了手机端与电脑端的适配差异与统一协议原则；
 - 全部建议均基于当前仓库已有实现路径，不是脱离代码的泛化建议。
-

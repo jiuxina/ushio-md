@@ -17,9 +17,12 @@ import { trailing } from '@milkdown/plugin-trailing';
 import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip';
 import { upload, uploadConfig } from '@milkdown/plugin-upload';
 import {
+  insertHrCommand,
   commonmark,
   createCodeBlockCommand,
   insertImageCommand,
+  toggleInlineCodeCommand,
+  toggleLinkCommand,
   wrapInBlockquoteCommand,
   wrapInBulletListCommand,
   wrapInHeadingCommand,
@@ -28,6 +31,11 @@ import {
   toggleStrongCommand,
 } from '@milkdown/preset-commonmark';
 import { insertTableCommand } from '@milkdown/preset-gfm';
+import {
+  goToNextTableCellCommand,
+  goToPrevTableCellCommand,
+  toggleStrikethroughCommand,
+} from '@milkdown/preset-gfm';
 import { prism } from '@milkdown/plugin-prism';
 import { gfm } from '@milkdown/preset-gfm';
 import { nord } from '@milkdown/theme-nord';
@@ -379,6 +387,13 @@ const createBlockHandleElement = () => {
   return element;
 };
 
+const insertTextAtSelection = (view, text) => {
+  const { state } = view;
+  const { from, to } = state.selection;
+  const tr = state.tr.insertText(text, from, to);
+  view.dispatch(tr);
+};
+
 const buildFloatingButton = (label, title, className, onClick) => {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -431,8 +446,20 @@ const runSlashAction = (actionId) => {
       case 'quote':
         commands.call(wrapInBlockquoteCommand.key);
         break;
+      case 'quote_nested':
+        insertTextAtSelection(view, '> > ');
+        break;
       case 'code':
         commands.call(createCodeBlockCommand.key);
+        break;
+      case 'code_js':
+        commands.call(createCodeBlockCommand.key, 'javascript');
+        break;
+      case 'task':
+        insertTextAtSelection(view, '- [ ] ');
+        break;
+      case 'hr':
+        commands.call(insertHrCommand.key);
         break;
       case 'table':
         commands.call(insertTableCommand.key, { row: 3, col: 3 });
@@ -457,6 +484,9 @@ const createTooltipElement = () => {
   element.append(
     buildFloatingButton('B', '加粗', '', () => executeCommand('toggle_bold')),
     buildFloatingButton('I', '斜体', '', () => executeCommand('toggle_italic')),
+    buildFloatingButton('S', '删除线', '', () => executeCommand('toggle_strikethrough')),
+    buildFloatingButton('</>', '行内代码', '', () => executeCommand('toggle_inline_code')),
+    buildFloatingButton('链', '链接', '', () => executeCommand('toggle_link', { href: 'https://' })),
     buildFloatingButton('表', '插入表格', '', () => executeCommand('insert_table', { row: 3, col: 3 })),
     buildFloatingButton('图', '插入图片', '', () => executeCommand('insert_image_prompt')),
   );
@@ -471,9 +501,13 @@ const createSlashElement = () => {
     ['h2', '标题 2'],
     ['h3', '标题 3'],
     ['bullet', '无序列表'],
+    ['task', '任务列表'],
     ['ordered', '有序列表'],
     ['quote', '引用'],
+    ['quote_nested', '二级引用'],
+    ['hr', '分割线'],
     ['code', '代码块'],
+    ['code_js', '代码块 · JavaScript'],
     ['table', '表格 3x3'],
     ['table_large', '表格 5x5'],
     ['image', '图片'],
@@ -667,7 +701,19 @@ const executeCommand = (cmd, args = {}) => {
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
-    if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image' || cmd === 'insert_image_prompt') {
+    if (
+      cmd === 'toggle_bold' ||
+      cmd === 'toggle_italic' ||
+      cmd === 'toggle_strikethrough' ||
+      cmd === 'toggle_inline_code' ||
+      cmd === 'toggle_link' ||
+      cmd === 'insert_table' ||
+      cmd === 'insert_hr' ||
+      cmd === 'table_next_cell' ||
+      cmd === 'table_prev_cell' ||
+      cmd === 'insert_image' ||
+      cmd === 'insert_image_prompt'
+    ) {
       let ok = false;
       let insertImagePromptRequestId = null;
       let insertImagePromptTimeoutId = null;
@@ -681,6 +727,27 @@ const executeCommand = (cmd, args = {}) => {
           ok = commands.call(toggleEmphasisCommand.key);
           return;
         }
+        if (cmd === 'toggle_strikethrough') {
+          ok = commands.call(toggleStrikethroughCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_inline_code') {
+          ok = commands.call(toggleInlineCodeCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_link') {
+          const href = typeof args?.href === 'string' ? args.href.trim() : '';
+          const title = typeof args?.title === 'string' ? args.title.trim() : '';
+          ok = commands.call(toggleLinkCommand.key, {
+            href: href || 'https://',
+            title,
+          });
+          return;
+        }
+        if (cmd === 'insert_hr') {
+          ok = commands.call(insertHrCommand.key);
+          return;
+        }
         if (cmd === 'insert_table') {
           const row = Number.parseInt(args?.row, 10);
           const col = Number.parseInt(args?.col, 10);
@@ -688,6 +755,14 @@ const executeCommand = (cmd, args = {}) => {
             row: Number.isNaN(row) || row <= 0 ? 3 : row,
             col: Number.isNaN(col) || col <= 0 ? 3 : col,
           });
+          return;
+        }
+        if (cmd === 'table_next_cell') {
+          ok = commands.call(goToNextTableCellCommand.key);
+          return;
+        }
+        if (cmd === 'table_prev_cell') {
+          ok = commands.call(goToPrevTableCellCommand.key);
           return;
         }
         if (cmd === 'insert_image') {

@@ -134,15 +134,19 @@ body {
 
 .ushio-slash {
   flex-direction: column;
-  min-width: 132px;
+  min-width: 168px;
+  max-height: min(52vh, 360px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .ushio-float-btn {
   border: 1px solid var(--milkdown-color-outline);
   border-radius: 8px;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  min-height: 34px;
   font-size: 12px;
-  line-height: 1.2;
+  line-height: 1.35;
   color: var(--milkdown-color-on-surface);
   background: transparent;
   cursor: pointer;
@@ -155,6 +159,21 @@ body {
 .ushio-slash-btn {
   text-align: left;
   width: 100%;
+}
+
+@media (pointer: coarse) {
+  .ushio-tooltip,
+  .ushio-slash {
+    padding: 8px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .ushio-float-btn {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
 }
 
 .heading-flash {
