@@ -772,7 +772,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   max: 1.8,
                   divisions: 32,
                   label: '${(settings.backgroundBrightness * 100).round()}%',
-                  onChanged: (value) => settings.setBackgroundBrightness(value),
+                  onChanged: (value) =>
+                      settings.updateBackgroundBrightnessInMemory(value),
+                  onChangeEnd: (value) =>
+                      settings.setBackgroundBrightness(value),
                 ),
               ),
               Text('${(settings.backgroundBrightness * 100).round()}%'),
@@ -873,9 +876,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   divisions: 32,
                   label:
                       '${(settings.editorBackgroundBrightness * 100).round()}%',
-                  onChanged: (value) {
-                    settings.setEditorBackgroundBrightness(value);
-                  },
+                  onChanged: (value) =>
+                      settings.updateEditorBackgroundBrightnessInMemory(value),
+                  onChangeEnd: (value) =>
+                      settings.setEditorBackgroundBrightness(value),
                 ),
               ),
               Text('${(settings.editorBackgroundBrightness * 100).round()}%'),

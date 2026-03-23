@@ -607,12 +607,18 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 设置背景亮度
+  /// 仅在内存中更新背景亮度（不持久化），用于 Slider 拖动时实时预览
+  void updateBackgroundBrightnessInMemory(double brightness) {
+    _backgroundBrightness = brightness;
+    notifyListeners();
+  }
+
+  /// 设置背景亮度（立即刷新 UI，再异步持久化）
   Future<void> setBackgroundBrightness(double brightness) async {
     _backgroundBrightness = brightness;
+    notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('background_brightness', brightness);
-    notifyListeners();
   }
 
   /// 设置编辑器背景模糊开关
@@ -631,12 +637,18 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 设置编辑器背景亮度
+  /// 仅在内存中更新编辑器背景亮度（不持久化），用于 Slider 拖动时实时预览
+  void updateEditorBackgroundBrightnessInMemory(double brightness) {
+    _editorBackgroundBrightness = brightness;
+    notifyListeners();
+  }
+
+  /// 设置编辑器背景亮度（立即刷新 UI，再异步持久化）
   Future<void> setEditorBackgroundBrightness(double brightness) async {
     _editorBackgroundBrightness = brightness;
+    notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('editor_background_brightness', brightness);
-    notifyListeners();
   }
 
   /// 设置遮罩透明度
