@@ -193,11 +193,24 @@ body {
   display: none;
 }
 
+.milkdown .milkdown-code-block .tools .language-button,
+.milkdown .milkdown-code-block .tools .language-picker {
+  display: none !important;
+}
+
 .milkdown .milkdown-code-block .tools .language-button.ushio-native-language-button,
 .milkdown .milkdown-code-block .tools .language-picker.ushio-native-language-picker {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
 }
 
 .milkdown .milkdown-code-block .tools .ushio-code-action-capsule {
@@ -417,12 +430,13 @@ body {
 }
 
 .milkdown img.ushio-image-load-failed {
-  width: 0 !important;
-  height: 0 !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.milkdown .milkdown-image-block.ushio-image-load-failed {
+  border: none !important;
+  background: transparent !important;
 }
 
 .milkdown[data-ushio-read-only='true'] .milkdown-image-block > .caption-input {
