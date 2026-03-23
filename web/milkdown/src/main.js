@@ -552,7 +552,6 @@ const createEditor = async () => {
     root: app,
     defaultValue: currentMarkdown,
   });
-  crepe.setReadonly(currentReadOnly);
   crepe.editor
     .config(nord)
     .config((ctx) => {
@@ -581,6 +580,7 @@ const createEditor = async () => {
     .use(upload);
 
   await crepe.create();
+  crepe.setReadonly(currentReadOnly);
   editorInstance = crepe.editor;
 
   contextMenuElement = createContextMenuElement();
