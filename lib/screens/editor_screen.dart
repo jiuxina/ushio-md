@@ -326,7 +326,12 @@ class _EditorScreenState extends State<EditorScreen>
     } else {
       // Rendered preview page — scroll via JavaScript.
       // The JS also handles the visual flash on the target heading.
-      final headingIndex = _tocItems.indexOf(item);
+      final headingIndex = _tocItems.indexWhere(
+        (node) =>
+            node.lineNumber == item.lineNumber &&
+            node.level == item.level &&
+            node.title == item.title,
+      );
       if (headingIndex >= 0) {
         _previewWebViewController.scrollToHeading(
           headingIndex,
@@ -549,11 +554,16 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _searchMatches = matches;
       _activeSearchMatchIndex = matches.isEmpty ? -1 : 0;
-      _showSearchCandidates = _searchFocusNode.hasFocus;
+      _showSearchCandidates =
+          _searchFocusNode.hasFocus && normalizedQuery.isNotEmpty;
     });
   }
 
   void _jumpToSearchMatch(_SearchMatch match) {
+    _searchFocusNode.unfocus();
+    if (_showSearchCandidates) {
+      setState(() => _showSearchCandidates = false);
+    }
     _jumpToSearchOccurrence(match.occurrence);
   }
 
@@ -1115,19 +1125,12 @@ class _EditorScreenState extends State<EditorScreen>
             decoration: BoxDecoration(
               color: appStyle.scaledSurfaceColor(
                 theme.colorScheme,
-                alpha: 0.97,
+                alpha: 0.98,
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.22),
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
             ),
             child: TextField(
               controller: _searchController,
