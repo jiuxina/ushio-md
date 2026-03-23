@@ -553,7 +553,7 @@ const createEditor = async () => {
     defaultValue: currentMarkdown,
   });
   crepe.setReadonly(currentReadOnly);
-  const editor = crepe.editor
+  crepe.editor
     .config(nord)
     .config((ctx) => {
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
@@ -580,7 +580,9 @@ const createEditor = async () => {
     .use(cursor)
     .use(upload);
 
-  editorInstance = await editor.create();
+  await crepe.create();
+  editorInstance = crepe.editor;
+
   contextMenuElement = createContextMenuElement();
   app.append(contextMenuElement);
   notifyRenderComplete();
