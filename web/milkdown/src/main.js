@@ -74,6 +74,7 @@ let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
 let caretViewportSyncRafId = null;
 let suppressNextCaretViewportSync = false;
+let checkboxInteractionGuardUntil = 0;
 let codeLanguagePopupElement = null;
 let codeLanguagePopupInput = null;
 let codeLanguagePopupList = null;
@@ -285,11 +286,19 @@ const ensureCaretInUpperViewport = () => {
 };
 
 const scheduleCaretIntoUpperViewport = () => {
+  if (Date.now() < checkboxInteractionGuardUntil) return;
   if (caretViewportSyncRafId != null) return;
   caretViewportSyncRafId = requestAnimationFrame(() => {
     caretViewportSyncRafId = null;
     ensureCaretInUpperViewport();
   });
+};
+
+const guardEditorFocusAfterCheckboxToggle = () => {
+  checkboxInteractionGuardUntil = Date.now() + 420;
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  blurEditorFocus();
 };
 
 const ensureFileBaseUrl = (baseDirectory) => {
@@ -1315,6 +1324,7 @@ app.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (!currentReadOnly) {
+      guardEditorFocusAfterCheckboxToggle();
       suppressNextCaretViewportSync = true;
       checkbox.checked = !checkbox.checked;
       emitCheckboxToggle(checkbox, checkbox.checked);
@@ -1393,6 +1403,11 @@ app.addEventListener('focusin', (event) => {
     return;
   }
   if (target?.closest('.ProseMirror')) {
+    if (Date.now() < checkboxInteractionGuardUntil) {
+      if (target instanceof HTMLElement) target.blur();
+      emitEditorFocus(false);
+      return;
+    }
     if (suppressNextCaretViewportSync) return;
     emitEditorFocus(true);
     scheduleCaretIntoUpperViewport();
