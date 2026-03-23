@@ -38,7 +38,7 @@ class TocOverlay extends StatefulWidget {
 class _TocOverlayState extends State<TocOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<double> _fadeAnimation;
+  late final Animation<double> _scrimOpacityAnimation;
   late final Animation<Offset> _slideAnimation;
   bool _isClosing = false;
 
@@ -47,18 +47,22 @@ class _TocOverlayState extends State<TocOverlay>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
-      reverseDuration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 180),
+      reverseDuration: const Duration(milliseconds: 140),
     )..forward();
-    _fadeAnimation = CurvedAnimation(
+    final curve = CurvedAnimation(
       parent: _controller,
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
+    _scrimOpacityAnimation = Tween<double>(
+      begin: 0,
+      end: 0.5,
+    ).animate(curve);
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0.12, 0),
       end: Offset.zero,
-    ).animate(_fadeAnimation);
+    ).animate(curve);
     widget.controller?._bind(_startClose);
   }
 
@@ -80,102 +84,106 @@ class _TocOverlayState extends State<TocOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: GestureDetector(
-        onTap: _startClose,
-        child: Container(
-          color: Colors.black.withValues(alpha: 0.5),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: GestureDetector(
-                onTap: () {},
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.75,
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 20,
-                        offset: const Offset(-5, 0),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                              Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return GestureDetector(
+          onTap: _startClose,
+          child: Container(
+            color: Colors.black.withValues(alpha: _scrimOpacityAnimation.value),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.75,
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 20,
+                          offset: const Offset(-5, 0),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
+                              ],
+                            ),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(20),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.list,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '目录',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: _startClose,
+                              ),
                             ],
                           ),
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(20),
-                          ),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.list,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              '目录',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: widget.items.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    '没有找到标题',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.outline,
+                                        ),
                                   ),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: _startClose,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: widget.items.isEmpty
-                            ? Center(
-                                child: Text(
-                                  '没有找到标题',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.outline,
-                                      ),
+                                )
+                              : RepaintBoundary(
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.all(16),
+                                    itemCount: widget.items.length,
+                                    itemBuilder: (context, index) {
+                                      final item = widget.items[index];
+                                      return _buildTocItem(context, item);
+                                    },
+                                  ),
                                 ),
-                              )
-                            : ListView.builder(
-                                padding: const EdgeInsets.all(16),
-                                itemCount: widget.items.length,
-                                itemBuilder: (context, index) {
-                                  final item = widget.items[index];
-                                  return _buildTocItem(context, item);
-                                },
-                              ),
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
