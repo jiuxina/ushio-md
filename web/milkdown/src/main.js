@@ -290,6 +290,98 @@ const ensureFileBaseUrl = (baseDirectory) => {
   return `file://${withLeading.endsWith('/') ? withLeading : `${withLeading}/`}`;
 };
 
+const applyHorizontalScrollClass = (element) => {
+  if (!(element instanceof Element)) return;
+  element.classList.add('ushio-horizontal-scroll');
+};
+
+const guessPathColumnIndexes = (table) => {
+  if (!(table instanceof HTMLTableElement)) return new Set();
+  const firstRow = table.querySelector('tr');
+  if (!(firstRow instanceof HTMLTableRowElement)) return new Set();
+  const cells = Array.from(firstRow.querySelectorAll('th,td'));
+  const indexes = new Set();
+  cells.forEach((cell, index) => {
+    const title = (cell.textContent || '').trim().toLowerCase();
+    if (!title) return;
+    if (
+      title.includes('path')
+      || title.includes('file path')
+      || title.includes('filepath')
+      || title.includes('文件路径')
+      || title.includes('路径')
+    ) {
+      indexes.add(index);
+    }
+  });
+  return indexes;
+};
+
+const markTablePathColumns = (table) => {
+  if (!(table instanceof HTMLTableElement)) return;
+  const pathColumns = guessPathColumnIndexes(table);
+  if (!pathColumns.size) return;
+  table.querySelectorAll('tr').forEach((row) => {
+    const cells = Array.from(row.querySelectorAll('th,td'));
+    cells.forEach((cell, index) => {
+      if (pathColumns.has(index)) {
+        cell.classList.add('ushio-path-column');
+      } else {
+        cell.classList.remove('ushio-path-column');
+      }
+    });
+  });
+};
+
+const lockViewportZoom = () => {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (meta) {
+    meta.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no');
+  }
+  let lastTouchEndAt = 0;
+  document.addEventListener('touchmove', (event) => {
+    if (event.touches.length > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+  document.addEventListener('touchend', (event) => {
+    const now = Date.now();
+    if (now - lastTouchEndAt <= 280) {
+      event.preventDefault();
+    }
+    lastTouchEndAt = now;
+  }, { passive: false });
+  window.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+  window.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+  window.addEventListener('gestureend', (event) => event.preventDefault(), { passive: false });
+  window.addEventListener('wheel', (event) => {
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+};
+
+const attachHorizontalWheelScroll = () => {
+  const candidates = app.querySelectorAll('.milkdown-table-block, .ProseMirror pre');
+  candidates.forEach((container) => {
+    if (!(container instanceof HTMLElement) || container.dataset.ushioWheelBound === '1') return;
+    container.dataset.ushioWheelBound = '1';
+    container.addEventListener('wheel', (event) => {
+      const deltaX = Math.abs(event.deltaX);
+      const deltaY = Math.abs(event.deltaY);
+      if (deltaY <= deltaX) return;
+      const canScrollX = container.scrollWidth > container.clientWidth + 1;
+      if (!canScrollX) return;
+      const next = container.scrollLeft + event.deltaY;
+      const before = container.scrollLeft;
+      container.scrollLeft = next;
+      if (container.scrollLeft !== before) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+  });
+};
+
 const isExternalHref = (href) => {
   if (typeof href !== 'string') return false;
   return /^(https?:|mailto:|tel:|content:|data:)/i.test(href);
@@ -503,6 +595,20 @@ const syncRenderedDom = () => {
     heading.dataset.headingLine = String(lineNumber);
     heading.dataset.headingSlug = slugifyHeading(text);
   });
+
+  root.querySelectorAll('.milkdown-table-block').forEach((block) => {
+    applyHorizontalScrollClass(block);
+    const table = block.querySelector('table');
+    if (table instanceof HTMLTableElement) {
+      markTablePathColumns(table);
+    }
+  });
+
+  root.querySelectorAll('.ProseMirror pre').forEach((block) => {
+    applyHorizontalScrollClass(block);
+  });
+
+  attachHorizontalWheelScroll();
 
   root.querySelectorAll('input[type="checkbox"]').forEach((checkbox, index) => {
     checkbox.dataset.checkboxIndex = String(index);
@@ -1518,6 +1624,7 @@ const executeCommand = (cmd, args = {}) => {
 };
 
 updateViewportMetrics();
+lockViewportZoom();
 window.addEventListener('resize', updateViewportMetrics);
 window.addEventListener('orientationchange', updateViewportMetrics);
 window.visualViewport?.addEventListener('resize', updateViewportMetrics);
