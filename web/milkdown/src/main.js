@@ -1,16 +1,28 @@
 import {
   Editor,
+  commandsCtx,
   defaultValueCtx,
+  editorViewCtx,
   editorViewOptionsCtx,
   rootCtx,
-} from 'https://esm.sh/@milkdown/core@7.5.0';
-import { listener, listenerCtx } from 'https://esm.sh/@milkdown/plugin-listener@7.5.0';
-import { math } from 'https://esm.sh/@milkdown/plugin-math@7.5.0';
-import { commonmark } from 'https://esm.sh/@milkdown/preset-commonmark@7.5.0';
-import { prism } from 'https://esm.sh/@milkdown/plugin-prism@7.5.0';
-import { gfm } from 'https://esm.sh/@milkdown/preset-gfm@7.5.0';
-import { nord } from 'https://esm.sh/@milkdown/theme-nord@7.5.0';
-import { replaceAll } from 'https://esm.sh/@milkdown/utils@7.5.0';
+} from '@milkdown/core';
+import { listener, listenerCtx } from '@milkdown/plugin-listener';
+import { math } from '@milkdown/plugin-math';
+import {
+  commonmark,
+  insertImageCommand,
+  toggleEmphasisCommand,
+  toggleStrongCommand,
+} from '@milkdown/preset-commonmark';
+import { insertTableCommand } from '@milkdown/preset-gfm';
+import { prism } from '@milkdown/plugin-prism';
+import { gfm } from '@milkdown/preset-gfm';
+import { undo, redo } from '@milkdown/prose/history';
+import { nord } from '@milkdown/theme-nord';
+import { replaceAll } from '@milkdown/utils';
+import 'katex/dist/katex.min.css';
+import 'prismjs/themes/prism.css';
+import './style.css';
 
 const app = document.getElementById('app');
 let bridgeSeq = 0;
@@ -118,6 +130,21 @@ const resolveHref = (href) => {
     return new URL(href, baseUrl).toString();
   } catch (_) {
     return href;
+  }
+};
+
+const resolveInsertImageSrc = (src) => {
+  if (typeof src !== 'string') return '';
+  const trimmed = src.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('file://') || isExternalHref(trimmed)) return trimmed;
+  if (trimmed.startsWith('/')) return `file://${trimmed}`;
+  const baseUrl = ensureFileBaseUrl(currentBaseDirectory);
+  if (!baseUrl) return trimmed;
+  try {
+    return new URL(trimmed, baseUrl).toString();
+  } catch (_) {
+    return trimmed;
   }
 };
 
@@ -261,6 +288,84 @@ const ensureEditor = () => {
   return createEditorPromise;
 };
 
+const emitCmdResult = (cmd, ok, reason = null) => {
+  emit('on_cmd_result', {
+    cmd,
+    ok,
+    reason,
+  });
+};
+
+const executeCommand = (cmd, args = {}) => {
+  if (!editorInstance) {
+    emitCmdResult(cmd, false, 'editor_not_ready');
+    return;
+  }
+  if (currentReadOnly && cmd !== 'focus_editor') {
+    emitCmdResult(cmd, false, 'readonly');
+    return;
+  }
+  try {
+    if (cmd === 'focus_editor') {
+      app.querySelector('.ProseMirror')?.focus();
+      emitCmdResult(cmd, true);
+      return;
+    }
+    if (cmd === 'undo' || cmd === 'redo') {
+      let ok = false;
+      editorInstance.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        ok = cmd === 'undo'
+          ? undo(view.state, view.dispatch)
+          : redo(view.state, view.dispatch);
+      });
+      emitCmdResult(cmd, ok, ok ? null : 'not_applicable');
+      return;
+    }
+    if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image') {
+      let ok = false;
+      editorInstance.action((ctx) => {
+        const commands = ctx.get(commandsCtx);
+        if (cmd === 'toggle_bold') {
+          ok = commands.call(toggleStrongCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_italic') {
+          ok = commands.call(toggleEmphasisCommand.key);
+          return;
+        }
+        if (cmd === 'insert_table') {
+          const row = Number.parseInt(args?.row, 10);
+          const col = Number.parseInt(args?.col, 10);
+          ok = commands.call(insertTableCommand.key, {
+            row: Number.isNaN(row) || row <= 0 ? 3 : row,
+            col: Number.isNaN(col) || col <= 0 ? 3 : col,
+          });
+          return;
+        }
+        if (cmd === 'insert_image') {
+          const src = resolveInsertImageSrc(args?.src);
+          if (!src) {
+            ok = false;
+            return;
+          }
+          const alt = typeof args?.alt === 'string' ? args.alt : '';
+          ok = commands.call(insertImageCommand.key, { src, alt });
+        }
+      });
+      emitCmdResult(cmd, ok, ok ? null : cmd === 'insert_image' ? 'invalid_args_or_not_applicable' : 'not_applicable');
+      if (ok) {
+        notifyRenderComplete();
+      }
+      return;
+    }
+    emitCmdResult(cmd, false, 'unsupported_cmd');
+  } catch (error) {
+    console.error('exec_cmd failed', cmd, error);
+    emitCmdResult(cmd, false, `exec_failed:${String(error)}`);
+  }
+};
+
 const onFlutterMessage = (message) => {
   let m = message;
   if (typeof message === 'string') {
@@ -301,9 +406,12 @@ const onFlutterMessage = (message) => {
 
   if (m.type === 'exec_cmd') {
     const cmd = m.payload && m.payload.cmd;
-    if (cmd === 'focus_editor') {
-      app.querySelector('.ProseMirror')?.focus();
+    const args = m.payload && typeof m.payload === 'object' ? m.payload.args : null;
+    if (typeof cmd !== 'string' || !cmd) {
+      emitCmdResult('', false, 'invalid_cmd');
+      return;
     }
+    executeCommand(cmd, args);
   }
 };
 

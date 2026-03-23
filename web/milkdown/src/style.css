@@ -94,7 +94,26 @@ body {
 
 @keyframes heading-flash {
   0% {
-    background-color: rgba(255, 215, 0, 0.35);
+    background-color: rgba(0, 122, 255, 0.25);
+  }
+  20% {
+    background-color: rgba(0, 122, 255, 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+:root[data-theme-mode='dark'] .heading-flash {
+  animation: heading-flash-dark 0.7s ease;
+}
+
+@keyframes heading-flash-dark {
+  0% {
+    background-color: rgba(100, 180, 255, 0.35);
+  }
+  20% {
+    background-color: rgba(100, 180, 255, 0.35);
   }
   100% {
     background-color: transparent;

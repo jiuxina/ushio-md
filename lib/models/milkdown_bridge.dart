@@ -226,3 +226,83 @@ String createBridgeRequestId() {
   final salt = Random.secure().nextInt(_bridgeRequestSaltLimit);
   return '${now.microsecondsSinceEpoch}-$salt';
 }
+
+/// Dispatch a bridge message from Web -> Flutter to typed callback handlers.
+///
+/// The dispatcher is intentionally tolerant to malformed payloads: invalid
+/// payload structures are ignored instead of throwing, so bridge noise does not
+/// break host-side event handling.
+void dispatchMilkdownBridgeMessage(
+  Map<String, dynamic> map, {
+  void Function(String markdown)? onContentChange,
+  void Function(OnOutlineUpdatePayload payload)? onOutlineUpdate,
+  void Function(OnLinkClickPayload payload)? onLinkClick,
+  void Function(OnImageErrorPayload payload)? onImageError,
+  void Function(int index, bool checked)? onCheckboxToggle,
+  void Function(String cmd, bool ok, String? reason)? onCmdResult,
+  void Function()? onRenderComplete,
+}) {
+  final type = map['type'] as String?;
+  if (type == null || type.isEmpty) return;
+
+  if (type == 'on_render_complete') {
+    onRenderComplete?.call();
+    return;
+  }
+
+  final payload = map['payload'];
+  if (payload is! Map) return;
+  final payloadMap = Map<String, dynamic>.from(payload);
+
+  if (type == 'on_content_change') {
+    final markdown = payloadMap['markdown'];
+    if (markdown is String) {
+      onContentChange?.call(markdown);
+    }
+    return;
+  }
+
+  if (type == 'on_outline_update') {
+    try {
+      onOutlineUpdate?.call(OnOutlineUpdatePayload.fromJson(payloadMap));
+    } on FormatException {
+      // Ignore malformed payload.
+    }
+    return;
+  }
+
+  if (type == 'on_link_click') {
+    try {
+      onLinkClick?.call(OnLinkClickPayload.fromJson(payloadMap));
+    } on FormatException {
+      // Ignore malformed payload.
+    }
+    return;
+  }
+
+  if (type == 'on_image_error') {
+    try {
+      onImageError?.call(OnImageErrorPayload.fromJson(payloadMap));
+    } on FormatException {
+      // Ignore malformed payload.
+    }
+    return;
+  }
+
+  if (type == 'on_checkbox_toggle') {
+    final index = payloadMap['index'];
+    final checked = payloadMap['checked'];
+    final parsedIndex = index is int ? index : int.tryParse(index?.toString() ?? '');
+    if (parsedIndex != null && checked is bool) {
+      onCheckboxToggle?.call(parsedIndex, checked);
+    }
+    return;
+  }
+
+  if (type == 'on_cmd_result') {
+    final cmd = payloadMap['cmd']?.toString() ?? '';
+    final ok = payloadMap['ok'] == true;
+    final reason = payloadMap['reason']?.toString();
+    onCmdResult?.call(cmd, ok, reason);
+  }
+}
