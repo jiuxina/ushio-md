@@ -721,6 +721,55 @@ const executeCommand = (cmd, args = {}) => {
       }
       return;
     }
+    if (cmd === 'search_jump') {
+      const query = typeof args?.query === 'string' ? args.query.trim() : '';
+      const occurrenceRaw = Number.parseInt(args?.occurrence, 10);
+      const occurrence = Number.isNaN(occurrenceRaw) ? 0 : occurrenceRaw;
+      if (!query) {
+        emitCmdResult(cmd, false, 'invalid_args', startedAt);
+        return;
+      }
+      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+      if (!root) {
+        emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
+        return;
+      }
+      const lowerQuery = query.toLowerCase();
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const ranges = [];
+      while (walker.nextNode()) {
+        const textNode = walker.currentNode;
+        const text = textNode?.textContent ?? '';
+        const lowerText = text.toLowerCase();
+        let from = 0;
+        while (from < lowerText.length) {
+          const idx = lowerText.indexOf(lowerQuery, from);
+          if (idx < 0) break;
+          const range = document.createRange();
+          range.setStart(textNode, idx);
+          range.setEnd(textNode, idx + query.length);
+          ranges.push(range);
+          from = idx + query.length;
+        }
+      }
+      if (!ranges.length) {
+        emitCmdResult(cmd, false, 'not_found', startedAt);
+        return;
+      }
+      const targetIndex = Math.max(0, Math.min(ranges.length - 1, occurrence));
+      const target = ranges[targetIndex];
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(target);
+      const node = target.startContainer.parentElement ?? target.commonAncestorContainer.parentElement;
+      node?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      if (node) {
+        node.classList.add('heading-flash');
+        setTimeout(() => node.classList.remove('heading-flash'), 700);
+      }
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
     if (cmd === 'upload_images_result') {
       const requestId = typeof args?.requestId === 'string' ? args.requestId : '';
       if (!requestId) {
