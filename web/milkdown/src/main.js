@@ -244,54 +244,93 @@ const createUploadImageNode = (schema, item) => {
 };
 
 const customUploadHandler = async (files, schema) => {
+  const pipelineStartedAt = Date.now();
+  let stage = 'validate';
   const normalizedFiles = Array.from(files ?? []);
   if (normalizedFiles.length <= 0) return [];
-  if (normalizedFiles.length > MAX_UPLOAD_FILES) {
-    throw new Error('upload_too_many_files');
-  }
-  let totalBytes = 0;
-  const filePayload = [];
-  for (const file of normalizedFiles) {
-    const size = Number.isFinite(file.size) ? file.size : 0;
-    if (size <= 0) {
-      throw new Error('upload_empty_file');
-    }
-    if (size > MAX_UPLOAD_FILE_BYTES) {
-      throw new Error('upload_file_too_large');
-    }
-    totalBytes += size;
-    if (totalBytes > MAX_UPLOAD_TOTAL_BYTES) {
-      throw new Error('upload_total_too_large');
-    }
-    filePayload.push({
-      name: file.name ?? '',
-      type: file.type ?? '',
-      size,
-      dataUrl: await readFileAsDataUrl(file),
-    });
-  }
-  const requestId = nextRequestId();
-  let timeoutId = null;
-  const resultPromise = new Promise((resolve, reject) => {
-    pendingUploadResolvers.set(requestId, { resolve, reject });
-    timeoutId = setTimeout(() => {
-      if (!pendingUploadResolvers.has(requestId)) return;
-      pendingUploadResolvers.delete(requestId);
-      reject(new Error('upload_timeout'));
-    }, 120000);
-  });
-  emit('on_upload_images_request', { requestId, files: filePayload });
   try {
-    const result = await resultPromise;
-    if (!result || typeof result !== 'object') return [];
-    const images = Array.isArray(result.images) ? result.images : [];
-    return images
-      .map((item) => createUploadImageNode(schema, item))
-      .filter(Boolean);
-  } finally {
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
+    if (normalizedFiles.length > MAX_UPLOAD_FILES) {
+      throw new Error('upload_too_many_files');
     }
+    let totalBytes = 0;
+    const filePayload = [];
+    stage = 'encode';
+    const encodeStartedAt = Date.now();
+    for (const file of normalizedFiles) {
+      const size = Number.isFinite(file.size) ? file.size : 0;
+      if (size <= 0) {
+        throw new Error('upload_empty_file');
+      }
+      if (size > MAX_UPLOAD_FILE_BYTES) {
+        throw new Error('upload_file_too_large');
+      }
+      totalBytes += size;
+      if (totalBytes > MAX_UPLOAD_TOTAL_BYTES) {
+        throw new Error('upload_total_too_large');
+      }
+      filePayload.push({
+        name: file.name ?? '',
+        type: file.type ?? '',
+        size,
+        dataUrl: await readFileAsDataUrl(file),
+      });
+    }
+    emit('on_cmd_metric', {
+      cmd: 'upload_encode',
+      ok: true,
+      durationMs: Math.max(0, Date.now() - encodeStartedAt),
+    });
+    const requestId = nextRequestId();
+    let timeoutId = null;
+    const resultPromise = new Promise((resolve, reject) => {
+      pendingUploadResolvers.set(requestId, { resolve, reject });
+      timeoutId = setTimeout(() => {
+        if (!pendingUploadResolvers.has(requestId)) return;
+        pendingUploadResolvers.delete(requestId);
+        reject(new Error('upload_timeout'));
+      }, 120000);
+    });
+    emit('on_upload_images_request', { requestId, files: filePayload });
+    stage = 'await_result';
+    const waitStartedAt = Date.now();
+    try {
+      const result = await resultPromise;
+      emit('on_cmd_metric', {
+        cmd: 'upload_bridge_wait',
+        ok: true,
+        durationMs: Math.max(0, Date.now() - waitStartedAt),
+      });
+      stage = 'apply_result';
+      const applyStartedAt = Date.now();
+      if (!result || typeof result !== 'object') return [];
+      const images = Array.isArray(result.images) ? result.images : [];
+      const nodes = images
+        .map((item) => createUploadImageNode(schema, item))
+        .filter(Boolean);
+      emit('on_cmd_metric', {
+        cmd: 'upload_apply_result',
+        ok: true,
+        durationMs: Math.max(0, Date.now() - applyStartedAt),
+      });
+      emit('on_cmd_metric', {
+        cmd: 'upload_pipeline',
+        ok: true,
+        durationMs: Math.max(0, Date.now() - pipelineStartedAt),
+      });
+      return nodes;
+    } finally {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    }
+  } catch (error) {
+    emit('on_cmd_metric', {
+      cmd: 'upload_pipeline',
+      ok: false,
+      reason: `${stage}:${String(error?.message || error)}`,
+      durationMs: Math.max(0, Date.now() - pipelineStartedAt),
+    });
+    throw error;
   }
 };
 

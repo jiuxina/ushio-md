@@ -134,9 +134,10 @@
 
 - [x] 为 Dart bridge 模型与消息分发补充单元测试。
 - [x] 为核心回调链路补充 Widget/集成测试（至少覆盖 onContentChange/onLinkClick/onCheckboxToggle）。
-- [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）。
+- [x] 建立真机回归清单（Android 主版本 + WebView 版本差异，模板已落地）。
 - [x] 固化性能基线采样方法（指标、记录格式、阈值与判定规则）。
 - [x] Step D 收口实现：上传失败重试与错误分型、命令失败可读提示、失败聚合埋点增强。
+- [x] Step C/D 可观测性补齐：上传链路阶段化 telemetry（`upload_encode` / `upload_bridge_wait` / `upload_apply_result` / `upload_pipeline`）。
 
 #### Step 8 / Step 9 / Step 10 最新进展（2026-03-23）
 
