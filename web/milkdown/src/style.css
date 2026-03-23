@@ -196,6 +196,8 @@ body {
 .milkdown .milkdown-code-block .tools .language-button.ushio-native-language-button,
 .milkdown .milkdown-code-block .tools .language-picker.ushio-native-language-picker {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .milkdown .milkdown-code-block .tools .ushio-code-action-capsule {
@@ -400,6 +402,27 @@ body {
 .milkdown img {
   max-width: 100%;
   height: auto;
+}
+
+.milkdown .milkdown-image-block.ushio-image-load-failed .caption-input,
+.milkdown img.ushio-image-load-failed + .caption-input {
+  display: none !important;
+}
+
+.milkdown .milkdown-image-block.ushio-image-load-failed .image-size-menu,
+.milkdown .milkdown-image-block.ushio-image-load-failed .image-toolbar,
+.milkdown .milkdown-image-block.ushio-image-load-failed [class*='icon'],
+.milkdown .milkdown-image-block.ushio-image-load-failed svg {
+  display: none !important;
+}
+
+.milkdown img.ushio-image-load-failed {
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .milkdown[data-ushio-read-only='true'] .milkdown-image-block > .caption-input {
