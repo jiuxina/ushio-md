@@ -65,6 +65,15 @@ class MilkdownWebViewController {
   Future<void> focusEditor() => execCmd('focus_editor');
   Future<void> toggleStrikethrough() => execCmd('toggle_strikethrough');
   Future<void> toggleInlineCode() => execCmd('toggle_inline_code');
+  Future<void> setHeading(int level) => execCmd('set_heading', args: {'level': level});
+  Future<void> toggleBlockquote() => execCmd('toggle_blockquote');
+  Future<void> toggleBulletList() => execCmd('toggle_bullet_list');
+  Future<void> toggleOrderedList() => execCmd('toggle_ordered_list');
+  Future<void> insertCodeBlock({String? language}) =>
+      execCmd('insert_code_block', args: {
+        if (language != null) 'language': language,
+      });
+  Future<void> insertMathBlock() => execCmd('insert_math_block');
   Future<void> toggleLink({String href = 'https://', String? title}) =>
       execCmd('toggle_link', args: {
         'href': href,
@@ -72,6 +81,13 @@ class MilkdownWebViewController {
       });
   Future<void> goToNextTableCell() => execCmd('table_next_cell');
   Future<void> goToPrevTableCell() => execCmd('table_prev_cell');
+  Future<void> addTableRowBefore() => execCmd('table_add_row_before');
+  Future<void> addTableRowAfter() => execCmd('table_add_row_after');
+  Future<void> addTableColumnBefore() => execCmd('table_add_col_before');
+  Future<void> addTableColumnAfter() => execCmd('table_add_col_after');
+  Future<void> deleteSelectedTableCells() => execCmd('table_delete_selected');
+  Future<void> deleteCurrentTableRow() => execCmd('table_delete_row');
+  Future<void> deleteCurrentTableColumn() => execCmd('table_delete_col');
   Future<void> insertImage({required String src, String? alt}) =>
       execCmd('insert_image', args: {
         'src': src,
