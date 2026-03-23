@@ -38,7 +38,7 @@ class TocOverlay extends StatefulWidget {
 class _TocOverlayState extends State<TocOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<double> _scrimOpacity;
+  late final Animation<double> _scrimOpacityAnimation;
   late final Animation<Offset> _slideAnimation;
   bool _isClosing = false;
 
@@ -55,7 +55,7 @@ class _TocOverlayState extends State<TocOverlay>
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
-    _scrimOpacity = Tween<double>(
+    _scrimOpacityAnimation = Tween<double>(
       begin: 0,
       end: 0.5,
     ).animate(curve);
@@ -90,82 +90,82 @@ class _TocOverlayState extends State<TocOverlay>
         return GestureDetector(
           onTap: _startClose,
           child: Container(
-            color: Colors.black.withValues(alpha: _scrimOpacity.value),
+            color: Colors.black.withValues(alpha: _scrimOpacityAnimation.value),
             child: Align(
               alignment: Alignment.centerRight,
               child: SlideTransition(
                 position: _slideAnimation,
                 child: GestureDetector(
                   onTap: () {},
-                  child: RepaintBoundary(
-                    child: Container(
-                      width: MediaQuery.of(context).size.width * 0.75,
-                      margin: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 20,
-                            offset: const Offset(-5, 0),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
-                                ],
-                              ),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.list,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  '目录',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(Icons.close),
-                                  onPressed: _startClose,
-                                ),
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.75,
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 20,
+                          offset: const Offset(-5, 0),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
                               ],
                             ),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(20),
+                            ),
                           ),
-                          Expanded(
-                            child: widget.items.isEmpty
-                                ? Center(
-                                    child: Text(
-                                      '没有找到标题',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            color: Theme.of(context).colorScheme.outline,
-                                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.list,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '目录',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  )
-                                : ListView.builder(
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: _startClose,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: widget.items.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    '没有找到标题',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.outline,
+                                        ),
+                                  ),
+                                )
+                              : RepaintBoundary(
+                                  child: ListView.builder(
                                     padding: const EdgeInsets.all(16),
                                     itemCount: widget.items.length,
                                     itemBuilder: (context, index) {
@@ -173,9 +173,9 @@ class _TocOverlayState extends State<TocOverlay>
                                       return _buildTocItem(context, item);
                                     },
                                   ),
-                          ),
-                        ],
-                      ),
+                                ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
