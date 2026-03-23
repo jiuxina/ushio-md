@@ -1,0 +1,63 @@
+{
+  "name": "prosemirror-safari-ime-span",
+  "type": "module",
+  "version": "1.0.2",
+  "packageManager": "pnpm@8.15.8",
+  "description": "",
+  "author": "ocavue <ocavue@gmail.com>",
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/ocavue",
+  "homepage": "https://github.com/ocavue/prosemirror-safari-ime-span#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ocavue/prosemirror-safari-ime-span.git"
+  },
+  "bugs": "https://github.com/ocavue/prosemirror-safari-ime-span/issues",
+  "keywords": [],
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/*",
+        "./dist/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "prosemirror-state": "^1.4.3",
+    "prosemirror-view": "^1.33.8"
+  },
+  "devDependencies": {
+    "@ocavue/eslint-config": "^1.7.0",
+    "@types/node": "^20.14.9",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.2",
+    "tsup": "^8.1.0",
+    "typescript": "^5.5.3"
+  },
+  "renovate": {
+    "extends": [
+      "github>ocavue/config-renovate"
+    ]
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint .",
+    "fix": "eslint --fix . && prettier --write .",
+    "typecheck": "tsc --noEmit"
+  }
+}
