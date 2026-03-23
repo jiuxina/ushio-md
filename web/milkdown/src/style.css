@@ -92,46 +92,6 @@ body {
   height: auto;
 }
 
-.ushio-block-handle {
-  position: absolute;
-  z-index: 55;
-  display: none;
-  border: 1px solid var(--milkdown-color-outline);
-  border-radius: 8px;
-  width: 24px;
-  height: 24px;
-  line-height: 1;
-  font-size: 13px;
-  color: var(--milkdown-color-on-surface);
-  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, #ffffff 8%);
-  cursor: grab;
-  align-items: center;
-  justify-content: center;
-}
-
-.ushio-block-handle[data-show='true'] {
-  display: inline-flex;
-}
-
-.ushio-block-handle:active {
-  cursor: grabbing;
-}
-
-.ushio-tooltip,
-.ushio-slash {
-  position: absolute;
-  z-index: 50;
-  display: none;
-  box-sizing: border-box;
-  border-radius: 10px;
-  border: 1px solid var(--milkdown-color-outline);
-  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, #ffffff 8%);
-  box-shadow: 0 8px 24px var(--milkdown-color-shadow);
-  padding: 6px;
-  gap: 6px;
-  margin-bottom: calc(8px + var(--ushio-keyboard-inset));
-}
-
 .ushio-context-menu {
   position: absolute;
   z-index: 60;
@@ -151,19 +111,6 @@ body {
   display: flex;
 }
 
-.ushio-tooltip[data-show='true'],
-.ushio-slash[data-show='true'] {
-  display: flex;
-}
-
-.ushio-slash {
-  flex-direction: column;
-  min-width: 168px;
-  max-height: min(calc(var(--ushio-viewport-height) * 0.52), 360px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
 .ushio-float-btn {
   border: 1px solid var(--milkdown-color-outline);
   border-radius: 8px;
@@ -178,11 +125,6 @@ body {
 
 .ushio-float-btn:hover {
   background: color-mix(in srgb, var(--milkdown-color-primary) 12%, transparent);
-}
-
-.ushio-slash-btn {
-  text-align: left;
-  width: 100%;
 }
 
 .ushio-context-btn[hidden] {
@@ -218,8 +160,6 @@ body {
 }
 
 @media (pointer: coarse) {
-  .ushio-tooltip,
-  .ushio-slash,
   .ushio-context-menu {
     padding: 8px;
     gap: 8px;
