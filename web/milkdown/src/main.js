@@ -57,6 +57,8 @@ let currentReadOnly = true;
 let isApplyingFromFlutter = false;
 let createEditorPromise = null;
 let contextMenuElement = null;
+let tableFloatingButtonElement = null;
+let tableFloatingPanelElement = null;
 let mobileLongPressTimer = null;
 let mobileLongPressStartPoint = null;
 const pendingUploadResolvers = new Map();
@@ -470,6 +472,133 @@ const buildFloatingButton = (label, title, className, onClick) => {
   return btn;
 };
 
+const buildTableFloatingButton = () => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ushio-table-fab';
+  button.title = '表格工具';
+  button.textContent = '表格';
+  button.dataset.show = 'false';
+  button.addEventListener('mousedown', (e) => e.preventDefault());
+  button.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!tableFloatingPanelElement) return;
+    tableFloatingPanelElement.dataset.show =
+      tableFloatingPanelElement.dataset.show === 'true' ? 'false' : 'true';
+  });
+  return button;
+};
+
+const buildTablePanelButton = (label, title, cmd) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ushio-table-panel-btn';
+  button.title = title;
+  button.textContent = label;
+  button.addEventListener('mousedown', (e) => e.preventDefault());
+  button.addEventListener('click', (e) => {
+    e.preventDefault();
+    executeCommand(cmd);
+    if (tableFloatingPanelElement) tableFloatingPanelElement.dataset.show = 'false';
+  });
+  return button;
+};
+
+const buildTableFloatingPanel = () => {
+  const panel = document.createElement('div');
+  panel.className = 'ushio-table-panel';
+  panel.dataset.show = 'false';
+  panel.append(
+    buildTablePanelButton('上方加行', '在当前行上方插入', 'table_add_row_before'),
+    buildTablePanelButton('下方加行', '在当前行下方插入', 'table_add_row_after'),
+    buildTablePanelButton('左侧加列', '在当前列左侧插入', 'table_add_col_before'),
+    buildTablePanelButton('右侧加列', '在当前列右侧插入', 'table_add_col_after'),
+    buildTablePanelButton('删行', '删除当前行', 'table_delete_row'),
+    buildTablePanelButton('删列', '删除当前列', 'table_delete_col'),
+    buildTablePanelButton('删选区', '删除选中单元格', 'table_delete_selected'),
+    buildTablePanelButton('上个单元', '跳到上一个单元格', 'table_prev_cell'),
+    buildTablePanelButton('下个单元', '跳到下一个单元格', 'table_next_cell'),
+  );
+  return panel;
+};
+
+const hideTableFloatingUi = () => {
+  if (tableFloatingButtonElement) tableFloatingButtonElement.dataset.show = 'false';
+  if (tableFloatingPanelElement) tableFloatingPanelElement.dataset.show = 'false';
+};
+
+const getKeyboardInset = () => {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--ushio-keyboard-inset');
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+};
+
+const updateTableFloatingUiPosition = (table) => {
+  if (!tableFloatingButtonElement || !tableFloatingPanelElement) return;
+  if (!table || currentReadOnly) {
+    hideTableFloatingUi();
+    return;
+  }
+  const appRect = app.getBoundingClientRect();
+  const tableRect = table.getBoundingClientRect();
+  const baseLeft = tableRect.left - appRect.left + 6;
+  const baseTop = tableRect.top - appRect.top + 6;
+  const minMargin = 8;
+  const keyboardInset = getKeyboardInset();
+
+  const buttonWidth = tableFloatingButtonElement.offsetWidth || 52;
+  const buttonHeight = tableFloatingButtonElement.offsetHeight || 26;
+  const panelWidth = tableFloatingPanelElement.offsetWidth || 320;
+  const panelHeight = tableFloatingPanelElement.offsetHeight || 180;
+
+  const maxButtonLeft = Math.max(minMargin, appRect.width - buttonWidth - minMargin);
+  const maxButtonTop = Math.max(minMargin, appRect.height - keyboardInset - buttonHeight - minMargin);
+  const clampedButtonLeft = Math.min(Math.max(baseLeft, minMargin), maxButtonLeft);
+  const clampedButtonTop = Math.min(Math.max(baseTop, minMargin), maxButtonTop);
+
+  tableFloatingButtonElement.style.left = `${clampedButtonLeft}px`;
+  tableFloatingButtonElement.style.top = `${clampedButtonTop}px`;
+  tableFloatingButtonElement.dataset.show = 'true';
+
+  const panelBaseTop = clampedButtonTop + buttonHeight + 8;
+  const maxPanelLeft = Math.max(minMargin, appRect.width - panelWidth - minMargin);
+  const maxPanelTop = Math.max(minMargin, appRect.height - keyboardInset - panelHeight - minMargin);
+  const clampedPanelLeft = Math.min(Math.max(clampedButtonLeft, minMargin), maxPanelLeft);
+  const clampedPanelTop = Math.min(Math.max(panelBaseTop, minMargin), maxPanelTop);
+  tableFloatingPanelElement.style.left = `${clampedPanelLeft}px`;
+  tableFloatingPanelElement.style.top = `${clampedPanelTop}px`;
+};
+
+const findCurrentTable = (sourceNode = null) => {
+  const fromSource = sourceNode?.closest?.('table');
+  if (fromSource) return fromSource;
+  const selection = window.getSelection();
+  const anchorNode = selection?.anchorNode;
+  if (!anchorNode) return null;
+  const anchorElement = anchorNode instanceof Element ? anchorNode : anchorNode.parentElement;
+  return anchorElement?.closest?.('table') ?? null;
+};
+
+const syncTableFloatingUi = (sourceNode = null) => {
+  const table = findCurrentTable(sourceNode);
+  updateTableFloatingUiPosition(table);
+};
+
+let syncTableFloatingUiScheduled = false;
+const scheduleSyncTableFloatingUi = (sourceNode = null) => {
+  if (syncTableFloatingUiScheduled) return;
+  if (!tableFloatingButtonElement || !tableFloatingPanelElement) return;
+  if (currentReadOnly) {
+    hideTableFloatingUi();
+    return;
+  }
+  syncTableFloatingUiScheduled = true;
+  window.requestAnimationFrame(() => {
+    syncTableFloatingUiScheduled = false;
+    syncTableFloatingUi(sourceNode);
+  });
+};
+
 const createContextMenuElement = () => {
   const element = document.createElement('div');
   element.className = 'ushio-context-menu';
@@ -532,6 +661,15 @@ const clearActiveMarkdownHints = () => {
   });
 };
 
+let editorFocusState = false;
+
+const emitEditorFocus = (focused) => {
+  const normalized = focused === true;
+  if (editorFocusState === normalized) return;
+  editorFocusState = normalized;
+  emit('on_editor_focus', { focused: normalized });
+};
+
 const updateActiveMarkdownHints = () => {
   clearActiveMarkdownHints();
   const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
@@ -551,6 +689,11 @@ const createEditor = async () => {
   const crepe = new Crepe({
     root: app,
     defaultValue: currentMarkdown,
+    features: {
+      [Crepe.Feature.BlockEdit]: false,
+      [Crepe.Feature.Toolbar]: false,
+      [Crepe.Feature.LinkTooltip]: false,
+    },
   });
   crepe.editor
     .config(nord)
@@ -585,12 +728,19 @@ const createEditor = async () => {
 
   contextMenuElement = createContextMenuElement();
   app.append(contextMenuElement);
+  tableFloatingButtonElement = buildTableFloatingButton();
+  tableFloatingPanelElement = buildTableFloatingPanel();
+  app.append(tableFloatingButtonElement);
+  app.append(tableFloatingPanelElement);
   notifyRenderComplete();
   emit('on_ready', {});
 };
 
 app.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (target?.matches('a, a *')) {
+    app.querySelector('.ProseMirror')?.blur();
+  }
   const anchor = target?.closest('a');
   if (anchor) {
     event.preventDefault();
@@ -604,6 +754,38 @@ app.addEventListener('click', (event) => {
     });
     return;
   }
+  if (!target?.closest('.ushio-table-fab, .ushio-table-panel')) {
+    if (tableFloatingPanelElement) {
+      tableFloatingPanelElement.dataset.show = 'false';
+    }
+  }
+  scheduleSyncTableFloatingUi(target);
+});
+
+app.addEventListener('mousedown', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.matches('a, a *, input[type="checkbox"]')) {
+    event.preventDefault();
+  }
+});
+
+app.addEventListener('focusin', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest('.ProseMirror')) {
+    emitEditorFocus(true);
+  }
+});
+
+app.addEventListener('focusout', (event) => {
+  const next = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+  if (next?.closest('.ProseMirror')) {
+    return;
+  }
+  const active = document.activeElement instanceof Element ? document.activeElement : null;
+  if (active?.closest('.ProseMirror')) {
+    return;
+  }
+  emitEditorFocus(false);
 });
 
 app.addEventListener('change', (event) => {
@@ -611,6 +793,7 @@ app.addEventListener('change', (event) => {
   if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
   const index = Number.parseInt(target.dataset.checkboxIndex || '-1', 10);
   if (Number.isNaN(index) || index < 0) return;
+  app.querySelector('.ProseMirror')?.blur();
   emit('on_checkbox_toggle', {
     index,
     checked: target.checked,
@@ -662,10 +845,17 @@ app.addEventListener('pointerup', clearMobileLongPress);
 app.addEventListener('pointercancel', clearMobileLongPress);
 document.addEventListener('scroll', hideContextMenu, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
+document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
+document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest('.ushio-context-menu')) {
     hideContextMenu();
+  }
+  if (!target?.closest('.ushio-table-fab, .ushio-table-panel')) {
+    if (tableFloatingPanelElement) {
+      tableFloatingPanelElement.dataset.show = 'false';
+    }
   }
 });
 

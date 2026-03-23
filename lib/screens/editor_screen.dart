@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -102,6 +101,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isLoading = true;
   bool _isModified = false;
   bool _isSaving = false;
+  bool _isMilkdownEditorFocused = false;
   bool _showToc = false;
   bool _showSearchBar = false;
   bool _showSearchCandidates = false;
@@ -933,8 +933,19 @@ class _EditorScreenState extends State<EditorScreen>
         payload.title ?? '',
       ),
       onCheckboxToggle: _toggleCheckbox,
+      onBridgeMessage: _handleMilkdownBridgeMessage,
       controller: _previewWebViewController,
     );
+  }
+
+  void _handleMilkdownBridgeMessage(Map<String, dynamic> map) {
+    final type = map['type']?.toString();
+    if (type != 'on_editor_focus') return;
+    final payload = map['payload'];
+    if (payload is! Map) return;
+    final focused = payload['focused'] == true;
+    if (!mounted || focused == _isMilkdownEditorFocused) return;
+    setState(() => _isMilkdownEditorFocused = focused);
   }
 
   /// Save inline edit when the text field loses focus (user tapped outside).
@@ -964,7 +975,7 @@ class _EditorScreenState extends State<EditorScreen>
         }
       },
       child: Scaffold(
-        resizeToAvoidBottomInset: true,
+        resizeToAvoidBottomInset: false,
         body: CallbackShortcuts(
           bindings: _buildShortcutBindings(),
           child: Stack(
@@ -990,6 +1001,7 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildBody() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final settings = context.watch<SettingsProvider>();
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
       decoration: BoxDecoration(
@@ -1041,9 +1053,10 @@ class _EditorScreenState extends State<EditorScreen>
                       if (!_isLoading &&
                           _error == null &&
                           (_mode != EditorMode.preview ||
-                              _editingBlockIndex != null))
+                              _editingBlockIndex != null ||
+                              _isMilkdownEditorFocused))
                         Positioned(
-                          bottom: 0,
+                          bottom: keyboardInset,
                           left: 0,
                           right: 0,
                           child: MarkdownToolbar(
@@ -1425,35 +1438,31 @@ class _EditorScreenState extends State<EditorScreen>
     return imageLayer;
   }
 
-  /// Floating action buttons that stay as fixed as possible at the
-  /// bottom-right corner of the screen. The viewInsets compensation formula
-  /// minimises vertical movement when the keyboard appears/disappears.
+  /// Floating action buttons that stay anchored above keyboard/toolbars.
   Widget _buildFixedFloatingButtons() {
     final viewInsets = MediaQuery.of(context).viewInsets.bottom;
     final safeBottom = MediaQuery.of(context).padding.bottom;
 
     switch (_mode) {
       case EditorMode.edit:
-        // Keep button above the 56 px toolbar + 16 px gap.
-        // Compensate for body shrinkage so the button stays as close as
-        // possible to its natural position on screen.
-        final editBottom = math.max(
-          56.0 + 16.0,
-          safeBottom + 56.0 + 16.0 - viewInsets,
-        );
+        // Keep button above keyboard + 56 px toolbar + 16 px gap.
+        final editBottom = safeBottom + 56.0 + 16.0 + viewInsets;
         return Positioned(
           right: 24,
           bottom: editBottom,
           child: _AnimatedFAB(
             icon: Icons.visibility,
             color: Theme.of(context).colorScheme.primary,
-            onTap: () => setState(() => _mode = EditorMode.preview),
+            onTap: () => setState(() {
+              _mode = EditorMode.preview;
+              _isMilkdownEditorFocused = false;
+            }),
           ),
         );
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
-        // Keep buttons at a fixed visual position from the screen bottom.
-        final previewBottom = math.max(8.0, safeBottom + 24.0 - viewInsets);
+        // Keep buttons above keyboard.
+        final previewBottom = safeBottom + 24.0 + viewInsets;
         return Positioned(
           right: 24,
           bottom: previewBottom,
@@ -1463,7 +1472,10 @@ class _EditorScreenState extends State<EditorScreen>
               _AnimatedFAB(
                 icon: Icons.edit,
                 color: Theme.of(context).colorScheme.tertiary,
-                onTap: () => setState(() => _mode = EditorMode.edit),
+                onTap: () => setState(() {
+                  _mode = EditorMode.edit;
+                  _isMilkdownEditorFocused = false;
+                }),
               ),
               const SizedBox(height: 12),
               _AnimatedFAB(

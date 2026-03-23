@@ -41,6 +41,7 @@ body {
 }
 
 #app {
+  position: relative;
   box-sizing: border-box;
   min-height: var(--ushio-viewport-height);
   padding: 16px;
@@ -59,11 +60,50 @@ body {
   background: transparent !important;
 }
 
+.milkdown .milkdown-toolbar,
+.milkdown .milkdown-slash-menu,
+.milkdown .milkdown-link-edit,
+.milkdown .milkdown-link-preview {
+  display: none !important;
+}
+
+.milkdown .milkdown-table-block .line-handle,
+.milkdown .milkdown-table-block .cell-handle,
+.milkdown .milkdown-table-block .cell-handle .button-group {
+  display: none !important;
+}
+
 .milkdown .ProseMirror {
   min-height: 100%;
   padding: 0;
   outline: none;
   caret-color: var(--milkdown-color-primary);
+}
+
+.milkdown .ProseMirror blockquote {
+  border-left: 4px solid var(--milkdown-color-primary);
+  padding-left: 1em;
+}
+
+.milkdown .ProseMirror ul,
+.milkdown .ProseMirror ol {
+  margin: 0.6em 0;
+  padding-left: 0;
+}
+
+.milkdown .milkdown-list-item-block > .list-item {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+}
+
+.milkdown .milkdown-list-item-block > .list-item > .children {
+  min-width: 0;
+  flex: 1;
+}
+
+.milkdown .milkdown-list-item-block > .list-item p {
+  margin: 0;
 }
 
 .milkdown pre,
@@ -86,7 +126,7 @@ body {
 
 .milkdown .ProseMirror pre {
   margin: 1em 0;
-  padding: 14px 16px;
+  padding: 12px 12px 44px;
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
   background: color-mix(
@@ -104,6 +144,35 @@ body {
   background: transparent;
   color: var(--milkdown-color-on-surface);
   line-height: 1.55;
+}
+
+.milkdown .milkdown-code-block {
+  border-radius: 14px !important;
+  overflow: hidden;
+}
+
+.milkdown .milkdown-code-block .tools {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 20;
+}
+
+.milkdown .milkdown-code-block .tools .language-button {
+  margin: 0;
+  opacity: 1;
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.milkdown .milkdown-code-block .tools .tools-button-group button {
+  opacity: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.milkdown .milkdown-code-block .cm-panel {
+  display: none !important;
 }
 
 .milkdown a {
@@ -164,6 +233,57 @@ body {
   display: none;
 }
 
+.ushio-table-fab {
+  position: absolute;
+  z-index: 61;
+  display: none;
+  border: 1px solid var(--milkdown-color-outline);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--milkdown-color-on-surface);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, #ffffff 8%);
+  box-shadow: 0 8px 24px var(--milkdown-color-shadow);
+}
+
+.ushio-table-fab[data-show='true'] {
+  display: block;
+}
+
+.ushio-table-panel {
+  position: absolute;
+  z-index: 61;
+  display: none;
+  max-width: min(92vw, 320px);
+  padding: 8px;
+  gap: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--milkdown-color-outline);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, #ffffff 8%);
+  box-shadow: 0 12px 28px var(--milkdown-color-shadow);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ushio-table-panel[data-show='true'] {
+  display: grid;
+}
+
+.ushio-table-panel-btn {
+  border: 1px solid var(--milkdown-color-outline);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--milkdown-color-on-surface);
+  background: transparent;
+  cursor: pointer;
+}
+
+.ushio-table-panel-btn:hover {
+  background: color-mix(in srgb, var(--milkdown-color-primary) 12%, transparent);
+}
+
 .milkdown .ProseMirror [data-ushio-active-node='true'] {
   position: relative;
 }
@@ -174,7 +294,7 @@ body {
 }
 
 .milkdown .ProseMirror [data-ushio-active-node='true']:is(li)::before {
-  content: '- ';
+  content: '';
   opacity: 0.45;
 }
 
