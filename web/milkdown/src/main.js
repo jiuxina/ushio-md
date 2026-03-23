@@ -436,6 +436,7 @@ const syncRenderedDom = () => {
     }
 
     const toolButtons = Array.from(tools.querySelectorAll('.tools-button-group button'));
+    let copyButton = null;
     toolButtons.forEach((button) => {
       if (!(button instanceof HTMLButtonElement)) return;
       const text = (button.textContent || '').trim().toLowerCase();
@@ -447,7 +448,21 @@ const syncRenderedDom = () => {
       button.setAttribute('title', '复制');
       button.setAttribute('aria-label', '复制');
       button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
+      copyButton = button;
     });
+
+    if (languageButton instanceof HTMLElement && copyButton instanceof HTMLElement) {
+      let actionCapsule = tools.querySelector('.ushio-code-action-capsule');
+      if (!(actionCapsule instanceof HTMLElement)) {
+        actionCapsule = document.createElement('div');
+        actionCapsule.className = 'ushio-code-action-capsule';
+        tools.append(actionCapsule);
+      }
+      actionCapsule.append(copyButton);
+      actionCapsule.append(languageButton);
+      copyButton.classList.add('ushio-code-copy-action');
+      languageButton.classList.add('ushio-code-language-label');
+    }
   });
 };
 
@@ -807,6 +822,32 @@ app.addEventListener('mousedown', (event) => {
   }
 });
 
+const emitCheckboxToggle = (checkbox, checked) => {
+  const index = Number.parseInt(checkbox.dataset.checkboxIndex || '-1', 10);
+  if (Number.isNaN(index) || index < 0) return;
+  app.querySelector('.ProseMirror')?.blur();
+  emit('on_checkbox_toggle', {
+    index,
+    checked,
+  });
+};
+
+app.addEventListener('pointerdown', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const checkbox = target?.closest('input[type="checkbox"]');
+  if (!(checkbox instanceof HTMLInputElement)) return;
+  if (currentReadOnly) {
+    event.preventDefault();
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  const nextChecked = !checkbox.checked;
+  checkbox.checked = nextChecked;
+  checkbox.dataset.ushioSkipNextChange = '1';
+  emitCheckboxToggle(checkbox, nextChecked);
+});
+
 app.addEventListener('focusin', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (target?.closest('.ProseMirror')) {
@@ -829,13 +870,11 @@ app.addEventListener('focusout', (event) => {
 app.addEventListener('change', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
-  const index = Number.parseInt(target.dataset.checkboxIndex || '-1', 10);
-  if (Number.isNaN(index) || index < 0) return;
-  app.querySelector('.ProseMirror')?.blur();
-  emit('on_checkbox_toggle', {
-    index,
-    checked: target.checked,
-  });
+  if (target.dataset.ushioSkipNextChange === '1') {
+    delete target.dataset.ushioSkipNextChange;
+    return;
+  }
+  emitCheckboxToggle(target, target.checked);
 });
 
 app.addEventListener('focusin', (event) => {
