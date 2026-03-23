@@ -122,6 +122,8 @@
 
 - [x] 对齐字体、字号、行高、色板、暗色模式切换行为。
 - [x] 对齐目录跳转、高亮闪烁、链接点击、任务列表勾选等现有交互。
+- [x] 目录功能迁移到 Milkdown 单一数据源：编辑页目录由 `on_outline_update` 驱动，并补齐 Setext 标题解析。
+- [x] 搜索功能按模式就地执行：Milkdown 预览态在 WebView 内搜索并跳转，纯文本编辑态在 TextField 内搜索并跳转，不再强制切模式。
 - [ ] 对大文档（长列表/多表格/多图片）做滚动与输入稳定性回归。
 
 **验收标准**
@@ -134,6 +136,17 @@
 - [x] 为核心回调链路补充 Widget/集成测试（至少覆盖 onContentChange/onLinkClick/onCheckboxToggle）。
 - [ ] 建立真机回归清单（Android 主版本 + WebView 版本差异）。
 - [x] 固化性能基线采样方法（指标、记录格式、阈值与判定规则）。
+
+#### Step 8 / Step 9 / Step 10 最新进展（2026-03-23）
+
+- [x] Step 8：已接入 `@milkdown/plugin-clipboard`，Web 端复制粘贴行为切到官方插件处理。
+- [x] Step 9：已接入 `@milkdown/plugin-upload`，并通过 `on_upload_images_request` + `upload_images_result` 桥接 Flutter 侧图片落盘与插入。
+- [x] Step 10：已补充 bridge 模型/分发测试（upload 请求场景），并更新实现计划文档与回归清单项。
+
+当前命令与消息口径新增：
+
+- Web -> Flutter：`on_upload_images_request`（携带 requestId 与 dataUrl 文件列表）
+- Flutter -> Web：`exec_cmd(upload_images_result)`（回传 requestId、images、reason）
 
 **验收标准**
 - 迁移核心路径具备可重复执行的自动化验证。

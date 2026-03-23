@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -167,6 +168,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final ValueChanged<OnOutlineUpdatePayload>? onOutlineUpdate;
   final ValueChanged<OnLinkClickPayload>? onLinkClick;
   final MilkdownCheckboxToggleHandler? onCheckboxToggle;
+  final ValueChanged<OnUploadImagesRequestPayload>? onUploadImagesRequest;
   final VoidCallback? onLoadFinished;
   final MilkdownWebViewController? controller;
   final String? bodyFont;
@@ -185,6 +187,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.onOutlineUpdate,
     this.onLinkClick,
     this.onCheckboxToggle,
+    this.onUploadImagesRequest,
     this.onLoadFinished,
     this.controller,
     this.bodyFont,
@@ -337,6 +340,103 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     await _sendMessage(msg.toJson((p) => p.toJson()));
   }
 
+  Future<void> _sendUploadImagesResult(
+    String requestId, {
+    required List<Map<String, dynamic>> images,
+    String? reason,
+  }) async {
+    await _sendExecCmd(
+      'upload_images_result',
+      args: {
+        'requestId': requestId,
+        'images': images,
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      },
+    );
+  }
+
+  String _sanitizeFileName(String name) {
+    final normalized = name.replaceAll('\\', '/');
+    final lastSegment = normalized.split('/').last.trim();
+    if (lastSegment.isEmpty) return 'upload_image';
+    return lastSegment.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  }
+
+  String _extensionFromMimeType(String mimeType) {
+    if (mimeType == 'image/jpeg' || mimeType == 'image/jpg') return '.jpg';
+    if (mimeType == 'image/webp') return '.webp';
+    if (mimeType == 'image/gif') return '.gif';
+    if (mimeType == 'image/svg+xml') return '.svg';
+    if (mimeType == 'image/bmp') return '.bmp';
+    return '.png';
+  }
+
+  Future<File> _writeUniqueFile(
+    Directory directory,
+    String fileName,
+    List<int> bytes,
+  ) async {
+    await directory.create(recursive: true);
+    final dotIndex = fileName.lastIndexOf('.');
+    final base = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+    final ext = dotIndex > 0 ? fileName.substring(dotIndex) : '';
+    var candidate = File('${directory.path}${Platform.pathSeparator}$fileName');
+    var count = 1;
+    while (await candidate.exists()) {
+      candidate = File('${directory.path}${Platform.pathSeparator}${base}_$count$ext');
+      count++;
+    }
+    await candidate.writeAsBytes(bytes, flush: true);
+    return candidate;
+  }
+
+  Future<Map<String, dynamic>> _persistUploadedImage(UploadImageFilePayload file) async {
+    final uriData = UriData.parse(file.dataUrl);
+    final bytes = uriData.contentAsBytes();
+    if (bytes.isEmpty) {
+      throw const FormatException('empty_upload_image');
+    }
+    var fileName = _sanitizeFileName(file.name);
+    if (!fileName.contains('.')) {
+      final ext = _extensionFromMimeType(uriData.mimeType ?? file.type);
+      fileName = '$fileName$ext';
+    }
+    if (widget.baseDirectory != null && widget.baseDirectory!.isNotEmpty) {
+      final imagesDir = Directory('${widget.baseDirectory}${Platform.pathSeparator}images');
+      final out = await _writeUniqueFile(imagesDir, fileName, bytes);
+      final relativeName = out.path.split(Platform.pathSeparator).last;
+      return {
+        'src': 'images/$relativeName',
+        'alt': file.name,
+      };
+    }
+    final out = await _writeUniqueFile(Directory.systemTemp, fileName, bytes);
+    return {
+      'src': out.path,
+      'alt': file.name,
+    };
+  }
+
+  Future<void> _handleUploadImagesRequest(OnUploadImagesRequestPayload payload) async {
+    widget.onUploadImagesRequest?.call(payload);
+    try {
+      final images = <Map<String, dynamic>>[];
+      for (final file in payload.files) {
+        images.add(await _persistUploadedImage(file));
+      }
+      await _sendUploadImagesResult(
+        payload.requestId,
+        images: images,
+      );
+    } catch (e) {
+      await _sendUploadImagesResult(
+        payload.requestId,
+        images: const [],
+        reason: 'upload_failed:$e',
+      );
+    }
+  }
+
   Future<void> _sendMessage(Map<String, dynamic> msg) async {
     final encoded = jsonEncode(msg);
     final encodedLiteral = jsonEncode(encoded);
@@ -353,13 +453,14 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     );
   }
 
-  void _handleBridgeArgs(List<dynamic> args) {
+  Future<void> _handleBridgeArgs(List<dynamic> args) async {
     if (args.isEmpty || args.first is! Map) {
       debugPrint('Milkdown bridge: invalid message args: $args');
       return;
     }
     final map = Map<String, dynamic>.from(args.first as Map);
     widget.onBridgeMessage?.call(map);
+    OnUploadImagesRequestPayload? uploadPayload;
     dispatchMilkdownBridgeMessage(
       map,
       onContentChange: (markdown) {
@@ -369,6 +470,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onOutlineUpdate: widget.onOutlineUpdate,
       onLinkClick: widget.onLinkClick,
       onImageError: widget.onImageError,
+      onUploadImagesRequest: (payload) {
+        uploadPayload = payload;
+      },
       onCheckboxToggle: widget.onCheckboxToggle,
       onCmdResult: (cmd, ok, reason) {
         if (!ok) {
@@ -382,6 +486,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         widget.onLoadFinished?.call();
       },
     );
+    if (uploadPayload != null) {
+      await _handleUploadImagesRequest(uploadPayload!);
+    }
   }
 
   @override
@@ -453,7 +560,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         controller.addJavaScriptHandler(
           handlerName: 'bridge',
           callback: (args) async {
-            _handleBridgeArgs(args);
+            await _handleBridgeArgs(args);
             return {'ok': true};
           },
         );

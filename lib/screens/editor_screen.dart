@@ -13,6 +13,7 @@ import '../widgets/markdown_toolbar.dart';
 import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
+import '../models/milkdown_bridge.dart';
 import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
 import 'editor/components/fullscreen_preview_page.dart';
@@ -47,11 +48,13 @@ class _SearchMatch {
   final int position;
   final int length;
   final String preview;
+  final int occurrence;
 
   const _SearchMatch({
     required this.position,
     required this.length,
     required this.preview,
+    required this.occurrence,
   });
 }
 
@@ -104,7 +107,6 @@ class _EditorScreenState extends State<EditorScreen>
   final TocOverlayController _tocOverlayController = TocOverlayController();
   bool _hidePlatformViews = false; // hide WebView during pop transition
   Timer? _autoSaveTimer;
-  Timer? _tocDebounceTimer;
   int? _highlightedLine;
   List<_SearchMatch> _searchMatches = const [];
 
@@ -113,9 +115,6 @@ class _EditorScreenState extends State<EditorScreen>
   static const _jumpTopOffset = 32.0;
 
   // ==================== 正则表达式缓存 ====================
-  static final _headingRegex = RegExp(r'^(#{1,6})\s*(.+)$');
-  static final _h1UnderlineRegex = RegExp(r'^=+$');
-  static final _h2UnderlineRegex = RegExp(r'^-+$');
   static final _uncheckedBoxRegex = RegExp(r'^(\s*-\s*)\[\s*\](.*)$');
   static final _checkedBoxRegex = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$');
   static final _wordSplitRegex = RegExp(r'\s+');
@@ -190,7 +189,6 @@ class _EditorScreenState extends State<EditorScreen>
       selection: const TextSelection.collapsed(offset: 0),
       reset: true,
     );
-    _updateToc();
   }
 
   void _configureAutoSave() {
@@ -208,8 +206,6 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_isModified) {
       setState(() => _isModified = true);
     }
-    _tocDebounceTimer?.cancel();
-    _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
 
     if (!_isApplyingHistory) {
       _recordHistorySnapshot();
@@ -289,78 +285,19 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {});
   }
 
-  /// 更新目录结构
-  ///
-  /// 解析 Markdown 文本，提取标题（# 或 =/-）结构
-  /// 仅在非代码块区域进行解析
-  void _updateToc() {
-    final text = _textController.text;
-    final lines = text.split('\n');
-    final items = <TocItem>[];
-    int lineNumber = 0;
-    bool inCodeBlock = false;
-
-    // 预编译 pattern 避免循环中重复创建
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final trimmedLine = line.trim();
-
-      // 处理代码块标记
-      if (trimmedLine.startsWith('```')) {
-        inCodeBlock = !inCodeBlock;
-        lineNumber++;
-        continue;
-      }
-
-      if (inCodeBlock) {
-        lineNumber++;
-        continue;
-      }
-
-      // 1. 处理 # 标题
-      if (trimmedLine.startsWith('#')) {
-        final match = _headingRegex.firstMatch(trimmedLine);
-        if (match != null) {
-          final level = match.group(1)!.length;
-          final title = match.group(2)!.trim();
-          items.add(
-            TocItem(
-              level: level,
-              title: title,
-              lineNumber: lineNumber,
-              anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-            ),
+  void _handleOutlineUpdate(OnOutlineUpdatePayload payload) {
+    final items = payload.outline
+        .map((node) {
+          final lineNumber = int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
+          return TocItem(
+            level: node.level,
+            title: node.text,
+            lineNumber: lineNumber,
+            anchorKey: GlobalKey(),
           );
-        }
-      }
-      // 2. 处理下划线标题 (= 和 -)
-      else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
-        final nextLine = lines[i + 1].trim();
-        if (nextLine.isNotEmpty) {
-          if (_h1UnderlineRegex.hasMatch(nextLine)) {
-            items.add(
-              TocItem(
-                level: 1,
-                title: trimmedLine,
-                lineNumber: lineNumber,
-                anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-              ),
-            );
-          } else if (_h2UnderlineRegex.hasMatch(nextLine)) {
-            items.add(
-              TocItem(
-                level: 2,
-                title: trimmedLine,
-                lineNumber: lineNumber,
-                anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-              ),
-            );
-          }
-        }
-      }
-      lineNumber++;
-    }
-
+        })
+        .toList(growable: false);
+    if (!mounted) return;
     setState(() => _tocItems = items);
   }
 
@@ -484,7 +421,6 @@ class _EditorScreenState extends State<EditorScreen>
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
-    _tocDebounceTimer?.cancel();
     _textController.dispose();
     _searchController.dispose();
     _editScrollController.dispose();
@@ -559,7 +495,6 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     setState(() {
-      _mode = EditorMode.edit;
       _showSearchBar = true;
     });
 
@@ -604,6 +539,7 @@ class _EditorScreenState extends State<EditorScreen>
         position: index,
         length: normalizedQuery.length,
         preview: preview,
+        occurrence: matches.length,
       ));
       index += normalizedQuery.length;
     }
@@ -615,6 +551,22 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _jumpToSearchMatch(_SearchMatch match) {
+    if (_mode == EditorMode.preview) {
+      final query = _searchController.text.trim();
+      if (query.isNotEmpty) {
+        _previewWebViewController.execCmd(
+          'search_jump',
+          args: {
+            'query': query,
+            'occurrence': match.occurrence,
+          },
+        );
+      }
+      _searchFocusNode.unfocus();
+      setState(() => _showSearchCandidates = false);
+      return;
+    }
+
     final position = match.position;
     final length = match.length;
     _textController.selection = TextSelection(
@@ -770,7 +722,6 @@ class _EditorScreenState extends State<EditorScreen>
     _textController.text = markdown;
     _textController.addListener(_onTextChanged);
     _onTextChanged();
-    _updateToc();
   }
 
   /// Parse markdown text into logical blocks for inline editing.
@@ -944,6 +895,7 @@ class _EditorScreenState extends State<EditorScreen>
           : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
       onContentChange: _handleMilkdownContentChange,
+      onOutlineUpdate: _handleOutlineUpdate,
       onLinkClick: (payload) => _handleLinkTap(
         payload.text ?? '',
         payload.href,

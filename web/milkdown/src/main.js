@@ -6,18 +6,30 @@ import {
   editorViewOptionsCtx,
   rootCtx,
 } from '@milkdown/core';
+import { block, BlockProvider, blockSpec } from '@milkdown/plugin-block';
+import { clipboard } from '@milkdown/plugin-clipboard';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
+import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
+import { indent } from '@milkdown/plugin-indent';
 import { math } from '@milkdown/plugin-math';
+import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
+import { trailing } from '@milkdown/plugin-trailing';
+import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip';
+import { upload, uploadConfig } from '@milkdown/plugin-upload';
 import {
   commonmark,
+  createCodeBlockCommand,
   insertImageCommand,
+  wrapInBlockquoteCommand,
+  wrapInBulletListCommand,
+  wrapInHeadingCommand,
+  wrapInOrderedListCommand,
   toggleEmphasisCommand,
   toggleStrongCommand,
 } from '@milkdown/preset-commonmark';
 import { insertTableCommand } from '@milkdown/preset-gfm';
 import { prism } from '@milkdown/plugin-prism';
 import { gfm } from '@milkdown/preset-gfm';
-import { undo, redo } from '@milkdown/prose/history';
 import { nord } from '@milkdown/theme-nord';
 import { replaceAll } from '@milkdown/utils';
 import 'katex/dist/katex.min.css';
@@ -32,6 +44,20 @@ let currentBaseDirectory = '';
 let currentReadOnly = true;
 let isApplyingFromFlutter = false;
 let createEditorPromise = null;
+let blockProvider = null;
+let tooltipProvider = null;
+let slashProvider = null;
+const pendingUploadResolvers = new Map();
+const cmdFailureAggregate = new Map();
+const MAX_UPLOAD_FILES = 6;
+const MAX_UPLOAD_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
+const CONTENT_CHANGE_DEBOUNCE_MS = 120;
+let contentChangeTimerId = null;
+let pendingContentMarkdown = null;
+
+const tooltip = tooltipFactory('ushio-tooltip');
+const slash = slashFactory('ushio-slash');
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -148,18 +174,132 @@ const resolveInsertImageSrc = (src) => {
   }
 };
 
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(reader.error ?? new Error('file_read_failed'));
+  reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+  reader.readAsDataURL(file);
+});
+
+const createUploadImageNode = (schema, item) => {
+  const srcRaw = typeof item?.src === 'string' ? item.src.trim() : '';
+  if (!srcRaw) return null;
+  const src = resolveInsertImageSrc(srcRaw);
+  if (!src) return null;
+  const alt = typeof item?.alt === 'string' ? item.alt : '';
+  const imageNodeType = schema.nodes?.image;
+  if (!imageNodeType) return null;
+  return imageNodeType.create({ src, alt });
+};
+
+const customUploadHandler = async (files, schema) => {
+  const normalizedFiles = Array.from(files ?? []);
+  if (normalizedFiles.length <= 0) return [];
+  if (normalizedFiles.length > MAX_UPLOAD_FILES) {
+    throw new Error('upload_too_many_files');
+  }
+  let totalBytes = 0;
+  const filePayload = [];
+  for (const file of normalizedFiles) {
+    const size = Number.isFinite(file.size) ? file.size : 0;
+    if (size <= 0) {
+      throw new Error('upload_empty_file');
+    }
+    if (size > MAX_UPLOAD_FILE_BYTES) {
+      throw new Error('upload_file_too_large');
+    }
+    totalBytes += size;
+    if (totalBytes > MAX_UPLOAD_TOTAL_BYTES) {
+      throw new Error('upload_total_too_large');
+    }
+    filePayload.push({
+      name: file.name ?? '',
+      type: file.type ?? '',
+      size,
+      dataUrl: await readFileAsDataUrl(file),
+    });
+  }
+  const requestId = nextRequestId();
+  let timeoutId = null;
+  const resultPromise = new Promise((resolve, reject) => {
+    pendingUploadResolvers.set(requestId, { resolve, reject });
+    timeoutId = setTimeout(() => {
+      if (!pendingUploadResolvers.has(requestId)) return;
+      pendingUploadResolvers.delete(requestId);
+      reject(new Error('upload_timeout'));
+    }, 120000);
+  });
+  emit('on_upload_images_request', { requestId, files: filePayload });
+  try {
+    const result = await resultPromise;
+    if (!result || typeof result !== 'object') return [];
+    const images = Array.isArray(result.images) ? result.images : [];
+    return images
+      .map((item) => createUploadImageNode(schema, item))
+      .filter(Boolean);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
+const flushContentChange = () => {
+  if (pendingContentMarkdown == null) return;
+  const markdown = pendingContentMarkdown;
+  pendingContentMarkdown = null;
+  emit('on_content_change', {
+    mode: 'full',
+    markdown,
+  });
+};
+
+const scheduleContentChange = (markdown) => {
+  pendingContentMarkdown = markdown;
+  if (contentChangeTimerId != null) {
+    clearTimeout(contentChangeTimerId);
+  }
+  contentChangeTimerId = setTimeout(() => {
+    contentChangeTimerId = null;
+    flushContentChange();
+  }, CONTENT_CHANGE_DEBOUNCE_MS);
+};
+
 const emitOutlineUpdate = () => {
   const lines = currentMarkdown.split('\n');
   const outline = [];
-  lines.forEach((line, index) => {
-    const match = line.match(/^(#{1,6})\s+(.+)$/);
-    if (!match) return;
-    outline.push({
-      id: `line-${index}`,
-      level: match[1].length,
-      text: match[2].trim(),
-    });
-  });
+  let inCodeBlock = false;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (/^\s*```/.test(trimmed)) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
+    if (atxMatch) {
+      outline.push({
+        id: `line-${index}`,
+        level: atxMatch[1].length,
+        text: atxMatch[2].trim(),
+      });
+      continue;
+    }
+
+    if (trimmed && index + 1 < lines.length) {
+      const nextTrimmed = lines[index + 1].trim();
+      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
+        outline.push({
+          id: `line-${index}`,
+          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
+          text: trimmed,
+        });
+        index += 1;
+      }
+    }
+  }
   emit('on_outline_update', { outline });
 };
 
@@ -210,6 +350,11 @@ const notifyRenderComplete = () => {
 
 const setMarkdown = (markdown, { emitContent = false } = {}) => {
   const nextMarkdown = typeof markdown === 'string' ? markdown : '';
+  if (contentChangeTimerId != null) {
+    clearTimeout(contentChangeTimerId);
+    contentChangeTimerId = null;
+  }
+  pendingContentMarkdown = null;
   currentMarkdown = nextMarkdown;
   if (!editorInstance) return;
   isApplyingFromFlutter = !emitContent;
@@ -219,6 +364,123 @@ const setMarkdown = (markdown, { emitContent = false } = {}) => {
 
 const showBootstrapError = (error) => {
   app.innerHTML = `<div style="padding:16px;font-family:sans-serif;color:#dc2626;line-height:1.6;">Milkdown 初始化失败：${String(error)}</div>`;
+};
+
+const createBlockHandleElement = () => {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = 'ushio-block-handle';
+  element.title = '拖拽块';
+  element.setAttribute('aria-label', '拖拽块');
+  element.textContent = '⋮⋮';
+  return element;
+};
+
+const buildFloatingButton = (label, title, className, onClick) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `ushio-float-btn ${className}`.trim();
+  btn.textContent = label;
+  btn.title = title;
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    onClick();
+  });
+  return btn;
+};
+
+const removeTrailingSlashTrigger = (view) => {
+  const { state } = view;
+  const { selection } = state;
+  if (!selection.empty) return;
+  const { $from } = selection;
+  if ($from.parentOffset <= 0) return;
+  const prevChar = $from.parent.textBetween($from.parentOffset - 1, $from.parentOffset, undefined, '\uFFFC');
+  if (prevChar !== '/') return;
+  const from = $from.pos - 1;
+  const to = $from.pos;
+  view.dispatch(state.tr.delete(from, to));
+};
+
+const runSlashAction = (actionId) => {
+  if (!editorInstance || currentReadOnly) return;
+  editorInstance.action((ctx) => {
+    const commands = ctx.get(commandsCtx);
+    const view = ctx.get(editorViewCtx);
+    removeTrailingSlashTrigger(view);
+    switch (actionId) {
+      case 'h1':
+        commands.call(wrapInHeadingCommand.key, 1);
+        break;
+      case 'h2':
+        commands.call(wrapInHeadingCommand.key, 2);
+        break;
+      case 'h3':
+        commands.call(wrapInHeadingCommand.key, 3);
+        break;
+      case 'bullet':
+        commands.call(wrapInBulletListCommand.key);
+        break;
+      case 'ordered':
+        commands.call(wrapInOrderedListCommand.key);
+        break;
+      case 'quote':
+        commands.call(wrapInBlockquoteCommand.key);
+        break;
+      case 'code':
+        commands.call(createCodeBlockCommand.key);
+        break;
+      case 'table':
+        commands.call(insertTableCommand.key, { row: 3, col: 3 });
+        break;
+      case 'table_large':
+        commands.call(insertTableCommand.key, { row: 5, col: 5 });
+        break;
+      default:
+        break;
+    }
+  });
+  if (actionId === 'image') {
+    executeCommand('insert_image_prompt');
+  }
+  slashProvider?.hide();
+  notifyRenderComplete();
+};
+
+const createTooltipElement = () => {
+  const element = document.createElement('div');
+  element.className = 'ushio-tooltip';
+  element.append(
+    buildFloatingButton('B', '加粗', '', () => executeCommand('toggle_bold')),
+    buildFloatingButton('I', '斜体', '', () => executeCommand('toggle_italic')),
+    buildFloatingButton('表', '插入表格', '', () => executeCommand('insert_table', { row: 3, col: 3 })),
+    buildFloatingButton('图', '插入图片', '', () => executeCommand('insert_image_prompt')),
+  );
+  return element;
+};
+
+const createSlashElement = () => {
+  const element = document.createElement('div');
+  element.className = 'ushio-slash';
+  const actions = [
+    ['h1', '标题 1'],
+    ['h2', '标题 2'],
+    ['h3', '标题 3'],
+    ['bullet', '无序列表'],
+    ['ordered', '有序列表'],
+    ['quote', '引用'],
+    ['code', '代码块'],
+    ['table', '表格 3x3'],
+    ['table_large', '表格 5x5'],
+    ['image', '图片'],
+  ];
+  actions.forEach(([id, label]) => {
+    element.append(
+      buildFloatingButton(label, label, 'ushio-slash-btn', () => runSlashAction(id)),
+    );
+  });
+  return element;
 };
 
 const createEditor = async () => {
@@ -235,20 +497,78 @@ const createEditor = async () => {
         if (markdown === prev) return;
         currentMarkdown = markdown;
         if (!isApplyingFromFlutter) {
-          emit('on_content_change', {
-            mode: 'full',
-            markdown,
-          });
+          scheduleContentChange(markdown);
         }
         isApplyingFromFlutter = false;
         notifyRenderComplete();
+      });
+      ctx.update(uploadConfig.key, (prev) => ({
+        ...prev,
+        uploader: (files, schema) => customUploadHandler(files, schema),
+      }));
+      ctx.set(blockSpec.key, {
+        view: () => {
+          blockProvider = new BlockProvider({
+            ctx,
+            content: createBlockHandleElement(),
+            getOffset: () => ({ mainAxis: 0, crossAxis: -8 }),
+          });
+          return {
+            update: blockProvider.update,
+            destroy: () => {
+              blockProvider?.destroy();
+              blockProvider = null;
+            },
+          };
+        },
+      });
+      ctx.set(tooltip.key, {
+        view: () => {
+          tooltipProvider = new TooltipProvider({
+            content: createTooltipElement(),
+            debounce: 120,
+            offset: 12,
+          });
+          return {
+            update: tooltipProvider.update,
+            destroy: () => {
+              tooltipProvider?.destroy();
+              tooltipProvider = null;
+            },
+          };
+        },
+      });
+      ctx.set(slash.key, {
+        view: () => {
+          slashProvider = new SlashProvider({
+            content: createSlashElement(),
+            debounce: 80,
+            offset: 8,
+            trigger: '/',
+          });
+          return {
+            update: slashProvider.update,
+            destroy: () => {
+              slashProvider?.destroy();
+              slashProvider = null;
+            },
+          };
+        },
       });
     })
     .use(commonmark)
     .use(gfm)
     .use(math)
     .use(prism)
-    .use(listener);
+    .use(listener)
+    .use(block)
+    .use(history)
+    .use(indent)
+    .use(trailing)
+    .use(clipboard)
+    .use(upload)
+    .use(tooltip)
+    .use(slash);
 
   editorInstance = await editor.create();
   notifyRenderComplete();
@@ -288,41 +608,63 @@ const ensureEditor = () => {
   return createEditorPromise;
 };
 
-const emitCmdResult = (cmd, ok, reason = null) => {
+const emitCmdTelemetry = (cmd, ok, reason = null, durationMs = null) => {
+  emit('on_cmd_metric', {
+    cmd,
+    ok,
+    reason,
+    durationMs,
+  });
+  if (!ok) {
+    const key = `${cmd || 'unknown'}::${reason || 'unknown'}`;
+    const nextCount = (cmdFailureAggregate.get(key) ?? 0) + 1;
+    cmdFailureAggregate.set(key, nextCount);
+    emit('on_cmd_failure_aggregate', {
+      cmd: cmd || 'unknown',
+      reason: reason || 'unknown',
+      count: nextCount,
+    });
+  }
+};
+
+const emitCmdResult = (cmd, ok, reason = null, startedAt = null) => {
+  const durationMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : null;
   emit('on_cmd_result', {
     cmd,
     ok,
     reason,
   });
+  emitCmdTelemetry(cmd, ok, reason, durationMs);
 };
 
 const executeCommand = (cmd, args = {}) => {
+  const startedAt = Date.now();
   if (!editorInstance) {
-    emitCmdResult(cmd, false, 'editor_not_ready');
+    emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
   if (currentReadOnly && cmd !== 'focus_editor') {
-    emitCmdResult(cmd, false, 'readonly');
+    emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
   try {
     if (cmd === 'focus_editor') {
       app.querySelector('.ProseMirror')?.focus();
-      emitCmdResult(cmd, true);
+      emitCmdResult(cmd, true, null, startedAt);
       return;
     }
     if (cmd === 'undo' || cmd === 'redo') {
       let ok = false;
       editorInstance.action((ctx) => {
-        const view = ctx.get(editorViewCtx);
+        const commands = ctx.get(commandsCtx);
         ok = cmd === 'undo'
-          ? undo(view.state, view.dispatch)
-          : redo(view.state, view.dispatch);
+          ? commands.call(undoCommand.key)
+          : commands.call(redoCommand.key);
       });
-      emitCmdResult(cmd, ok, ok ? null : 'not_applicable');
+      emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
-    if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image') {
+    if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image' || cmd === 'insert_image_prompt') {
       let ok = false;
       editorInstance.action((ctx) => {
         const commands = ctx.get(commandsCtx);
@@ -351,18 +693,111 @@ const executeCommand = (cmd, args = {}) => {
           }
           const alt = typeof args?.alt === 'string' ? args.alt : '';
           ok = commands.call(insertImageCommand.key, { src, alt });
+          return;
+        }
+        if (cmd === 'insert_image_prompt') {
+          const inputSrc = window.prompt('输入图片 URL', '');
+          const src = resolveInsertImageSrc(inputSrc);
+          if (!src) {
+            ok = false;
+            return;
+          }
+          const alt = window.prompt('输入图片描述（可选）', '') ?? '';
+          ok = commands.call(insertImageCommand.key, { src, alt });
         }
       });
-      emitCmdResult(cmd, ok, ok ? null : cmd === 'insert_image' ? 'invalid_args_or_not_applicable' : 'not_applicable');
+      emitCmdResult(
+        cmd,
+        ok,
+        ok
+          ? null
+          : (cmd === 'insert_image' || cmd === 'insert_image_prompt')
+            ? 'invalid_args_or_not_applicable'
+            : 'not_applicable',
+        startedAt,
+      );
       if (ok) {
         notifyRenderComplete();
       }
       return;
     }
-    emitCmdResult(cmd, false, 'unsupported_cmd');
+    if (cmd === 'search_jump') {
+      const query = typeof args?.query === 'string' ? args.query.trim() : '';
+      const occurrenceRaw = Number.parseInt(args?.occurrence, 10);
+      const occurrence = Number.isNaN(occurrenceRaw) ? 0 : occurrenceRaw;
+      if (!query) {
+        emitCmdResult(cmd, false, 'invalid_args', startedAt);
+        return;
+      }
+      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+      if (!root) {
+        emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
+        return;
+      }
+      const lowerQuery = query.toLowerCase();
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const ranges = [];
+      while (walker.nextNode()) {
+        const textNode = walker.currentNode;
+        const text = textNode?.textContent ?? '';
+        const lowerText = text.toLowerCase();
+        let from = 0;
+        while (from < lowerText.length) {
+          const idx = lowerText.indexOf(lowerQuery, from);
+          if (idx < 0) break;
+          const range = document.createRange();
+          range.setStart(textNode, idx);
+          range.setEnd(textNode, idx + query.length);
+          ranges.push(range);
+          from = idx + query.length;
+        }
+      }
+      if (!ranges.length) {
+        emitCmdResult(cmd, false, 'not_found', startedAt);
+        return;
+      }
+      const targetIndex = Math.max(0, Math.min(ranges.length - 1, occurrence));
+      const target = ranges[targetIndex];
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(target);
+      const node = target.startContainer.parentElement ?? target.commonAncestorContainer.parentElement;
+      node?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      if (node) {
+        node.classList.add('heading-flash');
+        setTimeout(() => node.classList.remove('heading-flash'), 700);
+      }
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+    if (cmd === 'upload_images_result') {
+      const requestId = typeof args?.requestId === 'string' ? args.requestId : '';
+      if (!requestId) {
+        emitCmdResult(cmd, false, 'invalid_args', startedAt);
+        return;
+      }
+      const pending = pendingUploadResolvers.get(requestId);
+      if (!pending) {
+        emitCmdResult(cmd, false, 'request_not_found', startedAt);
+        return;
+      }
+      pendingUploadResolvers.delete(requestId);
+      const reason = typeof args?.reason === 'string' ? args.reason : '';
+      if (reason) {
+        pending.reject(new Error(reason));
+        emitCmdResult(cmd, false, reason, startedAt);
+        return;
+      }
+      pending.resolve({
+        images: Array.isArray(args?.images) ? args.images : [],
+      });
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+    emitCmdResult(cmd, false, 'unsupported_cmd', startedAt);
   } catch (error) {
     console.error('exec_cmd failed', cmd, error);
-    emitCmdResult(cmd, false, `exec_failed:${String(error)}`);
+    emitCmdResult(cmd, false, `exec_failed:${String(error)}`, startedAt);
   }
 };
 
@@ -408,7 +843,7 @@ const onFlutterMessage = (message) => {
     const cmd = m.payload && m.payload.cmd;
     const args = m.payload && typeof m.payload === 'object' ? m.payload.args : null;
     if (typeof cmd !== 'string' || !cmd) {
-      emitCmdResult('', false, 'invalid_cmd');
+      emitCmdResult('', false, 'invalid_cmd', Date.now());
       return;
     }
     executeCommand(cmd, args);
