@@ -109,6 +109,7 @@ class _EditorScreenState extends State<EditorScreen>
   Timer? _autoSaveTimer;
   int? _highlightedLine;
   List<_SearchMatch> _searchMatches = const [];
+  int _activeSearchMatchIndex = -1;
 
   // ==================== 常量 ====================
   /// Offset from top when jumping to a target position
@@ -519,6 +520,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (normalizedQuery.isEmpty) {
       setState(() {
         _searchMatches = const [];
+        _activeSearchMatchIndex = -1;
         _showSearchCandidates = false;
       });
       return;
@@ -546,11 +548,19 @@ class _EditorScreenState extends State<EditorScreen>
 
     setState(() {
       _searchMatches = matches;
+      _activeSearchMatchIndex = matches.isEmpty ? -1 : 0;
       _showSearchCandidates = _searchFocusNode.hasFocus;
     });
   }
 
   void _jumpToSearchMatch(_SearchMatch match) {
+    _jumpToSearchOccurrence(match.occurrence);
+  }
+
+  void _jumpToSearchOccurrence(int occurrence) {
+    if (_searchMatches.isEmpty) return;
+    final clamped = occurrence.clamp(0, _searchMatches.length - 1).toInt();
+    final match = _searchMatches[clamped];
     if (_mode == EditorMode.preview) {
       final query = _searchController.text.trim();
       if (query.isNotEmpty) {
@@ -558,12 +568,11 @@ class _EditorScreenState extends State<EditorScreen>
           'search_jump',
           args: {
             'query': query,
-            'occurrence': match.occurrence,
+            'occurrence': clamped,
           },
         );
       }
-      _searchFocusNode.unfocus();
-      setState(() => _showSearchCandidates = false);
+      setState(() => _activeSearchMatchIndex = clamped);
       return;
     }
 
@@ -595,8 +604,24 @@ class _EditorScreenState extends State<EditorScreen>
       );
     }
 
-    _searchFocusNode.unfocus();
-    setState(() => _showSearchCandidates = false);
+    setState(() => _activeSearchMatchIndex = clamped);
+  }
+
+  void _jumpToNextSearchMatch() {
+    if (_searchMatches.isEmpty) return;
+    final next = _activeSearchMatchIndex < 0
+        ? 0
+        : (_activeSearchMatchIndex + 1) % _searchMatches.length;
+    _jumpToSearchOccurrence(next);
+  }
+
+  void _jumpToPrevSearchMatch() {
+    if (_searchMatches.isEmpty) return;
+    final prev = _activeSearchMatchIndex < 0
+        ? 0
+        : (_activeSearchMatchIndex - 1 + _searchMatches.length) %
+            _searchMatches.length;
+    _jumpToSearchOccurrence(prev);
   }
 
   void _openFullscreenPreview() {
@@ -1118,22 +1143,63 @@ class _EditorScreenState extends State<EditorScreen>
                 suffixIcon: IconButton(
                   tooltip: '关闭搜索',
                   icon: const Icon(Icons.close),
-                  onPressed: () {
-                    if (_searchController.text.isNotEmpty) {
-                      _searchController.clear();
-                      _performInlineSearch('');
-                      _searchFocusNode.requestFocus();
+                onPressed: () {
+                  if (_searchController.text.isNotEmpty) {
+                    _searchController.clear();
+                    _performInlineSearch('');
+                    _searchFocusNode.requestFocus();
                       return;
                     }
                     _searchFocusNode.unfocus();
                     setState(() {
                       _showSearchBar = false;
                       _searchMatches = const [];
+                      _activeSearchMatchIndex = -1;
                       _showSearchCandidates = false;
                     });
                   },
                 ),
               ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: appStyle.scaledSurfaceColor(
+                theme.colorScheme,
+                alpha: 0.95,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _searchMatches.isEmpty
+                        ? '未找到匹配'
+                        : '${_activeSearchMatchIndex + 1}/${_searchMatches.length}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                IconButton(
+                  tooltip: '上一个',
+                  visualDensity: VisualDensity.compact,
+                  onPressed:
+                      _searchMatches.isEmpty ? null : _jumpToPrevSearchMatch,
+                  icon: const Icon(Icons.keyboard_arrow_up),
+                ),
+                IconButton(
+                  tooltip: '下一个',
+                  visualDensity: VisualDensity.compact,
+                  onPressed:
+                      _searchMatches.isEmpty ? null : _jumpToNextSearchMatch,
+                  icon: const Icon(Icons.keyboard_arrow_down),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -1188,8 +1254,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Widget _buildSearchCandidateTile(_SearchMatch match) {
+    final isActive = match.occurrence == _activeSearchMatchIndex;
     return ListTile(
       dense: true,
+      selected: isActive,
       title: Text(
         match.preview,
         maxLines: 1,

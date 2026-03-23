@@ -17,9 +17,12 @@ import { trailing } from '@milkdown/plugin-trailing';
 import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip';
 import { upload, uploadConfig } from '@milkdown/plugin-upload';
 import {
+  insertHrCommand,
   commonmark,
   createCodeBlockCommand,
   insertImageCommand,
+  toggleInlineCodeCommand,
+  toggleLinkCommand,
   wrapInBlockquoteCommand,
   wrapInBulletListCommand,
   wrapInHeadingCommand,
@@ -28,6 +31,11 @@ import {
   toggleStrongCommand,
 } from '@milkdown/preset-commonmark';
 import { insertTableCommand } from '@milkdown/preset-gfm';
+import {
+  goToNextTableCellCommand,
+  goToPrevTableCellCommand,
+  toggleStrikethroughCommand,
+} from '@milkdown/preset-gfm';
 import { prism } from '@milkdown/plugin-prism';
 import { gfm } from '@milkdown/preset-gfm';
 import { nord } from '@milkdown/theme-nord';
@@ -55,6 +63,8 @@ const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
 const CONTENT_CHANGE_DEBOUNCE_MS = 120;
 let contentChangeTimerId = null;
 let pendingContentMarkdown = null;
+let uploadFailureCount = 0;
+let uploadFailureWindowStart = Date.now();
 
 const tooltip = tooltipFactory('ushio-tooltip');
 const slash = slashFactory('ushio-slash');
@@ -79,6 +89,20 @@ const emit = (type, payload = {}) => {
     requestId: nextRequestId(),
     ts: Date.now(),
     payload,
+  });
+};
+
+const recordUploadFailure = (reason) => {
+  const now = Date.now();
+  if (now - uploadFailureWindowStart > 10 * 60 * 1000) {
+    uploadFailureWindowStart = now;
+    uploadFailureCount = 0;
+  }
+  uploadFailureCount += 1;
+  emit('on_cmd_failure_aggregate', {
+    cmd: 'upload_images',
+    reason: reason || 'unknown',
+    count: uploadFailureCount,
   });
 };
 
@@ -125,6 +149,20 @@ const applyTheme = (payload) => {
   if (payload.mode === 'light' || payload.mode === 'dark') {
     root.setAttribute('data-theme-mode', payload.mode);
   }
+};
+
+const updateViewportMetrics = () => {
+  const root = document.documentElement;
+  const vv = window.visualViewport;
+  if (!vv) {
+    root.style.setProperty('--ushio-viewport-height', `${window.innerHeight}px`);
+    root.style.setProperty('--ushio-keyboard-inset', '0px');
+    return;
+  }
+  const viewportHeight = Math.max(0, vv.height);
+  const keyboardInset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+  root.style.setProperty('--ushio-viewport-height', `${viewportHeight}px`);
+  root.style.setProperty('--ushio-keyboard-inset', `${keyboardInset}px`);
 };
 
 const ensureFileBaseUrl = (baseDirectory) => {
@@ -350,6 +388,9 @@ const notifyRenderComplete = () => {
 
 const setMarkdown = (markdown, { emitContent = false } = {}) => {
   const nextMarkdown = typeof markdown === 'string' ? markdown : '';
+  if (nextMarkdown === currentMarkdown) {
+    return;
+  }
   if (contentChangeTimerId != null) {
     clearTimeout(contentChangeTimerId);
     contentChangeTimerId = null;
@@ -374,6 +415,13 @@ const createBlockHandleElement = () => {
   element.setAttribute('aria-label', '拖拽块');
   element.textContent = '⋮⋮';
   return element;
+};
+
+const insertTextAtSelection = (view, text) => {
+  const { state } = view;
+  const { from, to } = state.selection;
+  const tr = state.tr.insertText(text, from, to);
+  view.dispatch(tr);
 };
 
 const buildFloatingButton = (label, title, className, onClick) => {
@@ -428,8 +476,20 @@ const runSlashAction = (actionId) => {
       case 'quote':
         commands.call(wrapInBlockquoteCommand.key);
         break;
+      case 'quote_nested':
+        insertTextAtSelection(view, '> > ');
+        break;
       case 'code':
         commands.call(createCodeBlockCommand.key);
+        break;
+      case 'code_js':
+        commands.call(createCodeBlockCommand.key, 'javascript');
+        break;
+      case 'task':
+        insertTextAtSelection(view, '- [ ] ');
+        break;
+      case 'hr':
+        commands.call(insertHrCommand.key);
         break;
       case 'table':
         commands.call(insertTableCommand.key, { row: 3, col: 3 });
@@ -444,6 +504,11 @@ const runSlashAction = (actionId) => {
   if (actionId === 'image') {
     executeCommand('insert_image_prompt');
   }
+  emit('on_cmd_metric', {
+    cmd: `slash_action:${actionId}`,
+    ok: true,
+    durationMs: 0,
+  });
   slashProvider?.hide();
   notifyRenderComplete();
 };
@@ -454,6 +519,9 @@ const createTooltipElement = () => {
   element.append(
     buildFloatingButton('B', '加粗', '', () => executeCommand('toggle_bold')),
     buildFloatingButton('I', '斜体', '', () => executeCommand('toggle_italic')),
+    buildFloatingButton('S', '删除线', '', () => executeCommand('toggle_strikethrough')),
+    buildFloatingButton('</>', '行内代码', '', () => executeCommand('toggle_inline_code')),
+    buildFloatingButton('链', '链接', '', () => executeCommand('toggle_link', { href: 'https://' })),
     buildFloatingButton('表', '插入表格', '', () => executeCommand('insert_table', { row: 3, col: 3 })),
     buildFloatingButton('图', '插入图片', '', () => executeCommand('insert_image_prompt')),
   );
@@ -468,9 +536,13 @@ const createSlashElement = () => {
     ['h2', '标题 2'],
     ['h3', '标题 3'],
     ['bullet', '无序列表'],
+    ['task', '任务列表'],
     ['ordered', '有序列表'],
     ['quote', '引用'],
+    ['quote_nested', '二级引用'],
+    ['hr', '分割线'],
     ['code', '代码块'],
+    ['code_js', '代码块 · JavaScript'],
     ['table', '表格 3x3'],
     ['table_large', '表格 5x5'],
     ['image', '图片'],
@@ -608,6 +680,48 @@ const ensureEditor = () => {
   return createEditorPromise;
 };
 
+const handleEditorShortcut = (event) => {
+  if (currentReadOnly) return;
+  const key = (event.key || '').toLowerCase();
+  const withPrimary = event.metaKey || event.ctrlKey;
+  if (!withPrimary || event.altKey) return;
+
+  if (key === 'b') {
+    event.preventDefault();
+    executeCommand('toggle_bold');
+    return;
+  }
+  if (key === 'i') {
+    event.preventDefault();
+    executeCommand('toggle_italic');
+    return;
+  }
+  if (key === 'k') {
+    event.preventDefault();
+    executeCommand('toggle_link', { href: 'https://' });
+    return;
+  }
+  if (key === 'e') {
+    event.preventDefault();
+    executeCommand('toggle_inline_code');
+    return;
+  }
+  if (key === 'x' && event.shiftKey) {
+    event.preventDefault();
+    executeCommand('toggle_strikethrough');
+    return;
+  }
+  if (key === 'z') {
+    event.preventDefault();
+    executeCommand(event.shiftKey ? 'redo' : 'undo');
+    return;
+  }
+  if (key === 'y') {
+    event.preventDefault();
+    executeCommand('redo');
+  }
+};
+
 const emitCmdTelemetry = (cmd, ok, reason = null, durationMs = null) => {
   emit('on_cmd_metric', {
     cmd,
@@ -664,8 +778,22 @@ const executeCommand = (cmd, args = {}) => {
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
-    if (cmd === 'toggle_bold' || cmd === 'toggle_italic' || cmd === 'insert_table' || cmd === 'insert_image' || cmd === 'insert_image_prompt') {
+    if (
+      cmd === 'toggle_bold' ||
+      cmd === 'toggle_italic' ||
+      cmd === 'toggle_strikethrough' ||
+      cmd === 'toggle_inline_code' ||
+      cmd === 'toggle_link' ||
+      cmd === 'insert_table' ||
+      cmd === 'insert_hr' ||
+      cmd === 'table_next_cell' ||
+      cmd === 'table_prev_cell' ||
+      cmd === 'insert_image' ||
+      cmd === 'insert_image_prompt'
+    ) {
       let ok = false;
+      let insertImagePromptRequestId = null;
+      let insertImagePromptTimeoutId = null;
       editorInstance.action((ctx) => {
         const commands = ctx.get(commandsCtx);
         if (cmd === 'toggle_bold') {
@@ -676,6 +804,27 @@ const executeCommand = (cmd, args = {}) => {
           ok = commands.call(toggleEmphasisCommand.key);
           return;
         }
+        if (cmd === 'toggle_strikethrough') {
+          ok = commands.call(toggleStrikethroughCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_inline_code') {
+          ok = commands.call(toggleInlineCodeCommand.key);
+          return;
+        }
+        if (cmd === 'toggle_link') {
+          const href = typeof args?.href === 'string' ? args.href.trim() : '';
+          const title = typeof args?.title === 'string' ? args.title.trim() : '';
+          ok = commands.call(toggleLinkCommand.key, {
+            href: href || 'https://',
+            title,
+          });
+          return;
+        }
+        if (cmd === 'insert_hr') {
+          ok = commands.call(insertHrCommand.key);
+          return;
+        }
         if (cmd === 'insert_table') {
           const row = Number.parseInt(args?.row, 10);
           const col = Number.parseInt(args?.col, 10);
@@ -683,6 +832,14 @@ const executeCommand = (cmd, args = {}) => {
             row: Number.isNaN(row) || row <= 0 ? 3 : row,
             col: Number.isNaN(col) || col <= 0 ? 3 : col,
           });
+          return;
+        }
+        if (cmd === 'table_next_cell') {
+          ok = commands.call(goToNextTableCellCommand.key);
+          return;
+        }
+        if (cmd === 'table_prev_cell') {
+          ok = commands.call(goToPrevTableCellCommand.key);
           return;
         }
         if (cmd === 'insert_image') {
@@ -696,16 +853,54 @@ const executeCommand = (cmd, args = {}) => {
           return;
         }
         if (cmd === 'insert_image_prompt') {
-          const inputSrc = window.prompt('输入图片 URL', '');
-          const src = resolveInsertImageSrc(inputSrc);
-          if (!src) {
-            ok = false;
-            return;
-          }
-          const alt = window.prompt('输入图片描述（可选）', '') ?? '';
-          ok = commands.call(insertImageCommand.key, { src, alt });
+          insertImagePromptRequestId = nextRequestId();
+          insertImagePromptTimeoutId = setTimeout(() => {
+            const pending = pendingUploadResolvers.get(insertImagePromptRequestId);
+            if (!pending) return;
+            pendingUploadResolvers.delete(insertImagePromptRequestId);
+            pending.reject(new Error('insert_image_timeout'));
+          }, 120000);
+          pendingUploadResolvers.set(insertImagePromptRequestId, {
+            resolve: (result) => {
+              if (insertImagePromptTimeoutId != null) {
+                clearTimeout(insertImagePromptTimeoutId);
+              }
+              const images = Array.isArray(result?.images) ? result.images : [];
+              const item = images.find((x) => typeof x?.src === 'string' && x.src.trim().length > 0);
+              if (!item) {
+                emitCmdResult(cmd, false, 'insert_image_cancelled_or_invalid', startedAt);
+                return;
+              }
+              const src = resolveInsertImageSrc(item.src);
+              if (!src) {
+                emitCmdResult(cmd, false, 'insert_image_invalid_src', startedAt);
+                return;
+              }
+              const alt = typeof item.alt === 'string' ? item.alt : '';
+              let inserted = false;
+              editorInstance.action((innerCtx) => {
+                const innerCommands = innerCtx.get(commandsCtx);
+                inserted = innerCommands.call(insertImageCommand.key, { src, alt });
+              });
+              emitCmdResult(cmd, inserted, inserted ? null : 'not_applicable', startedAt);
+              if (inserted) {
+                notifyRenderComplete();
+              }
+            },
+            reject: (error) => {
+              if (insertImagePromptTimeoutId != null) {
+                clearTimeout(insertImagePromptTimeoutId);
+              }
+              emitCmdResult(cmd, false, String(error?.message || 'insert_image_failed'), startedAt);
+            },
+          });
+          emit('on_insert_image_request', { requestId: insertImagePromptRequestId });
+          return;
         }
       });
+      if (cmd === 'insert_image_prompt') {
+        return;
+      }
       emitCmdResult(
         cmd,
         ok,
@@ -783,8 +978,19 @@ const executeCommand = (cmd, args = {}) => {
       }
       pendingUploadResolvers.delete(requestId);
       const reason = typeof args?.reason === 'string' ? args.reason : '';
+      const failureReason = typeof args?.failureReason === 'string' ? args.failureReason : '';
+      const failureCountRaw = Number.parseInt(args?.failureCount, 10);
+      const failureCount = Number.isNaN(failureCountRaw) ? 0 : failureCountRaw;
+      if (failureReason && failureCount > 0) {
+        emit('on_cmd_failure_aggregate', {
+          cmd: 'upload_images',
+          reason: failureReason,
+          count: failureCount,
+        });
+      }
       if (reason) {
         pending.reject(new Error(reason));
+        recordUploadFailure(reason);
         emitCmdResult(cmd, false, reason, startedAt);
         return;
       }
@@ -800,6 +1006,13 @@ const executeCommand = (cmd, args = {}) => {
     emitCmdResult(cmd, false, `exec_failed:${String(error)}`, startedAt);
   }
 };
+
+updateViewportMetrics();
+window.addEventListener('resize', updateViewportMetrics);
+window.addEventListener('orientationchange', updateViewportMetrics);
+window.visualViewport?.addEventListener('resize', updateViewportMetrics);
+window.visualViewport?.addEventListener('scroll', updateViewportMetrics);
+document.addEventListener('keydown', handleEditorShortcut, true);
 
 const onFlutterMessage = (message) => {
   let m = message;

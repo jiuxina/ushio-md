@@ -6,8 +6,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../models/milkdown_bridge.dart';
+import '../services/my_files_service.dart';
 
 typedef MilkdownBridgeMessageHandler = void Function(Map<String, dynamic> msg);
 typedef MilkdownCheckboxToggleHandler = void Function(int index, bool value);
@@ -59,7 +61,17 @@ class MilkdownWebViewController {
   Future<void> toggleBold() => execCmd('toggle_bold');
   Future<void> toggleItalic() => execCmd('toggle_italic');
   Future<void> insertTable() => execCmd('insert_table');
+  Future<void> insertHorizontalRule() => execCmd('insert_hr');
   Future<void> focusEditor() => execCmd('focus_editor');
+  Future<void> toggleStrikethrough() => execCmd('toggle_strikethrough');
+  Future<void> toggleInlineCode() => execCmd('toggle_inline_code');
+  Future<void> toggleLink({String href = 'https://', String? title}) =>
+      execCmd('toggle_link', args: {
+        'href': href,
+        if (title != null) 'title': title,
+      });
+  Future<void> goToNextTableCell() => execCmd('table_next_cell');
+  Future<void> goToPrevTableCell() => execCmd('table_prev_cell');
   Future<void> insertImage({required String src, String? alt}) =>
       execCmd('insert_image', args: {
         'src': src,
@@ -169,6 +181,8 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final ValueChanged<OnLinkClickPayload>? onLinkClick;
   final MilkdownCheckboxToggleHandler? onCheckboxToggle;
   final ValueChanged<OnUploadImagesRequestPayload>? onUploadImagesRequest;
+  final bool enableInsertImagePicker;
+  final bool enableInsertImageUrl;
   final VoidCallback? onLoadFinished;
   final MilkdownWebViewController? controller;
   final String? bodyFont;
@@ -188,6 +202,8 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.onLinkClick,
     this.onCheckboxToggle,
     this.onUploadImagesRequest,
+    this.enableInsertImagePicker = true,
+    this.enableInsertImageUrl = true,
     this.onLoadFinished,
     this.controller,
     this.bodyFont,
@@ -203,6 +219,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
 
 class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   static const _documentRoot = 'assets/milkdown_web';
+  static const int _maxUploadPersistRetries = 2;
 
   InAppWebViewController? _controller;
   InAppLocalhostServer? _localhostServer;
@@ -344,6 +361,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     String requestId, {
     required List<Map<String, dynamic>> images,
     String? reason,
+    String? failureReason,
+    int? failureCount,
   }) async {
     await _sendExecCmd(
       'upload_images_result',
@@ -351,6 +370,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         'requestId': requestId,
         'images': images,
         if (reason != null && reason.isNotEmpty) 'reason': reason,
+        if (failureReason != null && failureReason.isNotEmpty) 'failureReason': failureReason,
+        if (failureCount != null && failureCount > 0) 'failureCount': failureCount,
       },
     );
   }
@@ -417,22 +438,271 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     };
   }
 
+  Future<Map<String, dynamic>> _persistUploadedImageWithRetry(
+    UploadImageFilePayload file,
+  ) async {
+    Object? lastError;
+    for (var attempt = 0; attempt <= _maxUploadPersistRetries; attempt++) {
+      try {
+        return await _persistUploadedImage(file);
+      } catch (e) {
+        lastError = e;
+        if (attempt >= _maxUploadPersistRetries) break;
+        await Future<void>.delayed(Duration(milliseconds: 120 * (attempt + 1)));
+      }
+    }
+    throw Exception('persist_image_retries_exhausted:$lastError');
+  }
+
   Future<void> _handleUploadImagesRequest(OnUploadImagesRequestPayload payload) async {
     widget.onUploadImagesRequest?.call(payload);
+    var failureCount = 0;
+    String? failureReason;
     try {
       final images = <Map<String, dynamic>>[];
       for (final file in payload.files) {
-        images.add(await _persistUploadedImage(file));
+        images.add(await _persistUploadedImageWithRetry(file));
       }
       await _sendUploadImagesResult(
         payload.requestId,
         images: images,
       );
     } catch (e) {
+      failureCount += 1;
+      final errorText = e.toString();
+      if (errorText.contains('empty_upload_image')) {
+        failureReason = 'upload_empty_file';
+      } else if (errorText.contains('FormatException')) {
+        failureReason = 'upload_decode_failed';
+      } else if (errorText.contains('FileSystemException')) {
+        failureReason = 'upload_write_failed';
+      } else if (errorText.contains('persist_image_retries_exhausted')) {
+        failureReason = 'upload_persist_retries_exhausted';
+      } else {
+        failureReason = 'upload_failed';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('图片上传失败：$failureReason，可重试'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: '重试',
+              onPressed: () {
+                _handleUploadImagesRequest(payload);
+              },
+            ),
+          ),
+        );
+      }
       await _sendUploadImagesResult(
         payload.requestId,
         images: const [],
-        reason: 'upload_failed:$e',
+        reason: '$failureReason:$e',
+        failureReason: failureReason,
+        failureCount: failureCount,
+      );
+    }
+  }
+
+  String _sanitizeInsertImageAlt(String? alt) {
+    if (alt == null) return '';
+    return alt.replaceAll('\n', ' ').trim();
+  }
+
+  Future<Map<String, String>?> _showInsertImageUrlDialog() async {
+    if (!mounted || !widget.enableInsertImageUrl) return null;
+    final urlController = TextEditingController();
+    final altController = TextEditingController(text: '图片描述');
+    try {
+      return await showDialog<Map<String, String>>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.link, color: Colors.blue),
+              ),
+              const SizedBox(width: 12),
+              const Text('插入图片链接'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: urlController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: '图片 URL',
+                    hintText: 'https://example.com/image.png',
+                    prefixIcon: const Icon(Icons.link),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: altController,
+                  decoration: InputDecoration(
+                    labelText: '图片描述 (Alt 文本)',
+                    prefixIcon: const Icon(Icons.description),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                final url = urlController.text.trim();
+                if (url.isNotEmpty) {
+                  Navigator.pop(context, {
+                    'url': url,
+                    'alt': _sanitizeInsertImageAlt(altController.text),
+                  });
+                }
+              },
+              icon: const Icon(Icons.check),
+              label: const Text('插入'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      urlController.dispose();
+      altController.dispose();
+    }
+  }
+
+  Future<Map<String, String>?> _pickInsertImageFromDevice() async {
+    if (!widget.enableInsertImagePicker) return null;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return null;
+    final file = result.files.first;
+    final imagePath = file.path ?? '';
+    if (imagePath.isEmpty) return null;
+    if (widget.baseDirectory != null && widget.baseDirectory!.isNotEmpty) {
+      final documentPath = '${widget.baseDirectory}${Platform.pathSeparator}__milkdown_insert__.md';
+      try {
+        final myFilesService = MyFilesService();
+        final relativePath = await myFilesService.copyImageToDocument(imagePath, documentPath);
+        return {
+          'src': relativePath,
+          'alt': _sanitizeInsertImageAlt(file.name),
+        };
+      } catch (_) {
+        // fall back to original path
+      }
+    }
+    return {
+      'src': imagePath,
+      'alt': _sanitizeInsertImageAlt(file.name),
+    };
+  }
+
+  Future<String?> _chooseInsertImageSource() async {
+    if (!mounted) return null;
+    return await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('输入图片链接'),
+              subtitle: const Text('使用网络图片 URL'),
+              enabled: widget.enableInsertImageUrl,
+              onTap: () => Navigator.pop(context, 'url'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_open),
+              title: const Text('从设备选择'),
+              subtitle: const Text('选择本地图片文件'),
+              enabled: widget.enableInsertImagePicker,
+              onTap: () => Navigator.pop(context, 'device'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleInsertImageRequest(OnInsertImageRequestPayload payload) async {
+    try {
+      final source = await _chooseInsertImageSource();
+      Map<String, String>? selected;
+      if (source == 'url') {
+        selected = await _showInsertImageUrlDialog();
+      } else if (source == 'device') {
+        selected = await _pickInsertImageFromDevice();
+      }
+      if (selected == null) {
+        await _sendExecCmd(
+          'upload_images_result',
+          args: {
+            'requestId': payload.requestId,
+            'images': const [],
+            'reason': 'insert_image_cancelled',
+          },
+        );
+        return;
+      }
+      final src = selected['src']?.trim() ?? '';
+      if (src.isEmpty) {
+        await _sendExecCmd(
+          'upload_images_result',
+          args: {
+            'requestId': payload.requestId,
+            'images': const [],
+            'reason': 'insert_image_invalid_src',
+          },
+        );
+        return;
+      }
+      await _sendExecCmd(
+        'upload_images_result',
+        args: {
+          'requestId': payload.requestId,
+          'images': [
+            {
+              'src': src,
+              'alt': _sanitizeInsertImageAlt(selected['alt']),
+            }
+          ],
+        },
+      );
+    } catch (e) {
+      await _sendExecCmd(
+        'upload_images_result',
+        args: {
+          'requestId': payload.requestId,
+          'images': const [],
+          'reason': 'insert_image_failed:$e',
+        },
       );
     }
   }
@@ -461,6 +731,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final map = Map<String, dynamic>.from(args.first as Map);
     widget.onBridgeMessage?.call(map);
     OnUploadImagesRequestPayload? uploadPayload;
+    OnInsertImageRequestPayload? insertImagePayload;
     dispatchMilkdownBridgeMessage(
       map,
       onContentChange: (markdown) {
@@ -473,10 +744,21 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onUploadImagesRequest: (payload) {
         uploadPayload = payload;
       },
+      onInsertImageRequest: (payload) {
+        insertImagePayload = payload;
+      },
       onCheckboxToggle: widget.onCheckboxToggle,
       onCmdResult: (cmd, ok, reason) {
         if (!ok) {
           debugPrint('Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}');
+          if (mounted && reason != null && reason.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('编辑命令失败：$cmd（$reason）'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       },
       onRenderComplete: () {
@@ -488,6 +770,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     );
     if (uploadPayload != null) {
       await _handleUploadImagesRequest(uploadPayload!);
+    }
+    if (insertImagePayload != null) {
+      await _handleInsertImageRequest(insertImagePayload!);
     }
   }
 
