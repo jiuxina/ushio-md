@@ -1,1 +1,0 @@
-export * from './strike-through'
