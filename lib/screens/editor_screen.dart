@@ -1397,15 +1397,20 @@ class _EditorScreenState extends State<EditorScreen>
       height: double.infinity,
     );
 
-    imageLayer = ColorFiltered(
-      colorFilter: ColorFilter.matrix([
-        settings.editorBackgroundBrightness, 0, 0, 0, 0,
-        0, settings.editorBackgroundBrightness, 0, 0, 0,
-        0, 0, settings.editorBackgroundBrightness, 0, 0,
-        0, 0, 0, 1, 0,
-      ]),
-      child: imageLayer,
-    );
+    final brightness = settings.editorBackgroundBrightness;
+    // Skip ColorFiltered when brightness is effectively neutral (1.0),
+    // avoiding unnecessary compositing overhead at the default value.
+    if ((brightness - 1.0).abs() > 0.001) {
+      imageLayer = ColorFiltered(
+        colorFilter: ColorFilter.matrix([
+          brightness, 0, 0, 0, 0,
+          0, brightness, 0, 0, 0,
+          0, 0, brightness, 0, 0,
+          0, 0, 0, 1, 0,
+        ]),
+        child: imageLayer,
+      );
+    }
 
     if (settings.editorBackgroundBlurEnabled) {
       imageLayer = ImageFiltered(
