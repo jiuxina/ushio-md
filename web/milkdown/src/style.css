@@ -73,6 +73,39 @@ body {
   font-family: var(--milkdown-font-mono) !important;
 }
 
+.milkdown .ProseMirror code {
+  border-radius: 6px;
+  padding: 0.12em 0.38em;
+  background: color-mix(
+    in srgb,
+    var(--milkdown-color-primary) 12%,
+    var(--milkdown-color-surface) 88%
+  );
+  color: var(--milkdown-color-on-surface);
+}
+
+.milkdown .ProseMirror pre {
+  margin: 1em 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--milkdown-color-surface) 90%,
+    var(--milkdown-color-primary) 10%
+  );
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
+  overflow-x: auto;
+}
+
+.milkdown .ProseMirror pre code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  color: var(--milkdown-color-on-surface);
+  line-height: 1.55;
+}
+
 .milkdown a {
   color: var(--milkdown-color-primary) !important;
 }
