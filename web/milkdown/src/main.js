@@ -97,7 +97,7 @@ const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
   .sort((a, b) => a.localeCompare(b));
 const GHOST_CODE_LANGUAGE_MARKER_RE = /^[^\s`~]{1,40}$/;
 const LOCAL_FILE_SCHEME = 'ushio-local-file';
-const RUNTIME_BUILD_TAG = 'lang-inline-v1-20260324-2056';
+const RUNTIME_BUILD_TAG = 'lang-inline-v2-20260324-2114';
 window.__USHIO_RUNTIME_TAG = RUNTIME_BUILD_TAG;
 const KNOWN_CODE_LANGUAGE_MAP = new Map(
   KNOWN_CODE_LANGUAGES.map((name) => [name.trim().toLowerCase(), name]),
@@ -921,6 +921,22 @@ const buildCodeLanguageCacheKey = (codeBlock, fallbackIndex = -1) => {
   return `${fallbackIndex}::${text}`;
 };
 
+const preventCodeEditorFocusJump = () => {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return;
+  if (!active.classList.contains('ushio-language-input')) return;
+  setTimeout(() => {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && focused.classList.contains('cm-content')) {
+      active.focus();
+      if (active instanceof HTMLInputElement) {
+        const len = active.value.length;
+        active.setSelectionRange(len, len);
+      }
+    }
+  }, 0);
+};
+
 const formatCodeLanguageLabel = (language) => {
   const normalized = normalizeCodeLanguage(language);
   return isPlainTextLanguage(normalized) ? 'plain text' : normalized;
@@ -1335,7 +1351,7 @@ const syncRenderedDom = () => {
         if (event.key === 'Enter') {
           event.preventDefault();
           commit();
-          languageButton.blur();
+          preventCodeEditorFocusJump();
           return;
         }
         if (event.key === 'Escape') {
