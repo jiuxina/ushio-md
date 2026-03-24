@@ -1727,13 +1727,86 @@ const emitCmdResult = (cmd, ok, reason = null, startedAt = null) => {
   emitCmdTelemetry(cmd, ok, reason, durationMs);
 };
 
+const collectCodeBlockLanguageDebugReport = () => {
+  const codeBlocks = Array.from((app.querySelector('.milkdown .ProseMirror') || app).querySelectorAll('.milkdown-code-block'));
+  return codeBlocks.map((block, index) => {
+    const tools = block.querySelector('.tools');
+    const pre = block.querySelector('pre');
+    const blockRect = block.getBoundingClientRect();
+    const toolsRect = tools?.getBoundingClientRect?.();
+    const preComputed = pre ? window.getComputedStyle(pre) : null;
+    const beforeStyle = pre ? window.getComputedStyle(pre, '::before') : null;
+    const afterStyle = pre ? window.getComputedStyle(pre, '::after') : null;
+    const toolsStyle = tools ? window.getComputedStyle(tools) : null;
+    return {
+      index,
+      blockClass: block.className || '',
+      languageAttr: pre?.getAttribute('data-language') || '',
+      blockRect: {
+        top: Math.round(blockRect.top),
+        right: Math.round(blockRect.right),
+        bottom: Math.round(blockRect.bottom),
+        left: Math.round(blockRect.left),
+        width: Math.round(blockRect.width),
+        height: Math.round(blockRect.height),
+      },
+      toolsExists: Boolean(tools),
+      toolsRect: toolsRect
+        ? {
+            top: Math.round(toolsRect.top),
+            right: Math.round(toolsRect.right),
+            bottom: Math.round(toolsRect.bottom),
+            left: Math.round(toolsRect.left),
+            width: Math.round(toolsRect.width),
+            height: Math.round(toolsRect.height),
+          }
+        : null,
+      toolsComputed: toolsStyle
+        ? {
+            position: toolsStyle.position,
+            top: toolsStyle.top,
+            right: toolsStyle.right,
+            bottom: toolsStyle.bottom,
+            left: toolsStyle.left,
+            transform: toolsStyle.transform,
+          }
+        : null,
+      preComputed: preComputed
+        ? {
+            position: preComputed.position,
+          }
+        : null,
+      preBefore: beforeStyle
+        ? {
+            content: beforeStyle.content,
+            display: beforeStyle.display,
+            top: beforeStyle.top,
+            right: beforeStyle.right,
+            bottom: beforeStyle.bottom,
+            left: beforeStyle.left,
+          }
+        : null,
+      preAfter: afterStyle
+        ? {
+            content: afterStyle.content,
+            display: afterStyle.display,
+            top: afterStyle.top,
+            right: afterStyle.right,
+            bottom: afterStyle.bottom,
+            left: afterStyle.left,
+          }
+        : null,
+    };
+  });
+};
+
 const executeCommand = (cmd, args = {}) => {
   const startedAt = Date.now();
   if (!editorInstance) {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
-  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor') {
+  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
@@ -1746,6 +1819,17 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'blur_editor') {
       const ok = blurEditorFocus();
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
+      return;
+    }
+    if (cmd === 'debug_codeblock_language_report') {
+      const report = collectCodeBlockLanguageDebugReport();
+      emit('on_debug_report', {
+        kind: 'codeblock_language_marker',
+        source: typeof args?.source === 'string' ? args.source : 'unknown',
+        blockCount: report.length,
+        report,
+      });
+      emitCmdResult(cmd, true, null, startedAt);
       return;
     }
     if (cmd === 'undo' || cmd === 'redo') {
