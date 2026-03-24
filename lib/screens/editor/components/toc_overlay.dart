@@ -20,7 +20,7 @@ class TocOverlayController {
 class TocOverlay extends StatefulWidget {
   final List<TocItem> items;
   final VoidCallback onClose;
-  final Function(TocItem) onJumpToHeading;
+  final void Function(int index, TocItem item) onJumpToHeading;
   final TocOverlayController? controller;
 
   const TocOverlay({
@@ -38,6 +38,8 @@ class TocOverlay extends StatefulWidget {
 class _TocOverlayState extends State<TocOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final Animation<double> _scrimOpacityAnimation;
+  late final Animation<Offset> _slideAnimation;
   bool _isClosing = false;
 
   @override
@@ -45,8 +47,22 @@ class _TocOverlayState extends State<TocOverlay>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 180),
+      reverseDuration: const Duration(milliseconds: 140),
     )..forward();
+    final curve = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _scrimOpacityAnimation = Tween<double>(
+      begin: 0,
+      end: 0.5,
+    ).animate(curve);
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.12, 0),
+      end: Offset.zero,
+    ).animate(curve);
     widget.controller?._bind(_startClose);
   }
 
@@ -60,7 +76,7 @@ class _TocOverlayState extends State<TocOverlay>
   /// Plays the exit animation and then notifies the parent to remove the overlay.
   void _startClose() {
     if (_isClosing) return;
-    setState(() => _isClosing = true);
+    _isClosing = true;
     _controller.reverse().then((_) {
       if (mounted) widget.onClose();
     });
@@ -70,100 +86,96 @@ class _TocOverlayState extends State<TocOverlay>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (context, child) {
-        final value = _controller.value;
+      builder: (context, _) {
         return GestureDetector(
           onTap: _startClose,
           child: Container(
-            color: Colors.black.withValues(alpha: 0.5 * value), // 背景淡入
+            color: Colors.black.withValues(alpha: _scrimOpacityAnimation.value),
             child: Align(
               alignment: Alignment.centerRight,
-              child: Transform.translate(
-                offset: Offset((1 - value) * 100, 0), // 从右侧滑入
-                child: Opacity(
-                  opacity: value,
-                  child: GestureDetector(
-                    onTap: () {}, // Prevent close on panel tap
-                    child: Container(
-                      width: MediaQuery.of(context).size.width * 0.75,
-                      margin: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 20,
-                            offset: const Offset(-5, 0),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          // Header
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
-                                ],
-                              ),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.list,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  '目录',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(Icons.close),
-                                  onPressed: _startClose,
-                                ),
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    width: MediaQuery.of(context).size.width * 0.75,
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 20,
+                          offset: const Offset(-5, 0),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
                               ],
                             ),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(20),
+                            ),
                           ),
-                          // TOC items
-                          Expanded(
-                            child: widget.items.isEmpty
-                                ? Center(
-                                    child: Text(
-                                      '没有找到标题',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            color: Theme.of(context).colorScheme.outline,
-                                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.list,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '目录',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  )
-                                : ListView.builder(
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: _startClose,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: widget.items.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    '没有找到标题',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.outline,
+                                        ),
+                                  ),
+                                )
+                              : RepaintBoundary(
+                                  child: ListView.builder(
                                     padding: const EdgeInsets.all(16),
                                     itemCount: widget.items.length,
                                     itemBuilder: (context, index) {
                                       final item = widget.items[index];
-                                      return _buildTocItem(context, item);
+                                      return _buildTocItem(context, item, index);
                                     },
                                   ),
-                          ),
-                        ],
-                      ),
+                                ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -175,7 +187,7 @@ class _TocOverlayState extends State<TocOverlay>
     );
   }
 
-  Widget _buildTocItem(BuildContext context, TocItem item) {
+  Widget _buildTocItem(BuildContext context, TocItem item, int index) {
     final indent = (item.level - 1) * 16.0;
     final colors = [
       Theme.of(context).colorScheme.primary,
@@ -193,7 +205,7 @@ class _TocOverlayState extends State<TocOverlay>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => widget.onJumpToHeading(item),
+          onTap: () => widget.onJumpToHeading(index, item),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(

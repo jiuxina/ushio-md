@@ -1,28 +1,26 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
-import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
+import '../utils/app_style.dart';
 import '../widgets/markdown_toolbar.dart';
-import '../widgets/webview_markdown_preview.dart';
+import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
+import '../models/milkdown_bridge.dart';
 import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
-import 'editor/components/search_sheet.dart';
 import 'editor/components/fullscreen_preview_page.dart';
-import '../providers/plugin_provider.dart';
-import '../plugins/extensions/shortcut_extension.dart';
 import '../services/export_service.dart';
+import '../services/debug_probe_service.dart';
 
-enum EditorMode { edit, preview, split }
+enum EditorMode { edit, preview }
 
 /// Represents a logical block of markdown content for inline editing
 class _MarkdownBlock {
@@ -39,7 +37,6 @@ class _MarkdownBlock {
   });
 }
 
-
 class _EditHistoryEntry {
   final String text;
   final TextSelection selection;
@@ -47,15 +44,25 @@ class _EditHistoryEntry {
   const _EditHistoryEntry({required this.text, required this.selection});
 }
 
+class _SearchMatch {
+  final int position;
+  final int length;
+  final String preview;
+  final int occurrence;
+
+  const _SearchMatch({
+    required this.position,
+    required this.length,
+    required this.preview,
+    required this.occurrence,
+  });
+}
+
 class EditorScreen extends StatefulWidget {
   final String filePath;
   final String? initialContent;
 
-  const EditorScreen({
-    super.key,
-    required this.filePath,
-    this.initialContent,
-  });
+  const EditorScreen({super.key, required this.filePath, this.initialContent});
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -71,13 +78,15 @@ class _EditorScreenState extends State<EditorScreen>
   bool _textListenerAttached = false;
 
   late TextEditingController _textController;
+  late TextEditingController _searchController;
   late ScrollController _editScrollController;
   late UndoHistoryController _undoController;
+  late FocusNode _searchFocusNode;
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
 
-  // WebView controller for heading navigation in preview/split modes
-  final _previewWebViewController = MarkdownWebViewController();
+  // WebView controller for heading navigation in the rendered preview page
+  final _previewWebViewController = MilkdownWebViewController();
 
   // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
@@ -88,27 +97,32 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isLoading = true;
   bool _isModified = false;
   bool _isSaving = false;
+  bool _isMilkdownEditorFocused = false;
   bool _showToc = false;
+  bool _showSearchBar = false;
+  bool _showSearchCandidates = false;
   final TocOverlayController _tocOverlayController = TocOverlayController();
   bool _hidePlatformViews = false; // hide WebView during pop transition
   Timer? _autoSaveTimer;
-  Timer? _tocDebounceTimer;
   int? _highlightedLine;
+  List<_SearchMatch> _searchMatches = const [];
+  int _activeSearchMatchIndex = -1;
+  DateTime? _lastDebugProbeAt;
 
   // ==================== 常量 ====================
   /// Offset from top when jumping to a target position
   static const _jumpTopOffset = 32.0;
 
   // ==================== 正则表达式缓存 ====================
-  static final _headingRegex = RegExp(r'^(#{1,6})\s*(.+)$');
-  static final _h1UnderlineRegex = RegExp(r'^=+$');
-  static final _h2UnderlineRegex = RegExp(r'^-+$');
   static final _uncheckedBoxRegex = RegExp(r'^(\s*-\s*)\[\s*\](.*)$');
   static final _checkedBoxRegex = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$');
   static final _wordSplitRegex = RegExp(r'\s+');
   static final _codeBlockStartRegex = RegExp(r'^\s*```');
   static final _tableRowRegex = RegExp(r'^\s*\|');
   static final _blockquoteRegex = RegExp(r'^\s*>');
+  static final _listItemStartRegex = RegExp(r'^\s*(?:[-*+]|\d+\.)\s+');
+  static final _indentedContentRegex = RegExp(r'^\s{2,}\S');
+  static final _nestedListMarkerRegex = RegExp(r'^\s{2,}(?:[-*+]|\d+\.)\s+');
 
   String? _error;
   List<TocItem> _tocItems = [];
@@ -119,8 +133,10 @@ class _EditorScreenState extends State<EditorScreen>
   void initState() {
     super.initState();
     _textController = TextEditingController();
+    _searchController = TextEditingController();
     _editScrollController = ScrollController();
     _undoController = UndoHistoryController();
+    _searchFocusNode = FocusNode();
     _inlineEditController = TextEditingController();
     _inlineEditFocusNode = FocusNode();
     _highlightController = AnimationController(
@@ -130,6 +146,7 @@ class _EditorScreenState extends State<EditorScreen>
     _highlightAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
     );
+    _searchFocusNode.addListener(_onSearchFocusChanged);
     if (widget.initialContent != null) {
       _applyLoadedContent(widget.initialContent!);
       _configureAutoSave();
@@ -137,6 +154,9 @@ class _EditorScreenState extends State<EditorScreen>
     } else {
       _loadFile();
     }
+    DebugProbeService.instance.registerCodeBlockLanguageProbe(
+      _requestCodeBlockLanguageProbe,
+    );
   }
 
   Future<void> _loadFile() async {
@@ -171,7 +191,6 @@ class _EditorScreenState extends State<EditorScreen>
       selection: const TextSelection.collapsed(offset: 0),
       reset: true,
     );
-    _updateToc();
   }
 
   void _configureAutoSave() {
@@ -189,55 +208,9 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_isModified) {
       setState(() => _isModified = true);
     }
-    _tocDebounceTimer?.cancel();
-    _tocDebounceTimer = Timer(const Duration(milliseconds: 500), _updateToc);
 
     if (!_isApplyingHistory) {
       _recordHistorySnapshot();
-    }
-
-    // 自动补全处理
-    if (!_isAutoCompleting) {
-      final text = _textController.text;
-      final selection = _textController.selection;
-      if (!selection.isValid || selection.start != selection.end) return;
-
-      final pluginProvider = context.read<PluginProvider>();
-      for (final ext in pluginProvider.getEditorExtensions()) {
-        for (final rule in ext.autoCompleteRules) {
-          if (rule.trigger.isEmpty) continue;
-
-          if (selection.start >= rule.trigger.length) {
-            final beforeCursor = text.substring(
-              selection.start - rule.trigger.length,
-              selection.start,
-            );
-            if (beforeCursor == rule.trigger) {
-              _isAutoCompleting = true;
-
-              final newText = text.replaceRange(
-                selection.start - rule.trigger.length,
-                selection.start,
-                rule.completion,
-              );
-
-              final newSelectionOffset =
-                  selection.start -
-                  rule.trigger.length +
-                  rule.completion.length +
-                  rule.cursorOffset;
-
-              _textController.value = TextEditingValue(
-                text: newText,
-                selection: TextSelection.collapsed(offset: newSelectionOffset),
-              );
-
-              _isAutoCompleting = false;
-              return;
-            }
-          }
-        }
-      }
     }
   }
 
@@ -271,7 +244,10 @@ class _EditorScreenState extends State<EditorScreen>
     if (_editHistory.length > _maxEditHistory) {
       final overflow = _editHistory.length - _maxEditHistory;
       _editHistory.removeRange(0, overflow);
-      _historyIndex = (_historyIndex - overflow).clamp(0, _editHistory.length - 1);
+      _historyIndex = (_historyIndex - overflow).clamp(
+        0,
+        _editHistory.length - 1,
+      );
     }
     _historyIndex = _editHistory.length - 1;
     if (mounted) setState(() {});
@@ -298,7 +274,10 @@ class _EditorScreenState extends State<EditorScreen>
     _historyIndex--;
     final entry = _editHistory[_historyIndex];
     _isApplyingHistory = true;
-    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _textController.value = TextEditingValue(
+      text: entry.text,
+      selection: entry.selection,
+    );
     _isApplyingHistory = false;
     setState(() {});
   }
@@ -308,87 +287,32 @@ class _EditorScreenState extends State<EditorScreen>
     _historyIndex++;
     final entry = _editHistory[_historyIndex];
     _isApplyingHistory = true;
-    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _textController.value = TextEditingValue(
+      text: entry.text,
+      selection: entry.selection,
+    );
     _isApplyingHistory = false;
     setState(() {});
   }
 
-  /// 更新目录结构
-  ///
-  /// 解析 Markdown 文本，提取标题（# 或 =/-）结构
-  /// 仅在非代码块区域进行解析
-  void _updateToc() {
-    final text = _textController.text;
-    final lines = text.split('\n');
-    final items = <TocItem>[];
-    int lineNumber = 0;
-    bool inCodeBlock = false;
-
-    // 预编译 pattern 避免循环中重复创建
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final trimmedLine = line.trim();
-
-      // 处理代码块标记
-      if (trimmedLine.startsWith('```')) {
-        inCodeBlock = !inCodeBlock;
-        lineNumber++;
-        continue;
-      }
-
-      if (inCodeBlock) {
-        lineNumber++;
-        continue;
-      }
-
-      // 1. 处理 # 标题
-      if (trimmedLine.startsWith('#')) {
-        final match = _headingRegex.firstMatch(trimmedLine);
-        if (match != null) {
-          final level = match.group(1)!.length;
-          final title = match.group(2)!.trim();
-          items.add(
-            TocItem(
-              level: level,
-              title: title,
-              lineNumber: lineNumber,
-              anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-            ),
+  void _handleOutlineUpdate(OnOutlineUpdatePayload payload) {
+    final items = payload.outline
+        .map((node) {
+          final lineNumber =
+              int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
+          return TocItem(
+            level: node.level,
+            title: node.text,
+            lineNumber: lineNumber,
+            anchorKey: GlobalKey(),
           );
-        }
-      }
-      // 2. 处理下划线标题 (= 和 -)
-      else if (trimmedLine.isNotEmpty && i + 1 < lines.length) {
-        final nextLine = lines[i + 1].trim();
-        if (nextLine.isNotEmpty) {
-          if (_h1UnderlineRegex.hasMatch(nextLine)) {
-            items.add(
-              TocItem(
-                level: 1,
-                title: trimmedLine,
-                lineNumber: lineNumber,
-                anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-              ),
-            );
-          } else if (_h2UnderlineRegex.hasMatch(nextLine)) {
-            items.add(
-              TocItem(
-                level: 2,
-                title: trimmedLine,
-                lineNumber: lineNumber,
-                anchorKey: GlobalKey(), // Create GlobalKey for anchor point
-              ),
-            );
-          }
-        }
-      }
-      lineNumber++;
-    }
-
+        })
+        .toList(growable: false);
+    if (!mounted) return;
     setState(() => _tocItems = items);
   }
 
-  void _jumpToHeading(TocItem item) {
+  void _jumpToHeading(int headingIndex, TocItem item) {
     if (_showToc) {
       _tocOverlayController.close();
     }
@@ -410,12 +334,13 @@ class _EditorScreenState extends State<EditorScreen>
       }
       _flashLineHighlight(item.lineNumber);
     } else {
-      // WebView preview/split mode — scroll via JavaScript.
+      // Rendered preview page — scroll via JavaScript.
       // The JS also handles the visual flash on the target heading.
-      final headingIndex = _tocItems.indexOf(item);
       if (headingIndex >= 0) {
         _previewWebViewController.scrollToHeading(
-          headingIndex,
+          headingIndex: headingIndex,
+          lineNumber: item.lineNumber,
+          headingText: item.title,
           topOffset: _jumpTopOffset,
         );
       }
@@ -507,11 +432,17 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   void dispose() {
+    DebugProbeService.instance.unregisterCodeBlockLanguageProbe(
+      _requestCodeBlockLanguageProbe,
+    );
     _autoSaveTimer?.cancel();
-    _tocDebounceTimer?.cancel();
     _textController.dispose();
+    _searchController.dispose();
     _editScrollController.dispose();
     _undoController.dispose();
+    _searchFocusNode
+      ..removeListener(_onSearchFocusChanged)
+      ..dispose();
     _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
     _inlineEditController.dispose();
     _inlineEditFocusNode.dispose();
@@ -573,59 +504,140 @@ class _EditorScreenState extends State<EditorScreen>
     return false;
   }
 
-  void _showSearchDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => SearchSheet(
-        text: _textController.text,
-        onMatchSelected: (position, length) {
-          Navigator.pop(context);
+  void _showInlineSearch() {
+    if (_showToc) {
+      _tocOverlayController.close();
+    }
 
-          if (_mode == EditorMode.edit) {
-            // Edit mode: select text and scroll the editor
-            Future.delayed(const Duration(milliseconds: 100), () {
-              _textController.selection = TextSelection(
-                baseOffset: position,
-                extentOffset: position + length,
-              );
+    setState(() {
+      _showSearchBar = true;
+    });
 
-              final lineNumber = (_textController.text
-                  .substring(0, position)
-                  .split('\n')
-                  .length
-                  .clamp(1, 1 << 20) - 1)
-                  .toInt();
-              _flashLineHighlight(lineNumber);
+    _performInlineSearch(_searchController.text);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _searchFocusNode.requestFocus();
+      }
+    });
+  }
 
-              if (_editScrollController.hasClients) {
-                final lines = _textController.text
-                    .substring(0, position)
-                    .split('\n');
-                const lineHeight = 24.0;
-                final targetScroll =
-                    (lines.length * lineHeight - _jumpTopOffset);
-                _editScrollController.jumpTo(
-                  targetScroll.clamp(
-                    0.0,
-                    _editScrollController.position.maxScrollExtent,
-                  ),
-                );
-              }
-            });
-          } else {
-            // Preview / split mode: scroll the WebView to the matched text
-            final end = (position + length).clamp(
-              0,
-              _textController.text.length,
-            );
-            final matchText = _textController.text.substring(position, end);
-            _previewWebViewController.scrollToText(matchText);
-          }
-        },
-      ),
+  void _onSearchFocusChanged() {
+    if (!mounted || !_showSearchBar) return;
+    setState(() {
+      _showSearchCandidates =
+          _searchFocusNode.hasFocus && _searchController.text.trim().isNotEmpty;
+    });
+  }
+
+  void _performInlineSearch(String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      setState(() {
+        _searchMatches = const [];
+        _activeSearchMatchIndex = -1;
+        _showSearchCandidates = false;
+      });
+      return;
+    }
+
+    final text = _textController.text;
+    final normalizedText = text.toLowerCase();
+    final matches = <_SearchMatch>[];
+    var index = 0;
+
+    while (matches.length < 50) {
+      index = normalizedText.indexOf(normalizedQuery, index);
+      if (index == -1) break;
+      final start = (index - 20).clamp(0, text.length);
+      final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
+      final preview = text.substring(start, end).replaceAll('\n', ' ');
+      matches.add(
+        _SearchMatch(
+          position: index,
+          length: normalizedQuery.length,
+          preview: preview,
+          occurrence: matches.length,
+        ),
+      );
+      index += normalizedQuery.length;
+    }
+
+    setState(() {
+      _searchMatches = matches;
+      _activeSearchMatchIndex = matches.isEmpty ? -1 : 0;
+      _showSearchCandidates =
+          _searchFocusNode.hasFocus && normalizedQuery.isNotEmpty;
+    });
+  }
+
+  void _jumpToSearchMatch(_SearchMatch match) {
+    _searchFocusNode.unfocus();
+    if (_showSearchCandidates) {
+      setState(() => _showSearchCandidates = false);
+    }
+    _jumpToSearchOccurrence(match.occurrence);
+  }
+
+  void _jumpToSearchOccurrence(int occurrence) {
+    if (_searchMatches.isEmpty) return;
+    final clamped = occurrence.clamp(0, _searchMatches.length - 1).toInt();
+    final match = _searchMatches[clamped];
+    if (_mode == EditorMode.preview) {
+      final query = _searchController.text.trim();
+      if (query.isNotEmpty) {
+        _previewWebViewController.execCmd(
+          'search_jump',
+          args: {'query': query, 'occurrence': clamped},
+        );
+      }
+      setState(() => _activeSearchMatchIndex = clamped);
+      return;
+    }
+
+    final position = match.position;
+    final length = match.length;
+    _textController.selection = TextSelection(
+      baseOffset: position,
+      extentOffset: position + length,
     );
+
+    final lineNumber =
+        (_textController.text
+                    .substring(0, position)
+                    .split('\n')
+                    .length
+                    .clamp(1, 1 << 20) -
+                1)
+            .toInt();
+    _flashLineHighlight(lineNumber);
+
+    if (_editScrollController.hasClients) {
+      final lines = _textController.text.substring(0, position).split('\n');
+      const lineHeight = 24.0;
+      final targetScroll = (lines.length * lineHeight - _jumpTopOffset);
+      _editScrollController.jumpTo(
+        targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
+      );
+    }
+
+    setState(() => _activeSearchMatchIndex = clamped);
+  }
+
+  void _jumpToNextSearchMatch() {
+    if (_searchMatches.isEmpty) return;
+    final next = _activeSearchMatchIndex < 0
+        ? 0
+        : (_activeSearchMatchIndex + 1) % _searchMatches.length;
+    _jumpToSearchOccurrence(next);
+  }
+
+  void _jumpToPrevSearchMatch() {
+    if (_searchMatches.isEmpty) return;
+    final prev = _activeSearchMatchIndex < 0
+        ? 0
+        : (_activeSearchMatchIndex - 1 + _searchMatches.length) %
+              _searchMatches.length;
+    _jumpToSearchOccurrence(prev);
   }
 
   void _openFullscreenPreview() {
@@ -690,29 +702,35 @@ class _EditorScreenState extends State<EditorScreen>
   ///
   /// Opens external URLs in browser, navigates to local markdown files
   void _handleLinkTap(String text, String? href, String title) {
-    if (href == null || href.isEmpty) return;
+    final normalizedHref = href?.trim() ?? '';
+    final normalizedText = text.trim();
+    final headingFragment = normalizedHref.startsWith('#')
+        ? Uri.decodeComponent(normalizedHref.substring(1)).trim()
+        : (normalizedHref.isEmpty ? normalizedText : '');
 
-    if (href.startsWith('#')) {
-      final rawFragment = Uri.decodeComponent(href.substring(1)).trim();
-      if (rawFragment.isNotEmpty) {
-        final normalizedFragment = _slugifyHeading(rawFragment);
-        for (final item in _tocItems) {
-          if (_slugifyHeading(item.title) == normalizedFragment) {
-            _jumpToHeading(item);
-            return;
-          }
+    if (headingFragment.isNotEmpty) {
+      final normalizedFragment = _slugifyHeading(headingFragment);
+      for (var i = 0; i < _tocItems.length; i++) {
+        final item = _tocItems[i];
+        if (_slugifyHeading(item.title) == normalizedFragment) {
+          _jumpToHeading(i, item);
+          return;
         }
       }
+    }
+
+    if (normalizedHref.isEmpty) {
       return;
     }
 
     // Handle local markdown file links
-    if (href.endsWith('.md') || href.endsWith('.markdown')) {
+    if (normalizedHref.endsWith('.md') ||
+        normalizedHref.endsWith('.markdown')) {
       // Sanitize: reject path traversal attempts
-      if (!href.contains('..')) {
+      if (!normalizedHref.contains('..')) {
         final baseDir = File(widget.filePath).parent.path;
         final targetPath =
-            '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
+            '$baseDir${Platform.pathSeparator}${normalizedHref.replaceAll('/', Platform.pathSeparator)}';
         final targetFile = File(targetPath);
         if (targetFile.existsSync()) {
           EditorNavigationHelper.openEditor(context, targetPath);
@@ -722,7 +740,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     // Open external URLs in browser
-    final uri = Uri.tryParse(href);
+    final uri = Uri.tryParse(normalizedHref);
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
       try {
         launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -745,229 +763,16 @@ class _EditorScreenState extends State<EditorScreen>
 
   // ==================== Block Parsing & Inline Editing ====================
 
-  // ── In-place editing helpers ──────────────────────────────────────────
-
-  /// Strip markdown formatting from text so it can be compared to HTML
-  /// innerText returned by the WebView.
-  String _stripMarkdown(String text) {
-    return text
-        // Strip fenced code block opening/closing lines (```lang or ```)
-        .replaceAll(RegExp(r'^```[^\n]*\n?', multiLine: true), '')
-        .replaceAll(RegExp(r'^~~~[^\n]*\n?', multiLine: true), '')
-        // Strip GitHub Alert markers [!NOTE] etc.
-        .replaceAll(
-          RegExp(
-            r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*',
-            multiLine: true,
-            caseSensitive: false,
-          ),
-          '',
-        )
-        .replaceAll(RegExp(r'\*{1,3}([^*]+)\*{1,3}'), r'$1')
-        .replaceAll(RegExp(r'_{1,3}([^_]+)_{1,3}'), r'$1')
-        .replaceAll(RegExp(r'`+([^`]+)`+'), r'$1')
-        .replaceAll(RegExp(r'~~([^~]+)~~'), r'$1')
-        .replaceAll(RegExp(r'==([^=]+)=='), r'$1')
-        .replaceAll(RegExp(r'!\[[^\]]*\]\([^\)]*\)'), '')
-        .replaceAll(RegExp(r'\[([^\]]*)\]\([^\)]*\)'), r'$1')
-        .replaceAll(RegExp(r'^#+\s*', multiLine: true), '')
-        .replaceAll(RegExp(r'^[-*+]\s+', multiLine: true), '')
-        .replaceAll(RegExp(r'^\d+\.\s+', multiLine: true), '')
-        // Strip ALL leading blockquote markers (handles nested > > > lines)
-        .replaceAll(RegExp(r'^\s*(>\s*)+', multiLine: true), '')
-        .trim()
-        .toLowerCase();
-  }
-
-  /// Returns the raw markdown source for a table cell (for in-place editing).
-  String _getCellMarkdown(int tableIdx, int rowIdx, int colIdx) {
-    final blocks = _parseBlocks(_textController.text);
-    final tableBlocks = blocks
-        .where((b) => b.isMultiLine && b.content.contains('|'))
-        .toList();
-    if (tableIdx >= tableBlocks.length) return '';
-    // Skip separator rows (lines that consist only of |, -, :, and spaces)
-    final sepRow = RegExp(r'^[\|\s\-:]+$');
-    final tableLines = tableBlocks[tableIdx].content
-        .split('\n')
-        .where((l) => l.trim().isNotEmpty && !sepRow.hasMatch(l.trim()))
-        .toList();
-    if (rowIdx >= tableLines.length) return '';
-    final parts = tableLines[rowIdx].split('|');
-    final idx = colIdx + 1;
-    if (idx >= parts.length) return '';
-    return parts[idx].trim();
-  }
-
-  /// Returns the raw markdown source for the block whose rendered innerText
-  /// best matches [innerText].
-  String _getBlockMarkdown(String innerText) {
-    final blocks = _parseBlocks(_textController.text);
-    final normalizedHtml = _stripMarkdown(innerText);
-    int bestIndex = -1;
-    int bestLen = 0;
-    for (int i = 0; i < blocks.length; i++) {
-      final norm = _stripMarkdown(blocks[i].content);
-      if (norm.isEmpty) continue;
-      final shorter = norm.length <= normalizedHtml.length
-          ? norm
-          : normalizedHtml;
-      final longer = norm.length > normalizedHtml.length
-          ? norm
-          : normalizedHtml;
-      if (longer.contains(shorter) && shorter.length > bestLen) {
-        bestLen = shorter.length;
-        bestIndex = i;
-      }
-    }
-    return bestIndex >= 0 ? blocks[bestIndex].content : innerText;
-  }
-
-  /// Callback for `onGetMarkdown` from [WebViewMarkdownPreview].
-  String _handleGetMarkdown(String type, int p1, int p2, int p3, String extra) {
-    if (type == 'cell') return _getCellMarkdown(p1, p2, p3);
-    return _getBlockMarkdown(extra);
-  }
-
-  /// Apply an in-place edit committed by the WebView contenteditable.
-  ///
-  /// [key] is either `'cell:ti:ri:ci'` or `'block:<innerText prefix>'`.
-  /// [newText] is the raw markdown the user typed.
-  void _applyInPlaceEdit(String key, String newText) {
-    if (!mounted) return;
-    if (key.startsWith('cell:')) {
-      final parts = key.split(':');
-      if (parts.length < 4) return;
-      final ti = int.tryParse(parts[1]) ?? 0;
-      final ri = int.tryParse(parts[2]) ?? 0;
-      final ci = int.tryParse(parts[3]) ?? 0;
-      final blocks = _parseBlocks(_textController.text);
-      final tableBlocks = blocks
-          .where((b) => b.isMultiLine && b.content.contains('|'))
-          .toList();
-      if (ti >= tableBlocks.length) return;
-      _inlineEditController.text = newText;
-      _applyCellEdit(tableBlocks[ti], ri, ci);
-    } else if (key.startsWith('blocksrc:') || key.startsWith('block:')) {
-      final blocks = _parseBlocks(_textController.text);
-      int bestIndex = -1;
-
-      if (key.startsWith('blocksrc:')) {
-        final payload = key.substring('blocksrc:'.length);
-        final sep = payload.lastIndexOf(':');
-        final encoded = sep > 0 ? payload.substring(0, sep) : payload;
-        final hintedIndex = sep > 0 ? int.tryParse(payload.substring(sep + 1)) : null;
-        try {
-          final originalMd = utf8.decode(base64Decode(encoded));
-          if (hintedIndex != null && hintedIndex >= 0 && hintedIndex < blocks.length &&
-              blocks[hintedIndex].content == originalMd) {
-            bestIndex = hintedIndex;
-          } else {
-            bestIndex = blocks.indexWhere((b) => b.content == originalMd);
-          }
-        } catch (_) {
-          bestIndex = -1;
-        }
-      }
-
-      if (bestIndex < 0 && key.startsWith('block:')) {
-        // Legacy key: fuzzy-find by text prefix from rendered innerText.
-        final innerText = key.substring('block:'.length);
-        final normalized = _stripMarkdown(innerText);
-        int bestLen = 0;
-        for (int i = 0; i < blocks.length; i++) {
-          final norm = _stripMarkdown(blocks[i].content);
-          if (norm.isEmpty) continue;
-          final shorter = norm.length <= normalized.length ? norm : normalized;
-          final longer = norm.length > normalized.length ? norm : normalized;
-          if (longer.contains(shorter) && shorter.length > bestLen) {
-            bestLen = shorter.length;
-            bestIndex = i;
-          }
-        }
-      }
-
-      if (bestIndex >= 0) {
-        _inlineEditController.text = newText;
-        _applyBlockEdit(bestIndex, blocks);
-      }
-    }
-  }
-
-  /// Apply an edited cell back into the markdown text.
-  void _applyCellEdit(_MarkdownBlock tableBlock, int rowIdx, int colIdx) {
-    final allLines = _textController.text.split('\n');
-    // Skip separator rows (lines that consist only of |, -, :, and spaces)
-    final sepRow = RegExp(r'^[\|\s\-:]+$');
-    int tableRowCounter = 0;
-    for (
-      int i = tableBlock.startLine;
-      i <= tableBlock.endLine && i < allLines.length;
-      i++
-    ) {
-      final trimmed = allLines[i].trim();
-      if (trimmed.isEmpty) continue;
-      if (sepRow.hasMatch(trimmed)) continue; // skip separator
-      if (tableRowCounter == rowIdx) {
-        final parts = allLines[i].split('|');
-        final cellPartIdx = colIdx + 1;
-        if (cellPartIdx < parts.length) {
-          parts[cellPartIdx] = ' ${_inlineEditController.text} ';
-          allLines[i] = parts.join('|');
-        }
-        break;
-      }
-      tableRowCounter++;
-    }
-    final newText = allLines.join('\n');
-    if (newText != _textController.text) {
-      final rowLine = (tableBlock.startLine + rowIdx).clamp(0, allLines.length - 1);
-      final lineStart = allLines
-          .take(rowLine)
-          .fold<int>(0, (sum, line) => sum + line.length + 1);
-      final caret = TextSelection.collapsed(
-        offset: (lineStart + _inlineEditController.text.length)
-            .clamp(0, newText.length)
-            .toInt(),
-      );
-      _applyMainTextWithSelection(newText, caret);
-      setState(() => _isModified = true);
-    }
-  }
-
-  /// Apply the block editor result back into the full document.
-  void _applyBlockEdit(int blockIndex, List<_MarkdownBlock> blocks) {
-    if (blockIndex >= blocks.length) return;
-    final block = blocks[blockIndex];
-    final lines = _textController.text.split('\n');
-    final editedText = _inlineEditController.text;
-    // If user cleared the line, delete it
-    final editedLines = editedText.trim().isEmpty
-        ? <String>[]
-        : editedText.split('\n');
-    final newLines = <String>[
-      ...lines.sublist(0, block.startLine),
-      ...editedLines,
-      if (block.endLine + 1 < lines.length) ...lines.sublist(block.endLine + 1),
-    ];
-    final newText = newLines.join('\n');
-    if (newText != _textController.text) {
-      final caretOffset = newLines
-          .take(block.startLine + editedLines.length)
-          .join('\n')
-          .length
-          .clamp(0, newText.length)
-          .toInt();
-      _applyMainTextWithSelection(
-        newText,
-        TextSelection.collapsed(offset: caretOffset),
-      );
-      setState(() => _isModified = true);
-    }
+  void _handleMilkdownContentChange(String markdown) {
+    if (markdown == _textController.text) return;
+    _textController.removeListener(_onTextChanged);
+    _textController.text = markdown;
+    _textController.addListener(_onTextChanged);
+    _onTextChanged();
   }
 
   /// Parse markdown text into logical blocks for inline editing.
-  /// Code blocks, tables, and blockquotes are grouped as multi-line blocks.
+  /// Code blocks, tables, blockquotes, and nested list continuations are grouped.
   /// All other lines are individual blocks.
   List<_MarkdownBlock> _parseBlocks(String text) {
     final lines = text.split('\n');
@@ -1038,6 +843,36 @@ class _EditorScreenState extends State<EditorScreen>
         continue;
       }
 
+      // Nested list/continuation block:
+      // Group a list item with its indented continuation lines (including
+      // nested markers) so single-tap editing on nested markdown replaces the
+      // whole logical unit instead of only one rendered <li>/<p> fragment.
+      if (_listItemStartRegex.hasMatch(trimmed)) {
+        int end = i + 1;
+        while (end < lines.length) {
+          final next = lines[end];
+          final nextTrim = next.trim();
+          if (nextTrim.isEmpty) {
+            end++;
+            continue;
+          }
+          final isIndented = _indentedContentRegex.hasMatch(next);
+          final isNestedListMarker = _nestedListMarkerRegex.hasMatch(next);
+          if (!isIndented && !isNestedListMarker) break;
+          end++;
+        }
+        blocks.add(
+          _MarkdownBlock(
+            startLine: i,
+            endLine: end - 1,
+            content: lines.sublist(i, end).join('\n'),
+            isMultiLine: end > i + 1,
+          ),
+        );
+        i = end;
+        continue;
+      }
+
       // Single line
       blocks.add(
         _MarkdownBlock(
@@ -1092,47 +927,63 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  /// Return the background and foreground colors for the active theme scheme.
-  ({Color bg, Color fg}) _themeSchemeColors(SettingsProvider settings) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (isDark) {
-      final schemes = AppConstants.darkThemeSchemes;
-      final idx = settings.darkThemeIndex.clamp(0, schemes.length - 1);
-      final s = schemes[idx];
-      return (bg: s.background, fg: s.text);
-    } else {
-      final schemes = AppConstants.lightThemeSchemes;
-      final idx = settings.lightThemeIndex.clamp(0, schemes.length - 1);
-      final s = schemes[idx];
-      return (bg: s.background, fg: s.text);
-    }
-  }
-
   /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = _themeSchemeColors(settings);
-    final safeBottom = MediaQuery.of(context).padding.bottom;
-    return WebViewMarkdownPreview(
-      data: _textController.text,
-      isDark: isDark,
+    return MilkdownWebViewEditor(
+      initialMarkdown: _textController.text,
+      readOnly: false,
       fontSize: settings.fontSize,
-      fontFamily: settings.editorFontFamily == 'System'
+      bodyFont: settings.editorFontFamily == 'System'
           ? null
           : settings.editorFontFamily,
-      bgColor: colors.bg,
-      fgColor: colors.fg,
-      codeFont: settings.codeFontFamily == 'System'
+      monoFont: settings.codeFontFamily == 'System'
           ? null
           : settings.codeFontFamily,
       baseDirectory: File(widget.filePath).parent.path,
-      onTapLink: _handleLinkTap,
-      onCheckboxChanged: _toggleCheckbox,
-      onGetMarkdown: _handleGetMarkdown,
-      onInPlaceEdit: _applyInPlaceEdit,
+      onContentChange: _handleMilkdownContentChange,
+      onOutlineUpdate: _handleOutlineUpdate,
+      onLinkClick: (payload) =>
+          _handleLinkTap(payload.text ?? '', payload.href, payload.title ?? ''),
+      onCheckboxToggle: _toggleCheckbox,
+      onBridgeMessage: _handleMilkdownBridgeMessage,
       controller: _previewWebViewController,
-      bottomPadding: safeBottom,
+    );
+  }
+
+  void _handleMilkdownBridgeMessage(Map<String, dynamic> map) {
+    final type = map['type']?.toString();
+    final settings = context.read<SettingsProvider>();
+    if (settings.debugEnabled) {
+      settings.appendDebugLog('bridge<$type>: $map');
+    }
+    if (type == 'on_render_complete' && settings.debugEnabled) {
+      _requestCodeBlockLanguageProbe();
+      return;
+    }
+    if (type == 'on_debug_report') {
+      final payload = map['payload'];
+      settings.appendDebugLog('debug_report: $payload');
+      return;
+    }
+    if (type != 'on_editor_focus') return;
+    final payload = map['payload'];
+    if (payload is! Map) return;
+    final focused = payload['focused'] == true;
+    if (!mounted || focused == _isMilkdownEditorFocused) return;
+    setState(() => _isMilkdownEditorFocused = focused);
+  }
+
+  Future<void> _requestCodeBlockLanguageProbe() async {
+    final now = DateTime.now();
+    final last = _lastDebugProbeAt;
+    if (last != null && now.difference(last).inMilliseconds < 900) {
+      return;
+    }
+    _lastDebugProbeAt = now;
+    await _previewWebViewController.execCmd(
+      'debug_codeblock_language_report',
+      args: {'source': 'editor_screen'},
     );
   }
 
@@ -1145,13 +996,19 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final shouldInterceptForMilkdownBlur =
+        _mode == EditorMode.preview && _isMilkdownEditorFocused;
     return PopScope(
-      canPop: !_isModified,
+      canPop: !_isModified && !shouldInterceptForMilkdownBlur,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
           // Clear the WebView platform surface immediately so the native view
           // doesn't linger as a ghost during the route-pop animation.
           if (mounted) setState(() => _hidePlatformViews = true);
+          return;
+        }
+        if (shouldInterceptForMilkdownBlur) {
+          await _previewWebViewController.execCmd('blur_editor');
           return;
         }
         if (!didPop) {
@@ -1163,7 +1020,7 @@ class _EditorScreenState extends State<EditorScreen>
         }
       },
       child: Scaffold(
-        resizeToAvoidBottomInset: true,
+        resizeToAvoidBottomInset: false,
         body: CallbackShortcuts(
           bindings: _buildShortcutBindings(),
           child: Stack(
@@ -1189,6 +1046,7 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildBody() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final settings = context.watch<SettingsProvider>();
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
       decoration: BoxDecoration(
@@ -1229,13 +1087,21 @@ class _EditorScreenState extends State<EditorScreen>
                   child: Stack(
                     children: [
                       Positioned.fill(child: _buildContent()),
+                      if (_showSearchBar)
+                        Positioned(
+                          top: 10,
+                          left: 12,
+                          right: 12,
+                          child: _buildInlineSearch(),
+                        ),
                       // Toolbar floats at the bottom of the content area
                       if (!_isLoading &&
                           _error == null &&
                           (_mode != EditorMode.preview ||
-                              _editingBlockIndex != null))
+                              _editingBlockIndex != null ||
+                              _isMilkdownEditorFocused))
                         Positioned(
-                          bottom: 0,
+                          bottom: keyboardInset,
                           left: 0,
                           right: 0,
                           child: MarkdownToolbar(
@@ -1249,12 +1115,22 @@ class _EditorScreenState extends State<EditorScreen>
                                 ? _historyIndex > 0
                                 : null,
                             canRedo: _editingBlockIndex != null
-                                ? (_historyIndex >= 0 && _historyIndex < _editHistory.length - 1)
+                                ? (_historyIndex >= 0 &&
+                                      _historyIndex < _editHistory.length - 1)
                                 : null,
-                            onUndo: _editingBlockIndex != null ? _undoEditHistory : null,
-                            onRedo: _editingBlockIndex != null ? _redoEditHistory : null,
+                            onUndo: _editingBlockIndex != null
+                                ? _undoEditHistory
+                                : null,
+                            onRedo: _editingBlockIndex != null
+                                ? _redoEditHistory
+                                : null,
                             filePath: widget.filePath,
-                            onSearchPressed: _showSearchDialog,
+                            onSearchPressed: _showInlineSearch,
+                            onAction:
+                                _mode == EditorMode.preview &&
+                                    _editingBlockIndex == null
+                                ? _handlePreviewToolbarAction
+                                : null,
                           ),
                         ),
                     ],
@@ -1291,6 +1167,171 @@ class _EditorScreenState extends State<EditorScreen>
     }).length;
     final words = text.split(_wordSplitRegex).where((w) => w.isNotEmpty).length;
     return '$chars 字符 · $glyphs 文字 · $words 单词';
+  }
+
+  Widget _buildInlineSearch() {
+    if (!_showSearchBar) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final appStyle = theme.extension<AppStyleTheme>()!;
+    final displayMatches = _searchMatches.take(5).toList(growable: false);
+    final showCandidates =
+        _showSearchCandidates && _searchController.text.trim().isNotEmpty;
+
+    return Material(
+      color: Colors.transparent,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: appStyle.scaledSurfaceColor(
+                theme.colorScheme,
+                alpha: 0.98,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              ),
+            ),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              autofocus: true,
+              onChanged: _performInlineSearch,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: '搜索内容...',
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  tooltip: '关闭搜索',
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    if (_searchController.text.isNotEmpty) {
+                      _searchController.clear();
+                      _performInlineSearch('');
+                      _searchFocusNode.requestFocus();
+                      return;
+                    }
+                    _searchFocusNode.unfocus();
+                    setState(() {
+                      _showSearchBar = false;
+                      _searchMatches = const [];
+                      _activeSearchMatchIndex = -1;
+                      _showSearchCandidates = false;
+                    });
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: appStyle.scaledSurfaceColor(
+                theme.colorScheme,
+                alpha: 0.95,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _searchMatches.isEmpty
+                        ? '未找到匹配'
+                        : '${_activeSearchMatchIndex + 1}/${_searchMatches.length}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                IconButton(
+                  tooltip: '上一个',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _searchMatches.isEmpty
+                      ? null
+                      : _jumpToPrevSearchMatch,
+                  icon: const Icon(Icons.keyboard_arrow_up),
+                ),
+                IconButton(
+                  tooltip: '下一个',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _searchMatches.isEmpty
+                      ? null
+                      : _jumpToNextSearchMatch,
+                  icon: const Icon(Icons.keyboard_arrow_down),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: showCandidates
+                  ? Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      decoration: BoxDecoration(
+                        color: appStyle.scaledSurfaceColor(
+                          theme.colorScheme,
+                          alpha: 0.98,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.2,
+                          ),
+                        ),
+                      ),
+                      child: AnimatedOpacity(
+                        opacity: 1,
+                        duration: const Duration(milliseconds: 120),
+                        child: displayMatches.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Text(
+                                  '未找到匹配内容',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.outline,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: displayMatches.length,
+                                itemBuilder: (context, index) {
+                                  final match = displayMatches[index];
+                                  return _buildSearchCandidateTile(match);
+                                },
+                              ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchCandidateTile(_SearchMatch match) {
+    final isActive = match.occurrence == _activeSearchMatchIndex;
+    return ListTile(
+      dense: true,
+      selected: isActive,
+      title: Text(match.preview, maxLines: 1, overflow: TextOverflow.ellipsis),
+      onTap: () => _jumpToSearchMatch(match),
+    );
   }
 
   Widget _buildContent() {
@@ -1374,6 +1415,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Widget _buildEditor() {
     final settings = context.watch<SettingsProvider>();
+    final editorBackground = _buildEditorBackgroundLayer(settings);
 
     switch (_mode) {
       case EditorMode.edit:
@@ -1381,59 +1423,32 @@ class _EditorScreenState extends State<EditorScreen>
         // are visible on the WebView (platform view).
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: _buildEditPanel(settings, toolbarPadding: 56),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (editorBackground != null) editorBackground,
+              Container(
+                color: editorBackground == null
+                    ? Theme.of(context).colorScheme.surface
+                    : Colors.transparent,
+                child: _buildEditPanel(settings, toolbarPadding: 56),
+              ),
+            ],
           ),
         );
       case EditorMode.preview:
         // Top rounded corners at AppBar junction.
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: _buildInlineEditablePreview(settings),
-          ),
-        );
-      case EditorMode.split:
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Row(
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).dividerColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: _buildEditPanel(settings),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).dividerColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: _buildPreviewPanel(settings),
-                  ),
-                ),
+              if (editorBackground != null) editorBackground,
+              Container(
+                color: editorBackground == null
+                    ? Theme.of(context).colorScheme.surface
+                    : Colors.transparent,
+                child: _buildInlineEditablePreview(settings),
               ),
             ],
           ),
@@ -1441,35 +1456,88 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  /// Floating action buttons that stay as fixed as possible at the
-  /// bottom-right corner of the screen. The viewInsets compensation formula
-  /// minimises vertical movement when the keyboard appears/disappears.
+  Widget? _buildEditorBackgroundLayer(SettingsProvider settings) {
+    final path = settings.editorBackgroundImagePath;
+    if (path == null) return null;
+    final file = File(path);
+    if (!file.existsSync()) return null;
+
+    Widget imageLayer = Image.file(
+      file,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+
+    final brightness = settings.editorBackgroundBrightness;
+    // Skip ColorFiltered when brightness is effectively neutral (1.0),
+    // avoiding unnecessary compositing overhead at the default value.
+    if ((brightness - 1.0).abs() > 0.001) {
+      imageLayer = ColorFiltered(
+        colorFilter: ColorFilter.matrix([
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+        ]),
+        child: imageLayer,
+      );
+    }
+
+    if (settings.editorBackgroundBlurEnabled) {
+      imageLayer = ImageFiltered(
+        imageFilter: ImageFilter.blur(
+          sigmaX: settings.editorBackgroundBlur,
+          sigmaY: settings.editorBackgroundBlur,
+        ),
+        child: imageLayer,
+      );
+    }
+
+    return imageLayer;
+  }
+
+  /// Floating action buttons that stay anchored above keyboard/toolbars.
   Widget _buildFixedFloatingButtons() {
     final viewInsets = MediaQuery.of(context).viewInsets.bottom;
     final safeBottom = MediaQuery.of(context).padding.bottom;
 
     switch (_mode) {
       case EditorMode.edit:
-        // Keep button above the 56 px toolbar + 16 px gap.
-        // Compensate for body shrinkage so the button stays as close as
-        // possible to its natural position on screen.
-        final editBottom = math.max(
-          56.0 + 16.0,
-          safeBottom + 56.0 + 16.0 - viewInsets,
-        );
+        // Keep button above keyboard + 56 px toolbar + 16 px gap.
+        final editBottom = safeBottom + 56.0 + 16.0 + viewInsets;
         return Positioned(
           right: 24,
           bottom: editBottom,
           child: _AnimatedFAB(
             icon: Icons.visibility,
             color: Theme.of(context).colorScheme.primary,
-            onTap: () => setState(() => _mode = EditorMode.preview),
+            onTap: () => setState(() {
+              _mode = EditorMode.preview;
+              _isMilkdownEditorFocused = false;
+            }),
           ),
         );
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
-        // Keep buttons at a fixed visual position from the screen bottom.
-        final previewBottom = math.max(8.0, safeBottom + 24.0 - viewInsets);
+        // Keep buttons above keyboard.
+        final previewBottom = safeBottom + 24.0 + viewInsets;
         return Positioned(
           right: 24,
           bottom: previewBottom,
@@ -1479,7 +1547,10 @@ class _EditorScreenState extends State<EditorScreen>
               _AnimatedFAB(
                 icon: Icons.edit,
                 color: Theme.of(context).colorScheme.tertiary,
-                onTap: () => setState(() => _mode = EditorMode.edit),
+                onTap: () => setState(() {
+                  _mode = EditorMode.edit;
+                  _isMilkdownEditorFocused = false;
+                }),
               ),
               const SizedBox(height: 12),
               _AnimatedFAB(
@@ -1496,8 +1567,6 @@ class _EditorScreenState extends State<EditorScreen>
             ],
           ),
         );
-      case EditorMode.split:
-        return const SizedBox.shrink();
     }
   }
 
@@ -1568,108 +1637,87 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  /// Build the WebView-based preview panel for EditorMode.split.
-  Widget _buildPreviewPanel(SettingsProvider settings) {
-    if (_hidePlatformViews) return const SizedBox.expand();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final colors = _themeSchemeColors(settings);
-    return WebViewMarkdownPreview(
-      data: _textController.text,
-      isDark: isDark,
-      fontSize: settings.fontSize,
-      fontFamily: settings.editorFontFamily == 'System'
-          ? null
-          : settings.editorFontFamily,
-      bgColor: colors.bg,
-      fgColor: colors.fg,
-      codeFont: settings.codeFontFamily == 'System'
-          ? null
-          : settings.codeFontFamily,
-      baseDirectory: File(widget.filePath).parent.path,
-      onTapLink: _handleLinkTap,
-      onCheckboxChanged: _toggleCheckbox,
-      onGetMarkdown: _handleGetMarkdown,
-      onInPlaceEdit: _applyInPlaceEdit,
-      controller: _previewWebViewController,
-    );
+  Future<void> _handlePreviewToolbarAction(MarkdownToolbarAction action) async {
+    if (_mode != EditorMode.preview || _editingBlockIndex != null) return;
+    if (action == MarkdownToolbarAction.search) {
+      _showInlineSearch();
+      return;
+    }
+
+    String? cmd;
+    Map<String, dynamic>? args;
+    switch (action) {
+      case MarkdownToolbarAction.undo:
+        cmd = 'undo';
+        break;
+      case MarkdownToolbarAction.redo:
+        cmd = 'redo';
+        break;
+      case MarkdownToolbarAction.bold:
+        cmd = 'toggle_bold';
+        break;
+      case MarkdownToolbarAction.italic:
+        cmd = 'toggle_italic';
+        break;
+      case MarkdownToolbarAction.strikethrough:
+        cmd = 'toggle_strikethrough';
+        break;
+      case MarkdownToolbarAction.heading1:
+        cmd = 'set_heading';
+        args = {'level': 1};
+        break;
+      case MarkdownToolbarAction.heading2:
+        cmd = 'set_heading';
+        args = {'level': 2};
+        break;
+      case MarkdownToolbarAction.heading3:
+        cmd = 'set_heading';
+        args = {'level': 3};
+        break;
+      case MarkdownToolbarAction.bulletList:
+        cmd = 'toggle_bullet_list';
+        break;
+      case MarkdownToolbarAction.orderedList:
+        cmd = 'toggle_ordered_list';
+        break;
+      case MarkdownToolbarAction.taskList:
+        cmd = 'toggle_bullet_list';
+        break;
+      case MarkdownToolbarAction.blockquote:
+        cmd = 'toggle_blockquote';
+        break;
+      case MarkdownToolbarAction.inlineCode:
+        cmd = 'toggle_inline_code';
+        break;
+      case MarkdownToolbarAction.codeBlock:
+        cmd = 'insert_code_block';
+        break;
+      case MarkdownToolbarAction.link:
+        cmd = 'toggle_link';
+        break;
+      case MarkdownToolbarAction.image:
+        cmd = 'insert_image_prompt';
+        break;
+      case MarkdownToolbarAction.horizontalRule:
+        cmd = 'insert_hr';
+        break;
+      case MarkdownToolbarAction.table:
+        cmd = 'insert_table';
+        break;
+      case MarkdownToolbarAction.search:
+        break;
+    }
+
+    if (cmd == null) return;
+    await _previewWebViewController.focusEditor();
+    await _previewWebViewController.execCmd(cmd, args: args);
   }
 
   Map<ShortcutActivator, VoidCallback> _buildShortcutBindings() {
-    final bindings = <ShortcutActivator, VoidCallback>{};
-    final pluginProvider = context.read<PluginProvider>();
-
-    for (final ext in pluginProvider.getShortcutExtensions()) {
-      if (ext.logicalKeys.isEmpty) continue;
-
-      final triggerKey = ext.logicalKeys.last;
-      final hasControl =
-          ext.logicalKeys.contains(LogicalKeyboardKey.control) ||
-          ext.logicalKeys.contains(LogicalKeyboardKey.meta);
-      final hasShift = ext.logicalKeys.contains(LogicalKeyboardKey.shift);
-      final hasAlt = ext.logicalKeys.contains(LogicalKeyboardKey.alt);
-
-      final activator = SingleActivator(
-        triggerKey,
-        control: hasControl,
-        shift: hasShift,
-        alt: hasAlt,
-      );
-
-      bindings[activator] = () {
-        _handlePluginShortcut(ext);
-      };
-    }
-
-    return bindings;
-  }
-
-  void _handlePluginShortcut(PluginShortcutExtension ext) {
-    debugPrint('Triggered shortcut: ${ext.shortcutId}');
-    switch (ext.actionType) {
-      case ShortcutActionType.insertText:
-        final text = ext.actionParams['text'] as String?;
-        if (text != null) {
-          final selection = _textController.selection;
-          final newText = _textController.text.replaceRange(
-            selection.start,
-            selection.end,
-            text,
-          );
-          _textController.value = TextEditingValue(
-            text: newText,
-            selection: TextSelection.collapsed(
-              offset: selection.start + text.length,
-            ),
-          );
-          _onTextChanged();
-        }
-        break;
-      case ShortcutActionType.toggleMode:
-        final modeStr = ext.actionParams['mode'] as String?;
-        if (modeStr == 'preview') {
-          setState(
-            () => _mode = _mode == EditorMode.preview
-                ? EditorMode.edit
-                : EditorMode.preview,
-          );
-        } else if (modeStr == 'split') {
-          setState(
-            () => _mode = _mode == EditorMode.split
-                ? EditorMode.edit
-                : EditorMode.split,
-          );
-        }
-        break;
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('插件快捷键: ${ext.description} (未实现)')),
-        );
-    }
+    return <ShortcutActivator, VoidCallback>{};
   }
 
   void _showMoreMenu() {
-    final pluginProvider = context.read<PluginProvider>();
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1698,7 +1746,7 @@ class _EditorScreenState extends State<EditorScreen>
               title: const Text('搜索'),
               onTap: () {
                 Navigator.pop(context);
-                _showSearchDialog();
+                _showInlineSearch();
               },
             ),
             ListTile(
@@ -1726,19 +1774,6 @@ class _EditorScreenState extends State<EditorScreen>
                 );
               },
             ),
-            ...pluginProvider.getExportExtensions().map((ext) {
-              return ListTile(
-                leading: const Icon(Icons.extension),
-                title: Text('导出为 ${ext.formatName}'),
-                subtitle: Text(ext.formatId),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('插件导出: ${ext.formatName} (待实现)')),
-                  );
-                },
-              );
-            }),
             const SizedBox(height: 16),
           ],
         ),

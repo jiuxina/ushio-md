@@ -26,11 +26,19 @@ class AppearanceSettingsScreen extends StatefulWidget {
 class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   List<CustomFontInfo> _customFonts = [];
   bool _loadingFonts = true;
+  late final TextEditingController _homeTitleController;
 
   @override
   void initState() {
     super.initState();
+    _homeTitleController = TextEditingController();
     _loadCustomFonts();
+  }
+
+  @override
+  void dispose() {
+    _homeTitleController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCustomFonts() async {
@@ -58,6 +66,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         ),
         body: Consumer<SettingsProvider>(
           builder: (context, settings, child) {
+            final homeTitleText = settings.homeTitleText;
+            if (_homeTitleController.text != homeTitleText) {
+              _homeTitleController.value = TextEditingValue(
+                text: homeTitleText,
+                selection: TextSelection.collapsed(
+                  offset: homeTitleText.length,
+                ),
+              );
+            }
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
@@ -75,6 +92,11 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 _buildSection('按钮风格', Icons.smart_button_outlined, [
                   _buildButtonStyleSelector(settings),
+                ]),
+                const SizedBox(height: 16),
+
+                _buildSection('卡片透明度', Icons.opacity_rounded, [
+                  _buildCardOpacitySlider(settings),
                 ]),
 
                 // 浅色主题方案（仅在浅色模式下显示）
@@ -107,6 +129,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 const SizedBox(height: 16),
 
+                _buildSection('编辑器背景图片', Icons.wallpaper, [
+                  _buildEditorBackgroundSettings(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
                 _buildSection('粒子效果', Icons.auto_awesome, [
                   _buildParticleSettings(settings),
                 ]),
@@ -125,6 +153,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 const SizedBox(height: 16),
 
+                _buildSection('主页标题', Icons.title_rounded, [
+                  _buildHomeTitleTextField(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
                 _buildSection('底部导航栏', Icons.tab_rounded, [
                   _buildTabBarOpacitySlider(settings),
                 ]),
@@ -133,6 +167,31 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildCardOpacitySlider(SettingsProvider settings) {
+    return Row(
+      children: [
+        const Text('透明度'),
+        Expanded(
+          child: Slider(
+            value: settings.cardOpacity,
+            min: 0.4,
+            max: 1.0,
+            divisions: 12,
+            label: '${(settings.cardOpacity * 100).round()}%',
+            onChanged: (value) => settings.setCardOpacity(value),
+          ),
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(
+            '${(settings.cardOpacity * 100).round()}%',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
     );
   }
 
@@ -166,7 +225,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: _appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
+        color: _appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -702,6 +761,26 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text('亮度'),
+              Expanded(
+                child: Slider(
+                  value: settings.backgroundBrightness,
+                  min: 0.2,
+                  max: 1.8,
+                  divisions: 32,
+                  label: '${(settings.backgroundBrightness * 100).round()}%',
+                  onChanged: (value) =>
+                      settings.updateBackgroundBrightnessInMemory(value),
+                  onChangeEnd: (value) =>
+                      settings.setBackgroundBrightness(value),
+                ),
+              ),
+              Text('${(settings.backgroundBrightness * 100).round()}%'),
+            ],
+          ),
           // 模糊强度滑块
           if (settings.backgroundEffect == 'blur') ...[
             const SizedBox(height: 8),
@@ -726,6 +805,108 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           // 移除背景按钮
           TextButton.icon(
             onPressed: () => settings.setBackgroundImage(null),
+            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+            label: const Text('移除背景', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildEditorBackgroundSettings(SettingsProvider settings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('编辑器背景图片'),
+            TextButton.icon(
+              onPressed: () => _pickEditorBackgroundImage(settings),
+              icon: const Icon(Icons.image, size: 18),
+              label: const Text('选择'),
+            ),
+          ],
+        ),
+        if (settings.editorBackgroundImagePath != null) ...[
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(settings.editorBackgroundImagePath!),
+              height: 100,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(child: Text('图片加载失败')),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('模糊效果'),
+              Switch(
+                value: settings.editorBackgroundBlurEnabled,
+                onChanged: (value) {
+                  settings.setEditorBackgroundBlurEnabled(value);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text('亮度'),
+              Expanded(
+                child: Slider(
+                  value: settings.editorBackgroundBrightness,
+                  min: 0.2,
+                  max: 1.8,
+                  divisions: 32,
+                  label:
+                      '${(settings.editorBackgroundBrightness * 100).round()}%',
+                  onChanged: (value) =>
+                      settings.updateEditorBackgroundBrightnessInMemory(value),
+                  onChangeEnd: (value) =>
+                      settings.setEditorBackgroundBrightness(value),
+                ),
+              ),
+              Text('${(settings.editorBackgroundBrightness * 100).round()}%'),
+            ],
+          ),
+          if (settings.editorBackgroundBlurEnabled) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('模糊强度'),
+                Expanded(
+                  child: Slider(
+                    value: settings.editorBackgroundBlur,
+                    min: 0,
+                    max: 100,
+                    divisions: 100,
+                    label: settings.editorBackgroundBlur.round().toString(),
+                    onChanged: (value) => settings.setEditorBackgroundBlur(value),
+                  ),
+                ),
+                Text('${settings.editorBackgroundBlur.round()}'),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () => settings.setEditorBackgroundImage(null),
             icon: const Icon(Icons.delete, color: Colors.red, size: 18),
             label: const Text('移除背景', style: TextStyle(color: Colors.red)),
           ),
@@ -894,6 +1075,20 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       final path = result.files.first.path;
       if (path != null) {
         settings.setBackgroundImage(path);
+      }
+    }
+  }
+
+  Future<void> _pickEditorBackgroundImage(SettingsProvider settings) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.isNotEmpty) {
+      final path = result.files.first.path;
+      if (path != null) {
+        settings.setEditorBackgroundImage(path);
       }
     }
   }
@@ -1280,5 +1475,53 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         await settings.setHomeIconMode('custom');
       }
     }
+  }
+
+  Widget _buildHomeTitleTextField(SettingsProvider settings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '自定义首页左上角文字，留空时会恢复为默认“汐”。',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _homeTitleController,
+                maxLength: 12,
+                decoration: const InputDecoration(
+                  labelText: '首页标题',
+                  hintText: '汐',
+                  counterText: '',
+                ),
+                onSubmitted: settings.setHomeTitleText,
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () => settings.setHomeTitleText(
+                _homeTitleController.text,
+              ),
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () {
+              _homeTitleController.text = '汐';
+              settings.setHomeTitleText('汐');
+            },
+            child: const Text('恢复默认'),
+          ),
+        ),
+      ],
+    );
   }
 }

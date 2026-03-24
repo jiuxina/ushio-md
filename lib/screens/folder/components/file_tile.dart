@@ -29,6 +29,7 @@ class FileTile extends StatelessWidget {
     final isFile = entity is File;
     final name = entity.path.split(Platform.pathSeparator).last;
     final isImage = isFile && _isImage(name);
+    final isMarkdownFile = isFile && _isMarkdownDocument(name);
     final isPinned = source == FileSource.pinned;
     
     // 获取文件/文件夹信息 (日期/大小)
@@ -51,7 +52,10 @@ class FileTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: appStyle.surfaceDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7),
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.7,
+        ),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
@@ -68,11 +72,17 @@ class FileTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: () async {
             if (isFile) {
-              if (name.toLowerCase().endsWith('.md')) {
+              if (isMarkdownFile) {
                 final fileProvider = context.read<FileProvider>();
-                fileProvider.addToRecentFiles(entity.path);
+                final navigationContext =
+                    Navigator.of(context, rootNavigator: true).context;
+
+                if (source != FileSource.history) {
+                  await fileProvider.addToRecentFiles(entity.path);
+                }
+
                 await EditorNavigationHelper.openEditor(
-                  context,
+                  navigationContext,
                   entity.path,
                 );
               } else if (isImage) {
@@ -238,6 +248,13 @@ class FileTile extends StatelessWidget {
            lower.endsWith('.png') || 
            lower.endsWith('.gif') || 
            lower.endsWith('.webp');
+  }
+
+  bool _isMarkdownDocument(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.md') ||
+        lower.endsWith('.markdown') ||
+        lower.endsWith('.txt');
   }
 
   String _formatSize(int bytes) {

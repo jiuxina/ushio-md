@@ -114,6 +114,8 @@ class FolderBrowserHeader extends StatelessWidget {
   }
 
   Widget _buildSearchHeader(BuildContext context) {
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
       child: Row(
@@ -126,26 +128,38 @@ class FolderBrowserHeader extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: appStyle.surfaceDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: Theme.of(context).colorScheme.surface,
-                prominent: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
-                border: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons
+                color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
+                prominent: appStyle.useBorderlessButtons,
+                border: appStyle.useBorderlessButtons
                     ? null
                     : Border.all(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                        color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                       ),
               ),
-              child: TextField(
-                controller: searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '搜索文件...',
-                  border: InputBorder.none,
-                  icon: Icon(Icons.search),
+              child: Center(
+                child: TextField(
+                  controller: searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: '搜索文件...',
+                    border: InputBorder.none,
+                    isCollapsed: true,
+                    prefixIcon: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: colorScheme.outline,
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                  ),
+                  onChanged: onSearchChanged,
                 ),
-                onChanged: onSearchChanged,
               ),
             ),
           ),
@@ -160,31 +174,36 @@ class FolderBrowserHeader extends StatelessWidget {
     bool isActive = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onPressed,
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: isActive
-                ? colorScheme.primary.withValues(alpha: 0.1)
-                : colorScheme.surface.withValues(alpha: 0.5),
-            prominent: isActive && Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
-            border: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons
-                ? null
-                : Border.all(
-                    color: isActive
-                        ? colorScheme.primary
-                        : Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                  ),
-          ),
-          child: Icon(
-            icon, 
-            size: 20, 
-            color: isActive ? colorScheme.primary : null,
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onPressed,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: appStyle.surfaceDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: isActive
+                  ? colorScheme.primary.withValues(alpha: 0.1)
+                  : appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
+              prominent: isActive && appStyle.useBorderlessButtons,
+              border: appStyle.useBorderlessButtons
+                  ? null
+                  : Border.all(
+                      color: isActive
+                          ? colorScheme.primary
+                          : Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                    ),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: isActive ? colorScheme.primary : null,
+            ),
           ),
         ),
       ),
@@ -192,19 +211,27 @@ class FolderBrowserHeader extends StatelessWidget {
   }
 
   Widget _buildSortButton(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _showSortMenu(context),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.5),
-            prominent: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
+    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showSortMenu(context),
+          child: Container(
+            alignment: Alignment.center,
+            decoration: appStyle.surfaceDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: appStyle.scaledSurfaceColor(
+                Theme.of(context).colorScheme,
+                alpha: 0.5,
+              ),
+              prominent: appStyle.useBorderlessButtons,
+            ),
+            child: const Icon(Icons.sort, size: 20),
           ),
-          child: const Icon(Icons.sort, size: 20),
         ),
       ),
     );
