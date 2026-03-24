@@ -1323,6 +1323,9 @@ const createEditor = async () => {
 app.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    blurEditorFocus();
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1388,8 +1391,7 @@ app.addEventListener('mousedown', (event) => {
 app.addEventListener('touchstart', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
-    event.preventDefault();
-    event.stopPropagation();
+    editorTouchScrollSuppressUntil = Date.now() + 900;
     return;
   }
   if (!target?.matches('input[type="checkbox"], input[type="checkbox"] *')) return;
@@ -1413,8 +1415,11 @@ const isImageInteractionTarget = (target) => Boolean(
 app.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
-    event.preventDefault();
-    event.stopPropagation();
+    editorTouchScrollSuppressUntil = Date.now() + 900;
+    if (event.pointerType && event.pointerType !== 'touch') {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     return;
   }
   const checkbox = target?.closest('input[type="checkbox"]');
@@ -1490,6 +1495,7 @@ app.addEventListener('pointerdown', (event) => {
   if (event.pointerType !== 'touch' || currentReadOnly) return;
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest('.ProseMirror')) return;
+  editorTouchScrollSuppressUntil = Date.now() + 900;
   editorTouchTracking = { x: event.clientX, y: event.clientY };
   clearMobileLongPress();
   mobileLongPressStartPoint = { x: event.clientX, y: event.clientY };
@@ -1505,7 +1511,7 @@ app.addEventListener('pointermove', (event) => {
     const dragX = Math.abs(event.clientX - editorTouchTracking.x);
     const dragY = Math.abs(event.clientY - editorTouchTracking.y);
     if (dragX > 6 || dragY > 6) {
-      editorTouchScrollSuppressUntil = Date.now() + 320;
+      editorTouchScrollSuppressUntil = Date.now() + 900;
     }
   }
   if (!mobileLongPressStartPoint) return;
@@ -1519,18 +1525,21 @@ app.addEventListener('pointermove', (event) => {
 app.addEventListener('pointerup', (event) => {
   if (event.pointerType === 'touch') {
     editorTouchTracking = null;
-    editorTouchScrollSuppressUntil = Date.now() + 180;
+    editorTouchScrollSuppressUntil = Date.now() + 520;
   }
   clearMobileLongPress();
 });
 app.addEventListener('pointercancel', (event) => {
   if (event.pointerType === 'touch') {
     editorTouchTracking = null;
-    editorTouchScrollSuppressUntil = Date.now() + 180;
+    editorTouchScrollSuppressUntil = Date.now() + 520;
   }
   clearMobileLongPress();
 });
-document.addEventListener('scroll', hideContextMenu, true);
+document.addEventListener('scroll', () => {
+  editorTouchScrollSuppressUntil = Math.max(editorTouchScrollSuppressUntil, Date.now() + 520);
+  hideContextMenu();
+}, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
 document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('selectionchange', scheduleCaretIntoUpperViewport, true);
