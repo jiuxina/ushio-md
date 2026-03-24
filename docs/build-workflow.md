@@ -28,6 +28,24 @@ The script now performs all required steps in order:
 
 If any step fails, script exits immediately with an error.
 
+## GitHub Actions (Auto ABI Release Build)
+
+Repository now includes workflow:
+
+- `.github/workflows/build-android-abi-release.yml`
+
+Triggers:
+
+- Manual trigger: `workflow_dispatch`
+- Tag trigger: push tags matching `v*` (for example `v1.4.0`)
+
+Pipeline steps are aligned with `build_abi_release.bat`:
+
+1. Build Milkdown web bundle (`npm ci` + `npm run build` in `web/milkdown`).
+2. Sync `web/milkdown/dist/index.html` to `assets/milkdown_web/index.html`.
+3. Run Flutter release pipeline (`flutter clean`, `flutter pub get`, `flutter build apk --release --split-per-abi`).
+4. Upload generated APKs from `build/app/outputs/flutter-apk/*.apk` as workflow artifacts.
+
 ## Why This Is Required
 
 Flutter runtime loads web editor from:
