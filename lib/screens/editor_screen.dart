@@ -37,7 +37,6 @@ class _MarkdownBlock {
   });
 }
 
-
 class _EditHistoryEntry {
   final String text;
   final TextSelection selection;
@@ -63,11 +62,7 @@ class EditorScreen extends StatefulWidget {
   final String filePath;
   final String? initialContent;
 
-  const EditorScreen({
-    super.key,
-    required this.filePath,
-    this.initialContent,
-  });
+  const EditorScreen({super.key, required this.filePath, this.initialContent});
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -217,7 +212,6 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_isApplyingHistory) {
       _recordHistorySnapshot();
     }
-
   }
 
   void _recordHistorySnapshot({
@@ -250,7 +244,10 @@ class _EditorScreenState extends State<EditorScreen>
     if (_editHistory.length > _maxEditHistory) {
       final overflow = _editHistory.length - _maxEditHistory;
       _editHistory.removeRange(0, overflow);
-      _historyIndex = (_historyIndex - overflow).clamp(0, _editHistory.length - 1);
+      _historyIndex = (_historyIndex - overflow).clamp(
+        0,
+        _editHistory.length - 1,
+      );
     }
     _historyIndex = _editHistory.length - 1;
     if (mounted) setState(() {});
@@ -277,7 +274,10 @@ class _EditorScreenState extends State<EditorScreen>
     _historyIndex--;
     final entry = _editHistory[_historyIndex];
     _isApplyingHistory = true;
-    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _textController.value = TextEditingValue(
+      text: entry.text,
+      selection: entry.selection,
+    );
     _isApplyingHistory = false;
     setState(() {});
   }
@@ -287,7 +287,10 @@ class _EditorScreenState extends State<EditorScreen>
     _historyIndex++;
     final entry = _editHistory[_historyIndex];
     _isApplyingHistory = true;
-    _textController.value = TextEditingValue(text: entry.text, selection: entry.selection);
+    _textController.value = TextEditingValue(
+      text: entry.text,
+      selection: entry.selection,
+    );
     _isApplyingHistory = false;
     setState(() {});
   }
@@ -295,7 +298,8 @@ class _EditorScreenState extends State<EditorScreen>
   void _handleOutlineUpdate(OnOutlineUpdatePayload payload) {
     final items = payload.outline
         .map((node) {
-          final lineNumber = int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
+          final lineNumber =
+              int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
           return TocItem(
             level: node.level,
             title: node.text,
@@ -547,12 +551,14 @@ class _EditorScreenState extends State<EditorScreen>
       final start = (index - 20).clamp(0, text.length);
       final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
       final preview = text.substring(start, end).replaceAll('\n', ' ');
-      matches.add(_SearchMatch(
-        position: index,
-        length: normalizedQuery.length,
-        preview: preview,
-        occurrence: matches.length,
-      ));
+      matches.add(
+        _SearchMatch(
+          position: index,
+          length: normalizedQuery.length,
+          preview: preview,
+          occurrence: matches.length,
+        ),
+      );
       index += normalizedQuery.length;
     }
 
@@ -581,10 +587,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (query.isNotEmpty) {
         _previewWebViewController.execCmd(
           'search_jump',
-          args: {
-            'query': query,
-            'occurrence': clamped,
-          },
+          args: {'query': query, 'occurrence': clamped},
         );
       }
       setState(() => _activeSearchMatchIndex = clamped);
@@ -598,13 +601,14 @@ class _EditorScreenState extends State<EditorScreen>
       extentOffset: position + length,
     );
 
-    final lineNumber = (_textController.text
-            .substring(0, position)
-            .split('\n')
-            .length
-            .clamp(1, 1 << 20) -
-        1)
-        .toInt();
+    final lineNumber =
+        (_textController.text
+                    .substring(0, position)
+                    .split('\n')
+                    .length
+                    .clamp(1, 1 << 20) -
+                1)
+            .toInt();
     _flashLineHighlight(lineNumber);
 
     if (_editScrollController.hasClients) {
@@ -612,10 +616,7 @@ class _EditorScreenState extends State<EditorScreen>
       const lineHeight = 24.0;
       final targetScroll = (lines.length * lineHeight - _jumpTopOffset);
       _editScrollController.jumpTo(
-        targetScroll.clamp(
-          0.0,
-          _editScrollController.position.maxScrollExtent,
-        ),
+        targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
       );
     }
 
@@ -635,7 +636,7 @@ class _EditorScreenState extends State<EditorScreen>
     final prev = _activeSearchMatchIndex < 0
         ? 0
         : (_activeSearchMatchIndex - 1 + _searchMatches.length) %
-            _searchMatches.length;
+              _searchMatches.length;
     _jumpToSearchOccurrence(prev);
   }
 
@@ -723,7 +724,8 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     // Handle local markdown file links
-    if (normalizedHref.endsWith('.md') || normalizedHref.endsWith('.markdown')) {
+    if (normalizedHref.endsWith('.md') ||
+        normalizedHref.endsWith('.markdown')) {
       // Sanitize: reject path traversal attempts
       if (!normalizedHref.contains('..')) {
         final baseDir = File(widget.filePath).parent.path;
@@ -941,11 +943,8 @@ class _EditorScreenState extends State<EditorScreen>
       baseDirectory: File(widget.filePath).parent.path,
       onContentChange: _handleMilkdownContentChange,
       onOutlineUpdate: _handleOutlineUpdate,
-      onLinkClick: (payload) => _handleLinkTap(
-        payload.text ?? '',
-        payload.href,
-        payload.title ?? '',
-      ),
+      onLinkClick: (payload) =>
+          _handleLinkTap(payload.text ?? '', payload.href, payload.title ?? ''),
       onCheckboxToggle: _toggleCheckbox,
       onBridgeMessage: _handleMilkdownBridgeMessage,
       controller: _previewWebViewController,
@@ -1116,12 +1115,22 @@ class _EditorScreenState extends State<EditorScreen>
                                 ? _historyIndex > 0
                                 : null,
                             canRedo: _editingBlockIndex != null
-                                ? (_historyIndex >= 0 && _historyIndex < _editHistory.length - 1)
+                                ? (_historyIndex >= 0 &&
+                                      _historyIndex < _editHistory.length - 1)
                                 : null,
-                            onUndo: _editingBlockIndex != null ? _undoEditHistory : null,
-                            onRedo: _editingBlockIndex != null ? _redoEditHistory : null,
+                            onUndo: _editingBlockIndex != null
+                                ? _undoEditHistory
+                                : null,
+                            onRedo: _editingBlockIndex != null
+                                ? _redoEditHistory
+                                : null,
                             filePath: widget.filePath,
                             onSearchPressed: _showInlineSearch,
+                            onAction:
+                                _mode == EditorMode.preview &&
+                                    _editingBlockIndex == null
+                                ? _handlePreviewToolbarAction
+                                : null,
                           ),
                         ),
                     ],
@@ -1201,11 +1210,11 @@ class _EditorScreenState extends State<EditorScreen>
                 suffixIcon: IconButton(
                   tooltip: '关闭搜索',
                   icon: const Icon(Icons.close),
-                onPressed: () {
-                  if (_searchController.text.isNotEmpty) {
-                    _searchController.clear();
-                    _performInlineSearch('');
-                    _searchFocusNode.requestFocus();
+                  onPressed: () {
+                    if (_searchController.text.isNotEmpty) {
+                      _searchController.clear();
+                      _performInlineSearch('');
+                      _searchFocusNode.requestFocus();
                       return;
                     }
                     _searchFocusNode.unfocus();
@@ -1246,15 +1255,17 @@ class _EditorScreenState extends State<EditorScreen>
                 IconButton(
                   tooltip: '上一个',
                   visualDensity: VisualDensity.compact,
-                  onPressed:
-                      _searchMatches.isEmpty ? null : _jumpToPrevSearchMatch,
+                  onPressed: _searchMatches.isEmpty
+                      ? null
+                      : _jumpToPrevSearchMatch,
                   icon: const Icon(Icons.keyboard_arrow_up),
                 ),
                 IconButton(
                   tooltip: '下一个',
                   visualDensity: VisualDensity.compact,
-                  onPressed:
-                      _searchMatches.isEmpty ? null : _jumpToNextSearchMatch,
+                  onPressed: _searchMatches.isEmpty
+                      ? null
+                      : _jumpToNextSearchMatch,
                   icon: const Icon(Icons.keyboard_arrow_down),
                 ),
               ],
@@ -1277,7 +1288,9 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                       ),
                       child: AnimatedOpacity(
@@ -1316,11 +1329,7 @@ class _EditorScreenState extends State<EditorScreen>
     return ListTile(
       dense: true,
       selected: isActive,
-      title: Text(
-        match.preview,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: Text(match.preview, maxLines: 1, overflow: TextOverflow.ellipsis),
       onTap: () => _jumpToSearchMatch(match),
     );
   }
@@ -1419,7 +1428,9 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               if (editorBackground != null) editorBackground,
               Container(
-                color: editorBackground == null ? Theme.of(context).colorScheme.surface : Colors.transparent,
+                color: editorBackground == null
+                    ? Theme.of(context).colorScheme.surface
+                    : Colors.transparent,
                 child: _buildEditPanel(settings, toolbarPadding: 56),
               ),
             ],
@@ -1434,7 +1445,9 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               if (editorBackground != null) editorBackground,
               Container(
-                color: editorBackground == null ? Theme.of(context).colorScheme.surface : Colors.transparent,
+                color: editorBackground == null
+                    ? Theme.of(context).colorScheme.surface
+                    : Colors.transparent,
                 child: _buildInlineEditablePreview(settings),
               ),
             ],
@@ -1462,10 +1475,26 @@ class _EditorScreenState extends State<EditorScreen>
     if ((brightness - 1.0).abs() > 0.001) {
       imageLayer = ColorFiltered(
         colorFilter: ColorFilter.matrix([
-          brightness, 0, 0, 0, 0,
-          0, brightness, 0, 0, 0,
-          0, 0, brightness, 0, 0,
-          0, 0, 0, 1, 0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
         ]),
         child: imageLayer,
       );
@@ -1606,6 +1635,82 @@ class _EditorScreenState extends State<EditorScreen>
           ),
       ],
     );
+  }
+
+  Future<void> _handlePreviewToolbarAction(MarkdownToolbarAction action) async {
+    if (_mode != EditorMode.preview || _editingBlockIndex != null) return;
+    if (action == MarkdownToolbarAction.search) {
+      _showInlineSearch();
+      return;
+    }
+
+    String? cmd;
+    Map<String, dynamic>? args;
+    switch (action) {
+      case MarkdownToolbarAction.undo:
+        cmd = 'undo';
+        break;
+      case MarkdownToolbarAction.redo:
+        cmd = 'redo';
+        break;
+      case MarkdownToolbarAction.bold:
+        cmd = 'toggle_bold';
+        break;
+      case MarkdownToolbarAction.italic:
+        cmd = 'toggle_italic';
+        break;
+      case MarkdownToolbarAction.strikethrough:
+        cmd = 'toggle_strikethrough';
+        break;
+      case MarkdownToolbarAction.heading1:
+        cmd = 'set_heading';
+        args = {'level': 1};
+        break;
+      case MarkdownToolbarAction.heading2:
+        cmd = 'set_heading';
+        args = {'level': 2};
+        break;
+      case MarkdownToolbarAction.heading3:
+        cmd = 'set_heading';
+        args = {'level': 3};
+        break;
+      case MarkdownToolbarAction.bulletList:
+        cmd = 'toggle_bullet_list';
+        break;
+      case MarkdownToolbarAction.orderedList:
+        cmd = 'toggle_ordered_list';
+        break;
+      case MarkdownToolbarAction.taskList:
+        cmd = 'toggle_bullet_list';
+        break;
+      case MarkdownToolbarAction.blockquote:
+        cmd = 'toggle_blockquote';
+        break;
+      case MarkdownToolbarAction.inlineCode:
+        cmd = 'toggle_inline_code';
+        break;
+      case MarkdownToolbarAction.codeBlock:
+        cmd = 'insert_code_block';
+        break;
+      case MarkdownToolbarAction.link:
+        cmd = 'toggle_link';
+        break;
+      case MarkdownToolbarAction.image:
+        cmd = 'insert_image_prompt';
+        break;
+      case MarkdownToolbarAction.horizontalRule:
+        cmd = 'insert_hr';
+        break;
+      case MarkdownToolbarAction.table:
+        cmd = 'insert_table';
+        break;
+      case MarkdownToolbarAction.search:
+        break;
+    }
+
+    if (cmd == null) return;
+    await _previewWebViewController.focusEditor();
+    await _previewWebViewController.execCmd(cmd, args: args);
   }
 
   Map<ShortcutActivator, VoidCallback> _buildShortcutBindings() {
