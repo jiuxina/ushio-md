@@ -216,9 +216,13 @@ body {
 }
 
 .milkdown .milkdown-code-block .tools {
-  position: absolute;
-  right: 0;
-  bottom: -38px;
+
+  position: absolute !important;
+  left: auto !important;
+  right: 0 !important;
+  top: calc(100% + 8px) !important;
+  bottom: auto !important;
+
   display: flex;
   justify-content: flex-end;
   align-items: center;
