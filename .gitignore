@@ -122,6 +122,8 @@ unlinked_spec.ds
 coverage/
 
 # Web milkdown local artifacts
+# Keep runtime file tracked: assets/milkdown_web/index.html
+# (Flutter WebView loads this artifact directly.)
 web/milkdown/node_modules/
 web/milkdown/dist/
 
