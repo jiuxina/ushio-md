@@ -216,12 +216,12 @@ body {
 }
 
 .milkdown .milkdown-code-block .tools {
-
   position: absolute !important;
   left: auto !important;
-  right: 0 !important;
-  top: calc(100% + 8px) !important;
+  right: 12px !important;
+  top: 100% !important;
   bottom: auto !important;
+  transform: translateY(8px);
 
   display: flex;
   justify-content: flex-end;
