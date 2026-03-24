@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 /// 应用按钮风格模式。
@@ -12,16 +14,20 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   final Color outlineColor;
   final Color mutedSurface;
   final Color strongSurface;
+  final Color cardSurface;
   final List<BoxShadow> surfaceShadow;
   final List<BoxShadow> prominentShadow;
+  final double cardOpacity;
 
   const AppStyleTheme({
     required this.buttonStyleMode,
     required this.outlineColor,
     required this.mutedSurface,
     required this.strongSurface,
+    required this.cardSurface,
     required this.surfaceShadow,
     required this.prominentShadow,
+    required this.cardOpacity,
   });
 
   bool get useBorderlessButtons => buttonStyleMode == AppButtonStyleMode.softShadow;
@@ -31,8 +37,11 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     required ColorScheme colorScheme,
     required Color textSecondary,
     required AppButtonStyleMode buttonStyleMode,
+    required double cardOpacity,
   }) {
     final isDark = brightness == Brightness.dark;
+    final mutedAlpha = (cardOpacity * (isDark ? 0.82 : 0.76)).clamp(0.0, 1.0);
+    final strongAlpha = (cardOpacity * (isDark ? 0.94 : 0.90)).clamp(0.0, 1.0);
     final outlineColor = textSecondary.withValues(
       alpha: buttonStyleMode == AppButtonStyleMode.softShadow ? (isDark ? 0.0 : 0.04) : (isDark ? 0.28 : 0.16),
     );
@@ -42,14 +51,9 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     return AppStyleTheme(
       buttonStyleMode: buttonStyleMode,
       outlineColor: outlineColor,
-      mutedSurface: Color.alphaBlend(
-        colorScheme.primary.withValues(alpha: isDark ? 0.08 : 0.04),
-        colorScheme.surface,
-      ),
-      strongSurface: Color.alphaBlend(
-        Colors.white.withValues(alpha: isDark ? 0.03 : 0.7),
-        colorScheme.surface,
-      ),
+      mutedSurface: colorScheme.surface.withValues(alpha: mutedAlpha),
+      strongSurface: colorScheme.surface.withValues(alpha: strongAlpha),
+      cardSurface: colorScheme.surface.withValues(alpha: cardOpacity),
       surfaceShadow: buttonStyleMode == AppButtonStyleMode.softShadow
           ? [
               BoxShadow(
@@ -66,6 +70,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
               ),
             ]
           : const [],
+      cardOpacity: cardOpacity,
       prominentShadow: [
         BoxShadow(
           color: prominentColor,
@@ -89,6 +94,17 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     return useBorderlessButtons ? strongSurface : Colors.transparent;
   }
 
+  Color cardSurfaceColor(ColorScheme colorScheme) {
+    return cardSurface;
+  }
+
+  /// 为局部 surface 颜色提供统一的透明度缩放：
+  /// 传入的 [alpha] 会与全局卡片透明度相乘，确保“卡片透明度”全局生效。
+  Color scaledSurfaceColor(ColorScheme colorScheme, {double alpha = 1}) {
+    final effectiveAlpha = (cardOpacity * alpha).clamp(0.0, 1.0);
+    return colorScheme.surface.withValues(alpha: effectiveAlpha);
+  }
+
   BoxDecoration surfaceDecoration({
     required BorderRadius borderRadius,
     Color? color,
@@ -96,7 +112,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     Border? border,
   }) {
     return BoxDecoration(
-      color: color ?? strongSurface,
+      color: color ?? cardSurface,
       borderRadius: borderRadius,
       border: border ?? surfaceBorder(),
       boxShadow: prominent ? prominentShadow : surfaceShadow,
@@ -109,16 +125,20 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     Color? outlineColor,
     Color? mutedSurface,
     Color? strongSurface,
+    Color? cardSurface,
     List<BoxShadow>? surfaceShadow,
     List<BoxShadow>? prominentShadow,
+    double? cardOpacity,
   }) {
     return AppStyleTheme(
       buttonStyleMode: buttonStyleMode ?? this.buttonStyleMode,
       outlineColor: outlineColor ?? this.outlineColor,
       mutedSurface: mutedSurface ?? this.mutedSurface,
       strongSurface: strongSurface ?? this.strongSurface,
+      cardSurface: cardSurface ?? this.cardSurface,
       surfaceShadow: surfaceShadow ?? this.surfaceShadow,
       prominentShadow: prominentShadow ?? this.prominentShadow,
+      cardOpacity: cardOpacity ?? this.cardOpacity,
     );
   }
 
@@ -130,8 +150,10 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       outlineColor: Color.lerp(outlineColor, other.outlineColor, t) ?? outlineColor,
       mutedSurface: Color.lerp(mutedSurface, other.mutedSurface, t) ?? mutedSurface,
       strongSurface: Color.lerp(strongSurface, other.strongSurface, t) ?? strongSurface,
+      cardSurface: Color.lerp(cardSurface, other.cardSurface, t) ?? cardSurface,
       surfaceShadow: t < 0.5 ? surfaceShadow : other.surfaceShadow,
       prominentShadow: t < 0.5 ? prominentShadow : other.prominentShadow,
+      cardOpacity: lerpDouble(cardOpacity, other.cardOpacity, t) ?? cardOpacity,
     );
   }
 }

@@ -27,8 +27,6 @@ import 'package:provider/provider.dart';
 
 import 'providers/file_provider.dart';
 import 'providers/settings_provider.dart';
-import 'providers/plugin_provider.dart';
-import 'plugins/extensions/theme_extension.dart';
 import 'screens/main_screen.dart';
 import 'services/font_service.dart';
 import 'services/my_files_service.dart';
@@ -52,12 +50,8 @@ void main() async {
 
   // 加载已安装的自定义字体（包括手动下载的 Google 字体）
   await FontService.loadAllCustomFonts();
-  
-  // 初始化插件系统（加载已安装的插件）
-  final pluginProvider = PluginProvider();
-  await pluginProvider.initialize();
-  
-  runApp(MyApp(pluginProvider: pluginProvider));
+
+  runApp(const MyApp());
 }
 
 /// ============================================================================
@@ -71,9 +65,7 @@ void main() async {
 /// - 设置主题（浅色/深色）
 /// - 配置 MaterialApp
 class MyApp extends StatelessWidget {
-  final PluginProvider pluginProvider;
-  
-  const MyApp({super.key, required this.pluginProvider});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -84,39 +76,11 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FileProvider()),
         // 设置状态（主题、字体、自动保存等）
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        // 插件管理状态（已安装/已启用插件、扩展点等）- 使用预初始化的实例
-        ChangeNotifierProvider.value(value: pluginProvider),
       ],
-      child: Consumer2<SettingsProvider, PluginProvider>(
-        builder: (context, settings, pluginProvider, child) {
+      child: Consumer<SettingsProvider>(
+        builder: (context, settings, child) {
           // 获取用户选择的主题色
           Color primaryColor = settings.primaryColor;
-          
-          // 获取插件主题扩展
-          final themeExtensions = pluginProvider.getThemeExtensions();
-          ThemeColors? pluginLightColors;
-          ThemeColors? pluginDarkColors;
-          
-          // 使用最后一个启用的插件主题覆盖
-          if (themeExtensions.isNotEmpty) {
-            final ext = themeExtensions.last;
-            pluginLightColors = ext.lightColors;
-            pluginDarkColors = ext.darkColors;
-            
-            // 如果插件定义了主题色，优先使用插件的主题色
-            if (settings.themeMode == ThemeMode.light && pluginLightColors?.primary != null) {
-              primaryColor = pluginLightColors!.primary!;
-            } else if (settings.themeMode == ThemeMode.dark && pluginDarkColors?.primary != null) {
-              primaryColor = pluginDarkColors!.primary!;
-            } else if (settings.themeMode == ThemeMode.system) {
-              final brightness = MediaQuery.platformBrightnessOf(context);
-              if (brightness == Brightness.light && pluginLightColors?.primary != null) {
-                primaryColor = pluginLightColors!.primary!;
-              } else if (brightness == Brightness.dark && pluginDarkColors?.primary != null) {
-                primaryColor = pluginDarkColors!.primary!;
-              }
-            }
-          }
 
           // 获取字体设置（System 表示使用系统默认）
           final fontFamily = settings.uiFontFamily == 'System' ? null : settings.uiFontFamily;
@@ -138,8 +102,8 @@ class MyApp extends StatelessWidget {
               Locale('en', 'US'),  // 英文
             ],
             locale: settings.locale,  // 使用动态语言设置
-            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, settings.buttonStyleMode, pluginLightColors),  // 浅色主题
-            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, settings.buttonStyleMode, pluginDarkColors),  // 深色主题
+            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, settings.buttonStyleMode, settings.cardOpacity),  // 浅色主题
+            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, settings.buttonStyleMode, settings.cardOpacity),  // 深色主题
             themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
             home: const MainScreen(),  // 主页面
           );
@@ -152,26 +116,21 @@ class MyApp extends StatelessWidget {
   /// 
   /// [primaryColor] 用户选择的主题色
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
-  /// [pluginColors] 插件自定义颜色
   ThemeData _buildLightTheme(
     Color primaryColor,
     String? fontFamily,
     int lightThemeIndex,
     AppButtonStyleMode buttonStyleMode,
-    ThemeColors? pluginColors,
+    double cardOpacity,
   ) {
     final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
 
-    var colorScheme = ColorScheme.light(
+    final colorScheme = ColorScheme.light(
       primary: primaryColor,
       secondary: AppConstants.accentColor,
       surface: scheme.surface,
       error: AppConstants.errorColor,
     );
-
-    if (pluginColors != null) {
-      colorScheme = pluginColors.applyTo(colorScheme);
-    }
 
     return _buildTheme(
       brightness: Brightness.light,
@@ -181,6 +140,7 @@ class MyApp extends StatelessWidget {
       textSecondaryColor: scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
+      cardOpacity: cardOpacity,
     );
   }
 
@@ -189,26 +149,21 @@ class MyApp extends StatelessWidget {
   /// [primaryColor] 用户选择的主题色
   /// [darkThemeIndex] 夜间主题配色方案索引
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
-  /// [pluginColors] 插件自定义颜色
   ThemeData _buildDarkTheme(
     Color primaryColor,
     int darkThemeIndex,
     String? fontFamily,
     AppButtonStyleMode buttonStyleMode,
-    ThemeColors? pluginColors,
+    double cardOpacity,
   ) {
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
 
-    var colorScheme = ColorScheme.dark(
+    final colorScheme = ColorScheme.dark(
       primary: primaryColor,
       secondary: AppConstants.accentColor,
       surface: scheme.surface,
       error: AppConstants.errorColor,
     );
-
-    if (pluginColors != null) {
-      colorScheme = pluginColors.applyTo(colorScheme);
-    }
 
     return _buildTheme(
       brightness: Brightness.dark,
@@ -218,6 +173,7 @@ class MyApp extends StatelessWidget {
       textSecondaryColor: scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
+      cardOpacity: cardOpacity,
     );
   }
 
@@ -229,12 +185,18 @@ class MyApp extends StatelessWidget {
     required Color textSecondaryColor,
     required String? fontFamily,
     required AppButtonStyleMode buttonStyleMode,
+    required double cardOpacity,
   }) {
+    final effectiveColorScheme = _applyGlobalCardOpacity(
+      colorScheme,
+      cardOpacity,
+    );
     final appStyle = AppStyleTheme.resolve(
       brightness: brightness,
-      colorScheme: colorScheme,
+      colorScheme: effectiveColorScheme,
       textSecondary: textSecondaryColor,
       buttonStyleMode: buttonStyleMode,
+      cardOpacity: cardOpacity,
     );
 
     final buttonForeground = appStyle.useBorderlessButtons
@@ -242,22 +204,22 @@ class MyApp extends StatelessWidget {
         : Colors.white;
     final buttonBackground = appStyle.useBorderlessButtons
         ? appStyle.strongSurface
-        : colorScheme.primary;
+        : effectiveColorScheme.primary.withValues(alpha: appStyle.cardOpacity);
 
     ThemeData theme = ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      colorScheme: colorScheme,
+      colorScheme: effectiveColorScheme,
       scaffoldBackgroundColor: backgroundColor,
       extensions: [appStyle],
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.92),
         foregroundColor: textColor,
         elevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: colorScheme.surface,
+        color: appStyle.cardSurfaceColor(effectiveColorScheme),
         elevation: appStyle.useBorderlessButtons ? 4 : 0,
         shadowColor: Colors.black.withValues(alpha: 0.14),
         shape: RoundedRectangleBorder(
@@ -345,24 +307,26 @@ class MyApp extends StatelessWidget {
         thickness: 1,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: colorScheme.surface,
+        color: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: appStyle.useBorderlessButtons ? 0 : 8,
       ),
       dropdownMenuTheme: DropdownMenuThemeData(
         textStyle: TextStyle(color: textColor),
         menuStyle: MenuStyle(
-          backgroundColor: WidgetStatePropertyAll(colorScheme.surface),
+          backgroundColor: WidgetStatePropertyAll(
+            appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
+          ),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
@@ -373,7 +337,7 @@ class MyApp extends StatelessWidget {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: colorScheme.surface,
+        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
         contentTextStyle: TextStyle(color: textColor),
       ),
       textTheme: TextTheme(
@@ -393,6 +357,24 @@ class MyApp extends StatelessWidget {
     }
 
     return theme;
+  }
+
+  ColorScheme _applyGlobalCardOpacity(
+    ColorScheme colorScheme,
+    double cardOpacity,
+  ) {
+    Color applyOpacity(Color color) => color.withValues(alpha: cardOpacity);
+
+    return colorScheme.copyWith(
+      surface: applyOpacity(colorScheme.surface),
+      surfaceDim: applyOpacity(colorScheme.surfaceDim),
+      surfaceBright: applyOpacity(colorScheme.surfaceBright),
+      surfaceContainerLowest: applyOpacity(colorScheme.surfaceContainerLowest),
+      surfaceContainerLow: applyOpacity(colorScheme.surfaceContainerLow),
+      surfaceContainer: applyOpacity(colorScheme.surfaceContainer),
+      surfaceContainerHigh: applyOpacity(colorScheme.surfaceContainerHigh),
+      surfaceContainerHighest: applyOpacity(colorScheme.surfaceContainerHighest),
+    );
   }
 
   OutlineInputBorder _buildInputBorder(AppStyleTheme appStyle, Color color) {

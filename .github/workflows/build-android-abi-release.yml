@@ -1,0 +1,59 @@
+name: Build Android ABI Release APKs
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-android-abi-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/milkdown/package-lock.json
+
+      - name: Build Milkdown web bundle
+        working-directory: web/milkdown
+        run: |
+          npm ci
+          npm run build
+
+      - name: Sync Milkdown runtime artifact
+        run: cp web/milkdown/dist/index.html assets/milkdown_web/index.html
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter clean
+        run: flutter clean
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build release APKs (split per ABI)
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload ABI APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-abi-release-apks
+          path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error

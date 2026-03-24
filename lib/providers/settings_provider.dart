@@ -67,6 +67,12 @@ class SettingsProvider extends ChangeNotifier {
   /// 自动保存间隔（秒）
   int _autoSaveInterval = 30;
 
+  /// 调试模式开关
+  bool _debugEnabled = false;
+
+  /// 调试日志（内存环形缓冲）
+  final List<String> _debugLogs = <String>[];
+
   /// 默认目录路径
   String? _defaultDirectory;
 
@@ -81,11 +87,26 @@ class SettingsProvider extends ChangeNotifier {
   /// 背景图片路径（null 表示无背景图）
   String? _backgroundImagePath;
 
+  /// 编辑器背景图片路径（null 表示无背景图）
+  String? _editorBackgroundImagePath;
+
   /// 背景效果类型：none（无）、blur（模糊）
   String _backgroundEffect = 'none';
 
   /// 模糊效果强度（0-30）
   double _backgroundBlur = 10.0;
+
+  /// 主背景亮度（0.2-1.8，1.0 为原始亮度）
+  double _backgroundBrightness = 1.0;
+
+  /// 编辑器背景是否启用模糊
+  bool _editorBackgroundBlurEnabled = false;
+
+  /// 编辑器背景模糊强度（0-30）
+  double _editorBackgroundBlur = 10.0;
+
+  /// 编辑器背景亮度（0.2-1.8，1.0 为原始亮度）
+  double _editorBackgroundBrightness = 1.0;
 
   /// 遮罩透明度（0-1，保留但当前 UI 未使用）
   double _backgroundOverlayOpacity = 0.5;
@@ -111,6 +132,9 @@ class SettingsProvider extends ChangeNotifier {
 
   // ==================== 底栏设置 ====================
 
+  /// 卡片透明度（0.4–1.0）
+  double _cardOpacity = 0.72;
+
   /// 底部导航栏透明度（0.1–1.0）
   double _tabBarOpacity = 0.95;
 
@@ -124,6 +148,9 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 主页自定义图标路径（仅当 homeIconMode == 'custom' 时有效）
   String? _homeIconCustomPath;
+
+  /// 主页左上角标题文字
+  String _homeTitleText = '汐';
 
   // ==================== 语言设置 ====================
 
@@ -189,23 +216,32 @@ class SettingsProvider extends ChangeNotifier {
   double get fontSize => _fontSize;
   bool get autoSave => _autoSave;
   int get autoSaveInterval => _autoSaveInterval;
+  bool get debugEnabled => _debugEnabled;
+  List<String> get debugLogs => List.unmodifiable(_debugLogs);
   String? get defaultDirectory => _defaultDirectory;
   String get workspaceName => _workspaceName;
   String? get customWorkspaceBasePath => _customWorkspaceBasePath;
   int get primaryColorIndex => _primaryColorIndex;
   Color get primaryColor => themeColors[_primaryColorIndex];
   String? get backgroundImagePath => _backgroundImagePath;
+  String? get editorBackgroundImagePath => _editorBackgroundImagePath;
   String get backgroundEffect => _backgroundEffect;
   double get backgroundBlur => _backgroundBlur;
+  double get backgroundBrightness => _backgroundBrightness;
+  bool get editorBackgroundBlurEnabled => _editorBackgroundBlurEnabled;
+  double get editorBackgroundBlur => _editorBackgroundBlur;
+  double get editorBackgroundBrightness => _editorBackgroundBrightness;
   double get backgroundOverlayOpacity => _backgroundOverlayOpacity;
 
   bool get autoCheckUpdate => _autoCheckUpdate;
+  double get cardOpacity => _cardOpacity;
   double get tabBarOpacity => _tabBarOpacity;
 
   // 图标设置 Getters
   int get appIconIndex => _appIconIndex;
   String get homeIconMode => _homeIconMode;
   String? get homeIconCustomPath => _homeIconCustomPath;
+  String get homeTitleText => _homeTitleText;
 
   // 粒子效果 Getters
   bool get particleEnabled => _particleEnabled;
@@ -309,6 +345,7 @@ class SettingsProvider extends ChangeNotifier {
     _fontSize = prefs.getDouble('font_size') ?? 16.0;
     _autoSave = prefs.getBool('auto_save') ?? true;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
+    _debugEnabled = prefs.getBool('debug_enabled') ?? false;
     _defaultDirectory = prefs.getString('default_directory');
     _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
     _customWorkspaceBasePath = prefs.getString('custom_workspace_base_path') ??
@@ -316,8 +353,14 @@ class SettingsProvider extends ChangeNotifier {
 
     // 背景设置
     _backgroundImagePath = prefs.getString('background_image_path');
+    _editorBackgroundImagePath = prefs.getString('editor_background_image_path');
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
     _backgroundBlur = prefs.getDouble('background_blur') ?? 10.0;
+    _backgroundBrightness = prefs.getDouble('background_brightness') ?? 1.0;
+    _editorBackgroundBlurEnabled = prefs.getBool('editor_background_blur_enabled') ?? false;
+    _editorBackgroundBlur = prefs.getDouble('editor_background_blur') ?? 10.0;
+    _editorBackgroundBrightness =
+        prefs.getDouble('editor_background_brightness') ?? 1.0;
     _backgroundOverlayOpacity =
         prefs.getDouble('background_overlay_opacity') ?? 0.5;
 
@@ -337,12 +380,14 @@ class SettingsProvider extends ChangeNotifier {
     _autoCheckUpdate = prefs.getBool('auto_check_update') ?? true;
 
     // 底栏设置
+    _cardOpacity = prefs.getDouble('card_opacity') ?? 0.72;
     _tabBarOpacity = prefs.getDouble('tab_bar_opacity') ?? 0.95;
 
     // 图标设置
     _appIconIndex = prefs.getInt('app_icon_index') ?? 0;
     _homeIconMode = prefs.getString('home_icon_mode') ?? 'default';
     _homeIconCustomPath = prefs.getString('home_icon_custom_path');
+    _homeTitleText = prefs.getString('home_title_text') ?? '汐';
 
     // 夜间主题和字体设置
     _darkThemeIndex = prefs.getInt('dark_theme_index') ?? 0;
@@ -497,6 +542,64 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
+  /// 设置编辑器背景图片
+  ///
+  /// 将图片复制到应用私有目录，避免清理缓存后图片丢失
+  Future<void> setEditorBackgroundImage(String? path) async {
+    if (path == null) {
+      // 清除编辑器背景图片
+      if (_editorBackgroundImagePath != null) {
+        try {
+          final oldFile = File(_editorBackgroundImagePath!);
+          if (await oldFile.exists()) {
+            await oldFile.delete();
+          }
+        } catch (_) {}
+      }
+      _editorBackgroundImagePath = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('editor_background_image_path');
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final appDir = await getApplicationSupportDirectory();
+      final bgDir = Directory('${appDir.path}/editor_backgrounds');
+      if (!await bgDir.exists()) {
+        await bgDir.create(recursive: true);
+      }
+
+      final sourceFile = File(path);
+      final fileName =
+          'editor_background_${DateTime.now().millisecondsSinceEpoch}.${path.split('.').last}';
+      final destPath = '${bgDir.path}/$fileName';
+
+      await sourceFile.copy(destPath);
+
+      if (_editorBackgroundImagePath != null &&
+          _editorBackgroundImagePath != destPath) {
+        try {
+          final oldFile = File(_editorBackgroundImagePath!);
+          if (await oldFile.exists()) {
+            await oldFile.delete();
+          }
+        } catch (_) {}
+      }
+
+      _editorBackgroundImagePath = destPath;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('editor_background_image_path', destPath);
+      notifyListeners();
+    } catch (e) {
+      // 如果复制失败，直接使用原路径（回退方案）
+      _editorBackgroundImagePath = path;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('editor_background_image_path', path);
+      notifyListeners();
+    }
+  }
+
   /// 设置背景效果
   Future<void> setBackgroundEffect(String effect) async {
     _backgroundEffect = effect;
@@ -511,6 +614,50 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('background_blur', blur);
     notifyListeners();
+  }
+
+  /// 仅在内存中更新背景亮度（不持久化），用于 Slider 拖动时实时预览
+  void updateBackgroundBrightnessInMemory(double brightness) {
+    _backgroundBrightness = brightness;
+    notifyListeners();
+  }
+
+  /// 设置背景亮度（立即刷新 UI，再异步持久化）
+  Future<void> setBackgroundBrightness(double brightness) async {
+    _backgroundBrightness = brightness;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('background_brightness', brightness);
+  }
+
+  /// 设置编辑器背景模糊开关
+  Future<void> setEditorBackgroundBlurEnabled(bool enabled) async {
+    _editorBackgroundBlurEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('editor_background_blur_enabled', enabled);
+    notifyListeners();
+  }
+
+  /// 设置编辑器背景模糊强度
+  Future<void> setEditorBackgroundBlur(double blur) async {
+    _editorBackgroundBlur = blur;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('editor_background_blur', blur);
+    notifyListeners();
+  }
+
+  /// 仅在内存中更新编辑器背景亮度（不持久化），用于 Slider 拖动时实时预览
+  void updateEditorBackgroundBrightnessInMemory(double brightness) {
+    _editorBackgroundBrightness = brightness;
+    notifyListeners();
+  }
+
+  /// 设置编辑器背景亮度（立即刷新 UI，再异步持久化）
+  Future<void> setEditorBackgroundBrightness(double brightness) async {
+    _editorBackgroundBrightness = brightness;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('editor_background_brightness', brightness);
   }
 
   /// 设置遮罩透明度
@@ -581,6 +728,31 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 设置调试开关
+  Future<void> setDebugEnabled(bool value) async {
+    _debugEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('debug_enabled', value);
+    notifyListeners();
+  }
+
+  /// 追加调试日志（内存最多保留 300 条）
+  void appendDebugLog(String message) {
+    final ts = DateTime.now().toIso8601String();
+    _debugLogs.add('[$ts] $message');
+    const maxLogs = 300;
+    if (_debugLogs.length > maxLogs) {
+      _debugLogs.removeRange(0, _debugLogs.length - maxLogs);
+    }
+    notifyListeners();
+  }
+
+  /// 清空调试日志
+  void clearDebugLogs() {
+    _debugLogs.clear();
+    notifyListeners();
+  }
+
   /// 设置默认目录
   Future<void> setDefaultDirectory(String? path) async {
     _defaultDirectory = path;
@@ -633,6 +805,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 设置卡片透明度
+  Future<void> setCardOpacity(double opacity) async {
+    _cardOpacity = opacity;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('card_opacity', opacity);
+    notifyListeners();
+  }
+
   /// 设置底部导航栏透明度
   Future<void> setTabBarOpacity(double opacity) async {
     _tabBarOpacity = opacity;
@@ -668,6 +848,15 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       await prefs.remove('home_icon_custom_path');
     }
+    notifyListeners();
+  }
+
+  /// 设置主页标题文字
+  Future<void> setHomeTitleText(String text) async {
+    final normalized = text.trim().isEmpty ? '汐' : text.trim();
+    _homeTitleText = normalized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('home_title_text', normalized);
     notifyListeners();
   }
 
