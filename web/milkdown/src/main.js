@@ -81,6 +81,7 @@ let lastKeyboardInsetPx = 0;
 let lastUserScrollAt = 0;
 let editorTouchTracking = null;
 let codeLanguagePopupElement = null;
+let codeLanguagePopupBackdrop = null;
 let codeLanguagePopupInput = null;
 let codeLanguagePopupList = null;
 let codeLanguagePopupAnchor = null;
@@ -847,6 +848,9 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
 const hideCodeLanguagePopup = () => {
   if (!codeLanguagePopupElement) return;
   codeLanguagePopupElement.dataset.show = 'false';
+  if (codeLanguagePopupBackdrop) {
+    codeLanguagePopupBackdrop.dataset.show = 'false';
+  }
   codeLanguagePopupAnchor = null;
   codeLanguagePopupBlock = null;
 };
@@ -884,6 +888,14 @@ const renderCodeLanguagePopupList = (query = '') => {
 
 const ensureCodeLanguagePopup = () => {
   if (codeLanguagePopupElement) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'ushio-language-popup-backdrop';
+  backdrop.dataset.show = 'false';
+  backdrop.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    hideCodeLanguagePopup();
+  });
+
   const panel = document.createElement('div');
   panel.className = 'ushio-language-popup';
   panel.dataset.show = 'false';
@@ -918,7 +930,9 @@ const ensureCodeLanguagePopup = () => {
   list.className = 'ushio-language-popup-list';
 
   panel.append(input, list);
+  app.append(backdrop);
   app.append(panel);
+  codeLanguagePopupBackdrop = backdrop;
   codeLanguagePopupElement = panel;
   codeLanguagePopupInput = input;
   codeLanguagePopupList = list;
@@ -934,14 +948,15 @@ const showCodeLanguagePopup = (anchor, codeBlock, currentLanguage = '') => {
   codeLanguagePopupInput.value = currentLanguage || '';
   renderCodeLanguagePopupList(currentLanguage || '');
   codeLanguagePopupElement.dataset.show = 'true';
+  if (codeLanguagePopupBackdrop) {
+    codeLanguagePopupBackdrop.dataset.show = 'true';
+  }
 
-  const anchorRect = anchor.getBoundingClientRect();
-  const panelWidth = Math.min(320, Math.max(220, window.innerWidth - 16));
-  const panelLeft = Math.max(8, Math.min(anchorRect.right - panelWidth, window.innerWidth - panelWidth - 8));
-  const panelTop = Math.min(anchorRect.bottom + 8, window.innerHeight - 280);
+  const panelWidth = Math.min(520, Math.max(260, window.innerWidth - 24));
+  const panelMaxHeight = Math.min(560, Math.max(260, window.innerHeight - 48));
   codeLanguagePopupElement.style.width = `${panelWidth}px`;
-  codeLanguagePopupElement.style.left = `${panelLeft}px`;
-  codeLanguagePopupElement.style.top = `${Math.max(8, panelTop)}px`;
+  codeLanguagePopupElement.style.maxHeight = `${panelMaxHeight}px`;
+  void anchor;
 
   requestAnimationFrame(() => codeLanguagePopupInput?.focus());
 };
@@ -1022,6 +1037,30 @@ const syncRenderedDom = () => {
     tools.style.setProperty('top', 'auto', 'important');
     tools.style.setProperty('bottom', '-38px', 'important');
     tools.style.setProperty('transform', 'none', 'important');
+
+    const nativePicker = block.querySelector('.language-picker');
+    if (nativePicker instanceof HTMLElement) {
+      nativePicker.style.setProperty('display', 'none', 'important');
+      nativePicker.style.setProperty('visibility', 'hidden', 'important');
+      nativePicker.style.setProperty('opacity', '0', 'important');
+      nativePicker.style.setProperty('pointer-events', 'none', 'important');
+    }
+
+    const languageButton = block.querySelector('.tools .language-button');
+    if (!(languageButton instanceof HTMLElement)) return;
+    if (languageButton.dataset.ushioLanguageBind === '1') return;
+    languageButton.dataset.ushioLanguageBind = '1';
+
+    const openPopup = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const preLanguage = block.querySelector('pre')?.getAttribute('data-language') || '';
+      const fallbackText = (languageButton.textContent || '').trim();
+      const currentLanguage = (preLanguage || fallbackText).trim().toLowerCase();
+      showCodeLanguagePopup(languageButton, block, currentLanguage);
+    };
+    languageButton.addEventListener('mousedown', openPopup);
+    languageButton.addEventListener('click', openPopup);
   });
 
   attachHorizontalWheelScroll();
