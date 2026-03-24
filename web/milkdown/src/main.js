@@ -1009,6 +1009,21 @@ const syncRenderedDom = () => {
     applyHorizontalScrollClass(block);
   });
 
+  root.querySelectorAll('.milkdown-code-block').forEach((block) => {
+    if (!(block instanceof HTMLElement)) return;
+    block.style.setProperty('position', 'relative', 'important');
+    block.style.setProperty('overflow', 'visible', 'important');
+
+    const tools = block.querySelector(':scope > .tools, .tools');
+    if (!(tools instanceof HTMLElement)) return;
+    tools.style.setProperty('position', 'absolute', 'important');
+    tools.style.setProperty('left', 'auto', 'important');
+    tools.style.setProperty('right', '0', 'important');
+    tools.style.setProperty('top', 'auto', 'important');
+    tools.style.setProperty('bottom', '-38px', 'important');
+    tools.style.setProperty('transform', 'none', 'important');
+  });
+
   attachHorizontalWheelScroll();
 
   root.querySelectorAll('input[type="checkbox"]').forEach((checkbox, index) => {
