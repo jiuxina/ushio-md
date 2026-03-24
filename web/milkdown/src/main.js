@@ -77,6 +77,8 @@ let suppressNextCaretViewportSync = false;
 let checkboxInteractionGuardUntil = 0;
 let editorTouchScrollSuppressUntil = 0;
 let viewportScrollSuppressUntil = 0;
+let lastKeyboardInsetPx = 0;
+let lastUserScrollAt = 0;
 let editorTouchTracking = null;
 let codeLanguagePopupElement = null;
 let codeLanguagePopupInput = null;
@@ -88,6 +90,7 @@ const highlightParser = createRefractorParser(refractor);
 const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
   .filter((name) => typeof name === 'string' && /^[a-z0-9_+-]+$/i.test(name))
   .sort((a, b) => a.localeCompare(b));
+const GHOST_CODE_LANGUAGE_MARKER_RE = /^[^\s`~]{1,40}$/;
 const LOCAL_FILE_SCHEME = 'ushio-local-file';
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
@@ -178,13 +181,16 @@ const updateViewportMetrics = () => {
   if (!vv) {
     root.style.setProperty('--ushio-viewport-height', `${window.innerHeight}px`);
     root.style.setProperty('--ushio-keyboard-inset', '0px');
+    lastKeyboardInsetPx = 0;
     return;
   }
   const viewportHeight = Math.max(0, vv.height);
   const keyboardInset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
   root.style.setProperty('--ushio-viewport-height', `${viewportHeight}px`);
   root.style.setProperty('--ushio-keyboard-inset', `${keyboardInset}px`);
-  if (keyboardInset > 0) {
+  const keyboardInsetIncreased = keyboardInset > lastKeyboardInsetPx + 2;
+  lastKeyboardInsetPx = keyboardInset;
+  if (keyboardInset > 0 && keyboardInsetIncreased) {
     scheduleCaretIntoUpperViewport();
   }
 };
@@ -239,6 +245,68 @@ const parseMarkdownOutline = (markdown) => {
     }
   }
   return outline;
+};
+
+const isFenceLine = (line) => /^\s*(```|~~~)/.test((line || '').trim());
+
+const isGhostCodeLanguageLine = (line) => {
+  const token = (line || '').trim();
+  const arrowMatch = token.match(/^(.+?)[▾▼▿▽⌄˅∨]$/u);
+  if (!arrowMatch) return false;
+  const language = (arrowMatch[1] || '').trim();
+  if (!language) return false;
+  return GHOST_CODE_LANGUAGE_MARKER_RE.test(language);
+};
+
+const stripGhostCodeLanguageMarkers = (markdown) => {
+  if (typeof markdown !== 'string' || !markdown.includes('▾')) return markdown;
+  const lines = markdown.split('\n');
+  const output = [];
+  let inFence = false;
+  let changed = false;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+
+    if (isFenceLine(line)) {
+      const wasInFence = inFence;
+      inFence = !inFence;
+      output.push(line);
+
+      if (wasInFence && !inFence) {
+        let j = i + 1;
+        let sawGhost = false;
+        let sawBlank = false;
+        while (j < lines.length) {
+          const next = (lines[j] || '').trim();
+          if (!next) {
+            sawBlank = true;
+            j += 1;
+            continue;
+          }
+          if (isGhostCodeLanguageLine(next)) {
+            sawGhost = true;
+            j += 1;
+            continue;
+          }
+          break;
+        }
+
+        if (sawGhost) {
+          changed = true;
+          if (sawBlank && output[output.length - 1] !== '') {
+            output.push('');
+          }
+          i = j - 1;
+        }
+      }
+      continue;
+    }
+
+    output.push(line);
+  }
+
+  return changed ? output.join('\n') : markdown;
 };
 
 const scrollNodeToViewport = (node, topOffset = 32) => {
@@ -316,6 +384,7 @@ const scheduleCaretIntoUpperViewport = () => {
   if (Date.now() < checkboxInteractionGuardUntil) return;
   if (Date.now() < editorTouchScrollSuppressUntil) return;
   if (Date.now() < viewportScrollSuppressUntil) return;
+  if (Date.now() - lastUserScrollAt < 600) return;
   if (caretViewportSyncRafId != null) return;
   caretViewportSyncRafId = requestAnimationFrame(() => {
     caretViewportSyncRafId = null;
@@ -752,13 +821,8 @@ const setCodeBlockLanguage = (codeBlock, language) => {
 };
 
 const updateCodeLanguageButtonLabel = (codeBlock, language) => {
-  const trigger = codeBlock?.querySelector('.ushio-custom-language-trigger');
-  if (!(trigger instanceof HTMLButtonElement)) return;
-  const normalized = typeof language === 'string' ? language.trim() : '';
-  const textNode = trigger.querySelector('.ushio-language-text');
-  if (textNode instanceof HTMLElement) {
-    textNode.textContent = normalized || 'plain';
-  }
+  void codeBlock;
+  void language;
 };
 
 const hideCodeLanguagePopup = () => {
@@ -933,97 +997,8 @@ const syncRenderedDom = () => {
     checkbox.setAttribute('tabindex', '-1');
   });
 
-  root.querySelectorAll('.milkdown-code-block').forEach((codeBlock) => {
-    try {
-    const tools = codeBlock.querySelector('.tools');
-    if (!(tools instanceof HTMLElement)) return;
-
-    const languageButton = tools.querySelector('.language-button');
-    const picker = tools.querySelector('.language-picker');
-    const currentLanguage = (languageButton?.textContent || '').trim().toLowerCase() || 'plain';
-    if (languageButton instanceof HTMLElement) {
-      languageButton.classList.add('ushio-native-language-button');
-      languageButton.setAttribute('aria-hidden', 'true');
-    }
-    if (picker instanceof HTMLElement) {
-      picker.classList.add('ushio-native-language-picker');
-    }
-
-    const toolButtons = Array.from(tools.querySelectorAll('.tools-button-group button'));
-    let nativeCopyButton = null;
-    toolButtons.forEach((button) => {
-      if (!(button instanceof HTMLButtonElement)) return;
-      const text = (button.textContent || '').trim().toLowerCase();
-      const title = (button.getAttribute('title') || '').trim().toLowerCase();
-      if (text !== 'copy' && title !== 'copy' && title !== '复制') return;
-      if (button.dataset.ushioCopyIconApplied === '1') return;
-      button.dataset.ushioCopyIconApplied = '1';
-      button.classList.add('ushio-copy-icon-btn');
-      button.setAttribute('title', '复制');
-      button.setAttribute('aria-label', '复制');
-      button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
-      nativeCopyButton = button;
-    });
-
-    let copyButton = nativeCopyButton || tools.querySelector('.ushio-fallback-copy-button');
-    if (!(copyButton instanceof HTMLButtonElement)) {
-      copyButton = document.createElement('button');
-      copyButton.type = 'button';
-      copyButton.className = 'ushio-copy-icon-btn ushio-fallback-copy-button';
-      copyButton.setAttribute('title', '复制');
-      copyButton.setAttribute('aria-label', '复制');
-      copyButton.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
-      copyButton.addEventListener('mousedown', (event) => event.preventDefault());
-      copyButton.addEventListener('click', async (event) => {
-        event.preventDefault();
-        const codeText = codeBlock.querySelector('.cm-content')?.textContent ?? '';
-        try {
-          await navigator.clipboard.writeText(codeText);
-        } catch (_) {
-          const textarea = document.createElement('textarea');
-          textarea.value = codeText;
-          textarea.setAttribute('readonly', 'readonly');
-          textarea.style.position = 'fixed';
-          textarea.style.opacity = '0';
-          document.body.append(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          textarea.remove();
-        }
-      });
-    }
-
-    if (copyButton instanceof HTMLElement) {
-      let actionCapsule = tools.querySelector('.ushio-code-action-capsule');
-      if (!(actionCapsule instanceof HTMLElement)) {
-        actionCapsule = document.createElement('div');
-        actionCapsule.className = 'ushio-code-action-capsule';
-        tools.append(actionCapsule);
-      }
-      let customLanguageButton = tools.querySelector('.ushio-custom-language-trigger');
-      if (!(customLanguageButton instanceof HTMLButtonElement)) {
-        customLanguageButton = document.createElement('button');
-        customLanguageButton.type = 'button';
-        customLanguageButton.className = 'ushio-custom-language-trigger';
-        customLanguageButton.innerHTML = '<span class="ushio-language-text"></span><span class="ushio-language-caret">▾</span>';
-        customLanguageButton.addEventListener('mousedown', (event) => event.preventDefault());
-        customLanguageButton.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (currentReadOnly) return;
-          const code = customLanguageButton.closest('.milkdown-code-block');
-          if (!(code instanceof HTMLElement)) return;
-          const current = (customLanguageButton.querySelector('.ushio-language-text')?.textContent || '').trim().toLowerCase();
-          showCodeLanguagePopup(customLanguageButton, code, current);
-        });
-      }
-      actionCapsule.replaceChildren(copyButton, customLanguageButton);
-      copyButton.classList.add('ushio-code-copy-action');
-      updateCodeLanguageButtonLabel(codeBlock, currentLanguage);
-    }
-    } catch (error) {
-      console.warn('sync code block tools failed', error);
-    }
+  root.querySelectorAll('.ushio-code-actions-row').forEach((row) => {
+    row.remove();
   });
 };
 
@@ -1037,7 +1012,14 @@ const notifyRenderComplete = () => {
 };
 
 const setMarkdown = (markdown, { emitContent = false } = {}) => {
-  const nextMarkdown = typeof markdown === 'string' ? markdown : '';
+  const rawMarkdown = typeof markdown === 'string' ? markdown : '';
+  const nextMarkdown = stripGhostCodeLanguageMarkers(rawMarkdown);
+  if (!emitContent && nextMarkdown !== rawMarkdown) {
+    emit('on_content_change', {
+      mode: 'full',
+      markdown: nextMarkdown,
+    });
+  }
   if (nextMarkdown === currentMarkdown) {
     return;
   }
@@ -1314,9 +1296,20 @@ const createEditor = async () => {
     .config((ctx) => {
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
         if (markdown === prev) return;
-        currentMarkdown = markdown;
+        const sanitizedMarkdown = stripGhostCodeLanguageMarkers(markdown);
+        if (sanitizedMarkdown !== markdown) {
+          currentMarkdown = sanitizedMarkdown;
+          if (!currentReadOnly) {
+            scheduleContentChange(sanitizedMarkdown);
+          }
+          isApplyingFromFlutter = true;
+          editorInstance?.action(replaceAll(sanitizedMarkdown));
+          notifyRenderComplete();
+          return;
+        }
+        currentMarkdown = sanitizedMarkdown;
         if (!isApplyingFromFlutter) {
-          scheduleContentChange(markdown);
+          scheduleContentChange(sanitizedMarkdown);
         }
         isApplyingFromFlutter = false;
         notifyRenderComplete();
@@ -1358,8 +1351,6 @@ app.addEventListener('click', (event) => {
     const selection = window.getSelection();
     selection?.removeAllRanges();
     blurEditorFocus();
-    event.preventDefault();
-    event.stopPropagation();
     return;
   }
   const checkbox = target?.closest('input[type="checkbox"]');
@@ -1406,8 +1397,6 @@ app.addEventListener('click', (event) => {
 app.addEventListener('mousedown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
-    event.preventDefault();
-    event.stopPropagation();
     return;
   }
   if (target?.matches('a, a *')) {
@@ -1448,10 +1437,6 @@ app.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
     suppressCaretViewportSync(1200);
-    if (event.pointerType && event.pointerType !== 'touch') {
-      event.preventDefault();
-      event.stopPropagation();
-    }
     return;
   }
   const checkbox = target?.closest('input[type="checkbox"]');
@@ -1543,6 +1528,7 @@ app.addEventListener('pointermove', (event) => {
     const dragX = Math.abs(event.clientX - editorTouchTracking.x);
     const dragY = Math.abs(event.clientY - editorTouchTracking.y);
     if (dragX > 6 || dragY > 6) {
+      lastUserScrollAt = Date.now();
       suppressCaretViewportSync(1400);
     }
   }
@@ -1569,16 +1555,16 @@ app.addEventListener('pointercancel', (event) => {
   clearMobileLongPress();
 });
 document.addEventListener('scroll', () => {
+  lastUserScrollAt = Date.now();
   suppressCaretViewportSync(1000);
   hideContextMenu();
 }, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
 document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
-document.addEventListener('selectionchange', scheduleCaretIntoUpperViewport, true);
 document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  const isLanguagePopupClick = Boolean(target?.closest('.ushio-language-popup, .ushio-custom-language-trigger'));
+  const isLanguagePopupClick = Boolean(target?.closest('.ushio-language-popup, .language-button, .language-picker'));
   if (!isLanguagePopupClick) {
     hideCodeLanguagePopup();
   }
@@ -2085,7 +2071,6 @@ lockViewportZoom();
 window.addEventListener('resize', updateViewportMetrics);
 window.addEventListener('orientationchange', updateViewportMetrics);
 window.visualViewport?.addEventListener('resize', updateViewportMetrics);
-window.visualViewport?.addEventListener('scroll', updateViewportMetrics);
 document.addEventListener('keydown', handleEditorShortcut, true);
 
 const onFlutterMessage = (message) => {
