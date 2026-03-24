@@ -67,20 +67,20 @@ class MilkdownWebViewController {
   Future<void> toggleStrikethrough() => execCmd('toggle_strikethrough');
   Future<void> toggleHighlight() => execCmd('toggle_highlight');
   Future<void> toggleInlineCode() => execCmd('toggle_inline_code');
-  Future<void> setHeading(int level) => execCmd('set_heading', args: {'level': level});
+  Future<void> setHeading(int level) =>
+      execCmd('set_heading', args: {'level': level});
   Future<void> toggleBlockquote() => execCmd('toggle_blockquote');
   Future<void> toggleBulletList() => execCmd('toggle_bullet_list');
   Future<void> toggleOrderedList() => execCmd('toggle_ordered_list');
-  Future<void> insertCodeBlock({String? language}) =>
-      execCmd('insert_code_block', args: {
-        if (language != null) 'language': language,
-      });
+  Future<void> insertCodeBlock({String? language}) => execCmd(
+    'insert_code_block',
+    args: {if (language != null) 'language': language},
+  );
   Future<void> insertMathBlock() => execCmd('insert_math_block');
-  Future<void> toggleLink({String href = 'https://', String? title}) =>
-      execCmd('toggle_link', args: {
-        'href': href,
-        if (title != null) 'title': title,
-      });
+  Future<void> toggleLink({String href = 'https://', String? title}) => execCmd(
+    'toggle_link',
+    args: {'href': href, if (title != null) 'title': title},
+  );
   Future<void> goToNextTableCell() => execCmd('table_next_cell');
   Future<void> goToPrevTableCell() => execCmd('table_prev_cell');
   Future<void> addTableRowBefore() => execCmd('table_add_row_before');
@@ -91,10 +91,7 @@ class MilkdownWebViewController {
   Future<void> deleteCurrentTableRow() => execCmd('table_delete_row');
   Future<void> deleteCurrentTableColumn() => execCmd('table_delete_col');
   Future<void> insertImage({required String src, String? alt}) =>
-      execCmd('insert_image', args: {
-        'src': src,
-        if (alt != null) 'alt': alt,
-      });
+      execCmd('insert_image', args: {'src': src, if (alt != null) 'alt': alt});
   Future<void> insertEmoji({String emoji = '😀'}) =>
       execCmd('insert_emoji', args: {'emoji': emoji});
 
@@ -104,12 +101,15 @@ class MilkdownWebViewController {
     required String headingText,
     double topOffset = 32.0,
   }) async {
-    await execCmd('toc_jump', args: {
-      'headingIndex': headingIndex,
-      'lineNumber': lineNumber,
-      'headingText': headingText,
-      'topOffset': topOffset,
-    });
+    await execCmd(
+      'toc_jump',
+      args: {
+        'headingIndex': headingIndex,
+        'lineNumber': lineNumber,
+        'headingText': headingText,
+        'topOffset': topOffset,
+      },
+    );
   }
 
   Future<Uint8List?> captureScreenshot() async {
@@ -128,18 +128,29 @@ class MilkdownWebViewController {
     if (c == null) return null;
 
     try {
-      final originalYRaw = await c.evaluateJavascript(source: 'window.scrollY || 0');
-      final vhRaw = await c.evaluateJavascript(source: 'window.innerHeight || 0');
+      final originalYRaw = await c.evaluateJavascript(
+        source: 'window.scrollY || 0',
+      );
+      final vhRaw = await c.evaluateJavascript(
+        source: 'window.innerHeight || 0',
+      );
       final shRaw = await c.evaluateJavascript(
-        source: 'Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) || 0',
+        source:
+            'Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) || 0',
       );
 
       final originalY =
-          (double.tryParse(originalYRaw?.toString() ?? '0') ?? 0.0).clamp(0.0, double.infinity);
+          (double.tryParse(originalYRaw?.toString() ?? '0') ?? 0.0).clamp(
+            0.0,
+            double.infinity,
+          );
       final viewportHeightCss =
-          (double.tryParse(vhRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
-      final pageHeightCss =
-          (double.tryParse(shRaw?.toString() ?? '0') ?? 0.0).clamp(1.0, double.infinity);
+          (double.tryParse(vhRaw?.toString() ?? '0') ?? 0.0).clamp(
+            1.0,
+            double.infinity,
+          );
+      final pageHeightCss = (double.tryParse(shRaw?.toString() ?? '0') ?? 0.0)
+          .clamp(1.0, double.infinity);
 
       final steps = <double>[];
       for (double y = 0; y < pageHeightCss; y += viewportHeightCss) {
@@ -241,6 +252,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   static const int _maxUploadPersistRetries = 2;
   static const String _localFileScheme = 'ushio-local-file';
 
+  String _buildRuntimeUrl(InAppLocalhostServer server) {
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    return 'http://localhost:${server.port}/index.html?v=$stamp';
+  }
+
   InAppWebViewController? _controller;
   InAppLocalhostServer? _localhostServer;
   String? _initialUrl;
@@ -300,7 +316,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       }
       setState(() {
         _localhostServer = server;
-        _initialUrl = 'http://localhost:${server.port}/index.html';
+        _initialUrl = _buildRuntimeUrl(server);
       });
     } catch (e) {
       debugPrint('Failed to start Milkdown localhost server: $e');
@@ -418,8 +434,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         'requestId': requestId,
         'images': images,
         if (reason != null && reason.isNotEmpty) 'reason': reason,
-        if (failureReason != null && failureReason.isNotEmpty) 'failureReason': failureReason,
-        if (failureCount != null && failureCount > 0) 'failureCount': failureCount,
+        if (failureReason != null && failureReason.isNotEmpty)
+          'failureReason': failureReason,
+        if (failureCount != null && failureCount > 0)
+          'failureCount': failureCount,
       },
     );
   }
@@ -452,14 +470,18 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     var candidate = File('${directory.path}${Platform.pathSeparator}$fileName');
     var count = 1;
     while (await candidate.exists()) {
-      candidate = File('${directory.path}${Platform.pathSeparator}${base}_$count$ext');
+      candidate = File(
+        '${directory.path}${Platform.pathSeparator}${base}_$count$ext',
+      );
       count++;
     }
     await candidate.writeAsBytes(bytes, flush: true);
     return candidate;
   }
 
-  Future<Map<String, dynamic>> _persistUploadedImage(UploadImageFilePayload file) async {
+  Future<Map<String, dynamic>> _persistUploadedImage(
+    UploadImageFilePayload file,
+  ) async {
     final uriData = UriData.parse(file.dataUrl);
     final bytes = uriData.contentAsBytes();
     if (bytes.isEmpty) {
@@ -471,19 +493,15 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       fileName = '$fileName$ext';
     }
     if (widget.baseDirectory != null && widget.baseDirectory!.isNotEmpty) {
-      final imagesDir = Directory('${widget.baseDirectory}${Platform.pathSeparator}images');
+      final imagesDir = Directory(
+        '${widget.baseDirectory}${Platform.pathSeparator}images',
+      );
       final out = await _writeUniqueFile(imagesDir, fileName, bytes);
       final relativeName = out.path.split(Platform.pathSeparator).last;
-      return {
-        'src': 'images/$relativeName',
-        'alt': file.name,
-      };
+      return {'src': 'images/$relativeName', 'alt': file.name};
     }
     final out = await _writeUniqueFile(Directory.systemTemp, fileName, bytes);
-    return {
-      'src': out.path,
-      'alt': file.name,
-    };
+    return {'src': out.path, 'alt': file.name};
   }
 
   Future<Map<String, dynamic>> _persistUploadedImageWithRetry(
@@ -502,7 +520,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     throw Exception('persist_image_retries_exhausted:$lastError');
   }
 
-  Future<void> _handleUploadImagesRequest(OnUploadImagesRequestPayload payload) async {
+  Future<void> _handleUploadImagesRequest(
+    OnUploadImagesRequestPayload payload,
+  ) async {
     widget.onUploadImagesRequest?.call(payload);
     var failureCount = 0;
     String? failureReason;
@@ -511,10 +531,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       for (final file in payload.files) {
         images.add(await _persistUploadedImageWithRetry(file));
       }
-      await _sendUploadImagesResult(
-        payload.requestId,
-        images: images,
-      );
+      await _sendUploadImagesResult(payload.requestId, images: images);
     } catch (e) {
       failureCount += 1;
       final errorText = e.toString();
@@ -566,7 +583,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       return await showDialog<Map<String, String>>(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Row(
             children: [
               Container(
@@ -650,22 +669,20 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final imagePath = file.path ?? '';
     if (imagePath.isEmpty) return null;
     if (widget.baseDirectory != null && widget.baseDirectory!.isNotEmpty) {
-      final documentPath = '${widget.baseDirectory}${Platform.pathSeparator}__milkdown_insert__.md';
+      final documentPath =
+          '${widget.baseDirectory}${Platform.pathSeparator}__milkdown_insert__.md';
       try {
         final myFilesService = MyFilesService();
-        final relativePath = await myFilesService.copyImageToDocument(imagePath, documentPath);
-        return {
-          'src': relativePath,
-          'alt': _sanitizeInsertImageAlt(file.name),
-        };
+        final relativePath = await myFilesService.copyImageToDocument(
+          imagePath,
+          documentPath,
+        );
+        return {'src': relativePath, 'alt': _sanitizeInsertImageAlt(file.name)};
       } catch (_) {
         // fall back to original path
       }
     }
-    return {
-      'src': imagePath,
-      'alt': _sanitizeInsertImageAlt(file.name),
-    };
+    return {'src': imagePath, 'alt': _sanitizeInsertImageAlt(file.name)};
   }
 
   Future<String?> _chooseInsertImageSource() async {
@@ -700,7 +717,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     );
   }
 
-  Future<void> _handleInsertImageRequest(OnInsertImageRequestPayload payload) async {
+  Future<void> _handleInsertImageRequest(
+    OnInsertImageRequestPayload payload,
+  ) async {
     try {
       final source = await _chooseInsertImageSource();
       Map<String, String>? selected;
@@ -737,10 +756,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         args: {
           'requestId': payload.requestId,
           'images': [
-            {
-              'src': src,
-              'alt': _sanitizeInsertImageAlt(selected['alt']),
-            }
+            {'src': src, 'alt': _sanitizeInsertImageAlt(selected['alt'])},
           ],
         },
       );
@@ -760,7 +776,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final encoded = jsonEncode(msg);
     final encodedLiteral = jsonEncode(encoded);
     await _controller?.evaluateJavascript(
-      source: '''
+      source:
+          '''
         (function() {
           const raw = $encodedLiteral;
           const m = JSON.parse(raw);
@@ -799,7 +816,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onCheckboxToggle: widget.onCheckboxToggle,
       onCmdResult: (cmd, ok, reason) {
         if (!ok) {
-          debugPrint('Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}');
+          debugPrint(
+            'Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}',
+          );
           if (mounted && reason != null && reason.isNotEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -834,7 +853,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     if (markdownChanged || baseChanged || readOnlyChanged) {
       if (_suppressNextReload && markdownChanged) {
         _suppressNextReload = false;
-      } else if (_lastSyncedMarkdown != widget.initialMarkdown || baseChanged || readOnlyChanged) {
+      } else if (_lastSyncedMarkdown != widget.initialMarkdown ||
+          baseChanged ||
+          readOnlyChanged) {
         _sendInitDoc();
       }
     }
@@ -871,7 +892,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     }
 
     if (_initialUrl!.isEmpty) {
-      return const Center(child: Text('Failed to start Milkdown localhost server'));
+      return const Center(
+        child: Text('Failed to start Milkdown localhost server'),
+      );
     }
 
     return InAppWebView(
