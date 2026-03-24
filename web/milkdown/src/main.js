@@ -81,6 +81,7 @@ let lastKeyboardInsetPx = 0;
 let lastUserScrollAt = 0;
 let editorTouchTracking = null;
 let codeLanguagePopupElement = null;
+let codeLanguagePopupBackdrop = null;
 let codeLanguagePopupInput = null;
 let codeLanguagePopupList = null;
 let codeLanguagePopupAnchor = null;
@@ -847,6 +848,9 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
 const hideCodeLanguagePopup = () => {
   if (!codeLanguagePopupElement) return;
   codeLanguagePopupElement.dataset.show = 'false';
+  if (codeLanguagePopupBackdrop) {
+    codeLanguagePopupBackdrop.dataset.show = 'false';
+  }
   codeLanguagePopupAnchor = null;
   codeLanguagePopupBlock = null;
 };
@@ -884,6 +888,14 @@ const renderCodeLanguagePopupList = (query = '') => {
 
 const ensureCodeLanguagePopup = () => {
   if (codeLanguagePopupElement) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'ushio-language-popup-backdrop';
+  backdrop.dataset.show = 'false';
+  backdrop.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    hideCodeLanguagePopup();
+  });
+
   const panel = document.createElement('div');
   panel.className = 'ushio-language-popup';
   panel.dataset.show = 'false';
@@ -918,7 +930,9 @@ const ensureCodeLanguagePopup = () => {
   list.className = 'ushio-language-popup-list';
 
   panel.append(input, list);
+  app.append(backdrop);
   app.append(panel);
+  codeLanguagePopupBackdrop = backdrop;
   codeLanguagePopupElement = panel;
   codeLanguagePopupInput = input;
   codeLanguagePopupList = list;
@@ -934,14 +948,15 @@ const showCodeLanguagePopup = (anchor, codeBlock, currentLanguage = '') => {
   codeLanguagePopupInput.value = currentLanguage || '';
   renderCodeLanguagePopupList(currentLanguage || '');
   codeLanguagePopupElement.dataset.show = 'true';
+  if (codeLanguagePopupBackdrop) {
+    codeLanguagePopupBackdrop.dataset.show = 'true';
+  }
 
-  const anchorRect = anchor.getBoundingClientRect();
-  const panelWidth = Math.min(320, Math.max(220, window.innerWidth - 16));
-  const panelLeft = Math.max(8, Math.min(anchorRect.right - panelWidth, window.innerWidth - panelWidth - 8));
-  const panelTop = Math.min(anchorRect.bottom + 8, window.innerHeight - 280);
+  const panelWidth = Math.min(520, Math.max(260, window.innerWidth - 24));
+  const panelMaxHeight = Math.min(560, Math.max(260, window.innerHeight - 48));
   codeLanguagePopupElement.style.width = `${panelWidth}px`;
-  codeLanguagePopupElement.style.left = `${panelLeft}px`;
-  codeLanguagePopupElement.style.top = `${Math.max(8, panelTop)}px`;
+  codeLanguagePopupElement.style.maxHeight = `${panelMaxHeight}px`;
+  void anchor;
 
   requestAnimationFrame(() => codeLanguagePopupInput?.focus());
 };
@@ -1007,6 +1022,45 @@ const syncRenderedDom = () => {
 
   root.querySelectorAll('.ProseMirror pre').forEach((block) => {
     applyHorizontalScrollClass(block);
+  });
+
+  root.querySelectorAll('.milkdown-code-block').forEach((block) => {
+    if (!(block instanceof HTMLElement)) return;
+    block.style.setProperty('position', 'relative', 'important');
+    block.style.setProperty('overflow', 'visible', 'important');
+
+    const tools = block.querySelector(':scope > .tools, .tools');
+    if (!(tools instanceof HTMLElement)) return;
+    tools.style.setProperty('position', 'absolute', 'important');
+    tools.style.setProperty('left', 'auto', 'important');
+    tools.style.setProperty('right', '0', 'important');
+    tools.style.setProperty('top', 'auto', 'important');
+    tools.style.setProperty('bottom', '-38px', 'important');
+    tools.style.setProperty('transform', 'none', 'important');
+
+    const nativePicker = block.querySelector('.language-picker');
+    if (nativePicker instanceof HTMLElement) {
+      nativePicker.style.setProperty('display', 'none', 'important');
+      nativePicker.style.setProperty('visibility', 'hidden', 'important');
+      nativePicker.style.setProperty('opacity', '0', 'important');
+      nativePicker.style.setProperty('pointer-events', 'none', 'important');
+    }
+
+    const languageButton = block.querySelector('.tools .language-button');
+    if (!(languageButton instanceof HTMLElement)) return;
+    if (languageButton.dataset.ushioLanguageBind === '1') return;
+    languageButton.dataset.ushioLanguageBind = '1';
+
+    const openPopup = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const preLanguage = block.querySelector('pre')?.getAttribute('data-language') || '';
+      const fallbackText = (languageButton.textContent || '').trim();
+      const currentLanguage = (preLanguage || fallbackText).trim().toLowerCase();
+      showCodeLanguagePopup(languageButton, block, currentLanguage);
+    };
+    languageButton.addEventListener('mousedown', openPopup);
+    languageButton.addEventListener('click', openPopup);
   });
 
   attachHorizontalWheelScroll();
@@ -1712,13 +1766,86 @@ const emitCmdResult = (cmd, ok, reason = null, startedAt = null) => {
   emitCmdTelemetry(cmd, ok, reason, durationMs);
 };
 
+const collectCodeBlockLanguageDebugReport = () => {
+  const codeBlocks = Array.from((app.querySelector('.milkdown .ProseMirror') || app).querySelectorAll('.milkdown-code-block'));
+  return codeBlocks.map((block, index) => {
+    const tools = block.querySelector('.tools');
+    const pre = block.querySelector('pre');
+    const blockRect = block.getBoundingClientRect();
+    const toolsRect = tools?.getBoundingClientRect?.();
+    const preComputed = pre ? window.getComputedStyle(pre) : null;
+    const beforeStyle = pre ? window.getComputedStyle(pre, '::before') : null;
+    const afterStyle = pre ? window.getComputedStyle(pre, '::after') : null;
+    const toolsStyle = tools ? window.getComputedStyle(tools) : null;
+    return {
+      index,
+      blockClass: block.className || '',
+      languageAttr: pre?.getAttribute('data-language') || '',
+      blockRect: {
+        top: Math.round(blockRect.top),
+        right: Math.round(blockRect.right),
+        bottom: Math.round(blockRect.bottom),
+        left: Math.round(blockRect.left),
+        width: Math.round(blockRect.width),
+        height: Math.round(blockRect.height),
+      },
+      toolsExists: Boolean(tools),
+      toolsRect: toolsRect
+        ? {
+            top: Math.round(toolsRect.top),
+            right: Math.round(toolsRect.right),
+            bottom: Math.round(toolsRect.bottom),
+            left: Math.round(toolsRect.left),
+            width: Math.round(toolsRect.width),
+            height: Math.round(toolsRect.height),
+          }
+        : null,
+      toolsComputed: toolsStyle
+        ? {
+            position: toolsStyle.position,
+            top: toolsStyle.top,
+            right: toolsStyle.right,
+            bottom: toolsStyle.bottom,
+            left: toolsStyle.left,
+            transform: toolsStyle.transform,
+          }
+        : null,
+      preComputed: preComputed
+        ? {
+            position: preComputed.position,
+          }
+        : null,
+      preBefore: beforeStyle
+        ? {
+            content: beforeStyle.content,
+            display: beforeStyle.display,
+            top: beforeStyle.top,
+            right: beforeStyle.right,
+            bottom: beforeStyle.bottom,
+            left: beforeStyle.left,
+          }
+        : null,
+      preAfter: afterStyle
+        ? {
+            content: afterStyle.content,
+            display: afterStyle.display,
+            top: afterStyle.top,
+            right: afterStyle.right,
+            bottom: afterStyle.bottom,
+            left: afterStyle.left,
+          }
+        : null,
+    };
+  });
+};
+
 const executeCommand = (cmd, args = {}) => {
   const startedAt = Date.now();
   if (!editorInstance) {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
-  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor') {
+  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
@@ -1731,6 +1858,17 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'blur_editor') {
       const ok = blurEditorFocus();
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
+      return;
+    }
+    if (cmd === 'debug_codeblock_language_report') {
+      const report = collectCodeBlockLanguageDebugReport();
+      emit('on_debug_report', {
+        kind: 'codeblock_language_marker',
+        source: typeof args?.source === 'string' ? args.source : 'unknown',
+        blockCount: report.length,
+        report,
+      });
+      emitCmdResult(cmd, true, null, startedAt);
       return;
     }
     if (cmd === 'undo' || cmd === 'redo') {
