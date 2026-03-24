@@ -258,11 +258,27 @@ const isGhostCodeLanguageLine = (line) => {
   return GHOST_CODE_LANGUAGE_MARKER_RE.test(language);
 };
 
+const isFenceLanguageEchoLine = (line, expectedLanguage = '') => {
+  const token = (line || '').trim().toLowerCase();
+  if (!token || !GHOST_CODE_LANGUAGE_MARKER_RE.test(token)) return false;
+  if (KNOWN_CODE_LANGUAGES.includes(token)) return true;
+  return Boolean(expectedLanguage) && token === expectedLanguage;
+};
+
+const extractFenceLanguage = (line) => {
+  const trimmed = (line || '').trim();
+  const match = trimmed.match(/^(```|~~~)\s*([^\s`~]+)?/);
+  if (!match) return '';
+  return (match[2] || '').trim().toLowerCase();
+};
+
 const stripGhostCodeLanguageMarkers = (markdown) => {
-  if (typeof markdown !== 'string' || !markdown.includes('▾')) return markdown;
+  if (typeof markdown !== 'string') return markdown;
+  if (!markdown.includes('```') && !markdown.includes('~~~')) return markdown;
   const lines = markdown.split('\n');
   const output = [];
   let inFence = false;
+  let currentFenceLanguage = '';
   let changed = false;
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -271,6 +287,9 @@ const stripGhostCodeLanguageMarkers = (markdown) => {
     if (isFenceLine(line)) {
       const wasInFence = inFence;
       inFence = !inFence;
+      if (!wasInFence && inFence) {
+        currentFenceLanguage = extractFenceLanguage(line);
+      }
       output.push(line);
 
       if (wasInFence && !inFence) {
@@ -284,7 +303,7 @@ const stripGhostCodeLanguageMarkers = (markdown) => {
             j += 1;
             continue;
           }
-          if (isGhostCodeLanguageLine(next)) {
+          if (isGhostCodeLanguageLine(next) || isFenceLanguageEchoLine(next, currentFenceLanguage)) {
             sawGhost = true;
             j += 1;
             continue;
