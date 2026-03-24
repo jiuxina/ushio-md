@@ -258,6 +258,14 @@ body {
   display: none !important;
 }
 
+.milkdown .ProseMirror pre[data-language]::before,
+.milkdown .ProseMirror pre[data-language]::after,
+.milkdown .milkdown-code-block pre[data-language]::before,
+.milkdown .milkdown-code-block pre[data-language]::after {
+  content: none !important;
+  display: none !important;
+}
+
 .milkdown .ushio-code-actions-row {
   display: none !important;
 }
