@@ -1,7 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/my_files_service.dart';
 import '../utils/app_style.dart';
+
+enum MarkdownToolbarAction {
+  undo,
+  redo,
+  bold,
+  italic,
+  strikethrough,
+  heading1,
+  heading2,
+  heading3,
+  bulletList,
+  orderedList,
+  taskList,
+  blockquote,
+  inlineCode,
+  codeBlock,
+  link,
+  image,
+  horizontalRule,
+  table,
+  search,
+}
 
 /// Markdown editing toolbar with beautiful gradient buttons
 class MarkdownToolbar extends StatelessWidget {
@@ -13,6 +37,7 @@ class MarkdownToolbar extends StatelessWidget {
   final VoidCallback? onRedo;
   final String? filePath; // Path to the markdown file being edited
   final VoidCallback? onSearchPressed; // 搜索按钮回调
+  final Future<void> Function(MarkdownToolbarAction action)? onAction;
 
   const MarkdownToolbar({
     super.key,
@@ -24,7 +49,17 @@ class MarkdownToolbar extends StatelessWidget {
     this.onRedo,
     this.filePath,
     this.onSearchPressed,
+    this.onAction,
   });
+
+  void _runAction(MarkdownToolbarAction action, VoidCallback fallback) {
+    final handler = onAction;
+    if (handler != null) {
+      unawaited(handler(action));
+      return;
+    }
+    fallback();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +98,10 @@ class MarkdownToolbar extends StatelessWidget {
                       icon: Icons.undo,
                       tooltip: '撤回',
                       enabled: value.canUndo,
-                      onPressed: () => undoController!.undo(),
+                      onPressed: () => _runAction(
+                        MarkdownToolbarAction.undo,
+                        () => undoController!.undo(),
+                      ),
                     );
                   },
                 ),
@@ -74,7 +112,10 @@ class MarkdownToolbar extends StatelessWidget {
                       icon: Icons.redo,
                       tooltip: '重做',
                       enabled: value.canRedo,
-                      onPressed: () => undoController!.redo(),
+                      onPressed: () => _runAction(
+                        MarkdownToolbarAction.redo,
+                        () => undoController!.redo(),
+                      ),
                     );
                   },
                 ),
@@ -87,13 +128,15 @@ class MarkdownToolbar extends StatelessWidget {
                   icon: Icons.undo,
                   tooltip: '撤回',
                   enabled: canUndo ?? false,
-                  onPressed: onUndo!,
+                  onPressed: () =>
+                      _runAction(MarkdownToolbarAction.undo, onUndo!),
                 ),
                 _ToolbarButton(
                   icon: Icons.redo,
                   tooltip: '重做',
                   enabled: canRedo ?? false,
-                  onPressed: onRedo!,
+                  onPressed: () =>
+                      _runAction(MarkdownToolbarAction.redo, onRedo!),
                 ),
               ],
             ),
@@ -104,17 +147,26 @@ class MarkdownToolbar extends StatelessWidget {
               _ToolbarButton(
                 icon: Icons.format_bold,
                 tooltip: '粗体',
-                onPressed: () => _wrapSelection('**', '**'),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.bold,
+                  () => _wrapSelection('**', '**'),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.format_italic,
                 tooltip: '斜体',
-                onPressed: () => _wrapSelection('*', '*'),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.italic,
+                  () => _wrapSelection('*', '*'),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.format_strikethrough,
                 tooltip: '删除线',
-                onPressed: () => _wrapSelection('~~', '~~'),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.strikethrough,
+                  () => _wrapSelection('~~', '~~'),
+                ),
               ),
             ],
           ),
@@ -124,17 +176,26 @@ class MarkdownToolbar extends StatelessWidget {
               _ToolbarButton(
                 icon: Icons.looks_one,
                 tooltip: '标题 1',
-                onPressed: () => _insertAtLineStart('# '),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.heading1,
+                  () => _insertAtLineStart('# '),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.looks_two,
                 tooltip: '标题 2',
-                onPressed: () => _insertAtLineStart('## '),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.heading2,
+                  () => _insertAtLineStart('## '),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.looks_3,
                 tooltip: '标题 3',
-                onPressed: () => _insertAtLineStart('### '),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.heading3,
+                  () => _insertAtLineStart('### '),
+                ),
               ),
             ],
           ),
@@ -144,17 +205,26 @@ class MarkdownToolbar extends StatelessWidget {
               _ToolbarButton(
                 icon: Icons.format_list_bulleted,
                 tooltip: '无序列表',
-                onPressed: () => _insertAtLineStart('- '),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.bulletList,
+                  () => _insertAtLineStart('- '),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.format_list_numbered,
                 tooltip: '有序列表',
-                onPressed: () => _insertAtLineStart('1. '),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.orderedList,
+                  () => _insertAtLineStart('1. '),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.check_box_outlined,
                 tooltip: '任务列表',
-                onPressed: () => _insertAtLineStart('- [ ] '),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.taskList,
+                  () => _insertAtLineStart('- [ ] '),
+                ),
               ),
             ],
           ),
@@ -164,17 +234,26 @@ class MarkdownToolbar extends StatelessWidget {
               _ToolbarButton(
                 icon: Icons.format_quote,
                 tooltip: '引用',
-                onPressed: () => _insertAtLineStart('> '),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.blockquote,
+                  () => _insertAtLineStart('> '),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.code,
                 tooltip: '行内代码',
-                onPressed: () => _wrapSelection('`', '`'),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.inlineCode,
+                  () => _wrapSelection('`', '`'),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.data_object,
                 tooltip: '代码块',
-                onPressed: () => _insertCodeBlock(),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.codeBlock,
+                  _insertCodeBlock,
+                ),
               ),
             ],
           ),
@@ -184,22 +263,32 @@ class MarkdownToolbar extends StatelessWidget {
               _ToolbarButton(
                 icon: Icons.link,
                 tooltip: '链接',
-                onPressed: () => _insertLink(),
+                onPressed: () =>
+                    _runAction(MarkdownToolbarAction.link, _insertLink),
               ),
               _ToolbarButton(
                 icon: Icons.image,
                 tooltip: '图片',
-                onPressed: () => _showImageDialog(context),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.image,
+                  () => _showImageDialog(context),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.horizontal_rule,
                 tooltip: '分割线',
-                onPressed: () => _insertText('\n---\n'),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.horizontalRule,
+                  () => _insertText('\n---\n'),
+                ),
               ),
               _ToolbarButton(
                 icon: Icons.table_chart,
                 tooltip: '表格',
-                onPressed: () => _showTableDialog(context),
+                onPressed: () => _runAction(
+                  MarkdownToolbarAction.table,
+                  () => _showTableDialog(context),
+                ),
               ),
             ],
           ),
@@ -211,7 +300,10 @@ class MarkdownToolbar extends StatelessWidget {
                 _ToolbarButton(
                   icon: Icons.search,
                   tooltip: '搜索',
-                  onPressed: onSearchPressed!,
+                  onPressed: () => _runAction(
+                    MarkdownToolbarAction.search,
+                    onSearchPressed!,
+                  ),
                 ),
               ],
             ),
@@ -236,7 +328,8 @@ class MarkdownToolbar extends StatelessWidget {
 
     if (selection.isCollapsed) {
       final newText = '$prefix文本$suffix';
-      controller.text = text.substring(0, selection.start) +
+      controller.text =
+          text.substring(0, selection.start) +
           newText +
           text.substring(selection.end);
       controller.selection = TextSelection(
@@ -246,7 +339,8 @@ class MarkdownToolbar extends StatelessWidget {
     } else {
       final selectedText = text.substring(selection.start, selection.end);
       final newText = '$prefix$selectedText$suffix';
-      controller.text = text.substring(0, selection.start) +
+      controller.text =
+          text.substring(0, selection.start) +
           newText +
           text.substring(selection.end);
       controller.selection = TextSelection.collapsed(
@@ -264,9 +358,8 @@ class MarkdownToolbar extends StatelessWidget {
       lineStart--;
     }
 
-    controller.text = text.substring(0, lineStart) +
-        prefix +
-        text.substring(lineStart);
+    controller.text =
+        text.substring(0, lineStart) + prefix + text.substring(lineStart);
     controller.selection = TextSelection.collapsed(
       offset: selection.start + prefix.length,
     );
@@ -276,7 +369,8 @@ class MarkdownToolbar extends StatelessWidget {
     final text = controller.text;
     final selection = controller.selection;
 
-    controller.text = text.substring(0, selection.start) +
+    controller.text =
+        text.substring(0, selection.start) +
         textToInsert +
         text.substring(selection.end);
     controller.selection = TextSelection.collapsed(
@@ -290,7 +384,8 @@ class MarkdownToolbar extends StatelessWidget {
 
     if (selection.isCollapsed) {
       const linkText = '[链接文本](https://example.com)';
-      controller.text = text.substring(0, selection.start) +
+      controller.text =
+          text.substring(0, selection.start) +
           linkText +
           text.substring(selection.end);
       controller.selection = TextSelection(
@@ -300,7 +395,8 @@ class MarkdownToolbar extends StatelessWidget {
     } else {
       final selectedText = text.substring(selection.start, selection.end);
       final linkText = '[$selectedText](https://example.com)';
-      controller.text = text.substring(0, selection.start) +
+      controller.text =
+          text.substring(0, selection.start) +
           linkText +
           text.substring(selection.end);
       controller.selection = TextSelection(
@@ -327,16 +423,18 @@ class MarkdownToolbar extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 20),
             Text(
               '插入图片',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
             _buildImageOption(
@@ -407,14 +505,14 @@ class MarkdownToolbar extends StatelessWidget {
                     Text(
                       label,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                     ),
                   ],
                 ),
@@ -523,9 +621,9 @@ class MarkdownToolbar extends StatelessWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('选择图片失败: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
         }
       }
       return;
@@ -545,7 +643,10 @@ class MarkdownToolbar extends StatelessWidget {
         // Try to copy the image to the document's images/ directory
         try {
           final myFilesService = MyFilesService();
-          final relativePath = await myFilesService.copyImageToDocument(imagePath, filePath!);
+          final relativePath = await myFilesService.copyImageToDocument(
+            imagePath,
+            filePath!,
+          );
           _insertImageWithUrl(relativePath, file.name);
 
           if (context.mounted) {
@@ -559,7 +660,9 @@ class MarkdownToolbar extends StatelessWidget {
                   ],
                 ),
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             );
           }
@@ -572,7 +675,9 @@ class MarkdownToolbar extends StatelessWidget {
               SnackBar(
                 content: Text('图片路径已插入（复制到 images 文件夹失败: $e）'),
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             );
           }
@@ -580,9 +685,9 @@ class MarkdownToolbar extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('选择图片失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
       }
     }
   }
@@ -592,7 +697,8 @@ class MarkdownToolbar extends StatelessWidget {
     final selection = controller.selection;
 
     final imageText = '![$description]($url)';
-    controller.text = text.substring(0, selection.start) +
+    controller.text =
+        text.substring(0, selection.start) +
         imageText +
         text.substring(selection.end);
     controller.selection = TextSelection.collapsed(
@@ -606,7 +712,8 @@ class MarkdownToolbar extends StatelessWidget {
 
     if (selection.isCollapsed) {
       const codeBlock = '\n```\n代码\n```\n';
-      controller.text = text.substring(0, selection.start) +
+      controller.text =
+          text.substring(0, selection.start) +
           codeBlock +
           text.substring(selection.end);
       controller.selection = TextSelection(
@@ -616,7 +723,8 @@ class MarkdownToolbar extends StatelessWidget {
     } else {
       final selectedText = text.substring(selection.start, selection.end);
       final codeBlock = '\n```\n$selectedText\n```\n';
-      controller.text = text.substring(0, selection.start) +
+      controller.text =
+          text.substring(0, selection.start) +
           codeBlock +
           text.substring(selection.end);
       controller.selection = TextSelection.collapsed(
@@ -635,7 +743,9 @@ class MarkdownToolbar extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: Row(
                 children: [
                   Container(
@@ -661,25 +771,37 @@ class MarkdownToolbar extends StatelessWidget {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.remove),
-                            onPressed: rows > 1 ? () => setDialogState(() => rows--) : null,
+                            onPressed: rows > 1
+                                ? () => setDialogState(() => rows--)
+                                : null,
                             iconSize: 20,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
                           ),
                           SizedBox(
                             width: 32,
                             child: Text(
                               '$rows',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.add),
-                            onPressed: rows < 20 ? () => setDialogState(() => rows++) : null,
+                            onPressed: rows < 20
+                                ? () => setDialogState(() => rows++)
+                                : null,
                             iconSize: 20,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
                           ),
                         ],
                       ),
@@ -694,25 +816,37 @@ class MarkdownToolbar extends StatelessWidget {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.remove),
-                            onPressed: cols > 1 ? () => setDialogState(() => cols--) : null,
+                            onPressed: cols > 1
+                                ? () => setDialogState(() => cols--)
+                                : null,
                             iconSize: 20,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
                           ),
                           SizedBox(
                             width: 32,
                             child: Text(
                               '$cols',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.add),
-                            onPressed: cols < 10 ? () => setDialogState(() => cols++) : null,
+                            onPressed: cols < 10
+                                ? () => setDialogState(() => cols++)
+                                : null,
                             iconSize: 20,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
                           ),
                         ],
                       ),
@@ -756,7 +890,8 @@ class MarkdownToolbar extends StatelessWidget {
 
     final table = '\n$header\n$separator\n$dataRows\n\n';
 
-    controller.text = text.substring(0, selection.start) +
+    controller.text =
+        text.substring(0, selection.start) +
         table +
         text.substring(selection.end);
     controller.selection = TextSelection.collapsed(
@@ -773,10 +908,7 @@ class _ToolbarButtonGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: children,
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: children);
   }
 }
 
@@ -804,7 +936,7 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.enabled;
-    
+
     return Tooltip(
       message: widget.tooltip,
       child: GestureDetector(
@@ -821,8 +953,12 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
               gradient: (_isHovered && isEnabled)
                   ? LinearGradient(
                       colors: [
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                        Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.2),
+                        Theme.of(
+                          context,
+                        ).colorScheme.secondary.withValues(alpha: 0.1),
                       ],
                     )
                   : null,
@@ -833,9 +969,13 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
               size: 18,
               color: isEnabled
                   ? (_isHovered
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))
-                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3), // 禁用时灰色
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.7))
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.3), // 禁用时灰色
             ),
           ),
         ),

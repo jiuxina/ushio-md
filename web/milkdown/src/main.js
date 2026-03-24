@@ -631,13 +631,23 @@ const decodeFileUriPath = (value) => {
   }
 };
 
+const normalizeLocalFsPath = (value) => {
+  if (typeof value !== 'string') return '';
+  const normalized = value.trim().replace(/\\/g, '/');
+  if (!normalized) return '';
+  if (/^\/[A-Za-z]:\//.test(normalized)) {
+    return normalized.slice(1);
+  }
+  return normalized;
+};
+
 const normalizeBaseDirectoryPath = (baseDirectory) => {
   if (typeof baseDirectory !== 'string' || !baseDirectory.trim()) return '';
   const trimmed = baseDirectory.trim();
   if (trimmed.startsWith('file://')) {
-    return decodeFileUriPath(trimmed);
+    return normalizeLocalFsPath(decodeFileUriPath(trimmed));
   }
-  return trimmed.replace(/\\/g, '/');
+  return normalizeLocalFsPath(trimmed);
 };
 
 const toAbsoluteLocalPath = (pathLike) => {
@@ -645,7 +655,10 @@ const toAbsoluteLocalPath = (pathLike) => {
   const raw = pathLike.trim();
   if (!raw) return '';
   if (raw.startsWith('file://')) {
-    return decodeFileUriPath(raw);
+    return normalizeLocalFsPath(decodeFileUriPath(raw));
+  }
+  if (/^[A-Za-z]:[\\/]/.test(raw)) {
+    return normalizeLocalFsPath(raw);
   }
   if (raw.startsWith('/')) return raw;
   const base = normalizeBaseDirectoryPath(currentBaseDirectory);
@@ -663,6 +676,9 @@ const buildLocalFileProxyUrl = (absolutePath) => {
 const resolveImageSrc = (src) => {
   const sanitized = sanitizeImageSource(src);
   if (!sanitized) return '';
+  if (sanitized.startsWith(`${LOCAL_FILE_SCHEME}://`)) {
+    return sanitized;
+  }
   if (isExternalHref(sanitized) || sanitized.startsWith('data:') || sanitized.startsWith('blob:')) {
     return sanitized;
   }
@@ -1651,7 +1667,29 @@ const updateActiveMarkdownHints = () => {
 const blurEditorFocus = () => {
   const editor = app.querySelector('.ProseMirror');
   if (!(editor instanceof HTMLElement)) return false;
+
+  const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (activeElement?.closest('.ProseMirror')) {
+    activeElement.blur();
+  }
+
+  const focusedCodeContent = app.querySelector('.ProseMirror .cm-editor.cm-focused .cm-content');
+  if (focusedCodeContent instanceof HTMLElement) {
+    focusedCodeContent.blur();
+  }
+
   editor.blur();
+
+  const stillFocusedInEditor =
+    document.activeElement instanceof HTMLElement &&
+    Boolean(document.activeElement.closest('.ProseMirror'));
+  if (stillFocusedInEditor) {
+    app.setAttribute('tabindex', '-1');
+    app.focus({ preventScroll: true });
+  }
+
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
   emitEditorFocus(false);
   return true;
 };
