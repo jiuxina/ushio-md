@@ -267,7 +267,7 @@ const isFenceLanguageEchoLine = (line, expectedLanguage = '') => {
 
 const extractFenceLanguage = (line) => {
   const trimmed = (line || '').trim();
-  const match = trimmed.match(/^(```|~~~)([^`~\s]+)?/);
+  const match = trimmed.match(/^(```|~~~)\s*([^\s`~]+)?/);
   if (!match) return '';
   return (match[2] || '').trim().toLowerCase();
 };
