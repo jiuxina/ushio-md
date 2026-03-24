@@ -73,6 +73,10 @@ body {
   display: none !important;
 }
 
+.milkdown .milkdown-latex-inline-edit {
+  display: none !important;
+}
+
 .milkdown .ProseMirror {
   min-height: 100%;
   padding: 0;
@@ -82,7 +86,8 @@ body {
 
 .milkdown .ProseMirror blockquote {
   border-left: 4px solid var(--milkdown-color-primary);
-  padding-left: 1em;
+  padding-left: 0.2em;
+  margin-left: 0;
 }
 
 .milkdown .ProseMirror ul,
@@ -125,50 +130,231 @@ body {
 }
 
 .milkdown .ProseMirror pre {
-  margin: 1em 0;
-  padding: 12px 12px 44px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--milkdown-color-surface) 90%,
-    var(--milkdown-color-primary) 10%
-  );
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
+  margin: 0;
+  padding: 12px;
+  border-radius: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable both-edges;
+  touch-action: pan-x pan-y;
 }
 
 .milkdown .ProseMirror pre code {
   display: block;
+  width: max-content;
+  min-width: 100%;
   padding: 0;
   background: transparent;
   color: var(--milkdown-color-on-surface);
   line-height: 1.55;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .milkdown .milkdown-code-block {
   border-radius: 14px !important;
-  overflow: hidden;
+  overflow: visible;
+  margin: 1em 0 52px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 90%, var(--milkdown-color-primary) 10%);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
 }
 
 .milkdown .milkdown-code-block .tools {
   position: absolute;
-  right: 10px;
-  bottom: 8px;
+  right: 0;
+  top: calc(100% + 8px);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  width: clamp(156px, 34%, 220px);
   z-index: 20;
+  order: 1;
+  pointer-events: none;
 }
 
-.milkdown .milkdown-code-block .tools .language-button {
+.milkdown .milkdown-code-block .tools > * {
+  pointer-events: auto;
+}
+
+.milkdown .milkdown-code-block .tools .tools-button-group {
+  display: none;
+}
+
+.milkdown .milkdown-code-block .tools .language-button,
+.milkdown .milkdown-code-block .tools .language-picker {
+  display: none !important;
+}
+
+.milkdown .milkdown-code-block .tools .language-button.ushio-native-language-button,
+.milkdown .milkdown-code-block .tools .language-picker.ushio-native-language-picker {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  width: 100%;
+  height: 32px;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--milkdown-color-shadow) 60%, transparent);
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action,
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger {
   margin: 0;
+  border: 0;
+  border-radius: 0;
+  height: 32px;
+  background: transparent;
+  color: var(--milkdown-color-on-surface);
   opacity: 1;
-  border-radius: 999px;
-  padding: 4px 8px;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action {
+  width: 36px;
+  min-width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger {
+  min-width: 96px;
+  max-width: 200px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-left: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent);
+  cursor: pointer;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger .ushio-language-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: lowercase;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-code-copy-action:hover,
+.milkdown .milkdown-code-block .tools .ushio-code-action-capsule .ushio-custom-language-trigger:hover {
+  background: color-mix(in srgb, var(--milkdown-color-primary) 10%, transparent);
+}
+
+.ushio-language-popup {
+  position: fixed;
+  z-index: 110;
+  display: none;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 96%, #ffffff 4%);
+  box-shadow: 0 14px 32px var(--milkdown-color-shadow);
+  padding: 10px;
+  box-sizing: border-box;
+  backdrop-filter: blur(4px);
+}
+
+.ushio-language-popup[data-show='true'] {
+  display: block;
+}
+
+.ushio-language-popup-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%);
+  color: var(--milkdown-color-on-surface);
+  outline: none;
+}
+
+.ushio-language-popup-input:focus {
+  border-color: var(--milkdown-color-primary);
+}
+
+.ushio-language-popup-list {
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ushio-language-popup-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--milkdown-color-on-surface);
+  cursor: pointer;
+}
+
+.ushio-language-popup-item:hover {
+  background: color-mix(in srgb, var(--milkdown-color-primary) 12%, transparent);
+}
+
+.ushio-language-popup-empty {
+  padding: 10px 8px;
+  border: 1px dashed color-mix(in srgb, var(--milkdown-color-outline) 70%, transparent);
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--milkdown-color-on-surface) 72%, transparent);
+  font-size: 12px;
 }
 
 .milkdown .milkdown-code-block .tools .tools-button-group button {
   opacity: 1;
-  padding: 4px 8px;
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.milkdown .milkdown-code-block .tools .tools-button-group .ushio-copy-icon-btn svg {
+  display: block;
 }
 
 .milkdown .milkdown-code-block .cm-panel {
@@ -181,17 +367,89 @@ body {
 
 .milkdown table {
   border-collapse: collapse;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+  margin: 1em 0;
+}
+
+.milkdown .milkdown-table-block {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable both-edges;
+  touch-action: pan-x pan-y;
 }
 
 .milkdown table th,
 .milkdown table td {
   border: 1px solid var(--milkdown-color-outline);
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  vertical-align: top;
+  line-height: 1.45;
+  padding: 6px 10px;
+}
+
+.milkdown table th.ushio-path-column,
+.milkdown table td.ushio-path-column {
+  font-family: var(--milkdown-font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.milkdown .ushio-horizontal-scroll {
+  scrollbar-width: thin;
+}
+
+.milkdown .ushio-horizontal-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.milkdown .ushio-horizontal-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--milkdown-color-outline) 78%, transparent);
+}
+
+.milkdown .ushio-horizontal-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--milkdown-color-surface) 92%, transparent);
 }
 
 .milkdown img {
   max-width: 100%;
   height: auto;
+}
+
+.milkdown .milkdown-image-block > .image-wrapper .operation {
+  display: none !important;
+}
+
+.milkdown .milkdown-image-block.ushio-image-load-failed .caption-input,
+.milkdown img.ushio-image-load-failed + .caption-input {
+  display: none !important;
+}
+
+.milkdown .milkdown-image-block.ushio-image-load-failed .image-size-menu,
+.milkdown .milkdown-image-block.ushio-image-load-failed .image-toolbar,
+.milkdown .milkdown-image-block.ushio-image-load-failed [class*='icon'],
+.milkdown .milkdown-image-block.ushio-image-load-failed svg {
+  display: none !important;
+}
+
+.milkdown img.ushio-image-load-failed {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.milkdown .milkdown-image-block.ushio-image-load-failed {
+  border: none !important;
+  background: transparent !important;
+}
+
+.milkdown[data-ushio-read-only='true'] .milkdown-image-block > .caption-input {
+  display: none !important;
 }
 
 .ushio-context-menu {

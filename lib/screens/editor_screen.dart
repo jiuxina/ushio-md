@@ -329,7 +329,9 @@ class _EditorScreenState extends State<EditorScreen>
       // The JS also handles the visual flash on the target heading.
       if (headingIndex >= 0) {
         _previewWebViewController.scrollToHeading(
-          headingIndex,
+          headingIndex: headingIndex,
+          lineNumber: item.lineNumber,
+          headingText: item.title,
           topOffset: _jumpTopOffset,
         );
       }
@@ -691,30 +693,34 @@ class _EditorScreenState extends State<EditorScreen>
   ///
   /// Opens external URLs in browser, navigates to local markdown files
   void _handleLinkTap(String text, String? href, String title) {
-    if (href == null || href.isEmpty) return;
+    final normalizedHref = href?.trim() ?? '';
+    final normalizedText = text.trim();
+    final headingFragment = normalizedHref.startsWith('#')
+        ? Uri.decodeComponent(normalizedHref.substring(1)).trim()
+        : (normalizedHref.isEmpty ? normalizedText : '');
 
-    if (href.startsWith('#')) {
-      final rawFragment = Uri.decodeComponent(href.substring(1)).trim();
-      if (rawFragment.isNotEmpty) {
-        final normalizedFragment = _slugifyHeading(rawFragment);
-        for (var i = 0; i < _tocItems.length; i++) {
-          final item = _tocItems[i];
-          if (_slugifyHeading(item.title) == normalizedFragment) {
-            _jumpToHeading(i, item);
-            return;
-          }
+    if (headingFragment.isNotEmpty) {
+      final normalizedFragment = _slugifyHeading(headingFragment);
+      for (var i = 0; i < _tocItems.length; i++) {
+        final item = _tocItems[i];
+        if (_slugifyHeading(item.title) == normalizedFragment) {
+          _jumpToHeading(i, item);
+          return;
         }
       }
+    }
+
+    if (normalizedHref.isEmpty) {
       return;
     }
 
     // Handle local markdown file links
-    if (href.endsWith('.md') || href.endsWith('.markdown')) {
+    if (normalizedHref.endsWith('.md') || normalizedHref.endsWith('.markdown')) {
       // Sanitize: reject path traversal attempts
-      if (!href.contains('..')) {
+      if (!normalizedHref.contains('..')) {
         final baseDir = File(widget.filePath).parent.path;
         final targetPath =
-            '$baseDir${Platform.pathSeparator}${href.replaceAll('/', Platform.pathSeparator)}';
+            '$baseDir${Platform.pathSeparator}${normalizedHref.replaceAll('/', Platform.pathSeparator)}';
         final targetFile = File(targetPath);
         if (targetFile.existsSync()) {
           EditorNavigationHelper.openEditor(context, targetPath);
@@ -724,7 +730,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     // Open external URLs in browser
-    final uri = Uri.tryParse(href);
+    final uri = Uri.tryParse(normalizedHref);
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
       try {
         launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -957,13 +963,19 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final shouldInterceptForMilkdownBlur =
+        _mode == EditorMode.preview && _isMilkdownEditorFocused;
     return PopScope(
-      canPop: !_isModified,
+      canPop: !_isModified && !shouldInterceptForMilkdownBlur,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
           // Clear the WebView platform surface immediately so the native view
           // doesn't linger as a ghost during the route-pop animation.
           if (mounted) setState(() => _hidePlatformViews = true);
+          return;
+        }
+        if (shouldInterceptForMilkdownBlur) {
+          await _previewWebViewController.execCmd('blur_editor');
           return;
         }
         if (!didPop) {

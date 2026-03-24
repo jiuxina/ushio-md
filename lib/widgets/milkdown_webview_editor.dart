@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:mime/mime.dart';
 
 import '../models/milkdown_bridge.dart';
 import '../services/my_files_service.dart';
@@ -97,19 +98,18 @@ class MilkdownWebViewController {
   Future<void> insertEmoji({String emoji = '😀'}) =>
       execCmd('insert_emoji', args: {'emoji': emoji});
 
-  Future<void> scrollToHeading(int headingIndex, {double topOffset = 32.0}) async {
-    await _webViewController?.evaluateJavascript(
-      source: '''
-        (function() {
-          var el = document.getElementById('heading-' + $headingIndex);
-          if (!el) return;
-          el.scrollIntoView({ block: 'start' });
-          window.scrollBy(0, -$topOffset);
-          el.classList.add('heading-flash');
-          setTimeout(function() { el.classList.remove('heading-flash'); }, 700);
-        })();
-      ''',
-    );
+  Future<void> scrollToHeading({
+    required int headingIndex,
+    required int lineNumber,
+    required String headingText,
+    double topOffset = 32.0,
+  }) async {
+    await execCmd('toc_jump', args: {
+      'headingIndex': headingIndex,
+      'lineNumber': lineNumber,
+      'headingText': headingText,
+      'topOffset': topOffset,
+    });
   }
 
   Future<Uint8List?> captureScreenshot() async {
@@ -239,6 +239,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
 class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   static const _documentRoot = 'assets/milkdown_web';
   static const int _maxUploadPersistRetries = 2;
+  static const String _localFileScheme = 'ushio-local-file';
 
   InAppWebViewController? _controller;
   InAppLocalhostServer? _localhostServer;
@@ -248,6 +249,34 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   bool _isServerStarting = false;
   bool _didFinishFirstRender = false;
   bool _suppressNextReload = false;
+
+  Future<CustomSchemeResponse?> _serveLocalFileRequest(Uri uri) async {
+    if (uri.scheme != _localFileScheme) return null;
+    final requestedPathRaw = uri.queryParameters['path'] ?? '';
+    if (requestedPathRaw.isEmpty) {
+      return CustomSchemeResponse(
+        data: Uint8List(0),
+        contentType: 'text/plain',
+        contentEncoding: 'utf-8',
+      );
+    }
+    final requestedPath = requestedPathRaw.trim();
+    final file = File(requestedPath);
+    if (!await file.exists()) {
+      return CustomSchemeResponse(
+        data: Uint8List(0),
+        contentType: 'text/plain',
+        contentEncoding: 'utf-8',
+      );
+    }
+    final bytes = await file.readAsBytes();
+    final mime = lookupMimeType(requestedPath) ?? 'application/octet-stream';
+    return CustomSchemeResponse(
+      data: bytes,
+      contentType: mime,
+      contentEncoding: 'binary',
+    );
+  }
 
   @override
   void initState() {
@@ -532,7 +561,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   Future<Map<String, String>?> _showInsertImageUrlDialog() async {
     if (!mounted || !widget.enableInsertImageUrl) return null;
     final urlController = TextEditingController();
-    final altController = TextEditingController(text: '图片描述');
+    final altController = TextEditingController();
     try {
       return await showDialog<Map<String, String>>(
         context: context,
@@ -568,12 +597,13 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 TextField(
                   controller: altController,
                   decoration: InputDecoration(
-                    labelText: '图片描述 (Alt 文本)',
-                    prefixIcon: const Icon(Icons.description),
+                    labelText: '替代文本（可选）',
+                    hintText: '用于无障碍与图片说明',
+                    prefixIcon: const Icon(Icons.image_outlined),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -856,6 +886,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         supportZoom: false,
         builtInZoomControls: false,
         displayZoomControls: false,
+        resourceCustomSchemes: [_localFileScheme],
       ),
       onWebViewCreated: (controller) {
         _controller = controller;
@@ -872,6 +903,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onLoadStop: (controller, _) async {
         await _sendInitDoc();
         await _sendTheme();
+      },
+      onLoadResourceWithCustomScheme: (controller, request) async {
+        final url = request.url;
+        if (url == null) return null;
+        return _serveLocalFileRequest(Uri.parse(url.toString()));
       },
     );
   }
