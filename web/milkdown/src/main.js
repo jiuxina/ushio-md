@@ -51,6 +51,7 @@ import './style.css';
 const app = document.getElementById('app');
 let bridgeSeq = 0;
 let editorInstance = null;
+let crepeInstance = null;
 let currentMarkdown = '';
 let currentBaseDirectory = '';
 let currentReadOnly = true;
@@ -71,7 +72,22 @@ let contentChangeTimerId = null;
 let pendingContentMarkdown = null;
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
+let caretViewportSyncRafId = null;
+let suppressNextCaretViewportSync = false;
+let checkboxInteractionGuardUntil = 0;
+let editorTouchScrollSuppressUntil = 0;
+let editorTouchTracking = null;
+let codeLanguagePopupElement = null;
+let codeLanguagePopupInput = null;
+let codeLanguagePopupList = null;
+let codeLanguagePopupAnchor = null;
+let codeLanguagePopupBlock = null;
+let codeLanguagePopupCandidates = [];
 const highlightParser = createRefractorParser(refractor);
+const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
+  .filter((name) => typeof name === 'string' && /^[a-z0-9_+-]+$/i.test(name))
+  .sort((a, b) => a.localeCompare(b));
+const LOCAL_FILE_SCHEME = 'ushio-local-file';
 
 const nextRequestId = () => `${Date.now()}-${++bridgeSeq}`;
 
@@ -167,6 +183,125 @@ const updateViewportMetrics = () => {
   const keyboardInset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
   root.style.setProperty('--ushio-viewport-height', `${viewportHeight}px`);
   root.style.setProperty('--ushio-keyboard-inset', `${keyboardInset}px`);
+  if (keyboardInset > 0) {
+    scheduleCaretIntoUpperViewport();
+  }
+};
+
+const slugifyHeading = (input) => {
+  if (typeof input !== 'string') return '';
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^\d+[\.\-_\s]+/u, '')
+    .replace(/[^\p{L}\p{N}\s\-]/gu, '')
+    .replace(/\s+/gu, '-')
+    .replace(/-+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+};
+
+const parseMarkdownOutline = (markdown) => {
+  const lines = markdown.split('\n');
+  const outline = [];
+  let inCodeBlock = false;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (/^\s*```/.test(trimmed)) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
+    if (atxMatch) {
+      outline.push({
+        id: `line-${index}`,
+        lineNumber: index,
+        level: atxMatch[1].length,
+        text: atxMatch[2].trim(),
+      });
+      continue;
+    }
+
+    if (trimmed && index + 1 < lines.length) {
+      const nextTrimmed = lines[index + 1].trim();
+      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
+        outline.push({
+          id: `line-${index}`,
+          lineNumber: index,
+          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
+          text: trimmed,
+        });
+        index += 1;
+      }
+    }
+  }
+  return outline;
+};
+
+const scrollNodeToViewport = (node, topOffset = 32) => {
+  if (!(node instanceof Element)) return false;
+  const vv = window.visualViewport;
+  const viewportHeight = Math.max(1, vv?.height ?? window.innerHeight);
+  const offset = Number.isFinite(topOffset) ? Math.max(0, topOffset) : 32;
+  const targetTop = Math.max(24, viewportHeight * 0.28 - offset);
+  const rect = node.getBoundingClientRect();
+  const deltaY = rect.top - targetTop;
+  const scroller = document.scrollingElement || document.documentElement || document.body;
+  if (scroller && typeof scroller.scrollTo === 'function') {
+    const currentTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
+    scroller.scrollTo({ top: Math.max(0, currentTop + deltaY), behavior: 'auto' });
+  } else {
+    window.scrollBy(0, deltaY);
+  }
+  node.classList.add('heading-flash');
+  setTimeout(() => node.classList.remove('heading-flash'), 700);
+  return true;
+};
+
+const ensureCaretInUpperViewport = () => {
+  if (currentReadOnly) return;
+  if (getKeyboardInset() <= 0) return;
+  const active = document.activeElement instanceof Element ? document.activeElement : null;
+  if (!active?.closest('.ProseMirror')) return;
+  const selection = window.getSelection();
+  const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+  const targetNode = range?.startContainer?.parentElement
+    ?? range?.commonAncestorContainer?.parentElement
+    ?? active;
+  if (!(targetNode instanceof Element)) return;
+  const vv = window.visualViewport;
+  const viewportHeight = Math.max(1, vv?.height ?? window.innerHeight);
+  const desiredTop = viewportHeight * 0.28;
+  const rect = targetNode.getBoundingClientRect();
+  if (rect.top >= desiredTop - 20 && rect.top <= viewportHeight * 0.5) return;
+  const scroller = document.scrollingElement || document.documentElement || document.body;
+  const delta = rect.top - desiredTop;
+  if (Math.abs(delta) < 4) return;
+  if (scroller && typeof scroller.scrollTo === 'function') {
+    const currentTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
+    scroller.scrollTo({ top: Math.max(0, currentTop + delta), behavior: 'auto' });
+  } else {
+    window.scrollBy(0, delta);
+  }
+};
+
+const scheduleCaretIntoUpperViewport = () => {
+  if (Date.now() < checkboxInteractionGuardUntil) return;
+  if (Date.now() < editorTouchScrollSuppressUntil) return;
+  if (caretViewportSyncRafId != null) return;
+  caretViewportSyncRafId = requestAnimationFrame(() => {
+    caretViewportSyncRafId = null;
+    ensureCaretInUpperViewport();
+  });
+};
+
+const guardEditorFocusAfterCheckboxToggle = () => {
+  checkboxInteractionGuardUntil = Date.now() + 420;
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  blurEditorFocus();
 };
 
 const ensureFileBaseUrl = (baseDirectory) => {
@@ -177,6 +312,106 @@ const ensureFileBaseUrl = (baseDirectory) => {
   const normalized = baseDirectory.replace(/\\/g, '/');
   const withLeading = normalized.startsWith('/') ? normalized : `/${normalized}`;
   return `file://${withLeading.endsWith('/') ? withLeading : `${withLeading}/`}`;
+};
+
+const applyHorizontalScrollClass = (element) => {
+  if (!(element instanceof Element)) return;
+  element.classList.add('ushio-horizontal-scroll');
+};
+
+const guessPathColumnIndexes = (table) => {
+  if (!(table instanceof HTMLTableElement)) return new Set();
+  const firstRow = table.querySelector('tr');
+  if (!(firstRow instanceof HTMLTableRowElement)) return new Set();
+  const cells = Array.from(firstRow.querySelectorAll('th,td'));
+  const indexes = new Set();
+  cells.forEach((cell, index) => {
+    const title = (cell.textContent || '').trim().toLowerCase();
+    if (!title) return;
+    if (
+      title.includes('path')
+      || title.includes('file path')
+      || title.includes('filepath')
+      || title.includes('文件路径')
+      || title.includes('路径')
+    ) {
+      indexes.add(index);
+    }
+  });
+  return indexes;
+};
+
+const markTablePathColumns = (table) => {
+  if (!(table instanceof HTMLTableElement)) return;
+  const pathColumns = guessPathColumnIndexes(table);
+  if (!pathColumns.size) return;
+  table.querySelectorAll('tr').forEach((row) => {
+    const cells = Array.from(row.querySelectorAll('th,td'));
+    cells.forEach((cell, index) => {
+      if (pathColumns.has(index)) {
+        cell.classList.add('ushio-path-column');
+      } else {
+        cell.classList.remove('ushio-path-column');
+      }
+    });
+  });
+};
+
+const lockViewportZoom = () => {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (meta) {
+    meta.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no');
+  }
+  let lastTouchEndAt = 0;
+  document.addEventListener('touchmove', (event) => {
+    if (event.touches.length > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+  document.addEventListener('touchend', (event) => {
+    const now = Date.now();
+    if (now - lastTouchEndAt <= 280) {
+      event.preventDefault();
+    }
+    lastTouchEndAt = now;
+  }, { passive: false });
+  window.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+  window.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+  window.addEventListener('gestureend', (event) => event.preventDefault(), { passive: false });
+  window.addEventListener('wheel', (event) => {
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+};
+
+const applyReadOnlyState = () => {
+  if (currentReadOnly) {
+    app.setAttribute('data-ushio-read-only', 'true');
+  } else {
+    app.removeAttribute('data-ushio-read-only');
+  }
+};
+
+const attachHorizontalWheelScroll = () => {
+  const candidates = app.querySelectorAll('.milkdown-table-block, .ProseMirror pre');
+  candidates.forEach((container) => {
+    if (!(container instanceof HTMLElement) || container.dataset.ushioWheelBound === '1') return;
+    container.dataset.ushioWheelBound = '1';
+    container.addEventListener('wheel', (event) => {
+      const deltaX = Math.abs(event.deltaX);
+      const deltaY = Math.abs(event.deltaY);
+      if (deltaY <= deltaX) return;
+      const canScrollX = container.scrollWidth > container.clientWidth + 1;
+      if (!canScrollX) return;
+      const next = container.scrollLeft + event.deltaY;
+      const before = container.scrollLeft;
+      container.scrollLeft = next;
+      if (container.scrollLeft !== before) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+  });
 };
 
 const isExternalHref = (href) => {
@@ -214,6 +449,76 @@ const resolveInsertImageSrc = (src) => {
   } catch (_) {
     return trimmed;
   }
+};
+
+const sanitizeImageSource = (src) => {
+  if (typeof src !== 'string') return '';
+  const trimmed = src.trim();
+  if (!trimmed) return '';
+  const markdownTitleMatch = trimmed.match(/^(\S+)\s+["'“”][\s\S]*["'“”]$/);
+  if (markdownTitleMatch && markdownTitleMatch[1]) {
+    return markdownTitleMatch[1].trim();
+  }
+  const firstSpace = trimmed.indexOf(' ');
+  if (firstSpace > 0) {
+    const suffix = trimmed.slice(firstSpace + 1).trim();
+    if (suffix.startsWith('"') || suffix.startsWith("'") || suffix.startsWith('“')) {
+      return trimmed.slice(0, firstSpace).trim();
+    }
+  }
+  return trimmed;
+};
+
+const decodeFileUriPath = (value) => {
+  if (typeof value !== 'string' || !value.startsWith('file://')) return '';
+  try {
+    return decodeURIComponent(new URL(value).pathname || '');
+  } catch (_) {
+    return value.replace(/^file:\/\//i, '');
+  }
+};
+
+const normalizeBaseDirectoryPath = (baseDirectory) => {
+  if (typeof baseDirectory !== 'string' || !baseDirectory.trim()) return '';
+  const trimmed = baseDirectory.trim();
+  if (trimmed.startsWith('file://')) {
+    return decodeFileUriPath(trimmed);
+  }
+  return trimmed.replace(/\\/g, '/');
+};
+
+const toAbsoluteLocalPath = (pathLike) => {
+  if (typeof pathLike !== 'string') return '';
+  const raw = pathLike.trim();
+  if (!raw) return '';
+  if (raw.startsWith('file://')) {
+    return decodeFileUriPath(raw);
+  }
+  if (raw.startsWith('/')) return raw;
+  const base = normalizeBaseDirectoryPath(currentBaseDirectory);
+  if (!base) return '';
+  const normalizedBase = base.replace(/\/+$/, '');
+  const normalizedRaw = raw.replace(/\\/g, '/').replace(/^\.\//, '');
+  return `${normalizedBase}/${normalizedRaw}`;
+};
+
+const buildLocalFileProxyUrl = (absolutePath) => {
+  if (typeof absolutePath !== 'string' || !absolutePath) return '';
+  return `${LOCAL_FILE_SCHEME}://local?path=${encodeURIComponent(absolutePath)}`;
+};
+
+const resolveImageSrc = (src) => {
+  const sanitized = sanitizeImageSource(src);
+  if (!sanitized) return '';
+  if (isExternalHref(sanitized) || sanitized.startsWith('data:') || sanitized.startsWith('blob:')) {
+    return sanitized;
+  }
+  const absolutePath = toAbsoluteLocalPath(sanitized);
+  if (!absolutePath) {
+    return resolveHref(sanitized);
+  }
+  const proxyUrl = buildLocalFileProxyUrl(absolutePath);
+  return proxyUrl || resolveHref(sanitized);
 };
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
@@ -347,56 +652,211 @@ const scheduleContentChange = (markdown) => {
 };
 
 const emitOutlineUpdate = () => {
-  const lines = currentMarkdown.split('\n');
-  const outline = [];
-  let inCodeBlock = false;
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    const trimmed = line.trim();
-    if (/^\s*```/.test(trimmed)) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (inCodeBlock) continue;
+  const outline = parseMarkdownOutline(currentMarkdown).map(({ id, level, text }) => ({
+    id,
+    level,
+    text,
+  }));
+  emit('on_outline_update', { outline });
+};
 
-    const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
-    if (atxMatch) {
-      outline.push({
-        id: `line-${index}`,
-        level: atxMatch[1].length,
-        text: atxMatch[2].trim(),
-      });
-      continue;
-    }
-
-    if (trimmed && index + 1 < lines.length) {
-      const nextTrimmed = lines[index + 1].trim();
-      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
-        outline.push({
-          id: `line-${index}`,
-          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
-          text: trimmed,
-        });
-        index += 1;
-      }
+const findCodeBlockPosAtSelection = (state, pos) => {
+  const $pos = state.doc.resolve(Math.max(0, Math.min(pos, state.doc.content.size)));
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node?.type?.name === 'code_block') {
+      return $pos.before(depth);
     }
   }
-  emit('on_outline_update', { outline });
+  return null;
+};
+
+const setCodeBlockLanguage = (codeBlock, language) => {
+  if (!editorInstance || !codeBlock) return false;
+  let ok = false;
+  const nextLanguage = typeof language === 'string' ? language.trim().toLowerCase() : '';
+  editorInstance.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const { state } = view;
+    let codeBlockPos = null;
+
+    const { $from } = state.selection;
+    for (let depth = $from.depth; depth > 0; depth -= 1) {
+      const node = $from.node(depth);
+      if (node?.type?.name === 'code_block') {
+        codeBlockPos = $from.before(depth);
+        break;
+      }
+    }
+
+    if (codeBlockPos == null) {
+      const anchorDom = codeBlock.querySelector('.cm-content') || codeBlock.querySelector('.cm-editor') || codeBlock;
+      try {
+        const domPos = view.posAtDOM(anchorDom, 0);
+        codeBlockPos = findCodeBlockPosAtSelection(state, domPos);
+      } catch (_) {
+        codeBlockPos = null;
+      }
+    }
+
+    if (codeBlockPos == null) return;
+    const node = state.doc.nodeAt(codeBlockPos);
+    if (!node || node.type.name !== 'code_block') return;
+
+    const currentLanguage = typeof node.attrs?.language === 'string' ? node.attrs.language.trim().toLowerCase() : '';
+    if (currentLanguage === nextLanguage) {
+      ok = true;
+      return;
+    }
+
+    const nextAttrs = {
+      ...node.attrs,
+      language: nextLanguage || undefined,
+    };
+    view.dispatch(state.tr.setNodeMarkup(codeBlockPos, undefined, nextAttrs));
+    ok = true;
+  });
+  return ok;
+};
+
+const updateCodeLanguageButtonLabel = (codeBlock, language) => {
+  const trigger = codeBlock?.querySelector('.ushio-custom-language-trigger');
+  if (!(trigger instanceof HTMLButtonElement)) return;
+  const normalized = typeof language === 'string' ? language.trim() : '';
+  const textNode = trigger.querySelector('.ushio-language-text');
+  if (textNode instanceof HTMLElement) {
+    textNode.textContent = normalized || 'plain';
+  }
+};
+
+const hideCodeLanguagePopup = () => {
+  if (!codeLanguagePopupElement) return;
+  codeLanguagePopupElement.dataset.show = 'false';
+  codeLanguagePopupAnchor = null;
+  codeLanguagePopupBlock = null;
+};
+
+const renderCodeLanguagePopupList = (query = '') => {
+  if (!codeLanguagePopupList) return;
+  const keyword = query.trim().toLowerCase();
+  const options = KNOWN_CODE_LANGUAGES.filter((item) => !keyword || item.includes(keyword)).slice(0, 120);
+  codeLanguagePopupCandidates = options;
+  codeLanguagePopupList.innerHTML = '';
+  if (options.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'ushio-language-popup-empty';
+    empty.textContent = '没有匹配的语言';
+    codeLanguagePopupList.append(empty);
+    return;
+  }
+  options.forEach((item) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ushio-language-popup-item';
+    btn.textContent = item;
+    btn.addEventListener('mousedown', (event) => event.preventDefault());
+    btn.addEventListener('click', () => {
+      if (!(codeLanguagePopupBlock instanceof HTMLElement)) return;
+      const applied = setCodeBlockLanguage(codeLanguagePopupBlock, item);
+      if (applied) {
+        updateCodeLanguageButtonLabel(codeLanguagePopupBlock, item);
+      }
+      hideCodeLanguagePopup();
+    });
+    codeLanguagePopupList.append(btn);
+  });
+};
+
+const ensureCodeLanguagePopup = () => {
+  if (codeLanguagePopupElement) return;
+  const panel = document.createElement('div');
+  panel.className = 'ushio-language-popup';
+  panel.dataset.show = 'false';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ushio-language-popup-input';
+  input.placeholder = '搜索语言...';
+  input.setAttribute('aria-label', '搜索代码语言');
+  input.addEventListener('input', () => {
+    renderCodeLanguagePopupList(input.value);
+  });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      hideCodeLanguagePopup();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const first = codeLanguagePopupCandidates[0];
+      if (!(codeLanguagePopupBlock instanceof HTMLElement)) return;
+      const applied = setCodeBlockLanguage(codeLanguagePopupBlock, first || '');
+      if (applied) {
+        updateCodeLanguageButtonLabel(codeLanguagePopupBlock, first || '');
+      }
+      hideCodeLanguagePopup();
+    }
+  });
+
+  const list = document.createElement('div');
+  list.className = 'ushio-language-popup-list';
+
+  panel.append(input, list);
+  app.append(panel);
+  codeLanguagePopupElement = panel;
+  codeLanguagePopupInput = input;
+  codeLanguagePopupList = list;
+};
+
+const showCodeLanguagePopup = (anchor, codeBlock, currentLanguage = '') => {
+  if (!(anchor instanceof HTMLElement) || !(codeBlock instanceof HTMLElement)) return;
+  ensureCodeLanguagePopup();
+  if (!(codeLanguagePopupElement instanceof HTMLElement) || !(codeLanguagePopupInput instanceof HTMLInputElement)) return;
+
+  codeLanguagePopupAnchor = anchor;
+  codeLanguagePopupBlock = codeBlock;
+  codeLanguagePopupInput.value = currentLanguage || '';
+  renderCodeLanguagePopupList(currentLanguage || '');
+  codeLanguagePopupElement.dataset.show = 'true';
+
+  const anchorRect = anchor.getBoundingClientRect();
+  const panelWidth = Math.min(320, Math.max(220, window.innerWidth - 16));
+  const panelLeft = Math.max(8, Math.min(anchorRect.right - panelWidth, window.innerWidth - panelWidth - 8));
+  const panelTop = Math.min(anchorRect.bottom + 8, window.innerHeight - 280);
+  codeLanguagePopupElement.style.width = `${panelWidth}px`;
+  codeLanguagePopupElement.style.left = `${panelLeft}px`;
+  codeLanguagePopupElement.style.top = `${Math.max(8, panelTop)}px`;
+
+  requestAnimationFrame(() => codeLanguagePopupInput?.focus());
 };
 
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
   root.querySelectorAll('img').forEach((img) => {
     const rawSrc = img.getAttribute('src') || '';
-    const resolvedSrc = resolveHref(rawSrc);
-    if (resolvedSrc && img.src !== resolvedSrc) {
-      img.src = resolvedSrc;
+    const sanitizedRawSrc = sanitizeImageSource(rawSrc);
+    if (sanitizedRawSrc && sanitizedRawSrc !== rawSrc) {
+      img.setAttribute('src', sanitizedRawSrc);
+    }
+    const resolvedSrc = resolveImageSrc(sanitizedRawSrc || rawSrc);
+    if (resolvedSrc && img.getAttribute('src') !== resolvedSrc) {
+      img.setAttribute('src', resolvedSrc);
+    }
+    if (!img.dataset.ushioLoadBound) {
+      img.dataset.ushioLoadBound = '1';
+      img.addEventListener('load', () => {
+        img.classList.remove('ushio-image-load-failed');
+        img.closest('.milkdown-image-block')?.classList.remove('ushio-image-load-failed');
+      });
     }
     if (!img.dataset.ushioErrorBound) {
       img.dataset.ushioErrorBound = '1';
       img.addEventListener('error', () => {
+        img.classList.add('ushio-image-load-failed');
+        img.closest('.milkdown-image-block')?.classList.add('ushio-image-load-failed');
         emit('on_image_error', {
-          src: resolvedSrc || rawSrc,
+          src: resolvedSrc || sanitizedRawSrc || rawSrc,
           reason: 'load_failed',
         });
       });
@@ -412,12 +872,126 @@ const syncRenderedDom = () => {
     }
   });
 
+  const headingOutline = parseMarkdownOutline(currentMarkdown);
   root.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading, index) => {
-    heading.id = `heading-${index}`;
+    const outlineNode = headingOutline[index];
+    const text = (outlineNode?.text || heading.textContent || '').trim();
+    const lineNumber = Number.isFinite(outlineNode?.lineNumber) ? outlineNode.lineNumber : index;
+    heading.id = `heading-line-${lineNumber}`;
+    heading.dataset.headingLine = String(lineNumber);
+    heading.dataset.headingSlug = slugifyHeading(text);
   });
+
+  root.querySelectorAll('.milkdown-table-block').forEach((block) => {
+    applyHorizontalScrollClass(block);
+    const table = block.querySelector('table');
+    if (table instanceof HTMLTableElement) {
+      markTablePathColumns(table);
+    }
+  });
+
+  root.querySelectorAll('.ProseMirror pre').forEach((block) => {
+    applyHorizontalScrollClass(block);
+  });
+
+  attachHorizontalWheelScroll();
 
   root.querySelectorAll('input[type="checkbox"]').forEach((checkbox, index) => {
     checkbox.dataset.checkboxIndex = String(index);
+    checkbox.setAttribute('tabindex', '-1');
+  });
+
+  root.querySelectorAll('.milkdown-code-block').forEach((codeBlock) => {
+    try {
+    const tools = codeBlock.querySelector('.tools');
+    if (!(tools instanceof HTMLElement)) return;
+
+    const languageButton = tools.querySelector('.language-button');
+    const picker = tools.querySelector('.language-picker');
+    const currentLanguage = (languageButton?.textContent || '').trim().toLowerCase() || 'plain';
+    if (languageButton instanceof HTMLElement) {
+      languageButton.classList.add('ushio-native-language-button');
+      languageButton.setAttribute('aria-hidden', 'true');
+    }
+    if (picker instanceof HTMLElement) {
+      picker.classList.add('ushio-native-language-picker');
+    }
+
+    const toolButtons = Array.from(tools.querySelectorAll('.tools-button-group button'));
+    let nativeCopyButton = null;
+    toolButtons.forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) return;
+      const text = (button.textContent || '').trim().toLowerCase();
+      const title = (button.getAttribute('title') || '').trim().toLowerCase();
+      if (text !== 'copy' && title !== 'copy' && title !== '复制') return;
+      if (button.dataset.ushioCopyIconApplied === '1') return;
+      button.dataset.ushioCopyIconApplied = '1';
+      button.classList.add('ushio-copy-icon-btn');
+      button.setAttribute('title', '复制');
+      button.setAttribute('aria-label', '复制');
+      button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
+      nativeCopyButton = button;
+    });
+
+    let copyButton = nativeCopyButton || tools.querySelector('.ushio-fallback-copy-button');
+    if (!(copyButton instanceof HTMLButtonElement)) {
+      copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'ushio-copy-icon-btn ushio-fallback-copy-button';
+      copyButton.setAttribute('title', '复制');
+      copyButton.setAttribute('aria-label', '复制');
+      copyButton.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="5" y="5" width="10" height="10" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></svg>';
+      copyButton.addEventListener('mousedown', (event) => event.preventDefault());
+      copyButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const codeText = codeBlock.querySelector('.cm-content')?.textContent ?? '';
+        try {
+          await navigator.clipboard.writeText(codeText);
+        } catch (_) {
+          const textarea = document.createElement('textarea');
+          textarea.value = codeText;
+          textarea.setAttribute('readonly', 'readonly');
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.append(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          textarea.remove();
+        }
+      });
+    }
+
+    if (copyButton instanceof HTMLElement) {
+      let actionCapsule = tools.querySelector('.ushio-code-action-capsule');
+      if (!(actionCapsule instanceof HTMLElement)) {
+        actionCapsule = document.createElement('div');
+        actionCapsule.className = 'ushio-code-action-capsule';
+        tools.append(actionCapsule);
+      }
+      let customLanguageButton = tools.querySelector('.ushio-custom-language-trigger');
+      if (!(customLanguageButton instanceof HTMLButtonElement)) {
+        customLanguageButton = document.createElement('button');
+        customLanguageButton.type = 'button';
+        customLanguageButton.className = 'ushio-custom-language-trigger';
+        customLanguageButton.innerHTML = '<span class="ushio-language-text"></span><span class="ushio-language-caret">▾</span>';
+        customLanguageButton.addEventListener('mousedown', (event) => event.preventDefault());
+        customLanguageButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (currentReadOnly) return;
+          const code = customLanguageButton.closest('.milkdown-code-block');
+          if (!(code instanceof HTMLElement)) return;
+          const current = (customLanguageButton.querySelector('.ushio-language-text')?.textContent || '').trim().toLowerCase();
+          showCodeLanguagePopup(customLanguageButton, code, current);
+        });
+      }
+      actionCapsule.replaceChildren(copyButton, customLanguageButton);
+      copyButton.classList.add('ushio-code-copy-action');
+      updateCodeLanguageButtonLabel(codeBlock, currentLanguage);
+    }
+    } catch (error) {
+      console.warn('sync code block tools failed', error);
+    }
   });
 };
 
@@ -685,6 +1259,14 @@ const updateActiveMarkdownHints = () => {
   }
 };
 
+const blurEditorFocus = () => {
+  const editor = app.querySelector('.ProseMirror');
+  if (!(editor instanceof HTMLElement)) return false;
+  editor.blur();
+  emitEditorFocus(false);
+  return true;
+};
+
 const createEditor = async () => {
   const crepe = new Crepe({
     root: app,
@@ -723,7 +1305,9 @@ const createEditor = async () => {
     .use(upload);
 
   await crepe.create();
+  crepeInstance = crepe;
   crepe.setReadonly(currentReadOnly);
+  applyReadOnlyState();
   editorInstance = crepe.editor;
 
   contextMenuElement = createContextMenuElement();
@@ -738,6 +1322,29 @@ const createEditor = async () => {
 
 app.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (isImageInteractionTarget(target)) {
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    blurEditorFocus();
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  const checkbox = target?.closest('input[type="checkbox"]');
+  if (checkbox instanceof HTMLInputElement) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!currentReadOnly) {
+      guardEditorFocusAfterCheckboxToggle();
+      suppressNextCaretViewportSync = true;
+      checkbox.checked = !checkbox.checked;
+      emitCheckboxToggle(checkbox, checkbox.checked);
+      setTimeout(() => {
+        suppressNextCaretViewportSync = false;
+      }, 0);
+    }
+    return;
+  }
   if (target?.matches('a, a *')) {
     app.querySelector('.ProseMirror')?.blur();
   }
@@ -746,11 +1353,13 @@ app.addEventListener('click', (event) => {
     event.preventDefault();
     const rawHref = anchor.getAttribute('href') || '';
     const resolvedHref = anchor.getAttribute('data-ushio-href') || resolveHref(rawHref);
+    const anchorText = anchor.textContent?.trim() || null;
+    const fallbackHref = !resolvedHref && !rawHref && anchorText ? `#${anchorText}` : '';
     emit('on_link_click', {
-      href: resolvedHref || rawHref,
-      text: anchor.textContent?.trim() || null,
+      href: resolvedHref || rawHref || fallbackHref,
+      text: anchorText,
       title: anchor.getAttribute('title'),
-      isExternal: isExternalHref(resolvedHref || rawHref),
+      isExternal: isExternalHref(resolvedHref || rawHref || fallbackHref),
     });
     return;
   }
@@ -764,15 +1373,76 @@ app.addEventListener('click', (event) => {
 
 app.addEventListener('mousedown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  if (target?.matches('a, a *, input[type="checkbox"]')) {
+  if (isImageInteractionTarget(target)) {
     event.preventDefault();
+    event.stopPropagation();
+    return;
   }
+  if (target?.matches('a, a *')) {
+    event.preventDefault();
+    return;
+  }
+  if (target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+});
+
+app.addEventListener('touchstart', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (isImageInteractionTarget(target)) {
+    editorTouchScrollSuppressUntil = Date.now() + 900;
+    return;
+  }
+  if (!target?.matches('input[type="checkbox"], input[type="checkbox"] *')) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, { passive: false });
+
+const emitCheckboxToggle = (checkbox, checked) => {
+  const index = Number.parseInt(checkbox.dataset.checkboxIndex || '-1', 10);
+  if (Number.isNaN(index) || index < 0) return;
+  emit('on_checkbox_toggle', {
+    index,
+    checked,
+  });
+};
+
+const isImageInteractionTarget = (target) => Boolean(
+  target?.closest?.('.milkdown-image-block, .milkdown-image-block *, img'),
+);
+
+app.addEventListener('pointerdown', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (isImageInteractionTarget(target)) {
+    editorTouchScrollSuppressUntil = Date.now() + 900;
+    if (event.pointerType && event.pointerType !== 'touch') {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    return;
+  }
+  const checkbox = target?.closest('input[type="checkbox"]');
+  if (!(checkbox instanceof HTMLInputElement)) return;
+  event.preventDefault();
+  event.stopPropagation();
 });
 
 app.addEventListener('focusin', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (target?.matches('input[type="checkbox"]')) {
+    target.blur();
+    return;
+  }
   if (target?.closest('.ProseMirror')) {
+    if (Date.now() < checkboxInteractionGuardUntil) {
+      if (target instanceof HTMLElement) target.blur();
+      emitEditorFocus(false);
+      return;
+    }
+    if (suppressNextCaretViewportSync) return;
     emitEditorFocus(true);
+    scheduleCaretIntoUpperViewport();
   }
 });
 
@@ -791,13 +1461,14 @@ app.addEventListener('focusout', (event) => {
 app.addEventListener('change', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
-  const index = Number.parseInt(target.dataset.checkboxIndex || '-1', 10);
-  if (Number.isNaN(index) || index < 0) return;
-  app.querySelector('.ProseMirror')?.blur();
-  emit('on_checkbox_toggle', {
-    index,
-    checked: target.checked,
-  });
+  event.preventDefault();
+  event.stopPropagation();
+});
+
+app.addEventListener('focusin', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
+  target.blur();
 });
 
 app.addEventListener('contextmenu', (event) => {
@@ -824,6 +1495,8 @@ app.addEventListener('pointerdown', (event) => {
   if (event.pointerType !== 'touch' || currentReadOnly) return;
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest('.ProseMirror')) return;
+  editorTouchScrollSuppressUntil = Date.now() + 900;
+  editorTouchTracking = { x: event.clientX, y: event.clientY };
   clearMobileLongPress();
   mobileLongPressStartPoint = { x: event.clientX, y: event.clientY };
   mobileLongPressTimer = setTimeout(() => {
@@ -833,7 +1506,15 @@ app.addEventListener('pointerdown', (event) => {
 });
 
 app.addEventListener('pointermove', (event) => {
-  if (event.pointerType !== 'touch' || !mobileLongPressStartPoint) return;
+  if (event.pointerType !== 'touch') return;
+  if (editorTouchTracking) {
+    const dragX = Math.abs(event.clientX - editorTouchTracking.x);
+    const dragY = Math.abs(event.clientY - editorTouchTracking.y);
+    if (dragX > 6 || dragY > 6) {
+      editorTouchScrollSuppressUntil = Date.now() + 900;
+    }
+  }
+  if (!mobileLongPressStartPoint) return;
   const dx = Math.abs(event.clientX - mobileLongPressStartPoint.x);
   const dy = Math.abs(event.clientY - mobileLongPressStartPoint.y);
   if (dx > 14 || dy > 14) {
@@ -841,14 +1522,34 @@ app.addEventListener('pointermove', (event) => {
   }
 });
 
-app.addEventListener('pointerup', clearMobileLongPress);
-app.addEventListener('pointercancel', clearMobileLongPress);
-document.addEventListener('scroll', hideContextMenu, true);
+app.addEventListener('pointerup', (event) => {
+  if (event.pointerType === 'touch') {
+    editorTouchTracking = null;
+    editorTouchScrollSuppressUntil = Date.now() + 520;
+  }
+  clearMobileLongPress();
+});
+app.addEventListener('pointercancel', (event) => {
+  if (event.pointerType === 'touch') {
+    editorTouchTracking = null;
+    editorTouchScrollSuppressUntil = Date.now() + 520;
+  }
+  clearMobileLongPress();
+});
+document.addEventListener('scroll', () => {
+  editorTouchScrollSuppressUntil = Math.max(editorTouchScrollSuppressUntil, Date.now() + 520);
+  hideContextMenu();
+}, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
 document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
+document.addEventListener('selectionchange', scheduleCaretIntoUpperViewport, true);
 document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  const isLanguagePopupClick = Boolean(target?.closest('.ushio-language-popup, .ushio-custom-language-trigger'));
+  if (!isLanguagePopupClick) {
+    hideCodeLanguagePopup();
+  }
   if (!target?.closest('.ushio-context-menu')) {
     hideContextMenu();
   }
@@ -865,7 +1566,20 @@ const ensureEditor = () => {
 };
 
 const handleEditorShortcut = (event) => {
+  if (event.key === 'Escape' && codeLanguagePopupElement?.dataset.show === 'true') {
+    event.preventDefault();
+    hideCodeLanguagePopup();
+    return;
+  }
   if (currentReadOnly) return;
+  if (event.key === 'Escape') {
+    const focusedNode = document.activeElement instanceof Element ? document.activeElement : null;
+    if (focusedNode?.closest('.ProseMirror')) {
+      event.preventDefault();
+      blurEditorFocus();
+      return;
+    }
+  }
   const key = (event.key || '').toLowerCase();
   const withPrimary = event.metaKey || event.ctrlKey;
   if (!withPrimary || event.altKey) return;
@@ -967,7 +1681,7 @@ const executeCommand = (cmd, args = {}) => {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
-  if (currentReadOnly && cmd !== 'focus_editor') {
+  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
@@ -975,6 +1689,11 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'focus_editor') {
       app.querySelector('.ProseMirror')?.focus();
       emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+    if (cmd === 'blur_editor') {
+      const ok = blurEditorFocus();
+      emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
     if (cmd === 'undo' || cmd === 'redo') {
@@ -1246,11 +1965,44 @@ const executeCommand = (cmd, args = {}) => {
       selection?.removeAllRanges();
       selection?.addRange(target);
       const node = target.startContainer.parentElement ?? target.commonAncestorContainer.parentElement;
-      node?.scrollIntoView({ block: 'center', behavior: 'auto' });
-      if (node) {
-        node.classList.add('heading-flash');
-        setTimeout(() => node.classList.remove('heading-flash'), 700);
+      scrollNodeToViewport(node, Number.parseFloat(args?.topOffset) || 32);
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+    if (cmd === 'toc_jump') {
+      const headingText = typeof args?.headingText === 'string' ? args.headingText.trim() : '';
+      const headingSlug = typeof args?.headingSlug === 'string' ? args.headingSlug.trim() : '';
+      const lineNumberRaw = Number.parseInt(args?.lineNumber, 10);
+      const headingIndexRaw = Number.parseInt(args?.headingIndex, 10);
+      const topOffsetRaw = Number.parseFloat(args?.topOffset);
+      const topOffset = Number.isFinite(topOffsetRaw) ? topOffsetRaw : 32;
+      const headings = Array.from(
+        (app.querySelector('.milkdown .ProseMirror') || app).querySelectorAll('h1, h2, h3, h4, h5, h6'),
+      );
+      if (!headings.length) {
+        emitCmdResult(cmd, false, 'not_found', startedAt);
+        return;
       }
+
+      let target = null;
+      if (!Number.isNaN(lineNumberRaw) && lineNumberRaw >= 0) {
+        target = headings.find((heading) => Number.parseInt(heading.dataset.headingLine || '-1', 10) === lineNumberRaw);
+      }
+      if (!(target instanceof Element) && headingSlug) {
+        target = headings.find((heading) => (heading.dataset.headingSlug || '') === headingSlug);
+      }
+      if (!(target instanceof Element) && headingText) {
+        const normalized = slugifyHeading(headingText);
+        target = headings.find((heading) => (heading.dataset.headingSlug || slugifyHeading(heading.textContent || '')) === normalized);
+      }
+      if (!(target instanceof Element) && !Number.isNaN(headingIndexRaw) && headingIndexRaw >= 0) {
+        target = headings[Math.min(headingIndexRaw, headings.length - 1)];
+      }
+      if (!(target instanceof Element)) {
+        emitCmdResult(cmd, false, 'not_found', startedAt);
+        return;
+      }
+      scrollNodeToViewport(target, topOffset);
       emitCmdResult(cmd, true, null, startedAt);
       return;
     }
@@ -1297,6 +2049,7 @@ const executeCommand = (cmd, args = {}) => {
 };
 
 updateViewportMetrics();
+lockViewportZoom();
 window.addEventListener('resize', updateViewportMetrics);
 window.addEventListener('orientationchange', updateViewportMetrics);
 window.visualViewport?.addEventListener('resize', updateViewportMetrics);
@@ -1319,9 +2072,11 @@ const onFlutterMessage = (message) => {
     const payload = m.payload && typeof m.payload === 'object' ? m.payload : {};
     currentBaseDirectory = typeof payload.baseDirectory === 'string' ? payload.baseDirectory : '';
     currentReadOnly = payload.readOnly !== false;
+    applyReadOnlyState();
     const markdown = typeof payload.markdown === 'string' ? payload.markdown : '';
     currentMarkdown = markdown;
     if (editorInstance) {
+      crepeInstance?.setReadonly?.(currentReadOnly);
       setMarkdown(markdown);
     } else {
       ensureEditor().catch((error) => {
