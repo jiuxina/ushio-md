@@ -159,15 +159,15 @@ body {
 }
 
 .milkdown .milkdown-code-block {
-  border-radius: 14px !important;
+  border-radius: 8px !important;
   overflow: visible;
   margin: 1em 0 50px;
   display: flex;
   flex-direction: column;
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
+  border: 0 !important;
   background: color-mix(in srgb, var(--milkdown-color-surface) 90%, var(--milkdown-color-primary) 10%);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
+  box-shadow: none !important;
 }
 
 .milkdown .milkdown-code-block,
@@ -232,10 +232,10 @@ body {
   min-width: 132px;
   height: 32px;
   padding: 0;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 85%, transparent) !important;
+  border-radius: 8px;
+  border: 0 !important;
   background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%) !important;
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--milkdown-color-shadow) 60%, transparent) !important;
+  box-shadow: none !important;
   z-index: 1;
   align-self: flex-end;
 }
@@ -270,28 +270,65 @@ body {
   display: none !important;
 }
 
+.milkdown .milkdown-code-block .tools .ushio-language-input,
+.milkdown .milkdown-code-block .tools .ushio-language-trigger,
 .milkdown .milkdown-code-block .tools .language-button {
   display: inline-flex !important;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 0;
   width: calc(100% - 38px);
   min-width: 96px;
   max-width: 184px;
   height: 32px;
   margin: 0;
   padding: 0 10px;
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 8px 8px 0;
   border: 0 !important;
-  border-left: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 80%, transparent) !important;
-  background: transparent !important;
+  border-left: 0 !important;
+  background: color-mix(in srgb, var(--milkdown-color-surface) 90%, var(--milkdown-color-primary) 10%) !important;
+  box-shadow: none !important;
   color: var(--milkdown-color-on-surface) !important;
+  font-family: var(--milkdown-font-code), monospace !important;
   font-size: 12px;
   font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
   opacity: 1 !important;
 }
 
+.milkdown .milkdown-code-block .tools .ushio-language-input,
+.milkdown .milkdown-code-block .tools .ushio-language-trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-language-input:focus {
+  background: color-mix(in srgb, var(--milkdown-color-surface) 88%, var(--milkdown-color-primary) 12%) !important;
+}
+
+.milkdown .milkdown-code-block .tools .language-button {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-language-trigger .expand-icon,
 .milkdown .milkdown-code-block .tools .language-button .expand-icon {
   display: none !important;
+}
+
+.milkdown .milkdown-code-block .tools .ushio-language-trigger svg,
+.milkdown .milkdown-code-block .tools .ushio-language-trigger::after,
+.milkdown .milkdown-code-block .tools .language-button svg,
+.milkdown .milkdown-code-block .tools .language-button::after {
+  display: none !important;
+  content: none !important;
 }
 
 .milkdown .milkdown-code-block .tools .tools-button-group {
@@ -300,7 +337,7 @@ body {
   width: 36px;
   min-width: 36px;
   height: 32px;
-  border-radius: 12px 0 0 12px;
+  border-radius: 8px 0 0 8px;
   border: 0 !important;
   background: transparent !important;
   opacity: 1 !important;
@@ -314,7 +351,7 @@ body {
   padding: 0;
   margin: 0;
   border: 0 !important;
-  border-radius: 12px 0 0 12px;
+  border-radius: 8px 0 0 8px;
   background: transparent !important;
   color: var(--milkdown-color-on-surface) !important;
   display: inline-flex;
@@ -377,7 +414,8 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  display: flex;
+  animation: ushio-language-popup-enter 140ms ease;
+  transform-origin: center;
   flex-direction: column;
 }
 
@@ -420,10 +458,19 @@ body {
   background: transparent;
   color: var(--milkdown-color-on-surface);
   cursor: pointer;
+  transition: background-color 120ms ease;
 }
 
 .ushio-language-popup-item:hover {
   background: color-mix(in srgb, var(--milkdown-color-primary) 12%, transparent);
+}
+
+.ushio-language-popup-item.is-active {
+  background: color-mix(in srgb, var(--milkdown-color-primary) 16%, transparent);
+}
+
+.ushio-language-popup-item[data-is-plain='true'] {
+  color: color-mix(in srgb, var(--milkdown-color-on-surface) 78%, transparent);
 }
 
 .ushio-language-popup-empty {
@@ -432,6 +479,17 @@ body {
   border-radius: 8px;
   color: color-mix(in srgb, var(--milkdown-color-on-surface) 72%, transparent);
   font-size: 12px;
+}
+
+@keyframes ushio-language-popup-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .milkdown .milkdown-code-block .tools .tools-button-group button {

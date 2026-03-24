@@ -909,6 +909,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         supportZoom: false,
         builtInZoomControls: false,
         displayZoomControls: false,
+        cacheEnabled: false,
+        clearCache: true,
         resourceCustomSchemes: [_localFileScheme],
       ),
       onWebViewCreated: (controller) {
@@ -924,6 +926,14 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         );
       },
       onLoadStop: (controller, _) async {
+        try {
+          final runtimeTag = await controller.evaluateJavascript(
+            source: 'window.__USHIO_RUNTIME_TAG || "missing_runtime_tag"',
+          );
+          debugPrint('[MilkdownRuntimeTag] $runtimeTag');
+        } catch (e) {
+          debugPrint('[MilkdownRuntimeTag] eval_failed: $e');
+        }
         await _sendInitDoc();
         await _sendTheme();
       },
