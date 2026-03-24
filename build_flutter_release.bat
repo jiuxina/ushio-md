@@ -2,16 +2,16 @@
 setlocal enabledelayedexpansion
 
 set "REPO_ROOT=%~dp0"
-set "APK_OUTPUT_DIR=%REPO_ROOT%build\app\outputs\flutter-apk\"
 set "SYNC_SCRIPT=%REPO_ROOT%scripts\sync_milkdown_web.bat"
+set "APK_OUTPUT_DIR=%REPO_ROOT%build\app\outputs\flutter-apk\"
+set "WINDOWS_OUTPUT_DIR=%REPO_ROOT%build\windows\x64\runner\Release\"
 
-echo [0/5] Syncing Milkdown runtime web bundle...
+echo [0/6] Syncing Milkdown runtime web bundle...
 if not exist "%SYNC_SCRIPT%" (
   echo [ERROR] Missing script: %SYNC_SCRIPT%
   pause
   exit /b 1
 )
-
 call "%SYNC_SCRIPT%"
 if errorlevel 1 (
   echo [ERROR] Milkdown runtime bundle sync failed.
@@ -19,7 +19,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [1/5] Cleaning project...
+echo [1/6] Cleaning project...
 call flutter clean
 if errorlevel 1 (
   echo [ERROR] flutter clean failed
@@ -27,7 +27,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [2/5] Fetching dependencies...
+echo [2/6] Fetching dependencies...
 call flutter pub get
 if errorlevel 1 (
   echo [ERROR] flutter pub get failed
@@ -35,7 +35,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [3/5] Building ABI split release APKs...
+echo [3/6] Building Android ABI split release APKs...
 call flutter build apk --release --split-per-abi
 if errorlevel 1 (
   echo [ERROR] flutter build apk failed
@@ -43,19 +43,24 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [4/5] Opening output directory...
-if exist "%APK_OUTPUT_DIR%" (
-  start "" "%APK_OUTPUT_DIR%"
-) else (
-  echo [WARN] Output directory not found: %APK_OUTPUT_DIR%
+echo [4/6] Building Windows release runner...
+call flutter build windows --release
+if errorlevel 1 (
+  echo [ERROR] flutter build windows failed
+  pause
+  exit /b 1
 )
+
+echo [5/6] Opening output directories...
+if exist "%APK_OUTPUT_DIR%" start "" "%APK_OUTPUT_DIR%"
+if exist "%WINDOWS_OUTPUT_DIR%" start "" "%WINDOWS_OUTPUT_DIR%"
 
 echo.
 echo ======================================================
 echo Build Complete!
-echo ABI-specific APKs are generated in:
+echo Android output:
 echo %APK_OUTPUT_DIR%
-echo Milkdown runtime bundle sync script:
-echo %SYNC_SCRIPT%
+echo Windows output:
+echo %WINDOWS_OUTPUT_DIR%
 echo ======================================================
 pause

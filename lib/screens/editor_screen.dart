@@ -18,6 +18,7 @@ import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
 import 'editor/components/fullscreen_preview_page.dart';
 import '../services/export_service.dart';
+import '../services/debug_probe_service.dart';
 
 enum EditorMode { edit, preview }
 
@@ -111,6 +112,7 @@ class _EditorScreenState extends State<EditorScreen>
   int? _highlightedLine;
   List<_SearchMatch> _searchMatches = const [];
   int _activeSearchMatchIndex = -1;
+  DateTime? _lastDebugProbeAt;
 
   // ==================== 常量 ====================
   /// Offset from top when jumping to a target position
@@ -157,6 +159,9 @@ class _EditorScreenState extends State<EditorScreen>
     } else {
       _loadFile();
     }
+    DebugProbeService.instance.registerCodeBlockLanguageProbe(
+      _requestCodeBlockLanguageProbe,
+    );
   }
 
   Future<void> _loadFile() async {
@@ -423,6 +428,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   void dispose() {
+    DebugProbeService.instance.unregisterCodeBlockLanguageProbe(
+      _requestCodeBlockLanguageProbe,
+    );
     _autoSaveTimer?.cancel();
     _textController.dispose();
     _searchController.dispose();
@@ -946,12 +954,38 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _handleMilkdownBridgeMessage(Map<String, dynamic> map) {
     final type = map['type']?.toString();
+    final settings = context.read<SettingsProvider>();
+    if (settings.debugEnabled) {
+      settings.appendDebugLog('bridge<$type>: $map');
+    }
+    if (type == 'on_render_complete' && settings.debugEnabled) {
+      _requestCodeBlockLanguageProbe();
+      return;
+    }
+    if (type == 'on_debug_report') {
+      final payload = map['payload'];
+      settings.appendDebugLog('debug_report: $payload');
+      return;
+    }
     if (type != 'on_editor_focus') return;
     final payload = map['payload'];
     if (payload is! Map) return;
     final focused = payload['focused'] == true;
     if (!mounted || focused == _isMilkdownEditorFocused) return;
     setState(() => _isMilkdownEditorFocused = focused);
+  }
+
+  Future<void> _requestCodeBlockLanguageProbe() async {
+    final now = DateTime.now();
+    final last = _lastDebugProbeAt;
+    if (last != null && now.difference(last).inMilliseconds < 900) {
+      return;
+    }
+    _lastDebugProbeAt = now;
+    await _previewWebViewController.execCmd(
+      'debug_codeblock_language_report',
+      args: {'source': 'editor_screen'},
+    );
   }
 
   /// Save inline edit when the text field loses focus (user tapped outside).

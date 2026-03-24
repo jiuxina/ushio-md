@@ -216,12 +216,12 @@ body {
 }
 
 .milkdown .milkdown-code-block .tools {
-
   position: absolute !important;
   left: auto !important;
   right: 0 !important;
-  top: calc(100% + 8px) !important;
-  bottom: auto !important;
+  top: auto !important;
+  bottom: -38px !important;
+  transform: none !important;
 
   display: flex;
   justify-content: flex-end;
@@ -258,6 +258,14 @@ body {
   display: none !important;
 }
 
+.milkdown .ProseMirror pre[data-language]::before,
+.milkdown .ProseMirror pre[data-language]::after,
+.milkdown .milkdown-code-block pre[data-language]::before,
+.milkdown .milkdown-code-block pre[data-language]::after {
+  content: none !important;
+  display: none !important;
+}
+
 .milkdown .ushio-code-actions-row {
   display: none !important;
 }
@@ -283,9 +291,7 @@ body {
 }
 
 .milkdown .milkdown-code-block .tools .language-button .expand-icon {
-  width: 14px;
-  height: 14px;
-  margin-left: 6px;
+  display: none !important;
 }
 
 .milkdown .milkdown-code-block .tools .tools-button-group {
@@ -331,12 +337,28 @@ body {
 .milkdown .milkdown-code-block .language-picker {
   position: fixed !important;
   z-index: 110 !important;
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .milkdown .milkdown-code-block .tools .language-picker .list-wrapper {
   background: color-mix(in srgb, var(--milkdown-color-surface) 96%, #ffffff 4%) !important;
   border-radius: 12px !important;
   box-shadow: 0 10px 24px color-mix(in srgb, var(--milkdown-color-shadow) 60%, transparent) !important;
+}
+
+.ushio-language-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 109;
+  display: none;
+  background: color-mix(in srgb, var(--milkdown-color-on-surface) 26%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.ushio-language-popup-backdrop[data-show='true'] {
+  display: block;
 }
 
 .ushio-language-popup {
@@ -349,11 +371,18 @@ body {
   box-shadow: 0 14px 32px var(--milkdown-color-shadow);
   padding: 10px;
   box-sizing: border-box;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
+  width: min(520px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 48px));
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
 }
 
 .ushio-language-popup[data-show='true'] {
-  display: block;
+  display: flex;
 }
 
 .ushio-language-popup-input {
@@ -374,11 +403,12 @@ body {
 }
 
 .ushio-language-popup-list {
-  max-height: 220px;
+  max-height: 420px;
   overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding-right: 2px;
 }
 
 .ushio-language-popup-item {

@@ -12,6 +12,7 @@ import '../../settings/editor_settings_screen.dart';
 import '../../settings/cloud_sync_screen.dart';
 import '../../settings/storage_settings_screen.dart';
 import '../../settings/about_screen.dart';
+import '../../settings/debug_settings_screen.dart';
 
 class SettingsTab extends StatelessWidget {
   const SettingsTab({super.key});
@@ -78,6 +79,17 @@ class SettingsTab extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const AboutScreen()),
+            ),
+          ),
+
+          _buildSettingsItem(
+            context,
+            icon: Icons.bug_report,
+            iconColor: Colors.deepOrange,
+            title: '调试',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DebugSettingsScreen()),
             ),
           ),
         ],

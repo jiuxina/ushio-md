@@ -67,6 +67,12 @@ class SettingsProvider extends ChangeNotifier {
   /// 自动保存间隔（秒）
   int _autoSaveInterval = 30;
 
+  /// 调试模式开关
+  bool _debugEnabled = false;
+
+  /// 调试日志（内存环形缓冲）
+  final List<String> _debugLogs = <String>[];
+
   /// 默认目录路径
   String? _defaultDirectory;
 
@@ -210,6 +216,8 @@ class SettingsProvider extends ChangeNotifier {
   double get fontSize => _fontSize;
   bool get autoSave => _autoSave;
   int get autoSaveInterval => _autoSaveInterval;
+  bool get debugEnabled => _debugEnabled;
+  List<String> get debugLogs => List.unmodifiable(_debugLogs);
   String? get defaultDirectory => _defaultDirectory;
   String get workspaceName => _workspaceName;
   String? get customWorkspaceBasePath => _customWorkspaceBasePath;
@@ -337,6 +345,7 @@ class SettingsProvider extends ChangeNotifier {
     _fontSize = prefs.getDouble('font_size') ?? 16.0;
     _autoSave = prefs.getBool('auto_save') ?? true;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
+    _debugEnabled = prefs.getBool('debug_enabled') ?? false;
     _defaultDirectory = prefs.getString('default_directory');
     _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
     _customWorkspaceBasePath = prefs.getString('custom_workspace_base_path') ??
@@ -716,6 +725,31 @@ class SettingsProvider extends ChangeNotifier {
     _autoSaveInterval = seconds;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('auto_save_interval', seconds);
+    notifyListeners();
+  }
+
+  /// 设置调试开关
+  Future<void> setDebugEnabled(bool value) async {
+    _debugEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('debug_enabled', value);
+    notifyListeners();
+  }
+
+  /// 追加调试日志（内存最多保留 300 条）
+  void appendDebugLog(String message) {
+    final ts = DateTime.now().toIso8601String();
+    _debugLogs.add('[$ts] $message');
+    const maxLogs = 300;
+    if (_debugLogs.length > maxLogs) {
+      _debugLogs.removeRange(0, _debugLogs.length - maxLogs);
+    }
+    notifyListeners();
+  }
+
+  /// 清空调试日志
+  void clearDebugLogs() {
+    _debugLogs.clear();
     notifyListeners();
   }
 

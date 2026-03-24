@@ -116,8 +116,11 @@
 >
 > - Web 编辑器源码位于 `web/milkdown/src/*`
 > - Flutter WebView 运行时加载的是 `assets/milkdown_web/index.html`
+> - `assets/milkdown_web/index.html` 是构建产物，不要手改；请只改 `web/milkdown/src/*`
 > - 只改源码不构建不会在 App 生效
-> - 推荐始终使用 `build_abi_release.bat` 一键完成：Node 检查、Web 构建与同步、Flutter ABI release 打包
+> - 推荐使用以下脚本统一构建，避免“改动不生效”：
+>   - 仅 Android：`build_abi_release.bat`
+>   - Android + Windows：`build_flutter_release.bat`
 
 ## 🧭 开发约束（Milkdown 单内核）
 

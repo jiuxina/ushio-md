@@ -18,13 +18,20 @@ Use:
 build_abi_release.bat
 ```
 
-The script now performs all required steps in order:
+or (Android + Windows):
 
-1. Check `node` is available in PATH.
-2. Build Milkdown web bundle (`npm ci` + `npm run build`).
-3. Sync `web/milkdown/dist/index.html` -> `assets/milkdown_web/index.html`.
-4. Run Flutter release pipeline (`flutter clean`, `flutter pub get`, `flutter build apk --release --split-per-abi`).
-5. Open APK output directory.
+```bat
+build_flutter_release.bat
+```
+
+Scripts now perform all required steps in order:
+
+1. Run `scripts/sync_milkdown_web.bat` (Node check + `npm ci` + `npm run build` + artifact sync).
+2. Run Flutter release pipeline (`flutter clean`, `flutter pub get`).
+3. Build platform artifacts:
+   - `build_abi_release.bat`: Android ABI APKs
+   - `build_flutter_release.bat`: Android ABI APKs + Windows release
+4. Open output directory/directories.
 
 If any step fails, script exits immediately with an error.
 
@@ -64,14 +71,11 @@ Therefore, changing only `src/*` without rebuilding web artifact causes "code ch
 For debugging or step-by-step execution:
 
 ```bat
-cd web\milkdown
-npm ci
-npm run build
-copy /Y dist\index.html ..\..\assets\milkdown_web\index.html
-cd ..\..
+scripts\sync_milkdown_web.bat
 flutter clean
 flutter pub get
 flutter build apk --release --split-per-abi
+flutter build windows --release
 ```
 
 ## Daily Development Notes
@@ -81,7 +85,8 @@ flutter build apk --release --split-per-abi
   - run `npm run build`
   - sync artifact to `assets/milkdown_web/index.html`
 - Before release build:
-  - always run `build_abi_release.bat`
+  - Android only: run `build_abi_release.bat`
+  - Android + Windows: run `build_flutter_release.bat`
   - do not skip web build step.
 
 ## Commit Hygiene
