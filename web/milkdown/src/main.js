@@ -76,6 +76,7 @@ let caretViewportSyncRafId = null;
 let suppressNextCaretViewportSync = false;
 let checkboxInteractionGuardUntil = 0;
 let editorTouchScrollSuppressUntil = 0;
+let viewportScrollSuppressUntil = 0;
 let editorTouchTracking = null;
 let codeLanguagePopupElement = null;
 let codeLanguagePopupInput = null;
@@ -263,25 +264,49 @@ const scrollNodeToViewport = (node, topOffset = 32) => {
 const ensureCaretInUpperViewport = () => {
   if (currentReadOnly) return;
   if (getKeyboardInset() <= 0) return;
+  if (Date.now() < editorTouchScrollSuppressUntil || Date.now() < viewportScrollSuppressUntil) return;
   const active = document.activeElement instanceof Element ? document.activeElement : null;
   if (!active?.closest('.ProseMirror')) return;
+
   const selection = window.getSelection();
-  const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-  const targetNode = range?.startContainer?.parentElement
-    ?? range?.commonAncestorContainer?.parentElement
-    ?? active;
-  if (!(targetNode instanceof Element)) return;
+  const anchorNode = selection?.anchorNode ?? null;
+  const anchorElement = anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement;
+  if (anchorElement?.closest('.milkdown-image-block')) return;
+
+  let caretTop = null;
+  let selectionIsImage = false;
+  editorInstance?.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const { state } = view;
+    const selectedNodeName = state.selection?.node?.type?.name;
+    selectionIsImage = selectedNodeName === 'image';
+    if (selectionIsImage) return;
+    const pos = state.selection?.$from?.pos;
+    if (!Number.isFinite(pos)) return;
+    try {
+      const coords = view.coordsAtPos(pos);
+      if (coords && Number.isFinite(coords.top)) {
+        caretTop = coords.top;
+      }
+    } catch (_) {
+      caretTop = null;
+    }
+  });
+  if (selectionIsImage) return;
+
   const vv = window.visualViewport;
   const viewportHeight = Math.max(1, vv?.height ?? window.innerHeight);
   const desiredTop = viewportHeight * 0.28;
-  const rect = targetNode.getBoundingClientRect();
-  if (rect.top >= desiredTop - 20 && rect.top <= viewportHeight * 0.5) return;
+  const fallbackRectTop = anchorElement?.getBoundingClientRect?.().top;
+  const currentTop = Number.isFinite(caretTop) ? caretTop : fallbackRectTop;
+  if (!Number.isFinite(currentTop)) return;
+  if (currentTop >= desiredTop - 20 && currentTop <= viewportHeight * 0.5) return;
   const scroller = document.scrollingElement || document.documentElement || document.body;
-  const delta = rect.top - desiredTop;
+  const delta = currentTop - desiredTop;
   if (Math.abs(delta) < 4) return;
   if (scroller && typeof scroller.scrollTo === 'function') {
-    const currentTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
-    scroller.scrollTo({ top: Math.max(0, currentTop + delta), behavior: 'auto' });
+    const scrollTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
+    scroller.scrollTo({ top: Math.max(0, scrollTop + delta), behavior: 'auto' });
   } else {
     window.scrollBy(0, delta);
   }
@@ -290,11 +315,18 @@ const ensureCaretInUpperViewport = () => {
 const scheduleCaretIntoUpperViewport = () => {
   if (Date.now() < checkboxInteractionGuardUntil) return;
   if (Date.now() < editorTouchScrollSuppressUntil) return;
+  if (Date.now() < viewportScrollSuppressUntil) return;
   if (caretViewportSyncRafId != null) return;
   caretViewportSyncRafId = requestAnimationFrame(() => {
     caretViewportSyncRafId = null;
     ensureCaretInUpperViewport();
   });
+};
+
+const suppressCaretViewportSync = (durationMs = 900) => {
+  const until = Date.now() + Math.max(0, durationMs);
+  editorTouchScrollSuppressUntil = Math.max(editorTouchScrollSuppressUntil, until);
+  viewportScrollSuppressUntil = Math.max(viewportScrollSuppressUntil, until);
 };
 
 const guardEditorFocusAfterCheckboxToggle = () => {
@@ -1391,7 +1423,7 @@ app.addEventListener('mousedown', (event) => {
 app.addEventListener('touchstart', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
-    editorTouchScrollSuppressUntil = Date.now() + 900;
+    suppressCaretViewportSync(1200);
     return;
   }
   if (!target?.matches('input[type="checkbox"], input[type="checkbox"] *')) return;
@@ -1415,7 +1447,7 @@ const isImageInteractionTarget = (target) => Boolean(
 app.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
-    editorTouchScrollSuppressUntil = Date.now() + 900;
+    suppressCaretViewportSync(1200);
     if (event.pointerType && event.pointerType !== 'touch') {
       event.preventDefault();
       event.stopPropagation();
@@ -1495,7 +1527,7 @@ app.addEventListener('pointerdown', (event) => {
   if (event.pointerType !== 'touch' || currentReadOnly) return;
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest('.ProseMirror')) return;
-  editorTouchScrollSuppressUntil = Date.now() + 900;
+  suppressCaretViewportSync(1200);
   editorTouchTracking = { x: event.clientX, y: event.clientY };
   clearMobileLongPress();
   mobileLongPressStartPoint = { x: event.clientX, y: event.clientY };
@@ -1511,7 +1543,7 @@ app.addEventListener('pointermove', (event) => {
     const dragX = Math.abs(event.clientX - editorTouchTracking.x);
     const dragY = Math.abs(event.clientY - editorTouchTracking.y);
     if (dragX > 6 || dragY > 6) {
-      editorTouchScrollSuppressUntil = Date.now() + 900;
+      suppressCaretViewportSync(1400);
     }
   }
   if (!mobileLongPressStartPoint) return;
@@ -1525,19 +1557,19 @@ app.addEventListener('pointermove', (event) => {
 app.addEventListener('pointerup', (event) => {
   if (event.pointerType === 'touch') {
     editorTouchTracking = null;
-    editorTouchScrollSuppressUntil = Date.now() + 520;
+    suppressCaretViewportSync(1000);
   }
   clearMobileLongPress();
 });
 app.addEventListener('pointercancel', (event) => {
   if (event.pointerType === 'touch') {
     editorTouchTracking = null;
-    editorTouchScrollSuppressUntil = Date.now() + 520;
+    suppressCaretViewportSync(1000);
   }
   clearMobileLongPress();
 });
 document.addEventListener('scroll', () => {
-  editorTouchScrollSuppressUntil = Math.max(editorTouchScrollSuppressUntil, Date.now() + 520);
+  suppressCaretViewportSync(1000);
   hideContextMenu();
 }, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);

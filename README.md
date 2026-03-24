@@ -29,6 +29,7 @@
 - [功能特性](#✨-功能特性)
 - [截图展示](#📱-截图展示)
 - [WebView + Milkdown 详细设计（LLD）](#🧩-webview--milkdown-详细设计lld)
+- [构建与发布工作流](#🚀-构建与发布工作流)
 - [安装](#📦-安装)
 - [已知问题](#⚠️-已知问题)
 - [权限说明](#📋-权限说明)
@@ -106,6 +107,17 @@
 > ✅ 当前迁移状态：**渲染编辑页与全屏预览页已切换到 Milkdown WebView 渲染链路**。当前产品形态只有“渲染编辑页 + 纯编辑页”两类界面，不包含分屏模式；详见 [`docs/milkdown-migration-status.md`](docs/milkdown-migration-status.md)。
 >
 > 📌 迁移收官与真机回归：[`docs/milkdown-finalization-plan.md`](docs/milkdown-finalization-plan.md)、[`docs/milkdown-device-regression-checklist.md`](docs/milkdown-device-regression-checklist.md)、[`docs/milkdown-performance-baseline.md`](docs/milkdown-performance-baseline.md)、[`docs/milkdown-step3-first-pass-results.md`](docs/milkdown-step3-first-pass-results.md)、[`docs/milkdown-migration-plan-v2.md`](docs/milkdown-migration-plan-v2.md)
+
+## 🚀 构建与发布工作流
+
+> 详见：[`docs/build-workflow.md`](docs/build-workflow.md)
+>
+> 重点说明：
+>
+> - Web 编辑器源码位于 `web/milkdown/src/*`
+> - Flutter WebView 运行时加载的是 `assets/milkdown_web/index.html`
+> - 只改源码不构建不会在 App 生效
+> - 推荐始终使用 `build_abi_release.bat` 一键完成：Node 检查、Web 构建与同步、Flutter ABI release 打包
 
 ## 🧭 开发约束（Milkdown 单内核）
 

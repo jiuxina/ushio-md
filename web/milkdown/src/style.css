@@ -161,13 +161,24 @@ body {
 .milkdown .milkdown-code-block {
   border-radius: 14px !important;
   overflow: visible;
-  margin: 1em 0 52px;
+  margin: 1em 0 50px;
   display: flex;
   flex-direction: column;
   position: relative;
   border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 75%, transparent);
   background: color-mix(in srgb, var(--milkdown-color-surface) 90%, var(--milkdown-color-primary) 10%);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--milkdown-color-shadow) 65%, transparent);
+}
+
+.milkdown .milkdown-code-block .cm-editor,
+.milkdown .milkdown-code-block .cm-scroller,
+.milkdown .milkdown-code-block .cm-content,
+.milkdown .milkdown-code-block .cm-gutters,
+.milkdown .milkdown-code-block .code-mirror {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .milkdown .milkdown-code-block .tools {
@@ -179,7 +190,14 @@ body {
   align-items: center;
   gap: 0;
   margin: 0;
-  width: clamp(156px, 34%, 220px);
+  width: min(33%, 220px);
+  min-width: 132px;
+  height: 32px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   z-index: 20;
   order: 1;
   pointer-events: none;
@@ -420,6 +438,18 @@ body {
 .milkdown img {
   max-width: 100%;
   height: auto;
+  pointer-events: none !important;
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: pan-y;
+}
+
+.milkdown .milkdown-image-block,
+.milkdown .milkdown-image-block * {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: pan-y !important;
 }
 
 .milkdown .milkdown-image-block > .image-wrapper .operation {
