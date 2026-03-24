@@ -75,6 +75,8 @@ let uploadFailureWindowStart = Date.now();
 let caretViewportSyncRafId = null;
 let suppressNextCaretViewportSync = false;
 let checkboxInteractionGuardUntil = 0;
+let editorTouchScrollSuppressUntil = 0;
+let editorTouchTracking = null;
 let codeLanguagePopupElement = null;
 let codeLanguagePopupInput = null;
 let codeLanguagePopupList = null;
@@ -287,6 +289,7 @@ const ensureCaretInUpperViewport = () => {
 
 const scheduleCaretIntoUpperViewport = () => {
   if (Date.now() < checkboxInteractionGuardUntil) return;
+  if (Date.now() < editorTouchScrollSuppressUntil) return;
   if (caretViewportSyncRafId != null) return;
   caretViewportSyncRafId = requestAnimationFrame(() => {
     caretViewportSyncRafId = null;
@@ -1319,6 +1322,11 @@ const createEditor = async () => {
 
 app.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (isImageInteractionTarget(target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   const checkbox = target?.closest('input[type="checkbox"]');
   if (checkbox instanceof HTMLInputElement) {
     event.preventDefault();
@@ -1362,6 +1370,11 @@ app.addEventListener('click', (event) => {
 
 app.addEventListener('mousedown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (isImageInteractionTarget(target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (target?.matches('a, a *')) {
     event.preventDefault();
     return;
@@ -1374,6 +1387,11 @@ app.addEventListener('mousedown', (event) => {
 
 app.addEventListener('touchstart', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (isImageInteractionTarget(target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (!target?.matches('input[type="checkbox"], input[type="checkbox"] *')) return;
   event.preventDefault();
   event.stopPropagation();
@@ -1388,8 +1406,17 @@ const emitCheckboxToggle = (checkbox, checked) => {
   });
 };
 
+const isImageInteractionTarget = (target) => Boolean(
+  target?.closest?.('.milkdown-image-block, .milkdown-image-block *, img'),
+);
+
 app.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  if (isImageInteractionTarget(target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   const checkbox = target?.closest('input[type="checkbox"]');
   if (!(checkbox instanceof HTMLInputElement)) return;
   event.preventDefault();
@@ -1463,6 +1490,7 @@ app.addEventListener('pointerdown', (event) => {
   if (event.pointerType !== 'touch' || currentReadOnly) return;
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest('.ProseMirror')) return;
+  editorTouchTracking = { x: event.clientX, y: event.clientY };
   clearMobileLongPress();
   mobileLongPressStartPoint = { x: event.clientX, y: event.clientY };
   mobileLongPressTimer = setTimeout(() => {
@@ -1472,7 +1500,15 @@ app.addEventListener('pointerdown', (event) => {
 });
 
 app.addEventListener('pointermove', (event) => {
-  if (event.pointerType !== 'touch' || !mobileLongPressStartPoint) return;
+  if (event.pointerType !== 'touch') return;
+  if (editorTouchTracking) {
+    const dragX = Math.abs(event.clientX - editorTouchTracking.x);
+    const dragY = Math.abs(event.clientY - editorTouchTracking.y);
+    if (dragX > 6 || dragY > 6) {
+      editorTouchScrollSuppressUntil = Date.now() + 320;
+    }
+  }
+  if (!mobileLongPressStartPoint) return;
   const dx = Math.abs(event.clientX - mobileLongPressStartPoint.x);
   const dy = Math.abs(event.clientY - mobileLongPressStartPoint.y);
   if (dx > 14 || dy > 14) {
@@ -1480,8 +1516,20 @@ app.addEventListener('pointermove', (event) => {
   }
 });
 
-app.addEventListener('pointerup', clearMobileLongPress);
-app.addEventListener('pointercancel', clearMobileLongPress);
+app.addEventListener('pointerup', (event) => {
+  if (event.pointerType === 'touch') {
+    editorTouchTracking = null;
+    editorTouchScrollSuppressUntil = Date.now() + 180;
+  }
+  clearMobileLongPress();
+});
+app.addEventListener('pointercancel', (event) => {
+  if (event.pointerType === 'touch') {
+    editorTouchTracking = null;
+    editorTouchScrollSuppressUntil = Date.now() + 180;
+  }
+  clearMobileLongPress();
+});
 document.addEventListener('scroll', hideContextMenu, true);
 document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
 document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
