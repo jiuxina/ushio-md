@@ -218,10 +218,10 @@ body {
 .milkdown .milkdown-code-block .tools {
   position: absolute !important;
   left: auto !important;
-  right: 12px !important;
-  top: 100% !important;
-  bottom: auto !important;
-  transform: translateY(8px);
+  right: 0 !important;
+  top: auto !important;
+  bottom: -38px !important;
+  transform: none !important;
 
   display: flex;
   justify-content: flex-end;
