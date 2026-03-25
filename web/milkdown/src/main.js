@@ -90,6 +90,8 @@ let codeLanguagePopupCandidates = [];
 let codeLanguagePopupCurrentLanguage = '';
 let suppressNativeLanguageClickUntil = 0;
 let codeLanguageUiDebugSeq = 0;
+let renderedDomResyncTimerId = null;
+let renderedDomResyncSeq = 0;
 const codeLanguageDisplayCache = new Map();
 const highlightParser = createRefractorParser(refractor);
 const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
@@ -1393,9 +1395,27 @@ const syncRenderedDom = () => {
   });
 };
 
+const scheduleRenderedDomResync = () => {
+  renderedDomResyncSeq += 1;
+  const currentSeq = renderedDomResyncSeq;
+  if (renderedDomResyncTimerId != null) {
+    clearTimeout(renderedDomResyncTimerId);
+    renderedDomResyncTimerId = null;
+  }
+  renderedDomResyncTimerId = setTimeout(() => {
+    renderedDomResyncTimerId = null;
+    if (currentSeq !== renderedDomResyncSeq) return;
+    requestAnimationFrame(() => {
+      if (currentSeq !== renderedDomResyncSeq) return;
+      syncRenderedDom();
+    });
+  }, 80);
+};
+
 const notifyRenderComplete = () => {
   requestAnimationFrame(() => {
     syncRenderedDom();
+    scheduleRenderedDomResync();
     updateActiveMarkdownHints();
     emitOutlineUpdate();
     emit('on_render_complete', {});
