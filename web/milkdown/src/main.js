@@ -218,43 +218,84 @@ const slugifyHeading = (input) => {
 };
 
 const parseMarkdownOutline = (markdown) => {
-  const lines = markdown.split('\n');
+  const lines = (typeof markdown === 'string' ? markdown : '').split('\n');
   const outline = [];
-  let inCodeBlock = false;
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
+  let activeFence = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] || '';
     const trimmed = line.trim();
-    if (/^\s*```/.test(trimmed)) {
-      inCodeBlock = !inCodeBlock;
+
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1] || '';
+      const markerChar = marker[0] || '';
+      const markerLength = marker.length;
+      if (!activeFence) {
+        activeFence = { markerChar, markerLength };
+        continue;
+      }
+      if (activeFence.markerChar === markerChar && markerLength >= activeFence.markerLength) {
+        activeFence = null;
+      }
       continue;
     }
-    if (inCodeBlock) continue;
+
+    if (activeFence) continue;
 
     const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
-    if (atxMatch) {
-      outline.push({
-        id: `line-${index}`,
-        lineNumber: index,
-        level: atxMatch[1].length,
-        text: atxMatch[2].trim(),
-      });
+    if (!atxMatch) continue;
+    outline.push({
+      id: `line-${index}`,
+      lineNumber: index,
+      level: atxMatch[1].length,
+      text: atxMatch[2].trim(),
+    });
+  }
+
+  return outline;
+};
+
+const neutralizeSetextHeadingSyntax = (markdown) => {
+  if (typeof markdown !== 'string' || !markdown.includes('\n')) return markdown;
+  const lines = markdown.split('\n');
+  if (lines.length < 2) return markdown;
+  const output = [...lines];
+  let activeFence = null;
+  let changed = false;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const trimmed = (lines[i] || '').trim();
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1] || '';
+      const markerChar = marker[0] || '';
+      const markerLength = marker.length;
+      if (!activeFence) {
+        activeFence = { markerChar, markerLength };
+      } else if (activeFence.markerChar === markerChar && markerLength >= activeFence.markerLength) {
+        activeFence = null;
+      }
       continue;
     }
+    if (activeFence || i <= 0) continue;
 
-    if (trimmed && index + 1 < lines.length) {
-      const nextTrimmed = lines[index + 1].trim();
-      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
-        outline.push({
-          id: `line-${index}`,
-          lineNumber: index,
-          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
-          text: trimmed,
-        });
-        index += 1;
-      }
-    }
+    const underlineMatch = trimmed.match(/^(=+|-+)\s*$/);
+    if (!underlineMatch) continue;
+
+    const prevTrimmed = (lines[i - 1] || '').trim();
+    if (!prevTrimmed) continue;
+    if (/^(#{1,6})\s+/.test(prevTrimmed)) continue;
+    if (/^\s*>/.test(prevTrimmed)) continue;
+    if (/^\s*(```|~~~)/.test(prevTrimmed)) continue;
+
+    const escaped = `${underlineMatch[1][0]}\\${underlineMatch[1].slice(1)}`;
+    const suffixMatch = lines[i].match(/\s*$/);
+    output[i] = `${escaped}${suffixMatch ? suffixMatch[0] : ''}`;
+    changed = true;
   }
-  return outline;
+
+  return changed ? output.join('\n') : markdown;
 };
 
 const isFenceLine = (line) => /^\s*(```|~~~)/.test((line || '').trim());
@@ -1269,10 +1310,39 @@ const syncRenderedDom = () => {
   });
 
   const headingOutline = parseMarkdownOutline(currentMarkdown);
+  const consumedOutlineIndexes = new Set();
   root.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading, index) => {
-    const outlineNode = headingOutline[index];
-    const text = (outlineNode?.text || heading.textContent || '').trim();
-    const lineNumber = Number.isFinite(outlineNode?.lineNumber) ? outlineNode.lineNumber : index;
+    const headingText = (heading.textContent || '').trim();
+    const headingLevel = Number.parseInt((heading.tagName || '').replace(/^H/i, ''), 10);
+    let outlineIndex = index;
+    let outlineNode = headingOutline[outlineIndex];
+    const outlineMatchesHeading = outlineNode
+      && outlineNode.text === headingText
+      && outlineNode.level === headingLevel;
+
+    if (!outlineMatchesHeading || consumedOutlineIndexes.has(outlineIndex)) {
+      outlineIndex = headingOutline.findIndex((candidate, candidateIndex) => (
+        !consumedOutlineIndexes.has(candidateIndex)
+        && candidate.level === headingLevel
+        && candidate.text === headingText
+      ));
+      if (outlineIndex < 0) {
+        outlineIndex = headingOutline.findIndex((_, candidateIndex) => !consumedOutlineIndexes.has(candidateIndex));
+      }
+      outlineNode = outlineIndex >= 0 ? headingOutline[outlineIndex] : null;
+    }
+
+    if (outlineIndex >= 0) {
+      consumedOutlineIndexes.add(outlineIndex);
+    }
+
+    const text = (outlineNode?.text || headingText).trim();
+    const previousLineNumber = Number.parseInt(heading.dataset.headingLine || '', 10);
+    const lineNumber = Number.isFinite(outlineNode?.lineNumber)
+      ? outlineNode.lineNumber
+      : Number.isFinite(previousLineNumber)
+        ? previousLineNumber
+        : index;
     heading.id = `heading-line-${lineNumber}`;
     heading.dataset.headingLine = String(lineNumber);
     heading.dataset.headingSlug = slugifyHeading(text);
@@ -1404,7 +1474,8 @@ const notifyRenderComplete = () => {
 
 const setMarkdown = (markdown, { emitContent = false } = {}) => {
   const rawMarkdown = typeof markdown === 'string' ? markdown : '';
-  const nextMarkdown = stripGhostCodeLanguageMarkers(rawMarkdown);
+  const withoutSetext = neutralizeSetextHeadingSyntax(rawMarkdown);
+  const nextMarkdown = stripGhostCodeLanguageMarkers(withoutSetext);
   if (!emitContent && nextMarkdown !== rawMarkdown) {
     emit('on_content_change', {
       mode: 'full',
@@ -1709,7 +1780,9 @@ const createEditor = async () => {
     .config((ctx) => {
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
         if (markdown === prev) return;
-        const sanitizedMarkdown = stripGhostCodeLanguageMarkers(markdown);
+        const sanitizedMarkdown = stripGhostCodeLanguageMarkers(
+          neutralizeSetextHeadingSyntax(markdown),
+        );
         if (sanitizedMarkdown !== markdown) {
           currentMarkdown = sanitizedMarkdown;
           if (!currentReadOnly) {
@@ -2609,7 +2682,9 @@ const onFlutterMessage = (message) => {
     currentBaseDirectory = typeof payload.baseDirectory === 'string' ? payload.baseDirectory : '';
     currentReadOnly = payload.readOnly !== false;
     applyReadOnlyState();
-    const markdown = typeof payload.markdown === 'string' ? payload.markdown : '';
+    const markdown = neutralizeSetextHeadingSyntax(
+      typeof payload.markdown === 'string' ? payload.markdown : '',
+    );
     currentMarkdown = markdown;
     if (editorInstance) {
       crepeInstance?.setReadonly?.(currentReadOnly);
