@@ -622,6 +622,55 @@ const sanitizeImageSource = (src) => {
   return trimmed;
 };
 
+const parseStandaloneHtmlImage = (rawHtml) => {
+  if (typeof rawHtml !== 'string') return null;
+  const trimmed = rawHtml.trim();
+  if (!trimmed || !/^<img\b/i.test(trimmed)) return null;
+  let doc;
+  try {
+    doc = new DOMParser().parseFromString(trimmed, 'text/html');
+  } catch (_) {
+    return null;
+  }
+  const body = doc?.body;
+  if (!body || body.children.length !== 1) return null;
+  const image = body.firstElementChild;
+  if (!(image instanceof HTMLImageElement)) return null;
+  const src = sanitizeImageSource(image.getAttribute('src') || '');
+  if (!src) return null;
+  return {
+    src,
+    alt: image.getAttribute('alt') || '',
+  };
+};
+
+const normalizeStandaloneHtmlImages = (root) => {
+  if (!(root instanceof Element)) return;
+  root.querySelectorAll("span[data-type='html']").forEach((node) => {
+    if (!(node instanceof HTMLElement)) return;
+    const rawHtml = node.getAttribute('data-value') || node.textContent || '';
+    const parsedHtmlImage = parseStandaloneHtmlImage(rawHtml);
+    if (!parsedHtmlImage) return;
+    const currentInlineImage = node.querySelector('img[data-ushio-html-inline-image="1"]');
+    if (currentInlineImage instanceof HTMLImageElement) {
+      currentInlineImage.setAttribute('src', parsedHtmlImage.src);
+      currentInlineImage.setAttribute('alt', parsedHtmlImage.alt);
+    } else {
+      node.textContent = '';
+      const inlineImage = document.createElement('img');
+      inlineImage.setAttribute('data-ushio-html-inline-image', '1');
+      inlineImage.setAttribute('src', parsedHtmlImage.src);
+      inlineImage.setAttribute('alt', parsedHtmlImage.alt);
+      node.append(inlineImage);
+    }
+    const separator = node.nextElementSibling;
+    if (separator instanceof HTMLImageElement && separator.classList.contains('ProseMirror-separator')) {
+      separator.style.display = 'none';
+      separator.setAttribute('aria-hidden', 'true');
+    }
+  });
+};
+
 const decodeFileUriPath = (value) => {
   if (typeof value !== 'string' || !value.startsWith('file://')) return '';
   try {
@@ -1229,6 +1278,8 @@ const interceptNativeCodeLanguagePicker = (event) => {
 
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
+  normalizeStandaloneHtmlImages(root);
+
   root.querySelectorAll('img').forEach((img) => {
     const rawSrc = img.getAttribute('src') || '';
     const sanitizedRawSrc = sanitizeImageSource(rawSrc);
@@ -1396,6 +1447,10 @@ const syncRenderedDom = () => {
 const notifyRenderComplete = () => {
   requestAnimationFrame(() => {
     syncRenderedDom();
+    requestAnimationFrame(() => {
+      const root = app.querySelector('.milkdown') || app;
+      normalizeStandaloneHtmlImages(root);
+    });
     updateActiveMarkdownHints();
     emitOutlineUpdate();
     emit('on_render_complete', {});
