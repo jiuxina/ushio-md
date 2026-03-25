@@ -608,18 +608,30 @@ const sanitizeImageSource = (src) => {
   if (typeof src !== 'string') return '';
   const trimmed = src.trim();
   if (!trimmed) return '';
-  const markdownTitleMatch = trimmed.match(/^(\S+)\s+["'“”][\s\S]*["'“”]$/);
+  const firstLine = trimmed.split(/\r?\n/u, 1)[0]?.trim() || '';
+  if (!firstLine) return '';
+  const sanitizedLine = firstLine;
+  if (
+    /\s+#{1,6}\s+\S/u.test(sanitizedLine)
+    || /\s+>\s+\S/u.test(sanitizedLine)
+    || /\s+[-*+]\s+\S/u.test(sanitizedLine)
+    || /\s+\d+\.\s+\S/u.test(sanitizedLine)
+  ) {
+    const firstToken = sanitizedLine.split(/\s+/u, 1)[0]?.trim() || '';
+    if (firstToken) return firstToken;
+  }
+  const markdownTitleMatch = sanitizedLine.match(/^(\S+)\s+["'“”][\s\S]*["'“”]$/);
   if (markdownTitleMatch && markdownTitleMatch[1]) {
     return markdownTitleMatch[1].trim();
   }
-  const firstSpace = trimmed.indexOf(' ');
+  const firstSpace = sanitizedLine.indexOf(' ');
   if (firstSpace > 0) {
-    const suffix = trimmed.slice(firstSpace + 1).trim();
+    const suffix = sanitizedLine.slice(firstSpace + 1).trim();
     if (suffix.startsWith('"') || suffix.startsWith("'") || suffix.startsWith('“')) {
-      return trimmed.slice(0, firstSpace).trim();
+      return sanitizedLine.slice(0, firstSpace).trim();
     }
   }
-  return trimmed;
+  return sanitizedLine;
 };
 
 const decodeFileUriPath = (value) => {
