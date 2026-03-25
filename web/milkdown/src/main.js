@@ -690,6 +690,57 @@ const resolveImageSrc = (src) => {
   return proxyUrl || resolveHref(sanitized);
 };
 
+const extractHtmlAttribute = (html, attributeName) => {
+  if (typeof html !== 'string' || typeof attributeName !== 'string') return '';
+  const escapedName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matcher = new RegExp(
+    `\\b${escapedName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\\`]+))`,
+    'i',
+  );
+  const match = html.match(matcher);
+  if (!match) return '';
+  return (match[1] || match[2] || match[3] || '').trim();
+};
+
+const parseStandaloneHtmlImage = (rawHtml) => {
+  if (typeof rawHtml !== 'string') return null;
+  const html = rawHtml.trim();
+  if (!/^<img\b[\s\S]*?>$/i.test(html)) return null;
+  const src = sanitizeImageSource(extractHtmlAttribute(html, 'src'));
+  if (!src) return null;
+  const alt = extractHtmlAttribute(html, 'alt');
+  return { src, alt };
+};
+
+const normalizeHtmlImageTokens = (root) => {
+  if (!(root instanceof Element)) return;
+  root.querySelectorAll('span[data-type="html"]').forEach((token) => {
+    if (!(token instanceof HTMLSpanElement)) return;
+    const parsed = parseStandaloneHtmlImage(token.textContent || '');
+    if (!parsed) return;
+    const resolvedSrc = resolveImageSrc(parsed.src) || resolveHref(parsed.src) || parsed.src;
+    if (!resolvedSrc) return;
+
+    const next = token.nextElementSibling;
+    const prev = token.previousElementSibling;
+    const candidate =
+      (next instanceof HTMLImageElement && next.classList.contains('ProseMirror-separator') && next)
+      || (prev instanceof HTMLImageElement && prev.classList.contains('ProseMirror-separator') && prev)
+      || null;
+    if (!(candidate instanceof HTMLImageElement)) return;
+
+    candidate.setAttribute('src', resolvedSrc);
+    if (parsed.alt) {
+      candidate.setAttribute('alt', parsed.alt);
+    } else {
+      candidate.removeAttribute('alt');
+    }
+    candidate.dataset.ushioHtmlImageToken = '1';
+    candidate.classList.remove('ProseMirror-separator');
+    token.style.display = 'none';
+  });
+};
+
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onerror = () => reject(reader.error ?? new Error('file_read_failed'));
@@ -1229,6 +1280,7 @@ const interceptNativeCodeLanguagePicker = (event) => {
 
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
+  normalizeHtmlImageTokens(root);
   root.querySelectorAll('img').forEach((img) => {
     const rawSrc = img.getAttribute('src') || '';
     const sanitizedRawSrc = sanitizeImageSource(rawSrc);
