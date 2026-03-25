@@ -16,7 +16,6 @@ import '../models/toc_item.dart';
 import '../models/milkdown_bridge.dart';
 import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
-import 'editor/components/fullscreen_preview_page.dart';
 import '../services/export_service.dart';
 import '../services/debug_probe_service.dart';
 
@@ -638,21 +637,6 @@ class _EditorScreenState extends State<EditorScreen>
         : (_activeSearchMatchIndex - 1 + _searchMatches.length) %
               _searchMatches.length;
     _jumpToSearchOccurrence(prev);
-  }
-
-  void _openFullscreenPreview() {
-    final settings = context.read<SettingsProvider>();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => FullscreenPreviewPage(
-          controller: _textController,
-          settings: settings,
-          fileName: fileName,
-          onCheckboxChanged: _toggleCheckbox,
-          filePath: widget.filePath,
-        ),
-      ),
-    );
   }
 
   /// 切换复选框状态
@@ -1747,14 +1731,6 @@ class _EditorScreenState extends State<EditorScreen>
               onTap: () {
                 Navigator.pop(context);
                 _showInlineSearch();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.fullscreen),
-              title: const Text('全屏预览'),
-              onTap: () {
-                Navigator.pop(context);
-                _openFullscreenPreview();
               },
             ),
             ListTile(
