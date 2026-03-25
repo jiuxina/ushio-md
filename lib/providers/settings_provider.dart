@@ -48,7 +48,7 @@ class SettingsProvider extends ChangeNotifier {
   String _uiFontFamily = 'System';
 
   /// 按钮风格（经典描边 / 简洁立体）
-  AppButtonStyleMode _buttonStyleMode = AppButtonStyleMode.classic;
+  AppButtonStyleMode _buttonStyleMode = AppButtonStyleMode.softShadow;
 
   /// 编辑器字体族
   String _editorFontFamily = 'System';
@@ -62,7 +62,7 @@ class SettingsProvider extends ChangeNotifier {
   double _fontSize = 16.0;
 
   /// 是否启用自动保存
-  bool _autoSave = true;
+  bool _autoSave = false;
 
   /// 自动保存间隔（秒）
   int _autoSaveInterval = 30;
@@ -133,7 +133,7 @@ class SettingsProvider extends ChangeNotifier {
   // ==================== 底栏设置 ====================
 
   /// 卡片透明度（0.4–1.0）
-  double _cardOpacity = 0.72;
+  double _cardOpacity = 1.0;
 
   /// 底部导航栏透明度（0.1–1.0）
   double _tabBarOpacity = 0.95;
@@ -254,7 +254,8 @@ class SettingsProvider extends ChangeNotifier {
   int get lightThemeIndex => _lightThemeIndex;
   String get uiFontFamily => _uiFontFamily;
   AppButtonStyleMode get buttonStyleMode => _buttonStyleMode;
-  bool get useBorderlessButtons => _buttonStyleMode == AppButtonStyleMode.softShadow;
+  bool get useBorderlessButtons =>
+      _buttonStyleMode == AppButtonStyleMode.softShadow;
   String get editorFontFamily => _editorFontFamily;
   String get codeFontFamily => _codeFontFamily;
 
@@ -343,21 +344,25 @@ class SettingsProvider extends ChangeNotifier {
 
     // 编辑器设置
     _fontSize = prefs.getDouble('font_size') ?? 16.0;
-    _autoSave = prefs.getBool('auto_save') ?? true;
+    _autoSave = prefs.getBool('auto_save') ?? false;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
     _debugEnabled = prefs.getBool('debug_enabled') ?? false;
     _defaultDirectory = prefs.getString('default_directory');
     _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
-    _customWorkspaceBasePath = prefs.getString('custom_workspace_base_path') ??
+    _customWorkspaceBasePath =
+        prefs.getString('custom_workspace_base_path') ??
         '/storage/emulated/0/Documents';
 
     // 背景设置
     _backgroundImagePath = prefs.getString('background_image_path');
-    _editorBackgroundImagePath = prefs.getString('editor_background_image_path');
+    _editorBackgroundImagePath = prefs.getString(
+      'editor_background_image_path',
+    );
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
     _backgroundBlur = prefs.getDouble('background_blur') ?? 10.0;
     _backgroundBrightness = prefs.getDouble('background_brightness') ?? 1.0;
-    _editorBackgroundBlurEnabled = prefs.getBool('editor_background_blur_enabled') ?? false;
+    _editorBackgroundBlurEnabled =
+        prefs.getBool('editor_background_blur_enabled') ?? false;
     _editorBackgroundBlur = prefs.getDouble('editor_background_blur') ?? 10.0;
     _editorBackgroundBrightness =
         prefs.getDouble('editor_background_brightness') ?? 1.0;
@@ -380,7 +385,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoCheckUpdate = prefs.getBool('auto_check_update') ?? true;
 
     // 底栏设置
-    _cardOpacity = prefs.getDouble('card_opacity') ?? 0.72;
+    _cardOpacity = prefs.getDouble('card_opacity') ?? 1.0;
     _tabBarOpacity = prefs.getDouble('tab_bar_opacity') ?? 0.95;
 
     // 图标设置
@@ -396,7 +401,7 @@ class SettingsProvider extends ChangeNotifier {
     final buttonStyleName = prefs.getString('button_style_mode');
     _buttonStyleMode = AppButtonStyleMode.values.firstWhere(
       (mode) => mode.name == buttonStyleName,
-      orElse: () => AppButtonStyleMode.classic,
+      orElse: () => AppButtonStyleMode.softShadow,
     );
 
     // 字体设置迁移逻辑
