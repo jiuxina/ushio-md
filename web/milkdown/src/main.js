@@ -80,6 +80,7 @@ let viewportScrollSuppressUntil = 0;
 let lastKeyboardInsetPx = 0;
 let lastUserScrollAt = 0;
 let editorTouchTracking = null;
+let delayedRenderSyncTimerId = null;
 let codeLanguagePopupElement = null;
 let codeLanguagePopupBackdrop = null;
 let codeLanguagePopupInput = null;
@@ -98,6 +99,7 @@ const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
 const GHOST_CODE_LANGUAGE_MARKER_RE = /^[^\s`~]{1,40}$/;
 const LOCAL_FILE_SCHEME = 'ushio-local-file';
 const RUNTIME_BUILD_TAG = 'lang-inline-v2-20260324-2114';
+const SECOND_RENDER_SYNC_DELAY_MS = 80;
 window.__USHIO_RUNTIME_TAG = RUNTIME_BUILD_TAG;
 const KNOWN_CODE_LANGUAGE_MAP = new Map(
   KNOWN_CODE_LANGUAGES.map((name) => [name.trim().toLowerCase(), name]),
@@ -1394,11 +1396,19 @@ const syncRenderedDom = () => {
 };
 
 const notifyRenderComplete = () => {
+  if (delayedRenderSyncTimerId != null) {
+    clearTimeout(delayedRenderSyncTimerId);
+    delayedRenderSyncTimerId = null;
+  }
   requestAnimationFrame(() => {
     syncRenderedDom();
     updateActiveMarkdownHints();
     emitOutlineUpdate();
     emit('on_render_complete', {});
+    delayedRenderSyncTimerId = setTimeout(() => {
+      delayedRenderSyncTimerId = null;
+      syncRenderedDom();
+    }, SECOND_RENDER_SYNC_DELAY_MS);
   });
 };
 
