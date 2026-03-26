@@ -81,6 +81,7 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
       vsync: this,
       duration: const Duration(seconds: 1),
     );
+    _controller.addListener(_updateParticles);
     
     if (widget.enabled) {
       _initParticles();
@@ -206,18 +207,13 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
   Widget build(BuildContext context) {
     if (!widget.enabled) return const SizedBox.shrink();
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        _updateParticles();
-        return CustomPaint(
-          painter: ParticlePainter(
-            particles: _particles,
-            particleType: widget.particleType,
-          ),
-          size: Size.infinite,
-        );
-      },
+    return CustomPaint(
+      painter: ParticlePainter(
+        particles: _particles,
+        particleType: widget.particleType,
+        repaint: _controller,
+      ),
+      size: Size.infinite,
     );
   }
 
@@ -300,7 +296,8 @@ class ParticlePainter extends CustomPainter {
   ParticlePainter({
     required this.particles,
     required this.particleType,
-  });
+    Listenable? repaint,
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
