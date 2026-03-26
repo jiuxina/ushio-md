@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mdreader/providers/settings_provider.dart';
 import 'package:mdreader/widgets/app_background.dart';
+import 'package:mdreader/widgets/global_particle_overlay.dart';
 import 'package:mdreader/widgets/particle_effect_widget.dart';
 import 'package:provider/provider.dart';
 
@@ -68,13 +69,13 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('wraps particle layer in RepaintBoundary when enabled',
+  testWidgets('builds local particle layer only in non-global mode',
       (tester) async {
     await _pumpAppBackground(
       tester,
       settings: _TestSettingsProvider(
         particleEnabledValue: true,
-        particleGlobalValue: true,
+        particleGlobalValue: false,
       ),
     );
 
@@ -98,6 +99,46 @@ void main() {
     );
 
     expect(find.byType(ParticleEffectWidget), findsNothing);
+  });
+
+  testWidgets('does not build local particle layer in global mode', (tester) async {
+    await _pumpAppBackground(
+      tester,
+      settings: _TestSettingsProvider(
+        particleEnabledValue: true,
+        particleGlobalValue: true,
+      ),
+    );
+
+    expect(find.byType(ParticleEffectWidget), findsNothing);
+  });
+
+  testWidgets('GlobalParticleOverlay builds particle layer in global mode',
+      (tester) async {
+    final settings = _TestSettingsProvider(
+      particleEnabledValue: true,
+      particleGlobalValue: true,
+    );
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SettingsProvider>.value(
+        value: settings,
+        child: const MaterialApp(
+          home: GlobalParticleOverlay(
+            child: SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(ParticleEffectWidget), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(RepaintBoundary),
+        matching: find.byType(ParticleEffectWidget),
+      ),
+      findsOneWidget,
+    );
   });
 
   test('ParticlePainter shouldRepaint only when particle type changes', () {
