@@ -28,8 +28,8 @@ class AppBackground extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     
     // 判断是否显示粒子效果
-    final showParticles = settings.particleEnabled && 
-        (settings.particleGlobal || !isEditor);
+    final showParticles =
+        settings.particleEnabled && !settings.particleGlobal && !isEditor;
     
     // 粒子效果 Widget
     Widget? particleLayer;
@@ -40,10 +40,12 @@ class AppBackground extends StatelessWidget {
           // so particles keep animating smoothly during route push/pop transitions.
           child: TickerMode(
             enabled: true,
-            child: ParticleEffectWidget(
-              particleType: settings.particleType,
-              speed: settings.particleSpeed,
-              enabled: true,
+            child: RepaintBoundary(
+              child: ParticleEffectWidget(
+                particleType: settings.particleType,
+                speed: settings.particleSpeed,
+                enabled: true,
+              ),
             ),
           ),
         ),
