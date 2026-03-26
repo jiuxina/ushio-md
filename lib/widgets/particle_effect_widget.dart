@@ -402,6 +402,6 @@ class ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ParticlePainter oldDelegate) {
-    return oldDelegate.particleType != particleType;
+    return true;
   }
 }

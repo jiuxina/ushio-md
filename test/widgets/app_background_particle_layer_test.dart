@@ -141,7 +141,7 @@ void main() {
     );
   });
 
-  test('ParticlePainter shouldRepaint only when particle type changes', () {
+  test('ParticlePainter shouldRepaint for animation frames', () {
     final particles = <Particle>[
       Particle(x: 0.2, y: 0.3, size: 2.0, speed: 0.5),
     ];
@@ -154,11 +154,6 @@ void main() {
       particles: particles,
       particleType: 'sakura',
     );
-    final changedTypePainter = ParticlePainter(
-      particles: particles,
-      particleType: 'rain',
-    );
-    expect(samePainter.shouldRepaint(oldPainter), isFalse);
-    expect(changedTypePainter.shouldRepaint(oldPainter), isTrue);
+    expect(samePainter.shouldRepaint(oldPainter), isTrue);
   });
 }
