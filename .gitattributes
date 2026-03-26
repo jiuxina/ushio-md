@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Keep GitHub language stats focused on Flutter/Dart sources.
+# This file is a built runtime artifact generated from web/milkdown sources.
+assets/milkdown_web/index.html linguist-generated=true
