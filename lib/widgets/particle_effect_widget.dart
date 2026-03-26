@@ -199,6 +199,7 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
 
   @override
   void dispose() {
+    _controller.removeListener(_updateParticles);
     _controller.dispose();
     super.dispose();
   }
@@ -401,7 +402,6 @@ class ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ParticlePainter oldDelegate) {
-    return oldDelegate.particleType != particleType ||
-        !identical(oldDelegate.particles, particles);
+    return oldDelegate.particleType != particleType;
   }
 }

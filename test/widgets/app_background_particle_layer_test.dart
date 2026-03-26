@@ -100,7 +100,7 @@ void main() {
     expect(find.byType(ParticleEffectWidget), findsNothing);
   });
 
-  test('ParticlePainter shouldRepaint only for non-ticker changes', () {
+  test('ParticlePainter shouldRepaint only when particle type changes', () {
     final particles = <Particle>[
       Particle(x: 0.2, y: 0.3, size: 2.0, speed: 0.5),
     ];
@@ -117,15 +117,7 @@ void main() {
       particles: particles,
       particleType: 'rain',
     );
-    final changedListPainter = ParticlePainter(
-      particles: <Particle>[
-        Particle(x: 0.2, y: 0.3, size: 2.0, speed: 0.5),
-      ],
-      particleType: 'sakura',
-    );
-
     expect(samePainter.shouldRepaint(oldPainter), isFalse);
     expect(changedTypePainter.shouldRepaint(oldPainter), isTrue);
-    expect(changedListPainter.shouldRepaint(oldPainter), isTrue);
   });
 }
