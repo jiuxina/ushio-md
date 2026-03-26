@@ -1499,13 +1499,13 @@ class _EditorScreenState extends State<EditorScreen>
 
   /// Floating action buttons that stay anchored above keyboard/toolbars.
   Widget _buildFixedFloatingButtons() {
-    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
     final safeBottom = MediaQuery.of(context).padding.bottom;
 
     switch (_mode) {
       case EditorMode.edit:
-        // Keep button above keyboard + 56 px toolbar + 16 px gap.
-        final editBottom = safeBottom + 56.0 + 16.0 + viewInsets;
+        // Keep button above toolbar; ignore keyboard inset so it doesn't get
+        // pushed upward when the soft keyboard appears on mobile.
+        final editBottom = safeBottom + 56.0 + 16.0;
         return Positioned(
           right: 24,
           bottom: editBottom,
@@ -1520,8 +1520,8 @@ class _EditorScreenState extends State<EditorScreen>
         );
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
-        // Keep buttons above keyboard.
-        final previewBottom = safeBottom + 24.0 + viewInsets;
+        // Keep buttons fixed to bottom safe area and ignore keyboard inset.
+        final previewBottom = safeBottom + 24.0;
         return Positioned(
           right: 24,
           bottom: previewBottom,
