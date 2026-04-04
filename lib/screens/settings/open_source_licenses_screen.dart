@@ -1,4 +1,11 @@
+// ============================================================================
+// 开放源代码许可页面
+//
+// 展示应用所使用的开源依赖及对应许可信息
+// ============================================================================
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../utils/app_style.dart';
 import '../../widgets/app_background.dart';
@@ -8,6 +15,7 @@ class OpenSourceLicensesScreen extends StatelessWidget {
 
   static const List<_LicenseItem> _flutterDependencies = [
     _LicenseItem('flutter', 'BSD-3-Clause', 'https://github.com/flutter/flutter'),
+    _LicenseItem('flutter_localizations', 'BSD-3-Clause', 'https://github.com/flutter/flutter/tree/master/packages/flutter_localizations'),
     _LicenseItem('cupertino_icons', 'MIT', 'https://github.com/flutter/cupertino_icons'),
     _LicenseItem('flutter_markdown_plus', 'BSD-3-Clause', 'https://github.com/fzyzcjy/flutter_markdown'),
     _LicenseItem('flutter_inappwebview', 'Apache-2.0', 'https://github.com/pichillilorenzo/flutter_inappwebview'),
@@ -122,7 +130,30 @@ class OpenSourceLicensesScreen extends StatelessWidget {
           for (final item in items)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: SelectableText('${item.name} · ${item.license}\n${item.url}'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SelectableText(
+                    '${item.name} · ${item.license}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  GestureDetector(
+                    onTap: () async {
+                      final uri = Uri.parse(item.url);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    child: SelectableText(
+                      item.url,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            decoration: TextDecoration.underline,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
