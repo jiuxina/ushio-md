@@ -13,6 +13,7 @@ import '../../services/update_service.dart';
 import '../../widgets/app_background.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/app_style.dart';
+import 'open_source_licenses_screen.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -46,6 +47,17 @@ class _AboutScreenState extends State<AboutScreen> {
                 title: '开源地址',
                 subtitle: AppConstants.githubUrl,
                 onTap: () => _launchUrl(AppConstants.githubUrl),
+              ),
+              _buildLinkTile(
+                icon: Icons.description_outlined,
+                title: '开放源代码许可',
+                subtitle: '查看项目使用的开源依赖及许可信息',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const OpenSourceLicensesScreen(),
+                  ),
+                ),
               ),
             ]),
             const SizedBox(height: 16),
