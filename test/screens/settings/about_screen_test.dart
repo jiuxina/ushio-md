@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mdreader/screens/settings/about_screen.dart';
+import 'package:mdreader/screens/settings/open_source_licenses_screen.dart';
 import 'package:mdreader/services/update_service.dart';
 import 'package:mdreader/providers/settings_provider.dart';
 import 'package:http/http.dart' as http;
@@ -126,5 +127,21 @@ void main() {
     // Tap it
     await tester.tap(updateButton);
     await tester.pump();
+  });
+
+  testWidgets('开放源代码许可 tile is present and navigates to OpenSourceLicensesScreen',
+      (WidgetTester tester) async {
+    await pumpAboutScreen(tester);
+    await tester.pumpAndSettle();
+
+    // The tile should be visible
+    expect(find.text('开放源代码许可'), findsOneWidget);
+
+    // Tap the tile to navigate
+    await tester.tap(find.text('开放源代码许可'));
+    await tester.pumpAndSettle();
+
+    // OpenSourceLicensesScreen should be pushed
+    expect(find.byType(OpenSourceLicensesScreen), findsOneWidget);
   });
 }
