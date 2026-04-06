@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
@@ -81,8 +82,10 @@ class _EditorScreenState extends State<EditorScreen>
   late ScrollController _editScrollController;
   late UndoHistoryController _undoController;
   late FocusNode _searchFocusNode;
+  late FocusNode _editFocusNode;
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
+  bool _editSelectionListenerAttached = false;
 
   // WebView controller for heading navigation in the rendered preview page
   final _previewWebViewController = MilkdownWebViewController();
@@ -107,6 +110,7 @@ class _EditorScreenState extends State<EditorScreen>
   List<_SearchMatch> _searchMatches = const [];
   int _activeSearchMatchIndex = -1;
   DateTime? _lastDebugProbeAt;
+  bool _suppressNextMilkdownReload = false;
 
   // ==================== 常量 ====================
   /// Offset from top when jumping to a target position
@@ -136,6 +140,7 @@ class _EditorScreenState extends State<EditorScreen>
     _editScrollController = ScrollController();
     _undoController = UndoHistoryController();
     _searchFocusNode = FocusNode();
+    _editFocusNode = FocusNode();
     _inlineEditController = TextEditingController();
     _inlineEditFocusNode = FocusNode();
     _highlightController = AnimationController(
@@ -146,6 +151,7 @@ class _EditorScreenState extends State<EditorScreen>
       CurvedAnimation(parent: _highlightController, curve: Curves.easeInOut),
     );
     _searchFocusNode.addListener(_onSearchFocusChanged);
+    _attachEditSelectionListener();
     if (widget.initialContent != null) {
       _applyLoadedContent(widget.initialContent!);
       _configureAutoSave();
@@ -199,6 +205,105 @@ class _EditorScreenState extends State<EditorScreen>
       _autoSaveTimer = Timer.periodic(
         Duration(seconds: settings.autoSaveInterval),
         (_) => _autoSave(),
+      );
+    }
+  }
+
+  void _attachEditSelectionListener() {
+    if (_editSelectionListenerAttached) return;
+    _editSelectionListenerAttached = true;
+    // Use a post-frame callback to ensure the text field is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _textController.addListener(_onEditSelectionChanged);
+    });
+  }
+
+  void _onEditSelectionChanged() {
+    if (_mode != EditorMode.edit) return;
+    if (!_editFocusNode.hasFocus) return;
+
+    final selection = _textController.selection;
+    if (!selection.isValid) return;
+
+    // Debounce scroll updates to avoid excessive scrolling during fast typing
+    _scheduleEditScrollToCursor();
+  }
+
+  Timer? _editScrollTimer;
+
+  void _scheduleEditScrollToCursor() {
+    _editScrollTimer?.cancel();
+    _editScrollTimer = Timer(const Duration(milliseconds: 50), () {
+      _scrollEditToCursor();
+    });
+  }
+
+  void _scrollEditToCursor() {
+    if (!mounted) return;
+    if (_mode != EditorMode.edit) return;
+    if (!_editFocusNode.hasFocus) return;
+
+    final selection = _textController.selection;
+    if (!selection.isValid) return;
+
+    final text = _textController.text;
+    final cursorOffset = selection.extentOffset;
+
+    // Get the actual line height from text style
+    final settings = context.read<SettingsProvider>();
+    final fontSize = settings.fontSize;
+    final lineHeight = fontSize * 1.5; // Match the TextField's line height
+
+    // Calculate line number from cursor offset
+    int lineCount = 0;
+    int pos = 0;
+    while (pos < cursorOffset && pos < text.length) {
+      if (text[pos] == '\n') {
+        lineCount++;
+      }
+      pos++;
+    }
+
+    // Calculate cursor Y position with padding
+    const topPadding = 16.0;
+    final estimatedY = topPadding + (lineCount * lineHeight);
+
+    // Get viewport info
+    if (!_editScrollController.hasClients) return;
+    final scrollPosition = _editScrollController.position;
+    final viewportHeight = scrollPosition.viewportDimension;
+
+    // Get keyboard height to account for toolbar and keyboard overlay
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    // Toolbar height (approximately 56px) + some padding
+    const toolbarHeight = 56.0;
+    // Total bottom offset that reduces visible area
+    final bottomOffset = keyboardInset + toolbarHeight + 16.0;
+
+    // Calculate visible range (accounting for keyboard and toolbar)
+    final visibleTop = scrollPosition.pixels;
+    final visibleBottom = visibleTop + viewportHeight - bottomOffset;
+
+    // Desired margin from top/bottom when scrolling
+    const topMargin = 100.0;
+    const effectiveBottomMargin = 16.0;
+
+    // Check if cursor is outside visible area
+    if (estimatedY < visibleTop + topMargin) {
+      // Cursor is above visible area - scroll up
+      _editScrollController.animateTo(
+        (estimatedY - topMargin).clamp(0.0, scrollPosition.maxScrollExtent),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    } else if (estimatedY > visibleBottom - effectiveBottomMargin) {
+      // Cursor is below visible area (including keyboard/toolbar area) - scroll down
+      _editScrollController.animateTo(
+        (estimatedY - viewportHeight + bottomOffset + effectiveBottomMargin)
+            .clamp(0.0, scrollPosition.maxScrollExtent),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
       );
     }
   }
@@ -369,6 +474,7 @@ class _EditorScreenState extends State<EditorScreen>
   ///
   /// [showSnackbar] 是否显示保存结果提示
   Future<void> _saveFile({bool showSnackbar = true}) async {
+    final l10n = AppLocalizations.of(context)!;
     if (_isSaving) return;
 
     setState(() => _isSaving = true);
@@ -392,7 +498,7 @@ class _EditorScreenState extends State<EditorScreen>
                   child: const Icon(Icons.check, color: Colors.green, size: 16),
                 ),
                 const SizedBox(width: 12),
-                const Text('已保存'),
+                Text(l10n.saveSuccess),
               ],
             ),
             behavior: SnackBarBehavior.floating,
@@ -411,7 +517,7 @@ class _EditorScreenState extends State<EditorScreen>
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 12),
-                Text('保存失败: $e'),
+                Text(l10n.saveFailedWithError(e.toString())),
               ],
             ),
             backgroundColor: Colors.red,
@@ -435,6 +541,8 @@ class _EditorScreenState extends State<EditorScreen>
       _requestCodeBlockLanguageProbe,
     );
     _autoSaveTimer?.cancel();
+    _editScrollTimer?.cancel();
+    _textController.removeListener(_onEditSelectionChanged);
     _textController.dispose();
     _searchController.dispose();
     _editScrollController.dispose();
@@ -442,6 +550,7 @@ class _EditorScreenState extends State<EditorScreen>
     _searchFocusNode
       ..removeListener(_onSearchFocusChanged)
       ..dispose();
+    _editFocusNode.dispose();
     _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
     _inlineEditController.dispose();
     _inlineEditFocusNode.dispose();
@@ -450,6 +559,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<bool> _onWillPop() async {
+    final l10n = AppLocalizations.of(context)!;
     // Finish any inline edit first
     if (_editingBlockIndex != null) {
       _finishInlineEdit();
@@ -472,23 +582,25 @@ class _EditorScreenState extends State<EditorScreen>
               child: const Icon(Icons.warning_amber, color: Colors.orange),
             ),
             const SizedBox(width: 12),
-            const Text('未保存的更改'),
+            Expanded(
+              child: Text(l10n.unsavedChanges, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
-        content: const Text('您有未保存的更改，要保存吗？'),
+        content: Text(l10n.unsavedChangesMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'discard'),
-            child: const Text('放弃'),
+            child: Text(l10n.discard),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, 'cancel'),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.pop(context, 'save'),
             icon: const Icon(Icons.save, size: 18),
-            label: const Text('保存'),
+            label: Text(l10n.save),
           ),
         ],
       ),
@@ -748,7 +860,12 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== Block Parsing & Inline Editing ====================
 
   void _handleMilkdownContentChange(String markdown) {
+    final suppressReload = _suppressNextMilkdownReload;
+    _suppressNextMilkdownReload = false;
     if (markdown == _textController.text) return;
+    if (suppressReload) {
+      _previewWebViewController.suppressNextReload();
+    }
     _textController.removeListener(_onTextChanged);
     _textController.text = markdown;
     _textController.addListener(_onTextChanged);
@@ -937,6 +1054,15 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _handleMilkdownBridgeMessage(Map<String, dynamic> map) {
     final type = map['type']?.toString();
+    if (type == 'on_content_change') {
+      final payload = map['payload'];
+      if (payload is Map) {
+        _suppressNextMilkdownReload =
+            payload['mode']?.toString() == 'code_sanitized';
+      } else {
+        _suppressNextMilkdownReload = false;
+      }
+    }
     final settings = context.read<SettingsProvider>();
     if (settings.debugEnabled) {
       settings.appendDebugLog('bridge<$type>: $map');
@@ -1143,6 +1269,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   String _getWordCount() {
+    final l10n = AppLocalizations.of(context)!;
     final text = _textController.text;
     final chars = text.length;
     final glyphs = text.runes.where((char) {
@@ -1150,7 +1277,7 @@ class _EditorScreenState extends State<EditorScreen>
       return value.trim().isNotEmpty;
     }).length;
     final words = text.split(_wordSplitRegex).where((w) => w.isNotEmpty).length;
-    return '$chars 字符 · $glyphs 文字 · $words 单词';
+    return l10n.wordCount(chars, glyphs, words);
   }
 
   Widget _buildInlineSearch() {
@@ -1158,6 +1285,7 @@ class _EditorScreenState extends State<EditorScreen>
       return const SizedBox.shrink();
     }
 
+    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final appStyle = theme.extension<AppStyleTheme>()!;
     final displayMatches = _searchMatches.take(5).toList(growable: false);
@@ -1187,12 +1315,12 @@ class _EditorScreenState extends State<EditorScreen>
               onChanged: _performInlineSearch,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: '搜索内容...',
+                hintText: l10n.searchContent,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: IconButton(
-                  tooltip: '关闭搜索',
+                  tooltip: l10n.closeSearch,
                   icon: const Icon(Icons.close),
                   onPressed: () {
                     if (_searchController.text.isNotEmpty) {
@@ -1231,13 +1359,13 @@ class _EditorScreenState extends State<EditorScreen>
                 Expanded(
                   child: Text(
                     _searchMatches.isEmpty
-                        ? '未找到匹配'
+                        ? l10n.noMatch
                         : '${_activeSearchMatchIndex + 1}/${_searchMatches.length}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
                 IconButton(
-                  tooltip: '上一个',
+                  tooltip: l10n.previous,
                   visualDensity: VisualDensity.compact,
                   onPressed: _searchMatches.isEmpty
                       ? null
@@ -1245,7 +1373,7 @@ class _EditorScreenState extends State<EditorScreen>
                   icon: const Icon(Icons.keyboard_arrow_up),
                 ),
                 IconButton(
-                  tooltip: '下一个',
+                  tooltip: l10n.next,
                   visualDensity: VisualDensity.compact,
                   onPressed: _searchMatches.isEmpty
                       ? null
@@ -1284,7 +1412,7 @@ class _EditorScreenState extends State<EditorScreen>
                             ? Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Text(
-                                  '未找到匹配内容',
+                                  l10n.noMatchContent,
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.outline,
                                   ),
@@ -1319,6 +1447,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Widget _buildContent() {
+    final l10n = AppLocalizations.of(context)!;
     if (_isLoading) {
       return Center(
         child: CircularProgressIndicator(
@@ -1348,7 +1477,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               const SizedBox(height: 24),
               Text(
-                '加载失败',
+                l10n.loadingFailed,
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -1365,7 +1494,7 @@ class _EditorScreenState extends State<EditorScreen>
               FilledButton.icon(
                 onPressed: _loadFile,
                 icon: const Icon(Icons.refresh),
-                label: const Text('重试'),
+                label: Text(l10n.retry),
               ),
             ],
           ),
@@ -1537,16 +1666,19 @@ class _EditorScreenState extends State<EditorScreen>
     SettingsProvider settings, {
     double toolbarPadding = 0,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     return Stack(
       children: [
         TextField(
           controller: _textController,
           scrollController: _editScrollController,
           undoController: _undoController,
+          focusNode: _editFocusNode,
           maxLines: null,
           expands: true,
           keyboardType: TextInputType.multiline,
           textAlignVertical: TextAlignVertical.top,
+          scrollPhysics: const ClampingScrollPhysics(),
           style: TextStyle(
             fontSize: settings.fontSize,
             fontFamily: settings.editorFontFamily == 'System'
@@ -1562,7 +1694,7 @@ class _EditorScreenState extends State<EditorScreen>
               16,
               16 + toolbarPadding,
             ),
-            hintText: '开始编写你的 Markdown 内容...',
+            hintText: l10n.startWriting,
             hintStyle: TextStyle(
               color: Theme.of(
                 context,
@@ -1681,6 +1813,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _showMoreMenu() {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1706,7 +1839,7 @@ class _EditorScreenState extends State<EditorScreen>
             const SizedBox(height: 20),
             ListTile(
               leading: const Icon(Icons.search),
-              title: const Text('搜索'),
+              title: Text(l10n.search),
               onTap: () {
                 Navigator.pop(context);
                 _showInlineSearch();
@@ -1714,12 +1847,12 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             ListTile(
               leading: const Icon(Icons.picture_as_pdf),
-              title: const Text('导出为 PDF'),
+              title: Text(l10n.exportAsPdf),
               onTap: () async {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text('正在生成 PDF...')));
+                ).showSnackBar(SnackBar(content: Text(l10n.generatingPdf)));
                 await ExportService.exportAndShareAsPdf(
                   _textController.text,
                   widget.filePath

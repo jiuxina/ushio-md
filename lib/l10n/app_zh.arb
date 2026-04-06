@@ -1,0 +1,1285 @@
+{
+  "@@locale": "zh",
+  "@@last_modified": "2026-04-06T00:00:00.000Z",
+  "appName": "汐",
+  "@appName": {
+    "description": "应用名称"
+  },
+  "cancel": "取消",
+  "@cancel": {
+    "description": "取消按钮"
+  },
+  "confirm": "确认",
+  "@confirm": {
+    "description": "确认按钮"
+  },
+  "save": "保存",
+  "@save": {
+    "description": "保存按钮"
+  },
+  "delete": "删除",
+  "@delete": {
+    "description": "删除按钮"
+  },
+  "edit": "编辑",
+  "@edit": {
+    "description": "编辑按钮"
+  },
+  "preview": "预览",
+  "@preview": {
+    "description": "预览模式"
+  },
+  "search": "搜索",
+  "@search": {
+    "description": "搜索"
+  },
+  "searchContent": "搜索内容...",
+  "@searchContent": {
+    "description": "搜索内容提示"
+  },
+  "closeSearch": "关闭搜索",
+  "@closeSearch": {
+    "description": "关闭搜索按钮"
+  },
+  "noMatch": "未找到匹配",
+  "@noMatch": {
+    "description": "搜索无匹配"
+  },
+  "previous": "上一个",
+  "@previous": {
+    "description": "上一个匹配"
+  },
+  "next": "下一个",
+  "@next": {
+    "description": "下一个匹配"
+  },
+  "startWriting": "开始编写你的 Markdown 内容...",
+  "@startWriting": {
+    "description": "编辑器空状态提示"
+  },
+  "tableOfContents": "目录",
+  "@tableOfContents": {
+    "description": "目录标题"
+  },
+  "settings": "设置",
+  "@settings": {
+    "description": "设置"
+  },
+  "homeTab": "首页",
+  "@homeTab": {
+    "description": "首页Tab标签"
+  },
+  "myFiles": "我的文件",
+  "@myFiles": {
+    "description": "我的文件Tab标签"
+  },
+  "historyTab": "历史",
+  "@historyTab": {
+    "description": "历史Tab标签"
+  },
+  "firstLaunchInitializing": "首次启动初始化中",
+  "@firstLaunchInitializing": {
+    "description": "首次启动初始化对话框标题"
+  },
+  "firstLaunchWarmingUp": "正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。",
+  "@firstLaunchWarmingUp": {
+    "description": "首次启动预热消息"
+  },
+  "firstLaunchComplete": "首次启动初始化完成，后续打开文档会更快。",
+  "@firstLaunchComplete": {
+    "description": "首次启动完成消息"
+  },
+  "newVersionFound": "发现新版本 {version}，可前往关于页面更新",
+  "@newVersionFound": {
+    "description": "发现新版本消息",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "view": "查看",
+  "@view": {
+    "description": "查看按钮标签"
+  },
+  "editor": "编辑器",
+  "@editor": {
+    "description": "编辑器设置"
+  },
+  "storage": "存储",
+  "@storage": {
+    "description": "存储设置"
+  },
+  "appearance": "外观",
+  "@appearance": {
+    "description": "外观设置"
+  },
+  "theme": "主题",
+  "@theme": {
+    "description": "主题设置"
+  },
+  "themeLight": "浅色",
+  "@themeLight": {
+    "description": "浅色主题"
+  },
+  "themeDark": "深色",
+  "@themeDark": {
+    "description": "深色主题"
+  },
+  "themeSystem": "跟随系统",
+  "@themeSystem": {
+    "description": "跟随系统主题"
+  },
+  "fontSize": "字体大小",
+  "@fontSize": {
+    "description": "字体大小设置"
+  },
+  "editorFont": "编辑器字体",
+  "@editorFont": {
+    "description": "编辑器字体设置"
+  },
+  "codeFont": "代码字体",
+  "@codeFont": {
+    "description": "代码字体设置"
+  },
+  "lineHeight": "行高",
+  "@lineHeight": {
+    "description": "行高设置"
+  },
+  "autoSave": "自动保存",
+  "@autoSave": {
+    "description": "自动保存设置"
+  },
+  "autoSaveInterval": "自动保存间隔",
+  "@autoSaveInterval": {
+    "description": "自动保存间隔设置"
+  },
+  "seconds": "秒",
+  "@seconds": {
+    "description": "秒"
+  },
+  "language": "语言",
+  "@language": {
+    "description": "语言设置"
+  },
+  "languageZh": "中文",
+  "@languageZh": {
+    "description": "中文"
+  },
+  "languageEn": "English",
+  "@languageEn": {
+    "description": "英文"
+  },
+  "cloudSync": "云同步",
+  "@cloudSync": {
+    "description": "云同步设置"
+  },
+  "webdav": "WebDAV",
+  "@webdav": {
+    "description": "WebDAV 同步"
+  },
+  "ftp": "FTP",
+  "@ftp": {
+    "description": "FTP 同步"
+  },
+  "syncNow": "立即同步",
+  "@syncNow": {
+    "description": "立即同步按钮"
+  },
+  "syncing": "同步中...",
+  "@syncing": {
+    "description": "同步中状态"
+  },
+  "syncSuccess": "同步成功",
+  "@syncSuccess": {
+    "description": "同步成功提示"
+  },
+  "syncFailed": "同步失败",
+  "@syncFailed": {
+    "description": "同步失败提示"
+  },
+  "newFile": "新建文件",
+  "@newFile": {
+    "description": "新建文件"
+  },
+  "newFolder": "新建文件夹",
+  "@newFolder": {
+    "description": "新建文件夹"
+  },
+  "rename": "重命名",
+  "@rename": {
+    "description": "重命名"
+  },
+  "move": "移动",
+  "@move": {
+    "description": "移动"
+  },
+  "copy": "复制",
+  "@copy": {
+    "description": "复制"
+  },
+  "paste": "粘贴",
+  "@paste": {
+    "description": "粘贴"
+  },
+  "share": "分享",
+  "@share": {
+    "description": "分享"
+  },
+  "export": "导出",
+  "@export": {
+    "description": "导出"
+  },
+  "exportAsPdf": "导出为 PDF",
+  "@exportAsPdf": {
+    "description": "导出为 PDF"
+  },
+  "generatingPdf": "正在生成 PDF...",
+  "@generatingPdf": {
+    "description": "生成 PDF 中"
+  },
+  "insertImage": "插入图片",
+  "@insertImage": {
+    "description": "插入图片"
+  },
+  "insertImageFromUrl": "输入图片链接",
+  "@insertImageFromUrl": {
+    "description": "从链接插入图片"
+  },
+  "insertImageFromDevice": "从设备选择",
+  "@insertImageFromDevice": {
+    "description": "从设备选择图片"
+  },
+  "imageUrl": "图片 URL",
+  "@imageUrl": {
+    "description": "图片 URL 输入框标签"
+  },
+  "imageUrlHint": "https://example.com/image.png",
+  "@imageUrlHint": {
+    "description": "图片 URL 输入提示"
+  },
+  "imageAlt": "替代文本（可选）",
+  "@imageAlt": {
+    "description": "图片替代文本"
+  },
+  "imageAltHint": "用于无障碍与图片说明",
+  "@imageAltHint": {
+    "description": "替代文本提示"
+  },
+  "insert": "插入",
+  "@insert": {
+    "description": "插入按钮"
+  },
+  "imageUploadFailed": "图片上传失败",
+  "@imageUploadFailed": {
+    "description": "图片上传失败提示"
+  },
+  "retry": "重试",
+  "@retry": {
+    "description": "重试按钮"
+  },
+  "untitled": "未命名",
+  "@untitled": {
+    "description": "未命名文件"
+  },
+  "unsavedChanges": "有未保存的更改",
+  "@unsavedChanges": {
+    "description": "未保存更改提示"
+  },
+  "discardChanges": "放弃更改",
+  "@discardChanges": {
+    "description": "放弃更改按钮"
+  },
+  "keepEditing": "继续编辑",
+  "@keepEditing": {
+    "description": "继续编辑按钮"
+  },
+  "fileNotFound": "文件未找到",
+  "@fileNotFound": {
+    "description": "文件未找到错误"
+  },
+  "folderNotFound": "文件夹未找到",
+  "@folderNotFound": {
+    "description": "文件夹未找到错误"
+  },
+  "errorLoadingFile": "加载文件失败",
+  "@errorLoadingFile": {
+    "description": "加载文件错误"
+  },
+  "errorSavingFile": "保存文件失败",
+  "@errorSavingFile": {
+    "description": "保存文件错误"
+  },
+  "permissionRequired": "需要权限",
+  "@permissionRequired": {
+    "description": "权限请求标题"
+  },
+  "storagePermissionRequired": "需要存储权限才能访问文件",
+  "@storagePermissionRequired": {
+    "description": "存储权限说明"
+  },
+  "grantPermission": "授予权限",
+  "@grantPermission": {
+    "description": "授予权限按钮"
+  },
+  "initializing": "初始化中...",
+  "@initializing": {
+    "description": "初始化提示"
+  },
+  "updateAvailable": "有新版本可用",
+  "@updateAvailable": {
+    "description": "更新可用提示"
+  },
+  "updateNow": "立即更新",
+  "@updateNow": {
+    "description": "立即更新按钮"
+  },
+  "later": "稍后",
+  "@later": {
+    "description": "稍后按钮"
+  },
+  "version": "版本",
+  "@version": {
+    "description": "版本"
+  },
+  "about": "关于",
+  "@about": {
+    "description": "关于"
+  },
+  "debugMode": "调试模式",
+  "@debugMode": {
+    "description": "调试模式设置"
+  },
+  "debugLog": "调试日志",
+  "@debugLog": {
+    "description": "调试日志"
+  },
+  "clearLog": "清除日志",
+  "@clearLog": {
+    "description": "清除日志按钮"
+  },
+  "copyLog": "复制日志",
+  "@copyLog": {
+    "description": "复制日志按钮"
+  },
+  "lineNumber": "行号",
+  "@lineNumber": {
+    "description": "行号"
+  },
+  "bold": "粗体",
+  "@bold": {
+    "description": "粗体"
+  },
+  "italic": "斜体",
+  "@italic": {
+    "description": "斜体"
+  },
+  "strikethrough": "删除线",
+  "@strikethrough": {
+    "description": "删除线"
+  },
+  "heading": "标题",
+  "@heading": {
+    "description": "标题"
+  },
+  "heading1": "一级标题",
+  "@heading1": {
+    "description": "一级标题"
+  },
+  "heading2": "二级标题",
+  "@heading2": {
+    "description": "二级标题"
+  },
+  "heading3": "三级标题",
+  "@heading3": {
+    "description": "三级标题"
+  },
+  "bulletList": "无序列表",
+  "@bulletList": {
+    "description": "无序列表"
+  },
+  "orderedList": "有序列表",
+  "@orderedList": {
+    "description": "有序列表"
+  },
+  "taskList": "任务列表",
+  "@taskList": {
+    "description": "任务列表"
+  },
+  "blockquote": "引用",
+  "@blockquote": {
+    "description": "引用"
+  },
+  "code": "代码",
+  "@code": {
+    "description": "代码"
+  },
+  "inlineCode": "行内代码",
+  "@inlineCode": {
+    "description": "行内代码"
+  },
+  "codeBlock": "代码块",
+  "@codeBlock": {
+    "description": "代码块"
+  },
+  "link": "链接",
+  "@link": {
+    "description": "链接"
+  },
+  "image": "图片",
+  "@image": {
+    "description": "图片"
+  },
+  "horizontalRule": "分隔线",
+  "@horizontalRule": {
+    "description": "分隔线"
+  },
+  "table": "表格",
+  "@table": {
+    "description": "表格"
+  },
+  "undo": "撤销",
+  "@undo": {
+    "description": "撤销"
+  },
+  "redo": "重做",
+  "@redo": {
+    "description": "重做"
+  },
+  "more": "更多",
+  "@more": {
+    "description": "更多"
+  },
+  "editorBackground": "编辑器背景",
+  "@editorBackground": {
+    "description": "编辑器背景设置"
+  },
+  "selectImage": "选择图片",
+  "@selectImage": {
+    "description": "选择图片"
+  },
+  "clearBackground": "清除背景",
+  "@clearBackground": {
+    "description": "清除背景"
+  },
+  "backgroundBlur": "背景模糊",
+  "@backgroundBlur": {
+    "description": "背景模糊设置"
+  },
+  "backgroundBrightness": "背景亮度",
+  "@backgroundBrightness": {
+    "description": "背景亮度设置"
+  },
+  "themeMode": "主题模式",
+  "@themeMode": {
+    "description": "主题模式设置"
+  },
+  "themeColor": "主题色",
+  "@themeColor": {
+    "description": "主题色设置"
+  },
+  "buttonStyle": "按钮风格",
+  "@buttonStyle": {
+    "description": "按钮风格设置"
+  },
+  "buttonStyleClassic": "经典描边",
+  "@buttonStyleClassic": {
+    "description": "经典描边按钮风格"
+  },
+  "buttonStyleClassicDesc": "保留当前的实线边框按钮样式",
+  "@buttonStyleClassicDesc": {
+    "description": "经典描边按钮风格描述"
+  },
+  "buttonStyleModern": "简洁立体",
+  "@buttonStyleModern": {
+    "description": "简洁立体按钮风格"
+  },
+  "buttonStyleModernDesc": "柔和阴影的立体按钮效果",
+  "@buttonStyleModernDesc": {
+    "description": "简洁立体按钮风格描述"
+  },
+  "cardOpacity": "卡片透明度",
+  "@cardOpacity": {
+    "description": "卡片透明度设置"
+  },
+  "lightTheme": "浅色主题",
+  "@lightTheme": {
+    "description": "浅色主题方案"
+  },
+  "darkTheme": "夜间主题",
+  "@darkTheme": {
+    "description": "夜间主题方案"
+  },
+  "font": "字体",
+  "@font": {
+    "description": "字体设置"
+  },
+  "background": "背景",
+  "@background": {
+    "description": "背景设置"
+  },
+  "particleEffect": "粒子效果",
+  "@particleEffect": {
+    "description": "粒子效果设置"
+  },
+  "appIcon": "桌面图标",
+  "@appIcon": {
+    "description": "桌面图标设置"
+  },
+  "homeIcon": "主页图标",
+  "@homeIcon": {
+    "description": "主页图标设置"
+  },
+  "opacity": "透明度",
+  "@opacity": {
+    "description": "透明度"
+  },
+  "editorBackgroundImage": "编辑器背景图片",
+  "@editorBackgroundImage": {
+    "description": "编辑器背景图片设置"
+  },
+  "homeTitle": "主页标题",
+  "@homeTitle": {
+    "description": "主页标题设置"
+  },
+  "bottomNavBar": "底部导航栏",
+  "@bottomNavBar": {
+    "description": "底部导航栏设置"
+  },
+  "clearImage": "清除图片",
+  "@clearImage": {
+    "description": "清除图片按钮"
+  },
+  "blurEffect": "模糊效果",
+  "@blurEffect": {
+    "description": "模糊效果设置"
+  },
+  "blurStrength": "模糊强度",
+  "@blurStrength": {
+    "description": "模糊强度设置"
+  },
+  "particleType": "粒子类型",
+  "@particleType": {
+    "description": "粒子类型设置"
+  },
+  "particleSpeed": "粒子速度",
+  "@particleSpeed": {
+    "description": "粒子速度设置"
+  },
+  "globalParticles": "全局粒子",
+  "@globalParticles": {
+    "description": "全局粒子效果开关"
+  },
+  "defaultIcon": "默认",
+  "@defaultIcon": {
+    "description": "默认图标选项"
+  },
+  "customImage": "自定义图片",
+  "@customImage": {
+    "description": "自定义图片选项"
+  },
+  "particleTypeSakura": "樱花",
+  "@particleTypeSakura": {
+    "description": "樱花粒子类型"
+  },
+  "particleTypeSnow": "雪花",
+  "@particleTypeSnow": {
+    "description": "雪花粒子类型"
+  },
+  "particleTypeLeaves": "落叶",
+  "@particleTypeLeaves": {
+    "description": "落叶粒子类型"
+  },
+  "particleTypeStars": "星星",
+  "@particleTypeStars": {
+    "description": "星星粒子类型"
+  },
+  "uiFont": "界面字体",
+  "@uiFont": {
+    "description": "界面字体设置"
+  },
+  "systemFont": "系统字体",
+  "@systemFont": {
+    "description": "系统字体选项"
+  },
+  "customFont": "自定义字体",
+  "@customFont": {
+    "description": "自定义字体选项"
+  },
+  "installFont": "安装自定义字体",
+  "@installFont": {
+    "description": "安装自定义字体按钮"
+  },
+  "fontInstalled": "字体安装成功",
+  "@fontInstalled": {
+    "description": "字体安装成功提示"
+  },
+  "buttonPreview": "按钮预览",
+  "@buttonPreview": {
+    "description": "按钮预览"
+  },
+  "editorSettings": "编辑器设置",
+  "@editorSettings": {
+    "description": "编辑器设置页面标题"
+  },
+  "current": "当前: {size}",
+  "@current": {
+    "description": "当前值指示器",
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "sampleText": "示例文字",
+  "@sampleText": {
+    "description": "示例文字"
+  },
+  "enableAutoSave": "启用自动保存",
+  "@enableAutoSave": {
+    "description": "启用自动保存开关标签"
+  },
+  "saveInterval": "保存间隔",
+  "@saveInterval": {
+    "description": "保存间隔设置标签"
+  },
+  "minutes": "分钟",
+  "@minutes": {
+    "description": "分钟"
+  },
+  "openSource": "开源地址",
+  "openSourceLicense": "开放源代码许可",
+  "openSourceLicenseDesc": "查看项目使用的开源依赖及许可信息",
+  "updates": "更新",
+  "autoCheckUpdate": "启动时自动检查更新",
+  "autoCheckUpdateDesc": "有新版本时显示提示",
+  "checkForUpdates": "检查更新",
+  "checkForUpdatesDesc": "检查是否有新版本",
+  "upToDate": "已是最新版本",
+  "checkUpdateFailed": "检查更新失败: {error}",
+  "@checkUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "newVersionFound": "发现新版本",
+  "newVersionAvailable": "新版本 {version} 已发布，是否立即更新？",
+  "@newVersionAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadingUpdate": "正在下载更新",
+  "downloadingWithMirror": "优先使用镜像加速下载中...",
+  "downloadFailed": "下载或安装失败，建议手动下载",
+  "updateError": "更新出错: {error}",
+  "@updateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "foundNewVersion": "发现新版本",
+  "cloudSyncConfig": "云同步服务配置",
+  "@cloudSyncConfig": {
+    "description": "云同步服务配置标题"
+  },
+  "syncServiceType": "同步服务类型",
+  "@syncServiceType": {
+    "description": "同步服务类型下拉框标签"
+  },
+  "cloudFolderName": "云端文件夹名称",
+  "@cloudFolderName": {
+    "description": "云端文件夹名称输入框标签"
+  },
+  "folderNameHelper": "修改此名称将重命名云端文件夹（不会创建新文件夹）",
+  "@folderNameHelper": {
+    "description": "文件夹名称帮助文本"
+  },
+  "enterFolderName": "请输入文件夹名称",
+  "@enterFolderName": {
+    "description": "文件夹名称验证消息"
+  },
+  "folderNameNoSlashes": "文件夹名称不能包含斜杠",
+  "@folderNameNoSlashes": {
+    "description": "文件夹名称验证消息（包含斜杠）"
+  },
+  "cloudPathPrefix": "云端路径前缀（可选）",
+  "@cloudPathPrefix": {
+    "description": "云端路径前缀输入框标签"
+  },
+  "cloudPathHelper": "云端文件夹的完整路径会自动补齐为：路径前缀",
+  "@cloudPathHelper": {
+    "description": "云端路径帮助文本"
+  },
+  "testing": "测试中...",
+  "@testing": {
+    "description": "测试中状态"
+  },
+  "testConnection": "测试连接",
+  "@testConnection": {
+    "description": "测试连接按钮"
+  },
+  "saveConfig": "保存配置",
+  "@saveConfig": {
+    "description": "保存配置按钮"
+  },
+  "connectionSuccess": "连接成功！",
+  "@connectionSuccess": {
+    "description": "连接成功提示"
+  },
+  "connectionFailed": "连接失败，请检查配置",
+  "@connectionFailed": {
+    "description": "连接失败提示"
+  },
+  "serverAddress": "服务器地址",
+  "@serverAddress": {
+    "description": "服务器地址输入框标签"
+  },
+  "enterServerAddress": "请输入服务器地址",
+  "@enterServerAddress": {
+    "description": "服务器地址验证消息"
+  },
+  "enterValidUrl": "请输入有效的 URL（以 http:// 或 https:// 开头）",
+  "@enterValidUrl": {
+    "description": "URL 验证消息"
+  },
+  "username": "用户名",
+  "@username": {
+    "description": "用户名输入框标签"
+  },
+  "enterUsername": "请输入用户名",
+  "@enterUsername": {
+    "description": "用户名验证消息"
+  },
+  "password": "密码",
+  "@password": {
+    "description": "密码输入框标签"
+  },
+  "enterPassword": "请输入密码",
+  "@enterPassword": {
+    "description": "密码验证消息"
+  },
+  "ftpServerAddress": "FTP 服务器地址",
+  "@ftpServerAddress": {
+    "description": "FTP 服务器地址输入框标签"
+  },
+  "enterFtpServer": "请输入FTP服务器地址",
+  "@enterFtpServer": {
+    "description": "FTP 服务器地址验证消息"
+  },
+  "addressShouldStartWithFtp": "地址应以 ftp:// 开头",
+  "@addressShouldStartWithFtp": {
+    "description": "FTP 地址格式验证消息"
+  },
+  "enterValidHost": "请输入有效的主机地址",
+  "@enterValidHost": {
+    "description": "主机地址验证消息"
+  },
+  "invalidFormat": "格式错误，应为 ftp://主机:端口",
+  "@invalidFormat": {
+    "description": "FTP 格式验证消息"
+  },
+  "portRange": "端口号应在 1-65535 之间",
+  "@portRange": {
+    "description": "端口范围验证消息"
+  },
+  "syncControls": "同步控制",
+  "@syncControls": {
+    "description": "同步控制标题"
+  },
+  "autoSync": "自动同步",
+  "@autoSync": {
+    "description": "自动同步开关标签"
+  },
+  "autoSyncDescription": "保存文件时自动上传到云端",
+  "@autoSyncDescription": {
+    "description": "自动同步描述"
+  },
+  "syncStatus": "同步状态",
+  "@syncStatus": {
+    "description": "同步状态标题"
+  },
+  "syncService": "同步服务",
+  "@syncService": {
+    "description": "同步服务标签"
+  },
+  "configStatus": "配置状态",
+  "@configStatus": {
+    "description": "配置状态标签"
+  },
+  "configured": "已配置",
+  "@configured": {
+    "description": "已配置状态"
+  },
+  "notConfigured": "未配置",
+  "@notConfigured": {
+    "description": "未配置状态"
+  },
+  "lastSync": "上次同步",
+  "@lastSync": {
+    "description": "上次同步标签"
+  },
+  "neverSynced": "从未同步",
+  "@neverSynced": {
+    "description": "从未同步状态"
+  },
+  "justNow": "刚刚",
+  "@justNow": {
+    "description": "刚刚"
+  },
+  "minutesAgo": "{count} 分钟前",
+  "@minutesAgo": {
+    "description": "分钟前",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hoursAgo": "{count} 小时前",
+  "@hoursAgo": {
+    "description": "小时前",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "configSaved": "配置已保存",
+  "@configSaved": {
+    "description": "配置已保存提示"
+  },
+  "cannotConnectServer": "无法连接到服务器",
+  "@cannotConnectServer": {
+    "description": "无法连接到服务器错误"
+  },
+  "syncComplete": "同步完成：上传 {uploaded}，下载 {downloaded}{deleted}",
+  "@syncComplete": {
+    "description": "同步完成提示",
+    "placeholders": {
+      "uploaded": {
+        "type": "int"
+      },
+      "downloaded": {
+        "type": "int"
+      },
+      "deleted": {
+        "type": "String"
+      }
+    }
+  },
+  "syncPreview": "同步预览",
+  "@syncPreview": {
+    "description": "同步预览对话框标题"
+  },
+  "willUpload": "📤 将上传 {count} 个文件",
+  "@willUpload": {
+    "description": "将上传文件数",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "willDownload": "📥 将下载 {count} 个文件",
+  "@willDownload": {
+    "description": "将下载文件数",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conflictWarning": "⚠️ {count} 个文件存在冲突",
+  "@conflictWarning": {
+    "description": "冲突警告",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conflictDescription": "这些文件在本地和云端都有修改，请选择保留哪个版本：",
+  "@conflictDescription": {
+    "description": "冲突描述"
+  },
+  "keepLocal": "保留本地",
+  "@keepLocal": {
+    "description": "保留本地选项"
+  },
+  "keepRemote": "保留云端",
+  "@keepRemote": {
+    "description": "保留云端选项"
+  },
+  "skip": "跳过",
+  "@skip": {
+    "description": "跳过选项"
+  },
+  "localVersion": "本地",
+  "@localVersion": {
+    "description": "本地版本标签"
+  },
+  "cloudVersion": "云端",
+  "@cloudVersion": {
+    "description": "云端版本标签"
+  },
+  "startSync": "开始同步",
+  "@startSync": {
+    "description": "开始同步按钮"
+  },
+  "syncWillContinueInBackground": "同步将在后台继续",
+  "@syncWillContinueInBackground": {
+    "description": "后台继续同步提示"
+  },
+  "storageSettings": "存储设置",
+  "@storageSettings": {
+    "description": "存储设置页面标题"
+  },
+  "myFiles": "我的文件",
+  "@myFiles": {
+    "description": "我的文件部分"
+  },
+  "workspace": "工作区",
+  "@workspace": {
+    "description": "工作区"
+  },
+  "newFileDefaultLocation": "新建文件默认位置",
+  "@newFileDefaultLocation": {
+    "description": "新建文件默认位置"
+  },
+  "notSetUseCurrentOrRecent": "未设置 (默认使用当前或最近位置)",
+  "@notSetUseCurrentOrRecent": {
+    "description": "未设置提示"
+  },
+  "change": "更改",
+  "@change": {
+    "description": "更改按钮"
+  },
+  "defaultLocationReset": "已重置默认位置",
+  "@defaultLocationReset": {
+    "description": "默认位置重置消息"
+  },
+  "cleanup": "清理",
+  "@cleanup": {
+    "description": "清理部分"
+  },
+  "clearRecentFiles": "清除最近文件",
+  "@clearRecentFiles": {
+    "description": "清除最近文件按钮"
+  },
+  "clearRecentFolders": "清除最近文件夹",
+  "@clearRecentFolders": {
+    "description": "清除最近文件夹按钮"
+  },
+  "loading": "加载中...",
+  "@loading": {
+    "description": "加载消息"
+  },
+  "workspaceFolderName": "工作区文件夹名称",
+  "@workspaceFolderName": {
+    "description": "工作区文件夹名称设置"
+  },
+  "customBasePathAdvanced": "自定义基础路径（高级）",
+  "@customBasePathAdvanced": {
+    "description": "自定义基础路径设置"
+  },
+  "useDefaultPath": "使用默认路径",
+  "@useDefaultPath": {
+    "description": "使用默认路径提示"
+  },
+  "reset": "重置",
+  "@reset": {
+    "description": "重置按钮"
+  },
+  "workspaceFilesSyncToCloud": "工作区文件会自动同步到云端",
+  "@workspaceFilesSyncToCloud": {
+    "description": "工作区同步信息"
+  },
+  "filesCount": "{count} 个文件",
+  "@filesCount": {
+    "description": "文件数量",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "foldersCount": "{count} 个文件夹",
+  "@foldersCount": {
+    "description": "文件夹数量",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "clear": "清除",
+  "@clear": {
+    "description": "清除按钮"
+  },
+  "confirmClearRecentFiles": "确定要清除所有最近访问的文件记录吗？",
+  "@confirmClearRecentFiles": {
+    "description": "确认清除最近文件消息"
+  },
+  "confirmClearRecentFolders": "确定要清除所有最近访问的文件夹记录吗？",
+  "@confirmClearRecentFolders": {
+    "description": "确认清除最近文件夹消息"
+  },
+  "cleared": "已清除",
+  "@cleared": {
+    "description": "已清除消息"
+  },
+  "changeWorkspaceName": "更改工作区名称",
+  "@changeWorkspaceName": {
+    "description": "更改工作区名称对话框标题"
+  },
+  "inputWorkspaceFolderName": "输入新的工作区文件夹名称：",
+  "@inputWorkspaceFolderName": {
+    "description": "输入工作区文件夹名称提示"
+  },
+  "warningChangeNameRequiresCloudSync": "注意：更改名称后需要重新配置云同步",
+  "@warningChangeNameRequiresCloudSync": {
+    "description": "名称更改后关于云同步的警告"
+  },
+  "nameCannotBeEmpty": "名称不能为空",
+  "@nameCannotBeEmpty": {
+    "description": "名称不能为空错误"
+  },
+  "nameCannotContainSlash": "名称不能包含斜杠",
+  "@nameCannotContainSlash": {
+    "description": "名称不能包含斜杠错误"
+  },
+  "workspaceNameUpdated": "工作区名称已更新为 {name}",
+  "@workspaceNameUpdated": {
+    "description": "工作区名称已更新消息",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "customBasePath": "自定义基础路径",
+  "@customBasePath": {
+    "description": "自定义基础路径对话框标题"
+  },
+  "inputCustomBasePath": "输入自定义的基础路径：",
+  "@inputCustomBasePath": {
+    "description": "输入自定义基础路径提示"
+  },
+  "defaultPath": "默认路径：{path}",
+  "@defaultPath": {
+    "description": "默认路径显示",
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "warningChangeBasePathAffectsWorkspace": "警告：更改基础路径将影响工作区位置，请确保路径存在且可访问",
+  "@warningChangeBasePathAffectsWorkspace": {
+    "description": "关于基础路径更改的警告"
+  },
+  "resetToDefaultPath": "已重置为默认路径",
+  "@resetToDefaultPath": {
+    "description": "重置为默认路径消息"
+  },
+  "basePathUpdated": "基础路径已更新",
+  "@basePathUpdated": {
+    "description": "基础路径已更新消息"
+  },
+  "saveSuccess": "已保存",
+  "@saveSuccess": {
+    "description": "保存成功提示"
+  },
+  "saveFailedWithError": "保存失败: {error}",
+  "@saveFailedWithError": {
+    "description": "保存失败提示",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "unsavedChangesMessage": "您有未保存的更改，要保存吗？",
+  "@unsavedChangesMessage": {
+    "description": "未保存更改对话框消息"
+  },
+  "discard": "放弃",
+  "@discard": {
+    "description": "放弃按钮"
+  },
+  "noMatchContent": "未找到匹配内容",
+  "@noMatchContent": {
+    "description": "搜索无匹配内容"
+  },
+  "loadingFailed": "加载失败",
+  "@loadingFailed": {
+    "description": "加载失败消息"
+  },
+  "wordCount": "{chars} 字符 · {glyphs} 文字 · {words} 单词",
+  "@wordCount": {
+    "description": "字数统计显示",
+    "placeholders": {
+      "chars": {
+        "type": "int"
+      },
+      "glyphs": {
+        "type": "int"
+      },
+      "words": {
+        "type": "int"
+      }
+    }
+  },
+  "ftpFormatHelper": "格式：ftp://主机:端口",
+  "@ftpFormatHelper": {
+    "description": "FTP 格式帮助文本"
+  },
+  "icon2": "图标 2",
+  "@icon2": { "description": "图标2选项" },
+  "hidden": "隐藏",
+  "@hidden": { "description": "隐藏选项" },
+  "homeIconSelectorHint": "选择主页左上角显示的图标",
+  "@homeIconSelectorHint": { "description": "主页图标选择器提示" },
+  "appIconAndroidOnly": "注意：自定义图标仅 Android 可用",
+  "@appIconAndroidOnly": { "description": "仅Android可用提示" },
+  "appIconChanged": "图标已更换",
+  "@appIconChanged": { "description": "图标更换成功提示" },
+  "appIconChangeFailed": "图标更换失败",
+  "@appIconChangeFailed": { "description": "图标更换失败提示" },
+  "selectFromGallery": "从相册选择",
+  "@selectFromGallery": { "description": "从相册选择按钮" },
+  "homeTitleHint": "自定义主页图标旁显示的文字",
+  "@homeTitleHint": { "description": "主页标题输入提示" },
+  "homeTitleLabel": "主页标题",
+  "@homeTitleLabel": { "description": "主页标题标签" },
+  "homeTitleDefault": "汐",
+  "@homeTitleDefault": { "description": "主页标题默认值" },
+  "restoreDefault": "恢复默认",
+  "@restoreDefault": { "description": "恢复默认按钮" },
+  "globalParticlesEnabled": "全局粒子",
+  "@globalParticlesEnabled": { "description": "全局粒子开关" },
+  "globalParticlesDesc": "在应用全局显示粒子效果",
+  "@globalParticlesDesc": { "description": "全局粒子描述" },
+  "editorParticlesDesc": "仅在编辑器中显示粒子效果",
+  "@editorParticlesDesc": { "description": "编辑器粒子描述" },
+  "particleTypeRain": "雨滴",
+  "@particleTypeRain": { "description": "雨滴粒子类型" },
+  "particleTypeFirefly": "萤火虫",
+  "@particleTypeFirefly": { "description": "萤火虫粒子类型" },
+  "appIconSelectorHint": "选择在主屏幕显示的应用图标",
+  "@appIconSelectorHint": { "description": "应用图标选择器提示" },
+  "brightness": "亮度",
+  "@brightness": { "description": "亮度设置" },
+  "debugSettings": "调试",
+  "@debugSettings": { "description": "调试设置页面标题" },
+  "debugSwitches": "调试开关",
+  "@debugSwitches": { "description": "调试开关部分标题" },
+  "enableDebugMode": "启用调试模式",
+  "@enableDebugMode": { "description": "启用调试模式开关标题" },
+  "debugModeDescription": "记录 Bridge 消息、命令执行和问题诊断数据",
+  "@debugModeDescription": { "description": "调试模式描述" },
+  "codeBlockLanguageDebug": "代码块语言标识调试",
+  "@codeBlockLanguageDebug": { "description": "代码块语言调试部分标题" },
+  "collectEditorDiagnostics": "采集当前编辑器诊断信息",
+  "@collectEditorDiagnostics": { "description": "采集编辑器诊断按钮标题" },
+  "collectEditorDiagnosticsDesc": "会读取代码块工具条位置、pre[data-language] 伪元素等信息",
+  "@collectEditorDiagnosticsDesc": { "description": "采集编辑器诊断描述" },
+  "collect": "采集",
+  "@collect": { "description": "采集按钮" },
+  "debugLogsSection": "日志",
+  "@debugLogsSection": { "description": "调试日志部分标题" },
+  "totalLogsCount": "共 {count} 条",
+  "@totalLogsCount": {
+    "description": "日志条目总数",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "logCopiedToClipboard": "日志已复制到剪贴板",
+  "@logCopiedToClipboard": { "description": "日志已复制到剪贴板提示" },
+  "noLogsYet": "暂无日志。开启调试后进入编辑器操作，再回来查看。",
+  "@noLogsYet": { "description": "无日志占位文本" },
+  "collectRequestSent": "已请求采集，请返回日志区查看 on_debug_report",
+  "@collectRequestSent": { "description": "采集请求已发送消息" },
+  "noActiveEditor": "当前没有活跃编辑器，请先打开一个 Markdown 文件",
+  "@noActiveEditor": { "description": "无活跃编辑器错误消息" },
+  "noHeadingsFound": "没有找到标题",
+  "@noHeadingsFound": { "description": "目录中没有找到标题" },
+  "clearHistory": "清空历史",
+  "@clearHistory": { "description": "清空历史提示" },
+  "clearHistoryConfirm": "清空历史记录",
+  "@clearHistoryConfirm": { "description": "清空历史记录对话框标题" },
+  "clearHistoryConfirmMessage": "确定要清空所有最近{type}记录吗？",
+  "@clearHistoryConfirmMessage": {
+    "description": "清空历史记录确认消息",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "file": "文件",
+  "@file": { "description": "文件标签" },
+  "folder": "文件夹",
+  "@folder": { "description": "文件夹标签" },
+  "files": "文件",
+  "@files": { "description": "文件标签（复数）" },
+  "noRecentFiles": "没有最近打开的文件",
+  "@noRecentFiles": { "description": "最近文件为空状态" },
+  "noRecentFolders": "没有最近文件夹",
+  "@noRecentFolders": { "description": "最近文件夹为空状态" },
+  "folderNotFound": "文件夹不存在",
+  "@folderNotFound": { "description": "文件夹不存在错误" },
+  "newMarkdown": "新建 Markdown",
+  "@newMarkdown": { "description": "新建 Markdown 文件菜单项" },
+  "createFolder": "新建文件夹",
+  "@createFolder": { "description": "新建文件夹对话框标题" },
+  "folderName": "文件夹名称",
+  "@folderName": { "description": "文件夹名称输入标签" },
+  "createFailed": "创建失败",
+  "@createFailed": { "description": "创建失败错误" },
+  "create": "创建",
+  "@create": { "description": "创建按钮" },
+  "loadFailed": "加载失败",
+  "@loadFailed": { "description": "加载失败错误" },
+  "folderEmpty": "此文件夹为空",
+  "@folderEmpty": { "description": "文件夹为空消息" },
+  "noMatchingFiles": "没有找到匹配的文件",
+  "@noMatchingFiles": { "description": "无搜索结果消息" },
+  "fileCount": "{count} 个文件",
+  "@fileCount": {
+    "description": "文件数量显示",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchFiles": "搜索文件...",
+  "@searchFiles": { "description": "搜索文件提示" },
+  "sortBy": "排序方式",
+  "@sortBy": { "description": "排序菜单标题" },
+  "customSort": "自定义排序",
+  "@customSort": { "description": "自定义排序选项" },
+  "nameAZ": "名称 A-Z",
+  "@nameAZ": { "description": "按名称升序排列" },
+  "nameZA": "名称 Z-A",
+  "@nameZA": { "description": "按名称降序排列" },
+  "recentModified": "最近修改",
+  "@recentModified": { "description": "按最近修改排序" },
+  "oldestModified": "最早修改",
+  "@oldestModified": { "description": "按最早修改排序" },
+  "largestFirst": "最大优先",
+  "@largestFirst": { "description": "按最大大小排序" },
+  "smallestFirst": "最小优先",
+  "@smallestFirst": { "description": "按最小大小排序" }
+}

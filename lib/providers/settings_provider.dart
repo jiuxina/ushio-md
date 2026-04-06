@@ -155,7 +155,7 @@ class SettingsProvider extends ChangeNotifier {
   // ==================== 语言设置 ====================
 
   /// 当前语言环境（默认中文）
-  Locale _locale = const Locale('zh', 'CN');
+  Locale _locale = const Locale('zh');
 
   // ==================== 云同步设置 ====================
 
@@ -376,10 +376,21 @@ class SettingsProvider extends ChangeNotifier {
     _particleGlobal = prefs.getBool('particle_global') ?? true;
 
     // 语言设置
-    final localeCode = prefs.getString('locale') ?? 'zh';
-    _locale = localeCode == 'en'
-        ? const Locale('en', 'US')
-        : const Locale('zh', 'CN');
+    // 如果用户没有设置过语言，则使用系统语言
+    final savedLocaleCode = prefs.getString('locale');
+    if (savedLocaleCode != null && savedLocaleCode.isNotEmpty) {
+      // 用户已设置过语言，使用保存的语言（只保存语言代码，不带国家代码）
+      _locale = Locale(savedLocaleCode);
+    } else {
+      // 首次启动，根据系统语言自动设置
+      // 默认使用中文，只有系统语言明确为英语时才使用英语
+      final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
+      if (systemLocale.languageCode == 'en') {
+        _locale = const Locale('en');
+      } else {
+        _locale = const Locale('zh');
+      }
+    }
 
     // 更新设置
     _autoCheckUpdate = prefs.getBool('auto_check_update') ?? true;

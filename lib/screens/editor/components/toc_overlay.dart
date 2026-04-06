@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../models/toc_item.dart';
 
 class TocOverlayController {
@@ -55,10 +56,7 @@ class _TocOverlayState extends State<TocOverlay>
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
-    _scrimOpacityAnimation = Tween<double>(
-      begin: 0,
-      end: 0.5,
-    ).animate(curve);
+    _scrimOpacityAnimation = Tween<double>(begin: 0, end: 0.5).animate(curve);
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0.12, 0),
       end: Offset.zero,
@@ -84,6 +82,7 @@ class _TocOverlayState extends State<TocOverlay>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -118,8 +117,12 @@ class _TocOverlayState extends State<TocOverlay>
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
+                                Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.1),
+                                Theme.of(
+                                  context,
+                                ).colorScheme.secondary.withValues(alpha: 0.05),
                               ],
                             ),
                             borderRadius: const BorderRadius.vertical(
@@ -131,7 +134,9 @@ class _TocOverlayState extends State<TocOverlay>
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
@@ -141,10 +146,9 @@ class _TocOverlayState extends State<TocOverlay>
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                '目录',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                l10n.tableOfContents,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const Spacer(),
                               IconButton(
@@ -158,9 +162,14 @@ class _TocOverlayState extends State<TocOverlay>
                           child: widget.items.isEmpty
                               ? Center(
                                   child: Text(
-                                    '没有找到标题',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: Theme.of(context).colorScheme.outline,
+                                    l10n.noHeadingsFound,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.outline,
                                         ),
                                   ),
                                 )
@@ -170,7 +179,11 @@ class _TocOverlayState extends State<TocOverlay>
                                     itemCount: widget.items.length,
                                     itemBuilder: (context, index) {
                                       final item = widget.items[index];
-                                      return _buildTocItem(context, item, index);
+                                      return _buildTocItem(
+                                        context,
+                                        item,
+                                        index,
+                                      );
                                     },
                                   ),
                                 ),
@@ -211,9 +224,7 @@ class _TocOverlayState extends State<TocOverlay>
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: color.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -241,7 +252,9 @@ class _TocOverlayState extends State<TocOverlay>
                     item.title,
                     style: TextStyle(
                       fontSize: 16 - (item.level - 1) * 1.0,
-                      fontWeight: item.level == 1 ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: item.level == 1
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

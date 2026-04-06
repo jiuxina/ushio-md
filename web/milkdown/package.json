@@ -28,7 +28,8 @@
     "@milkdown/utils": "7.19.1",
     "katex": "0.16.25",
     "prismjs": "1.30.0",
-    "refractor": "^5.0.0"
+    "refractor": "^5.0.0",
+    "rehype-raw": "^7.0.0"
   },
   "devDependencies": {
     "vite": "^7.1.0",

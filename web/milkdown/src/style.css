@@ -165,9 +165,9 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  border: 0 !important;
+  border: none !important;
   background: color-mix(in srgb, var(--milkdown-color-surface) 90%, var(--milkdown-color-primary) 10%);
-  box-shadow: none !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--milkdown-color-shadow) 40%, transparent), 0 1px 3px color-mix(in srgb, var(--milkdown-color-shadow) 30%, transparent) !important;
 }
 
 .milkdown .milkdown-code-block,
@@ -200,9 +200,27 @@ body {
 .milkdown .milkdown-code-block .cm-gutters,
 .milkdown .milkdown-code-block .cm-lineNumbers,
 .milkdown .milkdown-code-block .cm-activeLineGutter {
-  border-right: 0 !important;
-  background: transparent !important;
+  /* Removed border-right to avoid double vertical line with code block border */
+  border-right: none !important;
+  /* Use opaque background to prevent text overlap when position shifts after drag */
+  background: var(--milkdown-color-surface) !important;
   box-shadow: none !important;
+  /* Ensure z-index is above content to prevent overlap */
+  z-index: 1;
+  position: relative;
+}
+
+.milkdown .milkdown-code-block .cm-lineNumbers .cm-gutterElement,
+.milkdown .milkdown-code-block .cm-activeLineGutter {
+  padding: 0 8px 0 6px !important;
+}
+
+.milkdown .ushio-html-inline {
+  display: inline;
+}
+
+.milkdown .ushio-html-block {
+  display: block;
 }
 
 .milkdown .milkdown-code-block .tools,

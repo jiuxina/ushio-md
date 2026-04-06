@@ -852,6 +852,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final readOnlyChanged = oldWidget.readOnly != widget.readOnly;
     if (markdownChanged || baseChanged || readOnlyChanged) {
       if (_suppressNextReload && markdownChanged) {
+        // Suppress reload for code_sanitized mode - just update the synced markdown
+        // without reinitializing the WebView, preserving focus and input method state
+        _lastSyncedMarkdown = widget.initialMarkdown;
         _suppressNextReload = false;
       } else if (_lastSyncedMarkdown != widget.initialMarkdown ||
           baseChanged ||

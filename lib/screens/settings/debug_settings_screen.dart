@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/debug_probe_service.dart';
 import '../../utils/app_style.dart';
@@ -12,13 +13,14 @@ class DebugSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AppBackground(
       wrapWithSafeArea: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          title: const Text('调试'),
+          title: Text(l10n.debugSettings),
           centerTitle: true,
         ),
         body: Consumer<SettingsProvider>(
@@ -26,30 +28,25 @@ class DebugSettingsScreen extends StatelessWidget {
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _buildSection(
-                  context,
-                  '调试开关',
-                  Icons.bug_report,
-                  [
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('启用调试模式'),
-                      subtitle: const Text('记录 Bridge 消息、命令执行和问题诊断数据'),
-                      value: settings.debugEnabled,
-                      onChanged: (v) => settings.setDebugEnabled(v),
-                    ),
-                  ],
-                ),
+                _buildSection(context, l10n.debugSwitches, Icons.bug_report, [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(l10n.enableDebugMode),
+                    subtitle: Text(l10n.debugModeDescription),
+                    value: settings.debugEnabled,
+                    onChanged: (v) => settings.setDebugEnabled(v),
+                  ),
+                ]),
                 const SizedBox(height: 16),
                 _buildSection(
                   context,
-                  '代码块语言标识调试',
+                  l10n.codeBlockLanguageDebug,
                   Icons.code,
                   [
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('采集当前编辑器诊断信息'),
-                      subtitle: const Text('会读取代码块工具条位置、pre[data-language] 伪元素等信息'),
+                      title: Text(l10n.collectEditorDiagnostics),
+                      subtitle: Text(l10n.collectEditorDiagnosticsDesc),
                       trailing: TextButton(
                         onPressed: () async {
                           final ok = await DebugProbeService.instance
@@ -57,14 +54,16 @@ class DebugSettingsScreen extends StatelessWidget {
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(ok
-                                  ? '已请求采集，请返回日志区查看 on_debug_report'
-                                  : '当前没有活跃编辑器，请先打开一个 Markdown 文件'),
+                              content: Text(
+                                ok
+                                    ? l10n.collectRequestSent
+                                    : l10n.noActiveEditor,
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
                         },
-                        child: const Text('采集'),
+                        child: Text(l10n.collect),
                       ),
                     ),
                   ],
@@ -72,12 +71,12 @@ class DebugSettingsScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 _buildSection(
                   context,
-                  '日志',
+                  l10n.debugLogsSection,
                   Icons.article_outlined,
                   [
                     Row(
                       children: [
-                        Text('共 ${settings.debugLogs.length} 条'),
+                        Text(l10n.totalLogsCount(settings.debugLogs.length)),
                         const Spacer(),
                         TextButton(
                           onPressed: () async {
@@ -85,23 +84,26 @@ class DebugSettingsScreen extends StatelessWidget {
                             await Clipboard.setData(ClipboardData(text: all));
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('日志已复制到剪贴板'),
+                              SnackBar(
+                                content: Text(l10n.logCopiedToClipboard),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
                           },
-                          child: const Text('复制'),
+                          child: Text(l10n.copyLog),
                         ),
                         TextButton(
                           onPressed: settings.clearDebugLogs,
-                          child: const Text('清空'),
+                          child: Text(l10n.clearLog),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      constraints: const BoxConstraints(minHeight: 160, maxHeight: 360),
+                      constraints: const BoxConstraints(
+                        minHeight: 160,
+                        maxHeight: 360,
+                      ),
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
@@ -110,13 +112,14 @@ class DebugSettingsScreen extends StatelessWidget {
                       ),
                       child: settings.debugLogs.isEmpty
                           ? Text(
-                              '暂无日志。开启调试后进入编辑器操作，再回来查看。',
+                              l10n.noLogsYet,
                               style: Theme.of(context).textTheme.bodySmall,
                             )
                           : SingleChildScrollView(
                               child: SelectableText(
                                 settings.debugLogs.reversed.join('\n'),
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
                                       fontFamily: 'JetBrains Mono',
                                       height: 1.35,
                                     ),
@@ -159,13 +162,17 @@ class DebugSettingsScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),

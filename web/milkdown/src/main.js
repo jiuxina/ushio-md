@@ -70,6 +70,7 @@ const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
 const CONTENT_CHANGE_DEBOUNCE_MS = 120;
 let contentChangeTimerId = null;
 let pendingContentMarkdown = null;
+let pendingContentMode = 'full';
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
 let caretViewportSyncRafId = null;
@@ -424,7 +425,8 @@ const scrollNodeToViewport = (node, topOffset = 32) => {
 
 const ensureCaretInUpperViewport = () => {
   if (currentReadOnly) return;
-  if (getKeyboardInset() <= 0) return;
+  // Remove keyboard inset check to enable scrolling even without keyboard
+  // if (getKeyboardInset() <= 0) return;
   if (Date.now() < editorTouchScrollSuppressUntil || Date.now() < viewportScrollSuppressUntil) return;
   const active = document.activeElement instanceof Element ? document.activeElement : null;
   if (!active?.closest('.ProseMirror')) return;
@@ -461,7 +463,11 @@ const ensureCaretInUpperViewport = () => {
   const fallbackRectTop = anchorElement?.getBoundingClientRect?.().top;
   const currentTop = Number.isFinite(caretTop) ? caretTop : fallbackRectTop;
   if (!Number.isFinite(currentTop)) return;
-  if (currentTop >= desiredTop - 20 && currentTop <= viewportHeight * 0.5) return;
+  // Calculate threshold based on configured font size (2 lines)
+  const fontSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--milkdown-font-size')) || 16;
+  const lineHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--milkdown-line-height')) || 1.7;
+  const twoLinesHeight = fontSize * lineHeight * 2;
+  if (currentTop >= desiredTop - 20 && currentTop <= viewportHeight * 0.5 - twoLinesHeight) return;
   const scroller = document.scrollingElement || document.documentElement || document.body;
   const delta = currentTop - desiredTop;
   if (Math.abs(delta) < 4) return;
@@ -731,6 +737,119 @@ const resolveImageSrc = (src) => {
   return proxyUrl || resolveHref(sanitized);
 };
 
+const BLOCK_HTML_TAGS = new Set([
+  'article',
+  'aside',
+  'blockquote',
+  'div',
+  'dl',
+  'fieldset',
+  'figcaption',
+  'figure',
+  'footer',
+  'form',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'header',
+  'hr',
+  'li',
+  'main',
+  'nav',
+  'ol',
+  'p',
+  'pre',
+  'section',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'tr',
+  'ul',
+]);
+
+const DANGEROUS_HTML_TAGS = new Set([
+  'script',
+  'style',
+  'iframe',
+  'object',
+  'embed',
+  'meta',
+  'link',
+  'base',
+]);
+
+const sanitizeHtmlAttributeValue = (name, value) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  if (name === 'href' || name === 'src' || name === 'xlink:href') {
+    if (lower.startsWith('javascript:')) return '';
+  }
+  return trimmed;
+};
+
+const sanitizeHtmlFragment = (fragment) => {
+  const walk = (node) => {
+    if (!(node instanceof Element)) return;
+    const tag = (node.tagName || '').toLowerCase();
+    if (DANGEROUS_HTML_TAGS.has(tag)) {
+      node.remove();
+      return;
+    }
+    Array.from(node.attributes || []).forEach((attr) => {
+      const attrName = (attr.name || '').toLowerCase();
+      if (!attrName) return;
+      if (attrName.startsWith('on')) {
+        node.removeAttribute(attr.name);
+        return;
+      }
+      const sanitizedValue = sanitizeHtmlAttributeValue(attrName, attr.value);
+      if (!sanitizedValue) {
+        node.removeAttribute(attr.name);
+      } else if (sanitizedValue !== attr.value) {
+        node.setAttribute(attr.name, sanitizedValue);
+      }
+    });
+    Array.from(node.children || []).forEach((child) => walk(child));
+  };
+  Array.from(fragment.children || []).forEach((child) => walk(child));
+};
+
+const renderRawHtmlNodes = (root) => {
+  root.querySelectorAll('span[data-type="html"]').forEach((htmlNode) => {
+    if (!(htmlNode instanceof HTMLElement)) return;
+    const rawValue = htmlNode.dataset.value || '';
+    if (!rawValue.trim()) {
+      htmlNode.textContent = '';
+      htmlNode.classList.remove('ushio-html-block');
+      htmlNode.classList.add('ushio-html-inline');
+      htmlNode.dataset.ushioHtmlRenderedValue = '';
+      return;
+    }
+    if (htmlNode.dataset.ushioHtmlRenderedValue === rawValue) return;
+
+    const template = document.createElement('template');
+    template.innerHTML = rawValue;
+    sanitizeHtmlFragment(template.content);
+
+    htmlNode.textContent = '';
+    htmlNode.append(template.content.cloneNode(true));
+    const hasBlockChild = Array.from(htmlNode.children || []).some((child) => (
+      child instanceof HTMLElement && BLOCK_HTML_TAGS.has((child.tagName || '').toLowerCase())
+    ));
+    htmlNode.classList.toggle('ushio-html-block', hasBlockChild);
+    htmlNode.classList.toggle('ushio-html-inline', !hasBlockChild);
+    htmlNode.dataset.ushioHtmlRenderedValue = rawValue;
+  });
+};
+
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onerror = () => reject(reader.error ?? new Error('file_read_failed'));
@@ -843,15 +962,18 @@ const customUploadHandler = async (files, schema) => {
 const flushContentChange = () => {
   if (pendingContentMarkdown == null) return;
   const markdown = pendingContentMarkdown;
+  const mode = pendingContentMode || 'full';
   pendingContentMarkdown = null;
+  pendingContentMode = 'full';
   emit('on_content_change', {
-    mode: 'full',
+    mode,
     markdown,
   });
 };
 
-const scheduleContentChange = (markdown) => {
+const scheduleContentChange = (markdown, { mode = 'full' } = {}) => {
   pendingContentMarkdown = markdown;
+  pendingContentMode = mode;
   if (contentChangeTimerId != null) {
     clearTimeout(contentChangeTimerId);
   }
@@ -1270,6 +1392,7 @@ const interceptNativeCodeLanguagePicker = (event) => {
 
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
+  renderRawHtmlNodes(root);
   root.querySelectorAll('img').forEach((img) => {
     const rawSrc = img.getAttribute('src') || '';
     const sanitizedRawSrc = sanitizeImageSource(rawSrc);
@@ -1786,7 +1909,7 @@ const createEditor = async () => {
         if (sanitizedMarkdown !== markdown) {
           currentMarkdown = sanitizedMarkdown;
           if (!currentReadOnly) {
-            scheduleContentChange(sanitizedMarkdown);
+            scheduleContentChange(sanitizedMarkdown, { mode: 'code_sanitized' });
           }
           isApplyingFromFlutter = true;
           editorInstance?.action(replaceAll(sanitizedMarkdown));
@@ -2051,7 +2174,13 @@ document.addEventListener('scroll', () => {
   suppressCaretViewportSync(1000);
   hideContextMenu();
 }, true);
-document.addEventListener('selectionchange', updateActiveMarkdownHints, true);
+document.addEventListener('selectionchange', () => {
+  updateActiveMarkdownHints();
+  const active = document.activeElement instanceof Element ? document.activeElement : null;
+  if (active?.closest('.ProseMirror')) {
+    scheduleCaretIntoUpperViewport();
+  }
+}, true);
 document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {

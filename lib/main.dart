@@ -1,30 +1,29 @@
 // ============================================================================
 // 汐 - Markdown 编辑器
 // ============================================================================
-// 
+//
 // 一款简洁优雅的移动端 Markdown 编辑器应用。
-// 
+//
 // 功能特性：
 // - 📝 Markdown 编辑与预览
 // - 📁 文件浏览与管理
 // - 🎨 主题切换与个性化设置
 // - 💾 自动保存功能
-// 
+//
 // 技术栈：
 // - Flutter - 跨平台 UI 框架
 // - Provider - 状态管理
 // - flutter_markdown - Markdown 渲染
-// 
+//
 // @author jiuxina
 // @version 1.3.0
 // ============================================================================
-
-
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
+import 'l10n/app_localizations.dart';
 import 'providers/file_provider.dart';
 import 'providers/settings_provider.dart';
 import 'screens/main_screen.dart';
@@ -39,12 +38,12 @@ import 'widgets/global_particle_overlay.dart';
 /// ============================================================================
 
 /// 应用程序入口函数
-/// 
+///
 /// 初始化 Flutter 绑定并启动应用
 void main() async {
   // 确保 Flutter 引擎初始化完成（异步操作前必须调用）
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // 初始化"我的文件"工作区（创建 Ushio-MD 目录）
   final myFilesService = MyFilesService();
   await myFilesService.initWorkspace();
@@ -60,7 +59,7 @@ void main() async {
 /// ============================================================================
 
 /// 应用根组件
-/// 
+///
 /// 职责：
 /// - 配置 Provider 状态管理
 /// - 设置主题（浅色/深色）
@@ -84,34 +83,63 @@ class MyApp extends StatelessWidget {
           Color primaryColor = settings.primaryColor;
 
           // 获取字体设置（System 表示使用系统默认）
-          final fontFamily = settings.uiFontFamily == 'System' ? null : settings.uiFontFamily;
+          final fontFamily = settings.uiFontFamily == 'System'
+              ? null
+              : settings.uiFontFamily;
           // 获取主题配色方案索引
           final darkThemeIndex = settings.darkThemeIndex;
           final lightThemeIndex = settings.lightThemeIndex;
-          
+
           return MaterialApp(
             title: AppConstants.appName,
-            debugShowCheckedModeBanner: false,  // 隐藏调试标识
+            debugShowCheckedModeBanner: false, // 隐藏调试标识
             // 中文本地化支持（实现编辑菜单中文化）
             localizationsDelegates: const [
+              AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: const [
-              Locale('zh', 'CN'),  // 简体中文
-              Locale('en', 'US'),  // 英文
+              Locale('zh'), // 简体中文
+              Locale('en'), // 英文
             ],
-            locale: settings.locale,  // 使用动态语言设置
-            theme: _buildLightTheme(primaryColor, fontFamily, lightThemeIndex, settings.buttonStyleMode, settings.cardOpacity),  // 浅色主题
-            darkTheme: _buildDarkTheme(primaryColor, darkThemeIndex, fontFamily, settings.buttonStyleMode, settings.cardOpacity),  // 深色主题
-            themeMode: settings.themeMode,  // 主题模式（跟随系统/浅色/深色）
+            locale: settings.locale, // 使用动态语言设置
+            // 确保 locale 正确匹配
+            localeResolutionCallback: (locale, supportedLocales) {
+              if (locale == null) {
+                return const Locale('zh');
+              }
+              // 首先尝试完全匹配
+              for (final supportedLocale in supportedLocales) {
+                if (supportedLocale.languageCode == locale.languageCode) {
+                  return supportedLocale;
+                }
+              }
+              // 默认返回中文
+              return const Locale('zh');
+            },
+            theme: _buildLightTheme(
+              primaryColor,
+              fontFamily,
+              lightThemeIndex,
+              settings.buttonStyleMode,
+              settings.cardOpacity,
+            ), // 浅色主题
+            darkTheme: _buildDarkTheme(
+              primaryColor,
+              darkThemeIndex,
+              fontFamily,
+              settings.buttonStyleMode,
+              settings.cardOpacity,
+            ), // 深色主题
+            themeMode: settings.themeMode, // 主题模式（跟随系统/浅色/深色）
             builder: (context, child) {
               return GlobalParticleOverlay(
                 child: child ?? const SizedBox.shrink(),
               );
             },
-            home: const MainScreen(),  // 主页面
+            home: const MainScreen(), // 主页面
           );
         },
       ),
@@ -119,7 +147,7 @@ class MyApp extends StatelessWidget {
   }
 
   /// 构建浅色主题
-  /// 
+  ///
   /// [primaryColor] 用户选择的主题色
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
   ThemeData _buildLightTheme(
@@ -151,7 +179,7 @@ class MyApp extends StatelessWidget {
   }
 
   /// 构建深色主题
-  /// 
+  ///
   /// [primaryColor] 用户选择的主题色
   /// [darkThemeIndex] 夜间主题配色方案索引
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
@@ -219,7 +247,10 @@ class MyApp extends StatelessWidget {
       scaffoldBackgroundColor: backgroundColor,
       extensions: [appStyle],
       appBarTheme: AppBarTheme(
-        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.92),
+        backgroundColor: appStyle.scaledSurfaceColor(
+          effectiveColorScheme,
+          alpha: 0.92,
+        ),
         foregroundColor: textColor,
         elevation: 0,
         centerTitle: false,
@@ -233,37 +264,52 @@ class MyApp extends StatelessWidget {
           side: BorderSide(
             color: appStyle.useBorderlessButtons
                 ? Colors.transparent
-                : textSecondaryColor.withValues(alpha: brightness == Brightness.dark ? 0.3 : 0.2),
+                : textSecondaryColor.withValues(
+                    alpha: brightness == Brightness.dark ? 0.3 : 0.2,
+                  ),
           ),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          foregroundColor: buttonForeground,
-          backgroundColor: buttonBackground,
-          disabledBackgroundColor: buttonBackground.withValues(alpha: 0.45),
-          disabledForegroundColor: buttonForeground.withValues(alpha: 0.55),
-          elevation: appStyle.useBorderlessButtons ? 4 : 0,
-          shadowColor: Colors.black.withValues(alpha: 0.18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: appStyle.useBorderlessButtons ? Colors.transparent : colorScheme.primary,
+        style:
+            FilledButton.styleFrom(
+              foregroundColor: buttonForeground,
+              backgroundColor: buttonBackground,
+              disabledBackgroundColor: buttonBackground.withValues(alpha: 0.45),
+              disabledForegroundColor: buttonForeground.withValues(alpha: 0.55),
+              elevation: appStyle.useBorderlessButtons ? 4 : 0,
+              shadowColor: Colors.black.withValues(alpha: 0.18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: appStyle.useBorderlessButtons
+                      ? Colors.transparent
+                      : colorScheme.primary,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            ).copyWith(
+              overlayColor: WidgetStatePropertyAll(
+                colorScheme.primary.withValues(alpha: 0.08),
+              ),
             ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        ).copyWith(
-          overlayColor: WidgetStatePropertyAll(colorScheme.primary.withValues(alpha: 0.08)),
-        ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: appStyle.useBorderlessButtons ? textColor : colorScheme.primary,
-          backgroundColor: appStyle.useBorderlessButtons ? appStyle.strongSurface : Colors.transparent,
+          foregroundColor: appStyle.useBorderlessButtons
+              ? textColor
+              : colorScheme.primary,
+          backgroundColor: appStyle.useBorderlessButtons
+              ? appStyle.strongSurface
+              : Colors.transparent,
           side: BorderSide(
-            color: appStyle.useBorderlessButtons ? Colors.transparent : appStyle.outlineColor,
+            color: appStyle.useBorderlessButtons
+                ? Colors.transparent
+                : appStyle.outlineColor,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         ),
       ),
@@ -276,7 +322,9 @@ class MyApp extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: appStyle.useBorderlessButtons ? Colors.transparent : colorScheme.primary,
+              color: appStyle.useBorderlessButtons
+                  ? Colors.transparent
+                  : colorScheme.primary,
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -284,16 +332,24 @@ class MyApp extends StatelessWidget {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: appStyle.useBorderlessButtons ? textColor : colorScheme.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          foregroundColor: appStyle.useBorderlessButtons
+              ? textColor
+              : colorScheme.primary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: textColor,
-          backgroundColor: appStyle.useBorderlessButtons ? appStyle.strongSurface : null,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: appStyle.useBorderlessButtons
+              ? appStyle.strongSurface
+              : null,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -302,22 +358,39 @@ class MyApp extends StatelessWidget {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: appStyle.useBorderlessButtons ? appStyle.mutedSurface : backgroundColor,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        fillColor: appStyle.useBorderlessButtons
+            ? appStyle.mutedSurface
+            : backgroundColor,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: _buildInputBorder(appStyle, textSecondaryColor),
         enabledBorder: _buildInputBorder(appStyle, textSecondaryColor),
         focusedBorder: _buildInputBorder(appStyle, colorScheme.primary),
       ),
       dividerTheme: DividerThemeData(
-        color: textSecondaryColor.withValues(alpha: appStyle.useBorderlessButtons ? 0.1 : brightness == Brightness.dark ? 0.3 : 0.2),
+        color: textSecondaryColor.withValues(
+          alpha: appStyle.useBorderlessButtons
+              ? 0.1
+              : brightness == Brightness.dark
+              ? 0.3
+              : 0.2,
+        ),
         thickness: 1,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
+        backgroundColor: appStyle.scaledSurfaceColor(
+          effectiveColorScheme,
+          alpha: 0.95,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
+        backgroundColor: appStyle.scaledSurfaceColor(
+          effectiveColorScheme,
+          alpha: 0.95,
+        ),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
@@ -336,14 +409,19 @@ class MyApp extends StatelessWidget {
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
-          elevation: WidgetStatePropertyAll(appStyle.useBorderlessButtons ? 0 : 8),
+          elevation: WidgetStatePropertyAll(
+            appStyle.useBorderlessButtons ? 0 : 8,
+          ),
           padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: appStyle.scaledSurfaceColor(effectiveColorScheme, alpha: 0.95),
+        backgroundColor: appStyle.scaledSurfaceColor(
+          effectiveColorScheme,
+          alpha: 0.95,
+        ),
         contentTextStyle: TextStyle(color: textColor),
       ),
       textTheme: TextTheme(
@@ -379,7 +457,9 @@ class MyApp extends StatelessWidget {
       surfaceContainerLow: applyOpacity(colorScheme.surfaceContainerLow),
       surfaceContainer: applyOpacity(colorScheme.surfaceContainer),
       surfaceContainerHigh: applyOpacity(colorScheme.surfaceContainerHigh),
-      surfaceContainerHighest: applyOpacity(colorScheme.surfaceContainerHighest),
+      surfaceContainerHighest: applyOpacity(
+        colorScheme.surfaceContainerHighest,
+      ),
     );
   }
 
@@ -398,10 +478,10 @@ class MyApp extends StatelessWidget {
 /// ============================================================================
 
 /// 动画启动页
-/// 
+///
 /// 显示应用 Logo 和名称的动画效果
 /// 初始化完成后跳转到主页面
-/// 
+///
 /// 注意：当前版本直接进入主页面，此组件保留供后续使用
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -413,13 +493,13 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   // ==================== 动画控制器 ====================
-  
-  late AnimationController _logoController;   // Logo 动画控制器
-  late AnimationController _textController;   // 文字动画控制器
-  late Animation<double> _logoScale;          // Logo 缩放动画
-  late Animation<double> _logoOpacity;        // Logo 透明度动画
-  late Animation<double> _textOpacity;        // 文字透明度动画
-  late Animation<Offset> _textSlide;          // 文字滑入动画
+
+  late AnimationController _logoController; // Logo 动画控制器
+  late AnimationController _textController; // 文字动画控制器
+  late Animation<double> _logoScale; // Logo 缩放动画
+  late Animation<double> _logoOpacity; // Logo 透明度动画
+  late Animation<double> _textOpacity; // 文字透明度动画
+  late Animation<Offset> _textSlide; // 文字滑入动画
 
   @override
   void initState() {
@@ -448,14 +528,16 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     // Logo 透明度从 0 到 1
-    _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _logoController, curve: Curves.easeIn),
-    );
+    _logoOpacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _logoController, curve: Curves.easeIn));
 
     // 文字透明度从 0 到 1
-    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _textController, curve: Curves.easeIn),
-    );
+    _textOpacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _textController, curve: Curves.easeIn));
 
     // 文字从下方滑入
     _textSlide = Tween<Offset>(
@@ -470,7 +552,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   /// 初始化应用数据
-  /// 
+  ///
   /// 并行执行：
   /// - 文件提供者初始化
   /// - 设置提供者初始化
@@ -492,10 +574,7 @@ class _SplashScreenState extends State<SplashScreen>
           pageBuilder: (context, animation, secondaryAnimation) =>
               const MainScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
+            return FadeTransition(opacity: animation, child: child);
           },
           transitionDuration: const Duration(milliseconds: 500),
         ),
@@ -523,14 +602,14 @@ class _SplashScreenState extends State<SplashScreen>
             end: Alignment.bottomRight,
             colors: isDark
                 ? [
-                    const Color(0xFF1a1a2e),  // 深色渐变起点
+                    const Color(0xFF1a1a2e), // 深色渐变起点
                     const Color(0xFF16213e),
-                    const Color(0xFF0f0f23),  // 深色渐变终点
+                    const Color(0xFF0f0f23), // 深色渐变终点
                   ]
                 : [
-                    const Color(0xFFf8f9ff),  // 浅色渐变起点
+                    const Color(0xFFf8f9ff), // 浅色渐变起点
                     const Color(0xFFe8eeff),
-                    const Color(0xFFdde4ff),  // 浅色渐变终点
+                    const Color(0xFFdde4ff), // 浅色渐变终点
                   ],
           ),
         ),
@@ -553,10 +632,9 @@ class _SplashScreenState extends State<SplashScreen>
                           borderRadius: BorderRadius.circular(30),
                           boxShadow: [
                             BoxShadow(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.4),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.4),
 
                               blurRadius: 30,
                               offset: const Offset(0, 10),
@@ -565,19 +643,16 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(30),
-                          child: Image.asset(
-                            'app.png',
-                            fit: BoxFit.cover,
-                          ),
+                          child: Image.asset('app.png', fit: BoxFit.cover),
                         ),
                       ),
                     ),
                   );
                 },
               ),
-              
+
               const SizedBox(height: 40),
-              
+
               // ==================== 应用名称动画 ====================
               SlideTransition(
                 position: _textSlide,
@@ -587,26 +662,26 @@ class _SplashScreenState extends State<SplashScreen>
                     children: [
                       Text(
                         AppConstants.appName,
-                        style:
-                            Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
-                                ),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         AppConstants.appDescription,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 60),
-              
+
               // ==================== 加载指示器 ====================
               FadeTransition(
                 opacity: _textOpacity,

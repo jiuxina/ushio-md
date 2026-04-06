@@ -1,11 +1,12 @@
 // ============================================================================
 // 设置标签页（重构版）
-// 
+//
 // 作为一级菜单，提供各设置项的入口列表
 // 点击后跳转到对应的二级设置页面
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
 import '../../settings/appearance_settings_screen.dart';
 import '../../settings/editor_settings_screen.dart';
@@ -19,30 +20,35 @@ class SettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SafeArea(
       bottom: false,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildSettingsHeader(context),
+          _buildSettingsHeader(context, l10n),
           const SizedBox(height: 16),
 
           _buildSettingsItem(
             context,
+            l10n: l10n,
             icon: Icons.palette,
             iconColor: Colors.purple,
-            title: '外观',
+            title: l10n.appearance,
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const AppearanceSettingsScreen()),
+              MaterialPageRoute(
+                builder: (_) => const AppearanceSettingsScreen(),
+              ),
             ),
           ),
 
           _buildSettingsItem(
             context,
+            l10n: l10n,
             icon: Icons.edit,
             iconColor: Colors.blue,
-            title: '编辑器',
+            title: l10n.editor,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const EditorSettingsScreen()),
@@ -51,9 +57,10 @@ class SettingsTab extends StatelessWidget {
 
           _buildSettingsItem(
             context,
+            l10n: l10n,
             icon: Icons.cloud_sync,
             iconColor: Colors.teal,
-            title: '云同步',
+            title: l10n.cloudSync,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CloudSyncScreen()),
@@ -62,9 +69,10 @@ class SettingsTab extends StatelessWidget {
 
           _buildSettingsItem(
             context,
+            l10n: l10n,
             icon: Icons.folder,
             iconColor: Colors.amber,
-            title: '存储',
+            title: l10n.storage,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const StorageSettingsScreen()),
@@ -73,9 +81,10 @@ class SettingsTab extends StatelessWidget {
 
           _buildSettingsItem(
             context,
+            l10n: l10n,
             icon: Icons.info,
             iconColor: Colors.cyan,
-            title: '关于',
+            title: l10n.about,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const AboutScreen()),
@@ -84,9 +93,10 @@ class SettingsTab extends StatelessWidget {
 
           _buildSettingsItem(
             context,
+            l10n: l10n,
             icon: Icons.bug_report,
             iconColor: Colors.deepOrange,
-            title: '调试',
+            title: l10n.debugMode,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const DebugSettingsScreen()),
@@ -97,7 +107,7 @@ class SettingsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingsHeader(BuildContext context) {
+  Widget _buildSettingsHeader(BuildContext context, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
       child: Row(
@@ -105,7 +115,9 @@ class SettingsTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -118,10 +130,10 @@ class SettingsTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '设置',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                l10n.settings,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -132,6 +144,7 @@ class SettingsTab extends StatelessWidget {
 
   Widget _buildSettingsItem(
     BuildContext context, {
+    required AppLocalizations l10n,
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -174,8 +187,8 @@ class SettingsTab extends StatelessWidget {
                   child: Text(
                     title,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Icon(

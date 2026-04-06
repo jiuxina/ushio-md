@@ -1,6 +1,6 @@
 // ============================================================================
 // 关于页面
-// 
+//
 // 显示应用信息、版本、开源链接、检查更新等
 // ============================================================================
 
@@ -13,6 +13,7 @@ import '../../services/update_service.dart';
 import '../../widgets/app_background.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/app_style.dart';
+import '../../l10n/app_localizations.dart';
 import 'open_source_licenses_screen.dart';
 
 class AboutScreen extends StatefulWidget {
@@ -27,13 +28,14 @@ class _AboutScreenState extends State<AboutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AppBackground(
       wrapWithSafeArea: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          title: const Text('关于'),
+          title: Text(l10n.about),
           centerTitle: true,
         ),
         body: ListView(
@@ -41,17 +43,17 @@ class _AboutScreenState extends State<AboutScreen> {
           children: [
             _buildAppInfo(),
             const SizedBox(height: 24),
-            _buildSection('链接', Icons.link, [
+            _buildSection(l10n.link, Icons.link, [
               _buildLinkTile(
                 icon: Icons.code,
-                title: '开源地址',
+                title: l10n.openSource,
                 subtitle: AppConstants.githubUrl,
                 onTap: () => _launchUrl(AppConstants.githubUrl),
               ),
               _buildLinkTile(
                 icon: Icons.description_outlined,
-                title: '开放源代码许可',
-                subtitle: '查看项目使用的开源依赖及许可信息',
+                title: l10n.openSourceLicense,
+                subtitle: l10n.openSourceLicenseDesc,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -61,7 +63,7 @@ class _AboutScreenState extends State<AboutScreen> {
               ),
             ]),
             const SizedBox(height: 16),
-            _buildSection('更新', Icons.system_update, [
+            _buildSection(l10n.updates, Icons.system_update, [
               _buildAutoCheckToggle(),
               _buildCheckUpdateButton(),
             ]),
@@ -89,7 +91,9 @@ class _AboutScreenState extends State<AboutScreen> {
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.2),
               ),
       ),
       child: Column(
@@ -101,7 +105,9 @@ class _AboutScreenState extends State<AboutScreen> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.3),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -115,22 +121,24 @@ class _AboutScreenState extends State<AboutScreen> {
           const SizedBox(height: 16),
           Text(
             AppConstants.appName,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
             AppConstants.appDescription,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -167,13 +175,17 @@ class _AboutScreenState extends State<AboutScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -204,8 +216,8 @@ class _AboutScreenState extends State<AboutScreen> {
       subtitle: Text(
         subtitle,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
+          color: Theme.of(context).colorScheme.outline,
+        ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -215,6 +227,7 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Widget _buildAutoCheckToggle() {
+    final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
@@ -224,16 +237,20 @@ class _AboutScreenState extends State<AboutScreen> {
           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(Icons.update_outlined, color: Theme.of(context).colorScheme.primary),
+        child: Icon(
+          Icons.update_outlined,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
-      title: const Text('启动时自动检查更新'),
-      subtitle: const Text('有新版本时显示提示'),
+      title: Text(l10n.autoCheckUpdate),
+      subtitle: Text(l10n.autoCheckUpdateDesc),
       value: settings.autoCheckUpdate,
       onChanged: (v) => settings.setAutoCheckUpdate(v),
     );
   }
 
   Widget _buildCheckUpdateButton() {
+    final l10n = AppLocalizations.of(context)!;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Container(
@@ -250,47 +267,55 @@ class _AboutScreenState extends State<AboutScreen> {
               )
             : const Icon(Icons.update, color: Colors.green),
       ),
-      title: const Text('检查更新'),
-      subtitle: const Text('检查是否有新版本'),
+      title: Text(l10n.checkForUpdates),
+      subtitle: Text(l10n.checkForUpdatesDesc),
       trailing: TextButton(
         onPressed: _isCheckingUpdate ? null : _checkForUpdates,
-        child: const Text('检查'),
+        child: Text(l10n.search),
       ),
     );
   }
 
   Future<void> _checkForUpdates() async {
     setState(() => _isCheckingUpdate = true);
-    
+
     try {
-      final updateInfo = await UpdateService.checkForUpdate(AppConstants.appVersion);
-      
+      final updateInfo = await UpdateService.checkForUpdate(
+        AppConstants.appVersion,
+      );
+
       if (!mounted) return;
-      
+
       if (updateInfo != null && updateInfo.hasUpdate) {
         _showUpdateDialog(updateInfo);
       } else {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 const Icon(Icons.check, color: Colors.green),
                 const SizedBox(width: 12),
-                const Text('已是最新版本'),
+                Text(l10n.upToDate),
               ],
             ),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('检查更新失败: $e'),
+          content: Text(l10n.checkUpdateFailed(e.toString())),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     } finally {
@@ -299,6 +324,7 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   void _showUpdateDialog(UpdateInfo info) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -314,35 +340,39 @@ class _AboutScreenState extends State<AboutScreen> {
               child: const Icon(Icons.update, color: Colors.green),
             ),
             const SizedBox(width: 12),
-            const Flexible(child: Text('发现新版本')),
+            Flexible(child: Text(l10n.foundNewVersion)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('新版本 ${info.latestVersion} 已发布，是否立即更新？'),
+            Text(l10n.newVersionAvailable(info.latestVersion)),
             const SizedBox(height: 12),
             Container(
-               constraints: const BoxConstraints(maxHeight: 200),
-               child: Markdown(
-                 data: info.changelog,
-                 shrinkWrap: true,
-                 padding: EdgeInsets.zero,
-                 styleSheet: MarkdownStyleSheet(
-                   p: Theme.of(context).textTheme.bodySmall,
-                   h1: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                   h2: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                   listBullet: Theme.of(context).textTheme.bodySmall,
-                 ),
-               ),
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: Markdown(
+                data: info.changelog,
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                styleSheet: MarkdownStyleSheet(
+                  p: Theme.of(context).textTheme.bodySmall,
+                  h1: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  h2: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  listBullet: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('稍后'),
+            child: Text(l10n.later),
           ),
           FilledButton(
             onPressed: () {
@@ -350,10 +380,10 @@ class _AboutScreenState extends State<AboutScreen> {
               if (info.downloadUrl.isNotEmpty) {
                 _startDownload(info);
               } else {
-                 _launchUrl(AppConstants.githubUrl);
+                _launchUrl(AppConstants.githubUrl);
               }
             },
-            child: const Text('立即更新'),
+            child: Text(l10n.updateNow),
           ),
         ],
       ),
@@ -363,14 +393,15 @@ class _AboutScreenState extends State<AboutScreen> {
   Future<void> _startDownload(UpdateInfo info) async {
     // 显示进度对话框
     final progressNotifier = ValueNotifier<double>(0.0);
-    
+    final l10n = AppLocalizations.of(context)!;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => PopScope(
         canPop: false,
         child: AlertDialog(
-          title: const Text('正在下载更新'),
+          title: Text(l10n.downloadingUpdate),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -387,7 +418,10 @@ class _AboutScreenState extends State<AboutScreen> {
                 },
               ),
               const SizedBox(height: 12),
-              const Text('优先使用镜像加速下载中...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+                l10n.downloadingWithMirror,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
             ],
           ),
         ),
@@ -396,29 +430,29 @@ class _AboutScreenState extends State<AboutScreen> {
 
     try {
       final success = await UpdateService.downloadAndInstallUpdate(
-        info.downloadUrl, 
+        info.downloadUrl,
         'update_${info.latestVersion}.apk',
         onProgress: (progress) {
           progressNotifier.value = progress;
         },
       );
-      
+
       if (!mounted) return;
       Navigator.pop(context); // 关闭进度框
-      
+
       if (!success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('下载或安装失败，建议手动下载')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.downloadFailed)));
         // 失败后尝试跳转浏览器
         _launchUrl(info.downloadUrl);
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // 关闭进度框
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('更新出错: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.updateError(e.toString()))));
     }
   }
 

@@ -1,0 +1,808 @@
+{
+  "@@locale": "en",
+  "appName": "Ushio",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "save": "Save",
+  "delete": "Delete",
+  "edit": "Edit",
+  "preview": "Preview",
+  "search": "Search",
+  "searchContent": "Search content...",
+  "closeSearch": "Close search",
+  "noMatch": "No match found",
+  "previous": "Previous",
+  "next": "Next",
+  "startWriting": "Start writing your Markdown content...",
+  "tableOfContents": "Table of Contents",
+  "settings": "Settings",
+  "homeTab": "Home",
+  "myFiles": "My Files",
+  "historyTab": "History",
+  "firstLaunchInitializing": "First Launch Initializing",
+  "@firstLaunchInitializing": {
+    "description": "First launch initializing dialog title"
+  },
+  "firstLaunchWarmingUp": "Warming up document preview and cache components. After completion, opening large Markdown documents will be more stable and faster.",
+  "@firstLaunchWarmingUp": {
+    "description": "First launch warming up message"
+  },
+  "firstLaunchComplete": "First launch initialization complete. Opening documents will be faster next time.",
+  "@firstLaunchComplete": {
+    "description": "First launch complete message"
+  },
+  "newVersionFound": "New version {version} found. Go to About page to update.",
+  "@newVersionFound": {
+    "description": "New version found message",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "view": "View",
+  "@view": {
+    "description": "View button label"
+  },
+  "editor": "Editor",
+  "storage": "Storage",
+  "appearance": "Appearance",
+  "theme": "Theme",
+  "themeMode": "Theme Mode",
+  "themeColor": "Theme Color",
+  "buttonStyle": "Button Style",
+  "buttonStyleClassic": "Classic",
+  "buttonStyleClassicDesc": "Keep current solid border button style",
+  "buttonStyleModern": "Modern",
+  "buttonStyleModernDesc": "Elevated buttons with soft shadows",
+  "cardOpacity": "Card Opacity",
+  "lightTheme": "Light Theme",
+  "darkTheme": "Dark Theme",
+  "font": "Font",
+  "background": "Background",
+  "editorBackground": "Editor Background",
+  "particleEffect": "Particle Effect",
+  "appIcon": "App Icon",
+  "homeIcon": "Home Icon",
+  "selectImage": "Select Image",
+  "clearBackground": "Clear Background",
+  "backgroundBlur": "Background Blur",
+  "backgroundBrightness": "Background Brightness",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "themeSystem": "System",
+  "fontSize": "Font Size",
+  "editorFont": "Editor Font",
+  "codeFont": "Code Font",
+  "lineHeight": "Line Height",
+  "autoSave": "Auto Save",
+  "autoSaveInterval": "Auto Save Interval",
+  "seconds": "seconds",
+  "language": "Language",
+  "languageZh": "中文",
+  "languageEn": "English",
+  "cloudSync": "Cloud Sync",
+  "webdav": "WebDAV",
+  "ftp": "FTP",
+  "syncNow": "Sync Now",
+  "syncing": "Syncing...",
+  "syncSuccess": "Sync successful",
+  "syncFailed": "Sync failed",
+  "newFile": "New File",
+  "newFolder": "New Folder",
+  "rename": "Rename",
+  "move": "Move",
+  "copy": "Copy",
+  "paste": "Paste",
+  "share": "Share",
+  "export": "Export",
+  "exportAsPdf": "Export as PDF",
+  "generatingPdf": "Generating PDF...",
+  "insertImage": "Insert Image",
+  "insertImageFromUrl": "Enter image URL",
+  "insertImageFromDevice": "Select from device",
+  "imageUrl": "Image URL",
+  "imageUrlHint": "https://example.com/image.png",
+  "imageAlt": "Alt text (optional)",
+  "imageAltHint": "For accessibility and image description",
+  "insert": "Insert",
+  "imageUploadFailed": "Image upload failed",
+  "retry": "Retry",
+  "untitled": "Untitled",
+  "unsavedChanges": "You have unsaved changes",
+  "discardChanges": "Discard changes",
+  "keepEditing": "Keep editing",
+  "fileNotFound": "File not found",
+  "folderNotFound": "Folder not found",
+  "errorLoadingFile": "Failed to load file",
+  "errorSavingFile": "Failed to save file",
+  "permissionRequired": "Permission Required",
+  "storagePermissionRequired": "Storage permission is required to access files",
+  "grantPermission": "Grant Permission",
+  "initializing": "Initializing...",
+  "updateAvailable": "Update available",
+  "updateNow": "Update Now",
+  "later": "Later",
+  "version": "Version",
+  "about": "About",
+  "debugMode": "Debug Mode",
+  "debugLog": "Debug Log",
+  "clearLog": "Clear Log",
+  "copyLog": "Copy Log",
+  "lineNumber": "Line",
+  "bold": "Bold",
+  "italic": "Italic",
+  "strikethrough": "Strikethrough",
+  "heading": "Heading",
+  "heading1": "Heading 1",
+  "heading2": "Heading 2",
+  "heading3": "Heading 3",
+  "bulletList": "Bullet List",
+  "orderedList": "Ordered List",
+  "taskList": "Task List",
+  "blockquote": "Blockquote",
+  "code": "Code",
+  "inlineCode": "Inline Code",
+  "codeBlock": "Code Block",
+  "link": "Link",
+  "image": "Image",
+  "horizontalRule": "Horizontal Rule",
+  "table": "Table",
+  "undo": "Undo",
+  "redo": "Redo",
+  "more": "More",
+  "opacity": "Opacity",
+  "editorBackgroundImage": "Editor Background Image",
+  "homeTitle": "Home Title",
+  "bottomNavBar": "Bottom Navigation Bar",
+  "clearImage": "Clear Image",
+  "blurEffect": "Blur Effect",
+  "blurStrength": "Blur Strength",
+  "particleType": "Particle Type",
+  "particleSpeed": "Particle Speed",
+  "globalParticles": "Global Particles",
+  "defaultIcon": "Default",
+  "customImage": "Custom Image",
+  "particleTypeSakura": "Sakura",
+  "particleTypeSnow": "Snow",
+  "particleTypeLeaves": "Leaves",
+  "particleTypeStars": "Stars",
+  "uiFont": "UI Font",
+  "systemFont": "System Font",
+  "customFont": "Custom Font",
+  "installFont": "Install Custom Font",
+  "fontInstalled": "Font installed successfully",
+  "buttonPreview": "Button Preview",
+  "editorSettings": "Editor Settings",
+  "current": "Current: {size}",
+  "@current": {
+    "description": "Current value indicator",
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "sampleText": "Sample Text",
+  "enableAutoSave": "Enable Auto Save",
+  "saveInterval": "Save Interval",
+  "minutes": "minutes",
+  "openSource": "Open Source",
+  "openSourceLicense": "Open Source Licenses",
+  "openSourceLicenseDesc": "View open source dependencies and license information",
+  "updates": "Updates",
+  "autoCheckUpdate": "Auto check for updates on startup",
+  "autoCheckUpdateDesc": "Show notification when new version available",
+  "checkForUpdates": "Check for Updates",
+  "checkForUpdatesDesc": "Check if new version is available",
+  "upToDate": "Already up to date",
+  "checkUpdateFailed": "Update check failed: {error}",
+  "@checkUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "newVersionFound": "New Version Found",
+  "newVersionAvailable": "Version {version} is now available. Update now?",
+  "@newVersionAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadingUpdate": "Downloading update...",
+  "downloadingWithMirror": "Downloading with mirror acceleration...",
+  "downloadFailed": "Download or installation failed. Try manual download.",
+  "updateError": "Update error: {error}",
+  "@updateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "foundNewVersion": "New Version Found",
+  "storageSettings": "Storage Settings",
+  "@storageSettings": {
+    "description": "Storage settings page title"
+  },
+  "myFiles": "My Files",
+  "@myFiles": {
+    "description": "My files section"
+  },
+  "workspace": "Workspace",
+  "@workspace": {
+    "description": "Workspace"
+  },
+  "newFileDefaultLocation": "New File Default Location",
+  "@newFileDefaultLocation": {
+    "description": "Default location for new files"
+  },
+  "notSetUseCurrentOrRecent": "Not set (default uses current or recent location)",
+  "@notSetUseCurrentOrRecent": {
+    "description": "Not set hint"
+  },
+  "change": "Change",
+  "@change": {
+    "description": "Change button"
+  },
+  "defaultLocationReset": "Default location has been reset",
+  "@defaultLocationReset": {
+    "description": "Default location reset message"
+  },
+  "cleanup": "Cleanup",
+  "@cleanup": {
+    "description": "Cleanup section"
+  },
+  "clearRecentFiles": "Clear Recent Files",
+  "@clearRecentFiles": {
+    "description": "Clear recent files button"
+  },
+  "clearRecentFolders": "Clear Recent Folders",
+  "@clearRecentFolders": {
+    "description": "Clear recent folders button"
+  },
+  "loading": "Loading...",
+  "@loading": {
+    "description": "Loading message"
+  },
+  "workspaceFolderName": "Workspace Folder Name",
+  "@workspaceFolderName": {
+    "description": "Workspace folder name setting"
+  },
+  "customBasePathAdvanced": "Custom Base Path (Advanced)",
+  "@customBasePathAdvanced": {
+    "description": "Custom base path setting"
+  },
+  "useDefaultPath": "Use default path",
+  "@useDefaultPath": {
+    "description": "Use default path hint"
+  },
+  "reset": "Reset",
+  "@reset": {
+    "description": "Reset button"
+  },
+  "workspaceFilesSyncToCloud": "Workspace files will automatically sync to cloud",
+  "@workspaceFilesSyncToCloud": {
+    "description": "Workspace sync info"
+  },
+  "filesCount": "{count} files",
+  "@filesCount": {
+    "description": "Number of files",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "foldersCount": "{count} folders",
+  "@foldersCount": {
+    "description": "Number of folders",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "clear": "Clear",
+  "@clear": {
+    "description": "Clear button"
+  },
+  "confirmClearRecentFiles": "Are you sure you want to clear all recent file records?",
+  "@confirmClearRecentFiles": {
+    "description": "Confirm clear recent files message"
+  },
+  "confirmClearRecentFolders": "Are you sure you want to clear all recent folder records?",
+  "@confirmClearRecentFolders": {
+    "description": "Confirm clear recent folders message"
+  },
+  "cleared": "Cleared",
+  "@cleared": {
+    "description": "Cleared message"
+  },
+  "changeWorkspaceName": "Change Workspace Name",
+  "@changeWorkspaceName": {
+    "description": "Change workspace name dialog title"
+  },
+  "inputWorkspaceFolderName": "Enter new workspace folder name:",
+  "@inputWorkspaceFolderName": {
+    "description": "Input workspace folder name hint"
+  },
+  "warningChangeNameRequiresCloudSync": "Note: Cloud sync needs to be reconfigured after changing the name",
+  "@warningChangeNameRequiresCloudSync": {
+    "description": "Warning about cloud sync after name change"
+  },
+  "nameCannotBeEmpty": "Name cannot be empty",
+  "@nameCannotBeEmpty": {
+    "description": "Name cannot be empty error"
+  },
+  "nameCannotContainSlash": "Name cannot contain slashes",
+  "@nameCannotContainSlash": {
+    "description": "Name cannot contain slash error"
+  },
+  "workspaceNameUpdated": "Workspace name updated to {name}",
+  "@workspaceNameUpdated": {
+    "description": "Workspace name updated message",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "customBasePath": "Custom Base Path",
+  "@customBasePath": {
+    "description": "Custom base path dialog title"
+  },
+  "inputCustomBasePath": "Enter custom base path:",
+  "@inputCustomBasePath": {
+    "description": "Input custom base path hint"
+  },
+  "defaultPath": "Default path: {path}",
+  "@defaultPath": {
+    "description": "Default path display",
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "warningChangeBasePathAffectsWorkspace": "Warning: Changing base path will affect workspace location, please ensure the path exists and is accessible",
+  "@warningChangeBasePathAffectsWorkspace": {
+    "description": "Warning about base path change"
+  },
+  "resetToDefaultPath": "Reset to default path",
+  "@resetToDefaultPath": {
+    "description": "Reset to default path message"
+  },
+  "basePathUpdated": "Base path updated",
+  "@basePathUpdated": {
+    "description": "Base path updated message"
+  },
+  "cloudSyncConfig": "Cloud Sync Configuration",
+  "@cloudSyncConfig": {
+    "description": "Cloud sync configuration title"
+  },
+  "syncServiceType": "Sync Service Type",
+  "@syncServiceType": {
+    "description": "Sync service type dropdown label"
+  },
+  "cloudFolderName": "Cloud Folder Name",
+  "@cloudFolderName": {
+    "description": "Cloud folder name input label"
+  },
+  "folderNameHelper": "Changing this name will rename the cloud folder (won't create new folder)",
+  "@folderNameHelper": {
+    "description": "Folder name helper text"
+  },
+  "enterFolderName": "Please enter folder name",
+  "@enterFolderName": {
+    "description": "Folder name validation message"
+  },
+  "folderNameNoSlashes": "Folder name cannot contain slashes",
+  "@folderNameNoSlashes": {
+    "description": "Folder name validation message (contains slashes)"
+  },
+  "cloudPathPrefix": "Cloud Path Prefix (Optional)",
+  "@cloudPathPrefix": {
+    "description": "Cloud path prefix input label"
+  },
+  "cloudPathHelper": "Full cloud folder path will be auto-completed as: path prefix",
+  "@cloudPathHelper": {
+    "description": "Cloud path helper text"
+  },
+  "testing": "Testing...",
+  "@testing": {
+    "description": "Testing status"
+  },
+  "testConnection": "Test Connection",
+  "@testConnection": {
+    "description": "Test connection button"
+  },
+  "saveConfig": "Save Configuration",
+  "@saveConfig": {
+    "description": "Save configuration button"
+  },
+  "connectionSuccess": "Connection successful!",
+  "@connectionSuccess": {
+    "description": "Connection success message"
+  },
+  "connectionFailed": "Connection failed, please check configuration",
+  "@connectionFailed": {
+    "description": "Connection failed message"
+  },
+  "serverAddress": "Server Address",
+  "@serverAddress": {
+    "description": "Server address input label"
+  },
+  "enterServerAddress": "Please enter server address",
+  "@enterServerAddress": {
+    "description": "Server address validation message"
+  },
+  "enterValidUrl": "Please enter a valid URL (starting with http:// or https://)",
+  "@enterValidUrl": {
+    "description": "URL validation message"
+  },
+  "username": "Username",
+  "@username": {
+    "description": "Username input label"
+  },
+  "enterUsername": "Please enter username",
+  "@enterUsername": {
+    "description": "Username validation message"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Password input label"
+  },
+  "enterPassword": "Please enter password",
+  "@enterPassword": {
+    "description": "Password validation message"
+  },
+  "ftpServerAddress": "FTP Server Address",
+  "@ftpServerAddress": {
+    "description": "FTP server address input label"
+  },
+  "enterFtpServer": "Please enter FTP server address",
+  "@enterFtpServer": {
+    "description": "FTP server address validation message"
+  },
+  "addressShouldStartWithFtp": "Address should start with ftp://",
+  "@addressShouldStartWithFtp": {
+    "description": "FTP address format validation message"
+  },
+  "enterValidHost": "Please enter a valid host address",
+  "@enterValidHost": {
+    "description": "Host address validation message"
+  },
+  "invalidFormat": "Invalid format, should be ftp://host:port",
+  "@invalidFormat": {
+    "description": "FTP format validation message"
+  },
+  "portRange": "Port number should be between 1-65535",
+  "@portRange": {
+    "description": "Port range validation message"
+  },
+  "syncControls": "Sync Controls",
+  "@syncControls": {
+    "description": "Sync controls title"
+  },
+  "autoSync": "Auto Sync",
+  "@autoSync": {
+    "description": "Auto sync switch label"
+  },
+  "autoSyncDescription": "Auto upload to cloud when saving files",
+  "@autoSyncDescription": {
+    "description": "Auto sync description"
+  },
+  "syncStatus": "Sync Status",
+  "@syncStatus": {
+    "description": "Sync status title"
+  },
+  "syncService": "Sync Service",
+  "@syncService": {
+    "description": "Sync service label"
+  },
+  "configStatus": "Configuration Status",
+  "@configStatus": {
+    "description": "Configuration status label"
+  },
+  "configured": "Configured",
+  "@configured": {
+    "description": "Configured status"
+  },
+  "notConfigured": "Not Configured",
+  "@notConfigured": {
+    "description": "Not configured status"
+  },
+  "lastSync": "Last Sync",
+  "@lastSync": {
+    "description": "Last sync label"
+  },
+  "neverSynced": "Never synced",
+  "@neverSynced": {
+    "description": "Never synced status"
+  },
+  "justNow": "Just now",
+  "@justNow": {
+    "description": "Just now"
+  },
+  "minutesAgo": "{count} minutes ago",
+  "@minutesAgo": {
+    "description": "Minutes ago",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hoursAgo": "{count} hours ago",
+  "@hoursAgo": {
+    "description": "Hours ago",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "configSaved": "Configuration saved",
+  "@configSaved": {
+    "description": "Configuration saved message"
+  },
+  "cannotConnectServer": "Cannot connect to server",
+  "@cannotConnectServer": {
+    "description": "Cannot connect to server error"
+  },
+  "syncComplete": "Sync complete: uploaded {uploaded}, downloaded {downloaded}{deleted}",
+  "@syncComplete": {
+    "description": "Sync complete message",
+    "placeholders": {
+      "uploaded": {
+        "type": "int"
+      },
+      "downloaded": {
+        "type": "int"
+      },
+      "deleted": {
+        "type": "String"
+      }
+    }
+  },
+  "syncPreview": "Sync Preview",
+  "@syncPreview": {
+    "description": "Sync preview dialog title"
+  },
+  "willUpload": "📤 Will upload {count} files",
+  "@willUpload": {
+    "description": "Will upload files count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "willDownload": "📥 Will download {count} files",
+  "@willDownload": {
+    "description": "Will download files count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conflictWarning": "⚠️ {count} files have conflicts",
+  "@conflictWarning": {
+    "description": "Conflict warning",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conflictDescription": "These files have modifications in both local and cloud, please choose which version to keep:",
+  "@conflictDescription": {
+    "description": "Conflict description"
+  },
+  "keepLocal": "Keep Local",
+  "@keepLocal": {
+    "description": "Keep local option"
+  },
+  "keepRemote": "Keep Cloud",
+  "@keepRemote": {
+    "description": "Keep cloud option"
+  },
+  "skip": "Skip",
+  "@skip": {
+    "description": "Skip option"
+  },
+  "localVersion": "Local",
+  "@localVersion": {
+    "description": "Local version label"
+  },
+  "cloudVersion": "Cloud",
+  "@cloudVersion": {
+    "description": "Cloud version label"
+  },
+  "startSync": "Start Sync",
+  "@startSync": {
+    "description": "Start sync button"
+  },
+  "syncWillContinueInBackground": "Sync will continue in background",
+  "@syncWillContinueInBackground": {
+    "description": "Background continue sync message"
+  },
+  "saveSuccess": "Saved",
+  "@saveSuccess": {
+    "description": "Save success notification"
+  },
+  "saveFailedWithError": "Save failed: {error}",
+  "@saveFailedWithError": {
+    "description": "Save failed notification",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "unsavedChangesMessage": "You have unsaved changes. Do you want to save?",
+  "@unsavedChangesMessage": {
+    "description": "Unsaved changes dialog message"
+  },
+  "discard": "Discard",
+  "@discard": {
+    "description": "Discard button"
+  },
+  "noMatchContent": "No matching content found",
+  "@noMatchContent": {
+    "description": "No matching content in search"
+  },
+  "loadingFailed": "Loading failed",
+  "@loadingFailed": {
+    "description": "Loading failed message"
+  },
+  "wordCount": "{chars} chars · {glyphs} glyphs · {words} words",
+  "@wordCount": {
+    "description": "Word count display",
+    "placeholders": {
+      "chars": {
+        "type": "int"
+      },
+      "glyphs": {
+        "type": "int"
+      },
+      "words": {
+        "type": "int"
+      }
+    }
+  },
+  "ftpFormatHelper": "Format: ftp://host:port",
+  "@ftpFormatHelper": {
+    "description": "FTP format helper text"
+  },
+  "icon2": "Icon 2",
+  "hidden": "Hidden",
+  "homeIconSelectorHint": "Select the icon displayed in the top left corner of the home page",
+  "appIconAndroidOnly": "Note: Custom icons only work on Android",
+  "appIconChanged": "App icon changed successfully",
+  "appIconChangeFailed": "Failed to change app icon",
+  "selectFromGallery": "Select from Gallery",
+  "homeTitleHint": "Custom text displayed next to the home icon",
+  "homeTitleLabel": "Home Title",
+  "homeTitleDefault": "Ushio",
+  "restoreDefault": "Restore Default",
+  "globalParticlesEnabled": "Global Particles",
+  "globalParticlesDesc": "Show particles throughout the app",
+  "editorParticlesDesc": "Show particles only in editor",
+  "particleTypeRain": "Rain",
+  "particleTypeFirefly": "Firefly",
+  "appIconSelectorHint": "Select the app icon displayed on home screen",
+  "brightness": "Brightness",
+  "@brightness": { "description": "Brightness setting" },
+  "debugSettings": "Debug",
+  "@debugSettings": { "description": "Debug settings page title" },
+  "debugSwitches": "Debug Switches",
+  "@debugSwitches": { "description": "Debug switches section title" },
+  "enableDebugMode": "Enable Debug Mode",
+  "@enableDebugMode": { "description": "Enable debug mode switch title" },
+  "debugModeDescription": "Record Bridge messages, command execution, and diagnostic data",
+  "@debugModeDescription": { "description": "Debug mode description" },
+  "codeBlockLanguageDebug": "Code Block Language Debug",
+  "@codeBlockLanguageDebug": { "description": "Code block language debug section title" },
+  "collectEditorDiagnostics": "Collect Editor Diagnostics",
+  "@collectEditorDiagnostics": { "description": "Collect editor diagnostics button title" },
+  "collectEditorDiagnosticsDesc": "Reads code block toolbar position, pre[data-language] pseudo-element, and other info",
+  "@collectEditorDiagnosticsDesc": { "description": "Collect editor diagnostics description" },
+  "collect": "Collect",
+  "@collect": { "description": "Collect button" },
+  "debugLogsSection": "Logs",
+  "@debugLogsSection": { "description": "Debug logs section title" },
+  "totalLogsCount": "Total: {count} entries",
+  "@totalLogsCount": {
+    "description": "Total log entries count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "logCopiedToClipboard": "Log copied to clipboard",
+  "@logCopiedToClipboard": { "description": "Log copied to clipboard message" },
+  "noLogsYet": "No logs yet. Enable debug mode and use the editor, then check back.",
+  "@noLogsYet": { "description": "No logs placeholder text" },
+  "collectRequestSent": "Collection requested. Check on_debug_report in the log area.",
+  "@collectRequestSent": { "description": "Collect request sent message" },
+  "noActiveEditor": "No active editor. Please open a Markdown file first.",
+  "@noActiveEditor": { "description": "No active editor error message" },
+  "noHeadingsFound": "No headings found",
+  "@noHeadingsFound": { "description": "No headings found in TOC overlay" },
+  "clearHistory": "Clear History",
+  "@clearHistory": { "description": "Clear history tooltip" },
+  "clearHistoryConfirm": "Clear History",
+  "@clearHistoryConfirm": { "description": "Clear history dialog title" },
+  "clearHistoryConfirmMessage": "Are you sure you want to clear all recent {type} records?",
+  "@clearHistoryConfirmMessage": {
+    "description": "Clear history confirmation message",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "file": "File",
+  "@file": { "description": "File label" },
+  "folder": "Folder",
+  "@folder": { "description": "Folder label" },
+  "files": "Files",
+  "@files": { "description": "Files label (plural)" },
+  "noRecentFiles": "No recent files",
+  "@noRecentFiles": { "description": "Empty state for recent files" },
+  "noRecentFolders": "No recent folders",
+  "@noRecentFolders": { "description": "Empty state for recent folders" },
+  "folderNotFound": "Folder not found",
+  "@folderNotFound": { "description": "Folder not found error" },
+  "newMarkdown": "New Markdown",
+  "@newMarkdown": { "description": "New markdown file menu item" },
+  "createFolder": "Create Folder",
+  "@createFolder": { "description": "Create folder dialog title" },
+  "folderName": "Folder Name",
+  "@folderName": { "description": "Folder name input label" },
+  "createFailed": "Creation failed",
+  "@createFailed": { "description": "Creation failed error" },
+  "create": "Create",
+  "@create": { "description": "Create button" },
+  "loadFailed": "Loading failed",
+  "@loadFailed": { "description": "Loading failed error" },
+  "folderEmpty": "This folder is empty",
+  "@folderEmpty": { "description": "Empty folder message" },
+  "noMatchingFiles": "No matching files found",
+  "@noMatchingFiles": { "description": "No search results message" },
+  "fileCount": "{count} files",
+  "@fileCount": {
+    "description": "File count display",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchFiles": "Search files...",
+  "@searchFiles": { "description": "Search files hint" },
+  "sortBy": "Sort by",
+  "@sortBy": { "description": "Sort menu title" },
+  "customSort": "Custom Sort",
+  "@customSort": { "description": "Custom sort option" },
+  "nameAZ": "Name A-Z",
+  "@nameAZ": { "description": "Sort by name ascending" },
+  "nameZA": "Name Z-A",
+  "@nameZA": { "description": "Sort by name descending" },
+  "recentModified": "Recently Modified",
+  "@recentModified": { "description": "Sort by recent modification" },
+  "oldestModified": "Oldest Modified",
+  "@oldestModified": { "description": "Sort by oldest modification" },
+  "largestFirst": "Largest First",
+  "@largestFirst": { "description": "Sort by largest size" },
+  "smallestFirst": "Smallest First",
+  "@smallestFirst": { "description": "Sort by smallest size" }
+}

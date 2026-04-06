@@ -39,11 +39,11 @@ class _MyFilesTabState extends State<MyFilesTab> {
     if (_rootPath == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    
+
     return FolderBrowserScreen(
       folderPath: _rootPath!,
       showBackButton: false,
-      title: '我的文件',
+      // title is null - FolderBrowserScreen will use localized 'My Files' for Ushio-MD folder
     );
   }
 }

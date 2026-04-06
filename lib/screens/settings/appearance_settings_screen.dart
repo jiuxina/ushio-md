@@ -14,6 +14,7 @@ import '../../utils/app_style.dart';
 import '../../utils/constants.dart';
 import '../../services/font_service.dart';
 import '../../widgets/app_background.dart';
+import '../../l10n/app_localizations.dart';
 
 class AppearanceSettingsScreen extends StatefulWidget {
   const AppearanceSettingsScreen({super.key});
@@ -61,7 +62,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          title: const Text('外观设置'),
+          title: Text(AppLocalizations.of(context)!.appearance),
           centerTitle: true,
         ),
         body: Consumer<SettingsProvider>(
@@ -75,34 +76,41 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 ),
               );
             }
+            final l10n = AppLocalizations.of(context)!;
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _buildSection('主题模式', Icons.brightness_6, [
-                  _buildThemeModeSelector(settings),
+                _buildSection(l10n.themeMode, Icons.brightness_6, [
+                  _buildThemeModeSelector(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('主题色', Icons.color_lens, [
+                _buildSection(l10n.language, Icons.language, [
+                  _buildLanguageSelector(settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(l10n.themeColor, Icons.color_lens, [
                   _buildThemeColorSelector(settings),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('按钮风格', Icons.smart_button_outlined, [
-                  _buildButtonStyleSelector(settings),
+                _buildSection(l10n.buttonStyle, Icons.smart_button_outlined, [
+                  _buildButtonStyleSelector(settings, l10n),
                 ]),
                 const SizedBox(height: 16),
 
-                _buildSection('卡片透明度', Icons.opacity_rounded, [
-                  _buildCardOpacitySlider(settings),
+                _buildSection(l10n.cardOpacity, Icons.opacity_rounded, [
+                  _buildCardOpacitySlider(settings, l10n),
                 ]),
 
                 // 浅色主题方案（仅在浅色模式下显示）
                 if (settings.themeMode == ThemeMode.light) ...[
                   const SizedBox(height: 16),
-                  _buildSection('浅色主题', Icons.light_mode, [
+                  _buildSection(l10n.lightTheme, Icons.light_mode, [
                     _buildLightThemeSelector(settings),
                   ]),
                 ],
@@ -110,57 +118,57 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 // 夜间主题方案（仅在深色模式下显示）
                 if (settings.themeMode == ThemeMode.dark) ...[
                   const SizedBox(height: 16),
-                  _buildSection('夜间主题', Icons.dark_mode, [
+                  _buildSection(l10n.darkTheme, Icons.dark_mode, [
                     _buildDarkThemeSelector(settings),
                   ]),
                 ],
 
                 const SizedBox(height: 16),
 
-                _buildSection('字体', Icons.font_download, [
-                  _buildFontSelector(settings),
+                _buildSection(l10n.font, Icons.font_download, [
+                  _buildFontSelector(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('背景', Icons.image, [
-                  _buildBackgroundSettings(settings),
+                _buildSection(l10n.background, Icons.image, [
+                  _buildBackgroundSettings(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('编辑器背景图片', Icons.wallpaper, [
-                  _buildEditorBackgroundSettings(settings),
+                _buildSection(l10n.editorBackground, Icons.wallpaper, [
+                  _buildEditorBackgroundSettings(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('粒子效果', Icons.auto_awesome, [
-                  _buildParticleSettings(settings),
+                _buildSection(l10n.particleEffect, Icons.auto_awesome, [
+                  _buildParticleSettings(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('桌面图标', Icons.apps, [
-                  _buildAppIconSelector(settings),
+                _buildSection(l10n.appIcon, Icons.apps, [
+                  _buildAppIconSelector(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('主页图标', Icons.account_circle_outlined, [
-                  _buildHomeIconSelector(settings),
+                _buildSection(l10n.homeIcon, Icons.account_circle_outlined, [
+                  _buildHomeIconSelector(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('主页标题', Icons.title_rounded, [
-                  _buildHomeTitleTextField(settings),
+                _buildSection(l10n.homeTitle, Icons.title_rounded, [
+                  _buildHomeTitleTextField(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                _buildSection('底部导航栏', Icons.tab_rounded, [
-                  _buildTabBarOpacitySlider(settings),
+                _buildSection(l10n.bottomNavBar, Icons.tab_rounded, [
+                  _buildTabBarOpacitySlider(settings, l10n),
                 ]),
               ],
             );
@@ -170,10 +178,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
-  Widget _buildCardOpacitySlider(SettingsProvider settings) {
+  Widget _buildCardOpacitySlider(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Row(
       children: [
-        const Text('透明度'),
+        Text(l10n.opacity),
         Expanded(
           child: Slider(
             value: settings.cardOpacity,
@@ -195,10 +206,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
-  Widget _buildTabBarOpacitySlider(SettingsProvider settings) {
+  Widget _buildTabBarOpacitySlider(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Row(
       children: [
-        const Text('透明度'),
+        Text(l10n.opacity),
         Expanded(
           child: Slider(
             value: settings.tabBarOpacity,
@@ -253,7 +267,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
-  Widget _buildThemeModeSelector(SettingsProvider settings) {
+  Widget _buildThemeModeSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -261,7 +278,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             settings,
             ThemeMode.system,
             Icons.brightness_auto,
-            '跟随系统',
+            l10n.themeSystem,
           ),
         ),
         const SizedBox(width: 8),
@@ -270,7 +287,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             settings,
             ThemeMode.light,
             Icons.light_mode,
-            '浅色',
+            l10n.themeLight,
           ),
         ),
         const SizedBox(width: 8),
@@ -279,7 +296,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             settings,
             ThemeMode.dark,
             Icons.dark_mode,
-            '深色',
+            l10n.themeDark,
           ),
         ),
       ],
@@ -323,7 +340,74 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
-  Widget _buildButtonStyleSelector(SettingsProvider settings) {
+  Widget _buildLanguageSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    final currentLocale = settings.locale;
+    return Row(
+      children: [
+        Expanded(
+          child: _buildLanguageOption(
+            settings,
+            const Locale('zh'),
+            l10n.languageZh,
+            currentLocale.languageCode == 'zh',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildLanguageOption(
+            settings,
+            const Locale('en'),
+            l10n.languageEn,
+            currentLocale.languageCode == 'en',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLanguageOption(
+    SettingsProvider settings,
+    Locale locale,
+    String label,
+    bool isSelected,
+  ) {
+    return GestureDetector(
+      onTap: () => settings.setLocale(locale),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: _buildOptionDecoration(isSelected: isSelected),
+        child: Column(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildButtonStyleSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -331,8 +415,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             settings,
             AppButtonStyleMode.classic,
             Icons.crop_square_rounded,
-            '经典描边',
-            '保留当前的实线边框按钮样式',
+            l10n.buttonStyleClassic,
+            l10n.buttonStyleClassicDesc,
+            l10n,
           ),
         ),
         const SizedBox(width: 12),
@@ -341,8 +426,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             settings,
             AppButtonStyleMode.softShadow,
             Icons.auto_awesome_rounded,
-            '简洁立体',
-            '无边框 + 阴影投影，接近 ChatGPT App 风格',
+            l10n.buttonStyleModern,
+            l10n.buttonStyleModernDesc,
+            l10n,
           ),
         ),
       ],
@@ -355,10 +441,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     IconData icon,
     String title,
     String subtitle,
+    AppLocalizations l10n,
   ) {
     final isSelected = settings.buttonStyleMode == mode;
     final previewPrimary = Theme.of(context).colorScheme.primary;
-    final previewSurface = _appStyle.useBorderlessButtons && mode == AppButtonStyleMode.softShadow
+    final previewSurface =
+        _appStyle.useBorderlessButtons && mode == AppButtonStyleMode.softShadow
         ? _appStyle.strongSurface
         : Theme.of(context).colorScheme.surface;
 
@@ -372,9 +460,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           children: [
             Row(
               children: [
-                Icon(icon, color: isSelected ? previewPrimary : Theme.of(context).colorScheme.onSurface),
+                Icon(
+                  icon,
+                  color: isSelected
+                      ? previewPrimary
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
                 const Spacer(),
-                if (isSelected) Icon(Icons.check_circle, color: previewPrimary, size: 20),
+                if (isSelected)
+                  Icon(Icons.check_circle, color: previewPrimary, size: 20),
               ],
             ),
             const SizedBox(height: 12),
@@ -386,10 +480,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 14),
             Row(
               children: [
@@ -409,9 +500,11 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                           ),
                     alignment: Alignment.center,
                     child: Text(
-                      '按钮预览',
+                      l10n.buttonPreview,
                       style: TextStyle(
-                        color: mode == AppButtonStyleMode.softShadow ? Theme.of(context).colorScheme.onSurface : Colors.white,
+                        color: mode == AppButtonStyleMode.softShadow
+                            ? Theme.of(context).colorScheme.onSurface
+                            : Colors.white,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -513,9 +606,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                       border: _appStyle.useBorderlessButtons
                           ? null
                           : Border.all(
-                              color: scheme.textSecondary.withValues(alpha: 0.3),
+                              color: scheme.textSecondary.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
-                      boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
+                      boxShadow: _appStyle.useBorderlessButtons
+                          ? _appStyle.surfaceShadow
+                          : null,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -595,7 +692,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
-  Widget _buildFontSelector(SettingsProvider settings) {
+  Widget _buildFontSelector(SettingsProvider settings, AppLocalizations l10n) {
     // 构建字体选项列表
     final fontItems = <DropdownMenuItem<String>>[];
     final seenFamilies = <String>{};
@@ -630,7 +727,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('界面字体'),
+            Text(l10n.uiFont),
             DropdownButton<String>(
               value: getValidFontFamily(settings.uiFontFamily),
               underline: const SizedBox(),
@@ -647,7 +744,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('编辑器字体'),
+            Text(l10n.font),
             DropdownButton<String>(
               value: getValidFontFamily(settings.editorFontFamily),
               underline: const SizedBox(),
@@ -664,7 +761,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('代码字体'),
+            Text(l10n.customFont),
             DropdownButton<String>(
               value: getValidFontFamily(settings.codeFontFamily),
               underline: const SizedBox(),
@@ -690,7 +787,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('字体 "$fontName" 安装成功'),
+                          content: Text('${l10n.fontInstalled}: "$fontName"'),
                           behavior: SnackBarBehavior.floating,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -701,13 +798,16 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   }
                 },
           icon: const Icon(Icons.add),
-          label: const Text('安装自定义字体'),
+          label: Text(l10n.installFont),
         ),
       ],
     );
   }
 
-  Widget _buildBackgroundSettings(SettingsProvider settings) {
+  Widget _buildBackgroundSettings(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -715,11 +815,11 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('背景图片'),
+            Text(l10n.background),
             TextButton.icon(
               onPressed: () => _pickBackgroundImage(settings),
               icon: const Icon(Icons.image, size: 18),
-              label: const Text('选择'),
+              label: Text(l10n.selectImage),
             ),
           ],
         ),
@@ -742,7 +842,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     ).colorScheme.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Center(child: Text('图片加载失败')),
+                  child: Center(child: Text(l10n.clearImage)),
                 );
               },
             ),
@@ -752,7 +852,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('模糊效果'),
+              Text(l10n.blurEffect),
               Switch(
                 value: settings.backgroundEffect == 'blur',
                 onChanged: (value) {
@@ -764,7 +864,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('亮度'),
+              Text(l10n.brightness),
               Expanded(
                 child: Slider(
                   value: settings.backgroundBrightness,
@@ -786,7 +886,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Text('模糊强度'),
+                Text(l10n.blurStrength),
                 Expanded(
                   child: Slider(
                     value: settings.backgroundBlur,
@@ -806,25 +906,31 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           TextButton.icon(
             onPressed: () => settings.setBackgroundImage(null),
             icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-            label: const Text('移除背景', style: TextStyle(color: Colors.red)),
+            label: Text(
+              l10n.clearBackground,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ],
     );
   }
 
-  Widget _buildEditorBackgroundSettings(SettingsProvider settings) {
+  Widget _buildEditorBackgroundSettings(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('编辑器背景图片'),
+            Text(l10n.editorBackground),
             TextButton.icon(
               onPressed: () => _pickEditorBackgroundImage(settings),
               icon: const Icon(Icons.image, size: 18),
-              label: const Text('选择'),
+              label: Text(l10n.selectImage),
             ),
           ],
         ),
@@ -846,7 +952,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     ).colorScheme.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Center(child: Text('图片加载失败')),
+                  child: Center(child: Text(l10n.clearImage)),
                 );
               },
             ),
@@ -855,7 +961,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('模糊效果'),
+              Text(l10n.blurEffect),
               Switch(
                 value: settings.editorBackgroundBlurEnabled,
                 onChanged: (value) {
@@ -867,7 +973,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('亮度'),
+              Text(l10n.brightness),
               Expanded(
                 child: Slider(
                   value: settings.editorBackgroundBrightness,
@@ -889,7 +995,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Text('模糊强度'),
+                Text(l10n.blurStrength),
                 Expanded(
                   child: Slider(
                     value: settings.editorBackgroundBlur,
@@ -897,7 +1003,8 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     max: 100,
                     divisions: 100,
                     label: settings.editorBackgroundBlur.round().toString(),
-                    onChanged: (value) => settings.setEditorBackgroundBlur(value),
+                    onChanged: (value) =>
+                        settings.setEditorBackgroundBlur(value),
                   ),
                 ),
                 Text('${settings.editorBackgroundBlur.round()}'),
@@ -908,7 +1015,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           TextButton.icon(
             onPressed: () => settings.setEditorBackgroundImage(null),
             icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-            label: const Text('移除背景', style: TextStyle(color: Colors.red)),
+            label: Text(
+              l10n.clearBackground,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ],
@@ -916,14 +1026,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   }
 
   /// 构建粒子效果设置
-  Widget _buildParticleSettings(SettingsProvider settings) {
-    // 粒子效果类型定义
-    const particleTypes = [
-      {'id': 'sakura', 'name': '樱花', 'icon': '🌸'},
-      {'id': 'rain', 'name': '下雨', 'icon': '🌧️'},
-      {'id': 'firefly', 'name': '萤火虫', 'icon': '✨'},
-      {'id': 'snow', 'name': '雪花', 'icon': '❄️'},
-    ];
+  Widget _buildParticleSettings(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    // 粒子效果类型定义 - 使用 l10n key 作为名称
+    const particleTypeIds = ['sakura', 'rain', 'firefly', 'snow'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -932,7 +1040,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('启用粒子效果'),
+            Text(l10n.globalParticlesEnabled),
             Switch(
               value: settings.particleEnabled,
               onChanged: (v) => settings.setParticleEnabled(v),
@@ -946,7 +1054,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
           // 效果类型选择器
           Text(
-            '效果类型',
+            l10n.particleType,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.outline,
             ),
@@ -959,10 +1067,46 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
             childAspectRatio: 2.5,
-            children: particleTypes.map((type) {
-              final isSelected = settings.particleType == type['id'];
+            children: particleTypeIds.map((typeId) {
+              final isSelected = settings.particleType == typeId;
+              // 获取对应粒子类型名称的 l10n key
+              String typeName;
+              switch (typeId) {
+                case 'sakura':
+                  typeName = l10n.particleTypeSakura;
+                  break;
+                case 'rain':
+                  typeName = l10n.particleTypeRain;
+                  break;
+                case 'firefly':
+                  typeName = l10n.particleTypeFirefly;
+                  break;
+                case 'snow':
+                  typeName = l10n.particleTypeSnow;
+                  break;
+                default:
+                  typeName = typeId;
+              }
+              // 获取图标
+              String icon;
+              switch (typeId) {
+                case 'sakura':
+                  icon = '🌸';
+                  break;
+                case 'rain':
+                  icon = '🌧️';
+                  break;
+                case 'firefly':
+                  icon = '✨';
+                  break;
+                case 'snow':
+                  icon = '❄️';
+                  break;
+                default:
+                  icon = '✨';
+              }
               return GestureDetector(
-                onTap: () => settings.setParticleType(type['id']!),
+                onTap: () => settings.setParticleType(typeId),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -985,10 +1129,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(type['icon']!, style: const TextStyle(fontSize: 18)),
+                      Text(icon, style: const TextStyle(fontSize: 18)),
                       const SizedBox(width: 8),
                       Text(
-                        type['name']!,
+                        typeName,
                         style: TextStyle(
                           fontWeight: isSelected
                               ? FontWeight.bold
@@ -1010,7 +1154,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           // 速率滑块
           Row(
             children: [
-              const Text('粒子速率'),
+              Text(l10n.particleSpeed),
               Expanded(
                 child: Slider(
                   value: settings.particleSpeed,
@@ -1041,11 +1185,11 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('全局显示'),
+                    Text(l10n.globalParticlesEnabled),
                     Text(
                       settings.particleGlobal
-                          ? '所有界面都显示粒子效果'
-                          : '编辑器内容区域不显示粒子效果',
+                          ? l10n.globalParticlesDesc
+                          : l10n.editorParticlesDesc,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,
                       ),
@@ -1096,17 +1240,20 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   // ==================== 桌面图标选择器 ====================
 
   /// 桌面图标切换（Android 专属）
-  Widget _buildAppIconSelector(SettingsProvider settings) {
+  Widget _buildAppIconSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     final options = [
-      {'index': 0, 'label': '默认图标', 'asset': 'app.png'},
-      {'index': 1, 'label': 'icon2', 'asset': 'assets/icons/icon2.png'},
+      {'index': 0, 'label': l10n.defaultIcon, 'asset': 'app.png'},
+      {'index': 1, 'label': l10n.icon2, 'asset': 'assets/icons/icon2.png'},
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '选择桌面图标（仅 Android 生效，切换后应用将重启）',
+          l10n.appIconSelectorHint,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.outline,
           ),
@@ -1118,18 +1265,22 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             final isSelected = settings.appIconIndex == idx;
             return Expanded(
               child: GestureDetector(
-                onTap: () => _setAppIcon(settings, idx),
+                onTap: () => _setAppIcon(settings, idx, l10n),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   margin: EdgeInsets.only(right: idx == 0 ? 8 : 0),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
+                    boxShadow: _appStyle.useBorderlessButtons
+                        ? _appStyle.surfaceShadow
+                        : null,
                     color: isSelected
                         ? Theme.of(
                             context,
                           ).colorScheme.primary.withValues(alpha: 0.1)
-                        : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
+                        : (_appStyle.useBorderlessButtons
+                              ? _appStyle.strongSurface
+                              : Colors.transparent),
                     borderRadius: BorderRadius.circular(12),
                     border: _appStyle.useBorderlessButtons
                         ? null
@@ -1199,7 +1350,11 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   }
 
   /// 调用原生频道切换桌面图标
-  Future<void> _setAppIcon(SettingsProvider settings, int iconIndex) async {
+  Future<void> _setAppIcon(
+    SettingsProvider settings,
+    int iconIndex,
+    AppLocalizations l10n,
+  ) async {
     if (settings.appIconIndex == iconIndex) return;
 
     // 仅 Android 支持
@@ -1207,7 +1362,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('图标切换仅支持 Android'),
+            content: Text(l10n.appIconAndroidOnly),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -1225,7 +1380,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('桌面图标已更换，可能需要几秒钟生效'),
+            content: Text(l10n.appIconChanged),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -1237,7 +1392,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('切换失败：$e'),
+            content: Text('${l10n.appIconChangeFailed}: $e'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -1251,12 +1406,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   // ==================== 主页图标选择器 ====================
 
   /// 主页左上角图标切换（4 个选项）
-  Widget _buildHomeIconSelector(SettingsProvider settings) {
+  Widget _buildHomeIconSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '选择主页左上角显示的图标',
+          l10n.homeIconSelectorHint,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.outline,
           ),
@@ -1269,7 +1427,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               child: _buildHomeIconOption(
                 settings,
                 'default',
-                '默认图标',
+                l10n.defaultIcon,
                 icon: const AssetImage('app.png'),
               ),
             ),
@@ -1278,7 +1436,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               child: _buildHomeIconOption(
                 settings,
                 'icon2',
-                'icon2',
+                l10n.icon2,
                 icon: const AssetImage('assets/icons/icon2.png'),
               ),
             ),
@@ -1287,7 +1445,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               child: _buildHomeIconOption(
                 settings,
                 'none',
-                '隐藏',
+                l10n.hidden,
                 iconWidget: const Icon(Icons.hide_image_outlined, size: 32),
               ),
             ),
@@ -1295,7 +1453,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         ),
         const SizedBox(height: 8),
         // 自定义选项占一行（因为还有选择按钮）
-        _buildHomeIconCustomOption(settings),
+        _buildHomeIconCustomOption(settings, l10n),
       ],
     );
   }
@@ -1314,10 +1472,14 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
+          boxShadow: _appStyle.useBorderlessButtons
+              ? _appStyle.surfaceShadow
+              : null,
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
+              : (_appStyle.useBorderlessButtons
+                    ? _appStyle.strongSurface
+                    : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
           border: _appStyle.useBorderlessButtons
               ? null
@@ -1368,7 +1530,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
-  Widget _buildHomeIconCustomOption(SettingsProvider settings) {
+  Widget _buildHomeIconCustomOption(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     final isSelected = settings.homeIconMode == 'custom';
     final customPath = settings.homeIconCustomPath;
     return GestureDetector(
@@ -1377,10 +1542,14 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          boxShadow: _appStyle.useBorderlessButtons ? _appStyle.surfaceShadow : null,
+          boxShadow: _appStyle.useBorderlessButtons
+              ? _appStyle.surfaceShadow
+              : null,
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : (_appStyle.useBorderlessButtons ? _appStyle.strongSurface : Colors.transparent),
+              : (_appStyle.useBorderlessButtons
+                    ? _appStyle.strongSurface
+                    : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
           border: _appStyle.useBorderlessButtons
               ? null
@@ -1427,7 +1596,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '自定义图片',
+                    l10n.customImage,
                     style: TextStyle(
                       fontWeight: isSelected
                           ? FontWeight.bold
@@ -1440,7 +1609,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                   Text(
                     isSelected && customPath != null
                         ? customPath.split('/').last.split('\\').last
-                        : '从相册选择图片',
+                        : l10n.selectFromGallery,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -1477,12 +1646,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     }
   }
 
-  Widget _buildHomeTitleTextField(SettingsProvider settings) {
+  Widget _buildHomeTitleTextField(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '自定义首页左上角文字，留空时会恢复为默认“汐”。',
+          l10n.homeTitleHint,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.outline,
           ),
@@ -1494,9 +1666,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               child: TextField(
                 controller: _homeTitleController,
                 maxLength: 12,
-                decoration: const InputDecoration(
-                  labelText: '首页标题',
-                  hintText: '汐',
+                decoration: InputDecoration(
+                  labelText: l10n.homeTitleLabel,
+                  hintText: l10n.homeTitleDefault,
                   counterText: '',
                 ),
                 onSubmitted: settings.setHomeTitleText,
@@ -1504,10 +1676,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             ),
             const SizedBox(width: 8),
             FilledButton(
-              onPressed: () => settings.setHomeTitleText(
-                _homeTitleController.text,
-              ),
-              child: const Text('保存'),
+              onPressed: () =>
+                  settings.setHomeTitleText(_homeTitleController.text),
+              child: Text(l10n.save),
             ),
           ],
         ),
@@ -1515,10 +1686,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () {
-              _homeTitleController.text = '汐';
-              settings.setHomeTitleText('汐');
+              _homeTitleController.text = l10n.homeTitleDefault;
+              settings.setHomeTitleText(l10n.homeTitleDefault);
             },
-            child: const Text('恢复默认'),
+            child: Text(l10n.restoreDefault),
           ),
         ),
       ],

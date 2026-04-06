@@ -2,13 +2,14 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/file_provider.dart';
-import '../../providers/settings_provider.dart';
-import '../../models/file_sort_option.dart';
-import '../../services/folder_sort_service.dart';
-import '../../utils/file_actions.dart';
-import '../../widgets/empty_state.dart';
-import '../../widgets/app_background.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/file_provider.dart';
+import '../providers/settings_provider.dart';
+import '../models/file_sort_option.dart';
+import '../services/folder_sort_service.dart';
+import '../utils/file_actions.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/app_background.dart';
 import 'folder/components/folder_browser_header.dart';
 import 'folder/components/file_tile.dart';
 
@@ -18,7 +19,7 @@ class FolderBrowserScreen extends StatefulWidget {
   final String? title;
 
   const FolderBrowserScreen({
-    super.key, 
+    super.key,
     required this.folderPath,
     this.showBackButton = true,
     this.title,
@@ -31,11 +32,11 @@ class FolderBrowserScreen extends StatefulWidget {
 class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FolderSortService _sortService = FolderSortService();
-  
+
   bool _isSearching = false;
   bool _isLoading = true;
   bool _showImages = false; // 默认不显示图片
-  
+
   List<FileSystemEntity> _entities = [];
   String? _error;
   FileSortOption _sortOption = FileSortOption.nameAsc;
@@ -45,7 +46,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     super.initState();
     _initAndLoad();
   }
-  
+
   Future<void> _initAndLoad() async {
     await _sortService.init();
     if (mounted) {
@@ -65,6 +66,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
   Future<void> _loadFiles() async {
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -73,21 +75,21 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     try {
       final dir = Directory(widget.folderPath);
       if (!await dir.exists()) {
-        throw Exception('文件夹不存在');
+        throw Exception(l10n.folderNotFound);
       }
 
       final entities = await dir.list().toList();
       _entities = entities.where((e) {
         final name = e.path.split(Platform.pathSeparator).last;
         if (name.startsWith('.')) return false; // 隐藏隐藏文件
-        
+
         final isDir = e is Directory;
         if (isDir) return true;
-        
+
         // 文件过滤
         if (name.toLowerCase().endsWith('.md')) return true;
         if (_showImages && _isImage(name)) return true;
-        
+
         return false;
       }).toList();
 
@@ -104,11 +106,11 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
   bool _isImage(String name) {
     final lower = name.toLowerCase();
-    return lower.endsWith('.jpg') || 
-           lower.endsWith('.jpeg') || 
-           lower.endsWith('.png') || 
-           lower.endsWith('.gif') || 
-           lower.endsWith('.webp');
+    return lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp');
   }
 
   void _sortFiles() {
@@ -121,64 +123,77 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     _entities.sort((a, b) {
       final aIsDir = a is Directory;
       final bIsDir = b is Directory;
-      
-      // 始终让文件夹排在前面 (除非自定义排序?) 
+
+      // 始终让文件夹排在前面 (除非自定义排序?)
       // 通常文件管理器也是文件夹优先，这里保持一致
       if (aIsDir && !bIsDir) return -1;
       if (!aIsDir && bIsDir) return 1;
-      
+
       final nameA = a.path.split(Platform.pathSeparator).last;
       final nameB = b.path.split(Platform.pathSeparator).last;
-      
+
       switch (_sortOption) {
         case FileSortOption.nameAsc:
           return nameA.toLowerCase().compareTo(nameB.toLowerCase());
         case FileSortOption.nameDesc:
           return nameB.toLowerCase().compareTo(nameA.toLowerCase());
         case FileSortOption.dateAsc:
-          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
-              ? File(a.path).lastModifiedSync().compareTo(File(b.path).lastModifiedSync())
+          return FileSystemEntity.isFileSync(a.path) &&
+                  FileSystemEntity.isFileSync(b.path)
+              ? File(
+                  a.path,
+                ).lastModifiedSync().compareTo(File(b.path).lastModifiedSync())
               : 0; // Folder date sort might be inaccurate, keeping simple
         case FileSortOption.dateDesc:
-          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
-            ? File(b.path).lastModifiedSync().compareTo(File(a.path).lastModifiedSync())
-            : 0;
+          return FileSystemEntity.isFileSync(a.path) &&
+                  FileSystemEntity.isFileSync(b.path)
+              ? File(
+                  b.path,
+                ).lastModifiedSync().compareTo(File(a.path).lastModifiedSync())
+              : 0;
         case FileSortOption.sizeAsc:
-          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
-            ? File(a.path).lengthSync().compareTo(File(b.path).lengthSync())
-            : 0;
+          return FileSystemEntity.isFileSync(a.path) &&
+                  FileSystemEntity.isFileSync(b.path)
+              ? File(a.path).lengthSync().compareTo(File(b.path).lengthSync())
+              : 0;
         case FileSortOption.sizeDesc:
-          return FileSystemEntity.isFileSync(a.path) && FileSystemEntity.isFileSync(b.path)
-            ? File(b.path).lengthSync().compareTo(File(a.path).lengthSync())
-            : 0;
+          return FileSystemEntity.isFileSync(a.path) &&
+                  FileSystemEntity.isFileSync(b.path)
+              ? File(b.path).lengthSync().compareTo(File(a.path).lengthSync())
+              : 0;
         default:
           return nameA.toLowerCase().compareTo(nameB.toLowerCase());
       }
     });
-    
+
     if (mounted) setState(() {});
   }
-  
+
   Future<void> _handleReorder(int oldIndex, int newIndex) async {
     if (oldIndex < newIndex) {
       newIndex -= 1;
     }
-    
+
     // 如果当前不是自定义排序，拖拽后自动切换为自定义排序
     if (_sortOption != FileSortOption.custom) {
       setState(() {
         _sortOption = FileSortOption.custom;
       });
-      await _sortService.saveSortOption(widget.folderPath, FileSortOption.custom.index);
+      await _sortService.saveSortOption(
+        widget.folderPath,
+        FileSortOption.custom.index,
+      );
     }
-    
+
     setState(() {
       final item = _entities.removeAt(oldIndex);
       _entities.insert(newIndex, item);
     });
-    
+
     // 保存新顺序
-    final filenames = _entities.map((e) => e.path.split(Platform.pathSeparator).last).toList();
+    final filenames = _entities
+        .map((e) => e.path.split(Platform.pathSeparator).last)
+        .toList();
     await _sortService.saveOrder(widget.folderPath, filenames);
   }
 
@@ -192,6 +207,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   }
 
   void _showNewItemMenu() {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -206,7 +222,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.note_add, color: Colors.blue),
-              title: const Text('新建 Markdown'),
+              title: Text(l10n.newMarkdown),
               onTap: () {
                 Navigator.pop(context);
                 FileActions.showCreateFileInFolderDialog(
@@ -218,8 +234,11 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.create_new_folder, color: Colors.orange),
-              title: const Text('新建文件夹'),
+              leading: const Icon(
+                Icons.create_new_folder,
+                color: Colors.orange,
+              ),
+              title: Text(l10n.newFolder),
               onTap: () {
                 Navigator.pop(context);
                 _showCreateFolderDialog();
@@ -230,35 +249,43 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
       ),
     );
   }
-  
+
   void _showCreateFolderDialog() {
+    final l10n = AppLocalizations.of(context)!;
     // 简化的新建文件夹 Dialog，直接在当前目录
     final nameController = TextEditingController();
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('新建文件夹'),
+        title: Text(l10n.createFolder),
         content: TextField(
           controller: nameController,
           autofocus: true,
-          decoration: const InputDecoration(labelText: '文件夹名称'),
+          decoration: InputDecoration(labelText: l10n.folderName),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.cancel),
+          ),
           FilledButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
               if (nameController.text.isNotEmpty) {
                 try {
-                  final newPath = '${widget.folderPath}${Platform.pathSeparator}${nameController.text}';
+                  final newPath =
+                      '${widget.folderPath}${Platform.pathSeparator}${nameController.text}';
                   await Directory(newPath).create();
                   _loadFiles();
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: $e')));
+                  if (mounted)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${l10n.createFailed}: $e')),
+                    );
                 }
               }
-            }, 
-            child: const Text('创建'),
+            },
+            child: Text(l10n.create),
           ),
         ],
       ),
@@ -267,13 +294,14 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final folderName = widget.folderPath.split(Platform.pathSeparator).last;
 
     String displayName;
     if (widget.title != null) {
       displayName = widget.title!;
     } else if (folderName == 'Ushio-MD' || folderName == 'Ushio-md') {
-      displayName = '我的文件';
+      displayName = l10n.myFiles;
     } else {
       displayName = folderName;
     }
@@ -301,7 +329,10 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
             sortOption: _sortOption,
             onSortChanged: (option) async {
               setState(() => _sortOption = option);
-              await _sortService.saveSortOption(widget.folderPath, option.index);
+              await _sortService.saveSortOption(
+                widget.folderPath,
+                option.index,
+              );
               _sortFiles();
             },
             onBack: widget.showBackButton ? () => Navigator.pop(context) : null,
@@ -319,39 +350,39 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
     if (!widget.showBackButton) {
       // Tab mode: no own background – the parent AppBackground provides it.
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: content,
-      );
+      return Scaffold(backgroundColor: Colors.transparent, body: content);
     }
 
     // Standalone (pushed) mode: wrap with AppBackground so the screen has a
     // consistent background when opened as a subfolder navigation target.
     return AppBackground(
       wrapWithSafeArea: false,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: content,
-      ),
+      child: Scaffold(backgroundColor: Colors.transparent, body: content),
     );
   }
 
   Widget _buildContent() {
+    final l10n = AppLocalizations.of(context)!;
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (_error != null) {
-      return Center(child: Text('加载失败: $_error', style: const TextStyle(color: Colors.red)));
+      return Center(
+        child: Text(
+          '${l10n.loadFailed}: $_error',
+          style: const TextStyle(color: Colors.red),
+        ),
+      );
     }
 
     if (_entities.isEmpty) {
-      return const EmptyState(message: '此文件夹为空');
+      return EmptyState(message: l10n.folderEmpty);
     }
 
     final filtered = _filteredFiles;
     if (filtered.isEmpty) {
-      return const EmptyState(message: '没有找到匹配的文件');
+      return EmptyState(message: l10n.noMatchingFiles);
     }
 
     // 始终使用 ReorderableListView 以支持拖拽排序 (如果处于非自定义排序，拖拽后会自动切换到自定义)
@@ -385,7 +416,9 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
           return AnimatedBuilder(
             animation: animation,
             builder: (BuildContext context, Widget? child) {
-              final double animValue = Curves.easeInOut.transform(animation.value);
+              final double animValue = Curves.easeInOut.transform(
+                animation.value,
+              );
               final double scale = lerpDouble(1.0, 1.05, animValue)!;
               return Transform.scale(
                 scale: scale,

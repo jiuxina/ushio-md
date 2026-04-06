@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../models/file_sort_option.dart';
 import '../../../utils/app_style.dart';
 
@@ -43,6 +44,7 @@ class FolderBrowserHeader extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
       child: Row(
@@ -51,11 +53,17 @@ class FolderBrowserHeader extends StatelessWidget {
             IconButton(
               icon: Container(
                 padding: const EdgeInsets.all(8),
-                decoration: Theme.of(context).extension<AppStyleTheme>()!.surfaceDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  prominent: Theme.of(context).extension<AppStyleTheme>()!.useBorderlessButtons,
-                ),
+                decoration: Theme.of(context)
+                    .extension<AppStyleTheme>()!
+                    .surfaceDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      prominent: Theme.of(
+                        context,
+                      ).extension<AppStyleTheme>()!.useBorderlessButtons,
+                    ),
                 child: Icon(
                   Icons.arrow_back,
                   color: Theme.of(context).colorScheme.primary,
@@ -73,17 +81,17 @@ class FolderBrowserHeader extends StatelessWidget {
               children: [
                 Text(
                   folderName,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '$fileCount 个文件',
+                  l10n.fileCount(fileCount),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
               ],
             ),
@@ -103,17 +111,14 @@ class FolderBrowserHeader extends StatelessWidget {
           const SizedBox(width: 4),
           _buildSortButton(context),
           const SizedBox(width: 4),
-          _buildIconButton(
-            context,
-            icon: Icons.add,
-            onPressed: onNewItem,
-          ),
+          _buildIconButton(context, icon: Icons.add, onPressed: onNewItem),
         ],
       ),
     );
   }
 
   Widget _buildSearchHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
@@ -137,7 +142,9 @@ class FolderBrowserHeader extends StatelessWidget {
                 border: appStyle.useBorderlessButtons
                     ? null
                     : Border.all(
-                        color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                        color: Theme.of(
+                          context,
+                        ).dividerColor.withValues(alpha: 0.5),
                       ),
               ),
               child: Center(
@@ -145,7 +152,7 @@ class FolderBrowserHeader extends StatelessWidget {
                   controller: searchController,
                   autofocus: true,
                   decoration: InputDecoration(
-                    hintText: '搜索文件...',
+                    hintText: l10n.searchFiles,
                     border: InputBorder.none,
                     isCollapsed: true,
                     prefixIcon: Icon(
@@ -168,8 +175,9 @@ class FolderBrowserHeader extends StatelessWidget {
     );
   }
 
-  Widget _buildIconButton(BuildContext context, {
-    required IconData icon, 
+  Widget _buildIconButton(
+    BuildContext context, {
+    required IconData icon,
     required VoidCallback onPressed,
     bool isActive = false,
   }) {
@@ -196,7 +204,9 @@ class FolderBrowserHeader extends StatelessWidget {
                   : Border.all(
                       color: isActive
                           ? colorScheme.primary
-                          : Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                          : Theme.of(
+                              context,
+                            ).dividerColor.withValues(alpha: 0.5),
                     ),
             ),
             child: Icon(
@@ -238,6 +248,7 @@ class FolderBrowserHeader extends StatelessWidget {
   }
 
   void _showSortMenu(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -255,33 +266,70 @@ class FolderBrowserHeader extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                '排序方式',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                l10n.sortBy,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-              _buildSortOption(context, FileSortOption.custom, '自定义排序', Icons.drag_indicator),
+              _buildSortOption(
+                context,
+                FileSortOption.custom,
+                l10n.customSort,
+                Icons.drag_indicator,
+              ),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 8),
-              _buildSortOption(context, FileSortOption.nameAsc, '名称 A-Z', Icons.sort_by_alpha),
+              _buildSortOption(
+                context,
+                FileSortOption.nameAsc,
+                l10n.nameAZ,
+                Icons.sort_by_alpha,
+              ),
               const SizedBox(height: 8),
-              _buildSortOption(context, FileSortOption.nameDesc, '名称 Z-A', Icons.sort_by_alpha),
+              _buildSortOption(
+                context,
+                FileSortOption.nameDesc,
+                l10n.nameZA,
+                Icons.sort_by_alpha,
+              ),
               const SizedBox(height: 16),
-              _buildSortOption(context, FileSortOption.dateDesc, '最近修改', Icons.access_time),
+              _buildSortOption(
+                context,
+                FileSortOption.dateDesc,
+                l10n.recentModified,
+                Icons.access_time,
+              ),
               const SizedBox(height: 8),
-              _buildSortOption(context, FileSortOption.dateAsc, '最早修改', Icons.history),
+              _buildSortOption(
+                context,
+                FileSortOption.dateAsc,
+                l10n.oldestModified,
+                Icons.history,
+              ),
               const SizedBox(height: 16),
-              _buildSortOption(context, FileSortOption.sizeDesc, '最大优先', Icons.expand),
+              _buildSortOption(
+                context,
+                FileSortOption.sizeDesc,
+                l10n.largestFirst,
+                Icons.expand,
+              ),
               const SizedBox(height: 8),
-              _buildSortOption(context, FileSortOption.sizeAsc, '最小优先', Icons.compress),
+              _buildSortOption(
+                context,
+                FileSortOption.sizeAsc,
+                l10n.smallestFirst,
+                Icons.compress,
+              ),
               const SizedBox(height: 16),
             ],
           ),
@@ -290,10 +338,17 @@ class FolderBrowserHeader extends StatelessWidget {
     );
   }
 
-  Widget _buildSortOption(BuildContext context, FileSortOption option, String label, IconData icon) {
+  Widget _buildSortOption(
+    BuildContext context,
+    FileSortOption option,
+    String label,
+    IconData icon,
+  ) {
     final isSelected = sortOption == option;
-    final color = isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
-    
+    final color = isSelected
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.onSurface;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -305,7 +360,7 @@ class FolderBrowserHeader extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected 
+            color: isSelected
                 ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
@@ -319,12 +374,13 @@ class FolderBrowserHeader extends StatelessWidget {
                   label,
                   style: TextStyle(
                     color: color,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ),
-              if (isSelected)
-                Icon(Icons.check, color: color, size: 20),
+              if (isSelected) Icon(Icons.check, color: color, size: 20),
             ],
           ),
         ),

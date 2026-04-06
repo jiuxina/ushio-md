@@ -1,6 +1,6 @@
 // ============================================================================
 // 历史记录标签页
-// 
+//
 // 合并最近文件和最近文件夹到一个标签页，
 // 右上角提供切换按钮在文件/文件夹视图之间切换。
 // 支持搜索、排序、拖拽排序等功能。
@@ -8,6 +8,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../providers/file_provider.dart';
 import '../../../widgets/empty_state.dart';
 import '../../../utils/app_style.dart';
@@ -44,6 +45,7 @@ class _HistoryTabState extends State<HistoryTab> {
   }
 
   Widget _buildHeader() {
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       child: Row(
@@ -51,7 +53,9 @@ class _HistoryTabState extends State<HistoryTab> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -62,16 +66,16 @@ class _HistoryTabState extends State<HistoryTab> {
           ),
           const SizedBox(width: 12),
           Text(
-            '历史',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            l10n.historyTab,
+            style: Theme.of(
+              context,
+            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const Spacer(),
           // 清空历史按钮
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: '清空历史',
+            tooltip: l10n.clearHistory,
             style: IconButton.styleFrom(
               backgroundColor: Colors.transparent,
               surfaceTintColor: Colors.transparent,
@@ -84,18 +88,22 @@ class _HistoryTabState extends State<HistoryTab> {
       ),
     );
   }
-  
 
   void _showClearHistoryDialog() {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清空历史记录'),
-        content: Text('确定要清空所有最近${_viewMode == HistoryViewMode.files ? '文件' : '文件夹'}记录吗？'),
+        title: Text(l10n.clearHistoryConfirm),
+        content: Text(
+          l10n.clearHistoryConfirmMessage(
+            _viewMode == HistoryViewMode.files ? l10n.file : l10n.folder,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -106,7 +114,7 @@ class _HistoryTabState extends State<HistoryTab> {
                 widget.fileProvider.clearRecentFolders();
               }
             },
-            child: const Text('清空', style: TextStyle(color: Colors.red)),
+            child: Text(l10n.clear, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -114,6 +122,7 @@ class _HistoryTabState extends State<HistoryTab> {
   }
 
   Widget _buildToggleButton() {
+    final l10n = AppLocalizations.of(context)!;
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       decoration: appStyle.surfaceDecoration(
@@ -133,7 +142,7 @@ class _HistoryTabState extends State<HistoryTab> {
         children: [
           _buildToggleItem(
             icon: Icons.description,
-            label: '文件',
+            label: l10n.file,
             isSelected: _viewMode == HistoryViewMode.files,
             onTap: () => setState(() {
               _viewMode = HistoryViewMode.files;
@@ -141,7 +150,7 @@ class _HistoryTabState extends State<HistoryTab> {
           ),
           _buildToggleItem(
             icon: Icons.folder,
-            label: '文件夹',
+            label: l10n.folder,
             isSelected: _viewMode == HistoryViewMode.folders,
             onTap: () => setState(() {
               _viewMode = HistoryViewMode.folders;
@@ -203,7 +212,7 @@ class _HistoryTabState extends State<HistoryTab> {
       return _buildFoldersView();
     }
   }
-  
+
   List<String> _processList(List<String> items) {
     // 默认按时间倒序 (Provider 中通常已经是倒序，但为了保险起见可以再次排序)
     // 这里简单返回，因为 RecentFiles 一般就是按时间存的
@@ -211,12 +220,13 @@ class _HistoryTabState extends State<HistoryTab> {
   }
 
   Widget _buildFilesView() {
+    final l10n = AppLocalizations.of(context)!;
     final recentFiles = widget.fileProvider.recentFiles;
     final processedFiles = _processList(recentFiles);
 
     if (processedFiles.isEmpty) {
-      return const EmptyState(
-        message: '没有最近打开的文件',
+      return EmptyState(
+        message: l10n.noRecentFiles,
         icon: Icons.description_outlined,
       );
     }
@@ -237,14 +247,12 @@ class _HistoryTabState extends State<HistoryTab> {
   }
 
   Widget _buildFoldersView() {
+    final l10n = AppLocalizations.of(context)!;
     final recentFolders = widget.fileProvider.recentFolders;
     final processedFolders = _processList(recentFolders);
 
     if (processedFolders.isEmpty) {
-      return const EmptyState(
-        message: '没有最近文件夹',
-        icon: Icons.folder_open,
-      );
+      return EmptyState(message: l10n.noRecentFolders, icon: Icons.folder_open);
     }
 
     return ListView.builder(

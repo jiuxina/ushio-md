@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/file_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/my_files_service.dart';
@@ -45,13 +46,14 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AppBackground(
       wrapWithSafeArea: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          title: const Text('存储设置'),
+          title: Text(l10n.storageSettings),
           centerTitle: true,
         ),
         body: Consumer<FileProvider>(
@@ -59,15 +61,16 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _buildSection('我的文件', Icons.folder_special, [
-                  _buildWorkspaceInfo(),
+                _buildSection(l10n.myFiles, Icons.folder_special, [
+                  _buildWorkspaceInfo(l10n),
                   const SizedBox(height: 12),
                   Consumer<SettingsProvider>(
                     builder: (context, settings, _) {
                       return ListTile(
-                        title: const Text('新建文件默认位置'),
+                        title: Text(l10n.newFileDefaultLocation),
                         subtitle: Text(
-                          settings.defaultDirectory ?? '未设置 (默认使用当前或最近位置)',
+                          settings.defaultDirectory ??
+                              l10n.notSetUseCurrentOrRecent,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -78,26 +81,26 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                               settings.setDefaultDirectory(path);
                             }
                           },
-                          child: const Text('更改'),
+                          child: Text(l10n.change),
                         ),
                         onLongPress: () {
                           // 长按清除
                           settings.setDefaultDirectory(null);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('已重置默认位置')),
+                            SnackBar(content: Text(l10n.defaultLocationReset)),
                           );
                         },
                       );
-                    }
+                    },
                   ),
                 ]),
-                
+
                 const SizedBox(height: 16),
-                
-                _buildSection('清理', Icons.cleaning_services, [
-                  _buildClearRecentFilesButton(fileProvider),
+
+                _buildSection(l10n.cleanup, Icons.cleaning_services, [
+                  _buildClearRecentFilesButton(fileProvider, l10n),
                   const SizedBox(height: 12),
-                  _buildClearRecentFoldersButton(fileProvider),
+                  _buildClearRecentFoldersButton(fileProvider, l10n),
                 ]),
               ],
             );
@@ -128,13 +131,17 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -145,7 +152,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     );
   }
 
-  Widget _buildWorkspaceInfo() {
+  Widget _buildWorkspaceInfo(AppLocalizations l10n) {
     final settings = context.watch<SettingsProvider>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,15 +173,15 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${settings.workspaceName} 工作区',
+                    '${settings.workspaceName} ${l10n.workspace}',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _workspacePath.isEmpty ? '加载中...' : _workspacePath,
+                    _workspacePath.isEmpty ? l10n.loading : _workspacePath,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -187,20 +194,20 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         // 工作区文件夹名称设置
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('工作区文件夹名称'),
+          title: Text(l10n.workspaceFolderName),
           subtitle: Text(settings.workspaceName),
           trailing: TextButton(
-            onPressed: () => _showEditWorkspaceNameDialog(settings),
-            child: const Text('更改'),
+            onPressed: () => _showEditWorkspaceNameDialog(settings, l10n),
+            child: Text(l10n.change),
           ),
         ),
         const SizedBox(height: 12),
         // 基础路径自定义设置
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('自定义基础路径（高级）'),
+          title: Text(l10n.customBasePathAdvanced),
           subtitle: Text(
-            settings.customWorkspaceBasePath ?? '使用默认路径',
+            settings.customWorkspaceBasePath ?? l10n.useDefaultPath,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -209,12 +216,12 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             children: [
               if (settings.customWorkspaceBasePath != null)
                 TextButton(
-                  onPressed: () => _clearCustomBasePath(settings),
-                  child: const Text('重置'),
+                  onPressed: () => _clearCustomBasePath(settings, l10n),
+                  child: Text(l10n.reset),
                 ),
               TextButton(
-                onPressed: () => _showEditBasePathDialog(settings),
-                child: const Text('更改'),
+                onPressed: () => _showEditBasePathDialog(settings, l10n),
+                child: Text(l10n.change),
               ),
             ],
           ),
@@ -232,11 +239,8 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '工作区文件会自动同步到云端',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.blue.shade700,
-                  ),
+                  l10n.workspaceFilesSyncToCloud,
+                  style: TextStyle(fontSize: 13, color: Colors.blue.shade700),
                 ),
               ),
             ],
@@ -246,7 +250,10 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     );
   }
 
-  Widget _buildClearRecentFilesButton(FileProvider fileProvider) {
+  Widget _buildClearRecentFilesButton(
+    FileProvider fileProvider,
+    AppLocalizations l10n,
+  ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Container(
@@ -257,23 +264,27 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         ),
         child: const Icon(Icons.history, color: Colors.red),
       ),
-      title: const Text('清除最近文件'),
-      subtitle: Text('${fileProvider.recentFiles.length} 个文件'),
+      title: Text(l10n.clearRecentFiles),
+      subtitle: Text(l10n.filesCount(fileProvider.recentFiles.length)),
       trailing: TextButton(
         onPressed: fileProvider.recentFiles.isEmpty
             ? null
             : () => _showClearConfirmDialog(
-                  context,
-                  '清除最近文件',
-                  '确定要清除所有最近访问的文件记录吗？',
-                  () => fileProvider.clearRecentFiles(),
-                ),
-        child: const Text('清除'),
+                context,
+                l10n.clearRecentFiles,
+                l10n.confirmClearRecentFiles,
+                () => fileProvider.clearRecentFiles(),
+                l10n,
+              ),
+        child: Text(l10n.clear),
       ),
     );
   }
 
-  Widget _buildClearRecentFoldersButton(FileProvider fileProvider) {
+  Widget _buildClearRecentFoldersButton(
+    FileProvider fileProvider,
+    AppLocalizations l10n,
+  ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Container(
@@ -284,18 +295,19 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         ),
         child: const Icon(Icons.folder_open, color: Colors.orange),
       ),
-      title: const Text('清除最近文件夹'),
-      subtitle: Text('${fileProvider.recentFolders.length} 个文件夹'),
+      title: Text(l10n.clearRecentFolders),
+      subtitle: Text(l10n.foldersCount(fileProvider.recentFolders.length)),
       trailing: TextButton(
         onPressed: fileProvider.recentFolders.isEmpty
             ? null
             : () => _showClearConfirmDialog(
-                  context,
-                  '清除最近文件夹',
-                  '确定要清除所有最近访问的文件夹记录吗？',
-                  () => fileProvider.clearRecentFolders(),
-                ),
-        child: const Text('清除'),
+                context,
+                l10n.clearRecentFolders,
+                l10n.confirmClearRecentFolders,
+                () => fileProvider.clearRecentFolders(),
+                l10n,
+              ),
+        child: Text(l10n.clear),
       ),
     );
   }
@@ -305,6 +317,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     String title,
     String message,
     VoidCallback onConfirm,
+    AppLocalizations l10n,
   ) {
     showDialog(
       context: context,
@@ -328,7 +341,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -341,22 +354,27 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                     children: [
                       const Icon(Icons.check, color: Colors.green),
                       const SizedBox(width: 12),
-                      const Text('已清除'),
+                      Text(l10n.cleared),
                     ],
                   ),
                   behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               );
             },
-            child: const Text('确定'),
+            child: Text(l10n.confirm),
           ),
         ],
       ),
     );
   }
 
-  void _showEditWorkspaceNameDialog(SettingsProvider settings) {
+  void _showEditWorkspaceNameDialog(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     final controller = TextEditingController(text: settings.workspaceName);
     showDialog(
       context: context,
@@ -367,7 +385,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -376,14 +396,14 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            const Text('更改工作区名称'),
+            Text(l10n.changeWorkspaceName),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('输入新的工作区文件夹名称：'),
+            Text(l10n.inputWorkspaceFolderName),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
@@ -404,11 +424,15 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, color: Colors.orange, size: 18),
+                  const Icon(
+                    Icons.info_outline,
+                    color: Colors.orange,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '注意：更改名称后需要重新配置云同步',
+                      l10n.warningChangeNameRequiresCloudSync,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.orange.shade700,
@@ -423,20 +447,20 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () async {
               final newName = controller.text.trim();
               if (newName.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('名称不能为空')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(l10n.nameCannotBeEmpty)));
                 return;
               }
               if (newName.contains('/') || newName.contains('\\')) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('名称不能包含斜杠')),
+                  SnackBar(content: Text(l10n.nameCannotContainSlash)),
                 );
                 return;
               }
@@ -451,23 +475,28 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                       children: [
                         const Icon(Icons.check, color: Colors.green),
                         const SizedBox(width: 12),
-                        Text('工作区名称已更新为 $newName'),
+                        Text(l10n.workspaceNameUpdated(newName)),
                       ],
                     ),
                     behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 );
               }
             },
-            child: const Text('确定'),
+            child: Text(l10n.confirm),
           ),
         ],
       ),
     );
   }
 
-  void _showEditBasePathDialog(SettingsProvider settings) async {
+  void _showEditBasePathDialog(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) async {
     // 获取默认路径用于显示
     final externalDir = await getExternalStorageDirectory();
     final defaultPath = externalDir?.path ?? '/storage/emulated/0/Documents';
@@ -487,7 +516,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -496,14 +527,14 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            const Expanded(child: Text('自定义基础路径')),
+            Text(l10n.customBasePath),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('输入自定义的基础路径：'),
+            Text(l10n.inputCustomBasePath),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
@@ -528,7 +559,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '默认路径：$defaultPath',
+                      l10n.defaultPath(defaultPath),
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.blue.shade700,
@@ -547,11 +578,15 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_outlined, color: Colors.orange, size: 18),
+                  const Icon(
+                    Icons.warning_outlined,
+                    color: Colors.orange,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '警告：更改基础路径将影响工作区位置，请确保路径存在且可访问',
+                      l10n.warningChangeBasePathAffectsWorkspace,
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.orange.shade700,
@@ -566,7 +601,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () async {
@@ -585,23 +620,32 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                       children: [
                         const Icon(Icons.check, color: Colors.green),
                         const SizedBox(width: 12),
-                        Text(newPath.isEmpty ? '已重置为默认路径' : '基础路径已更新'),
+                        Text(
+                          newPath.isEmpty
+                              ? l10n.resetToDefaultPath
+                              : l10n.basePathUpdated,
+                        ),
                       ],
                     ),
                     behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 );
               }
             },
-            child: const Text('确定'),
+            child: Text(l10n.confirm),
           ),
         ],
       ),
     );
   }
 
-  void _clearCustomBasePath(SettingsProvider settings) async {
+  void _clearCustomBasePath(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) async {
     await settings.setCustomWorkspaceBasePath(null);
     // 清除缓存并重新加载路径
     _myFilesService.setSettingsProvider(settings);
@@ -609,15 +653,17 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.check, color: Colors.green),
-              SizedBox(width: 12),
-              Text('已重置为默认路径'),
+              const Icon(Icons.check, color: Colors.green),
+              const SizedBox(width: 12),
+              Text(l10n.resetToDefaultPath),
             ],
           ),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
