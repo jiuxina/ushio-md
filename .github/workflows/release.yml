@@ -1,0 +1,114 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/milkdown/package-lock.json
+
+      - name: Build Milkdown web bundle
+        working-directory: web/milkdown
+        run: |
+          npm ci
+          npm run build
+
+      - name: Sync Milkdown runtime artifact
+        run: cp web/milkdown/dist/index.html assets/milkdown_web/index.html
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter clean
+        run: flutter clean
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build release APKs (split per ABI)
+        run: flutter build apk --release --split-per-abi
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -z "$PREV_TAG" ]; then
+            # First release, get all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
+          else
+            # Get commits since last tag
+            COMMITS=$(git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --reverse)
+          fi
+          
+          # Save changelog to file for multiline output
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 汐 v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## 🎉 汐 (Ushio) v${{ steps.get_version.outputs.VERSION }}
+            
+            ### 📝 更新内容
+            
+            ${{ steps.changelog.outputs.CHANGELOG }}
+            
+            ### 📦 下载说明
+            
+            请根据您的设备架构选择对应的 APK 文件：
+            - `app-armeabi-v7a-release.apk` - 适用于大多数 32 位设备
+            - `app-arm64-v8a-release.apk` - 适用于 64 位设备（推荐）
+            - `app-x86_64-release.apk` - 适用于 x86 模拟器
+            
+            ### 💡 安装提示
+            
+            1. 下载对应架构的 APK 文件
+            2. 允许安装未知来源应用
+            3. 安装并授予文件访问权限
+            
+            ---
+            
+            [完整更新日志](https://github.com/jiuxina/ushio-md/blob/main/CHANGELOG.md)
+          files: build/app/outputs/flutter-apk/*.apk
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
