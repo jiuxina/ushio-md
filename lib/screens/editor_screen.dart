@@ -10,6 +10,7 @@ import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../utils/app_style.dart';
+import '../widgets/custom_title_bar.dart';
 import '../widgets/markdown_toolbar.dart';
 import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/particle_effect_widget.dart';
@@ -1108,6 +1109,11 @@ class _EditorScreenState extends State<EditorScreen>
   Widget build(BuildContext context) {
     final shouldInterceptForMilkdownBlur =
         _mode == EditorMode.preview && _isMilkdownEditorFocused;
+
+    // 桌面端使用自定义标题栏
+    final useCustomTitleBar =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
     return PopScope(
       canPop: !_isModified && !shouldInterceptForMilkdownBlur,
       onPopInvokedWithResult: (didPop, result) async {
@@ -1131,23 +1137,34 @@ class _EditorScreenState extends State<EditorScreen>
       },
       child: Scaffold(
         resizeToAvoidBottomInset: false,
-        body: CallbackShortcuts(
-          bindings: _buildShortcutBindings(),
-          child: Stack(
-            children: [
-              _buildBody(),
-              if (_showToc)
-                TocOverlay(
-                  items: _tocItems,
-                  onClose: () => setState(() => _showToc = false),
-                  onJumpToHeading: _jumpToHeading,
-                  controller: _tocOverlayController,
+        body: Column(
+          children: [
+            // 自定义标题栏（仅桌面端）
+            if (useCustomTitleBar)
+              CustomTitleBar(fileName: fileName, isEditorMode: true),
+            // 主内容
+            Expanded(
+              child: CallbackShortcuts(
+                bindings: _buildShortcutBindings(),
+                child: Stack(
+                  children: [
+                    _buildBody(),
+                    if (_showToc)
+                      TocOverlay(
+                        items: _tocItems,
+                        onClose: () => setState(() => _showToc = false),
+                        onJumpToHeading: _jumpToHeading,
+                        controller: _tocOverlayController,
+                      ),
+                    // Floating buttons – positioned relative to the full screen so
+                    // they stay fixed even when the keyboard is shown.
+                    if (!_isLoading && _error == null)
+                      _buildFixedFloatingButtons(),
+                  ],
                 ),
-              // Floating buttons – positioned relative to the full screen so
-              // they stay fixed even when the keyboard is shown.
-              if (!_isLoading && _error == null) _buildFixedFloatingButtons(),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );

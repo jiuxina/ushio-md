@@ -2,6 +2,7 @@
 
 #include <dwmapi.h>
 #include <flutter_windows.h>
+#include <windowsx.h>  // For GET_X_LPARAM and GET_Y_LPARAM
 
 #include "resource.h"
 
@@ -134,8 +135,19 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  // Create a frameless window for custom title bar
+  // WS_POPUP: Base window style without borders
+  // WS_THICKFRAME: Allow resizing
+  // WS_MINIMIZEBOX | WS_MAXIMIZEBOX: Enable min/max buttons
+  // WS_CAPTION: Allow system menu and window dragging
+  // WS_SYSMENU: System menu (for taskbar context menu)
+  // WS_CLIPCHILDREN | WS_CLIPSIBLINGS: Proper rendering
+  constexpr DWORD kWindowStyle = WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | 
+                                  WS_MAXIMIZEBOX | WS_SYSMENU | WS_CAPTION |
+                                  WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      window_class, title.c_str(), kWindowStyle,
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
@@ -216,6 +228,60 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
       return 0;
+
+    // Handle WM_NCCALCSIZE to remove the default window frame
+    // but keep the resize borders and shadow
+    case WM_NCCALCSIZE:
+      if (wparam == TRUE) {
+        // Remove the standard window frame by adjusting the client area
+        NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+        
+        // Get window style
+        LONG style = GetWindowLong(hwnd, GWL_STYLE);
+        
+        // Only adjust if window is not maximized
+        if (!(style & WS_MAXIMIZE)) {
+          // Keep a small border for resizing (shadow area)
+          // This creates a frameless window with resize capability
+          // The Flutter side will handle the title bar and window controls
+        }
+        return 0;
+      }
+      break;
+
+    // Handle WM_NCHITTEST for resize areas
+    case WM_NCHITTEST: {
+      LRESULT hit = DefWindowProc(hwnd, message, wparam, lparam);
+      
+      // Get window rect and cursor position
+      RECT window_rect;
+      GetWindowRect(hwnd, &window_rect);
+      POINT cursor_pos = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+      
+      // Define border thickness for resize areas (in pixels)
+      const int border_thickness = 5;
+      
+      // Check if cursor is in resize border areas
+      bool on_left = cursor_pos.x >= window_rect.left && 
+                     cursor_pos.x < window_rect.left + border_thickness;
+      bool on_right = cursor_pos.x > window_rect.right - border_thickness && 
+                      cursor_pos.x <= window_rect.right;
+      bool on_top = cursor_pos.y >= window_rect.top && 
+                    cursor_pos.y < window_rect.top + border_thickness;
+      bool on_bottom = cursor_pos.y > window_rect.bottom - border_thickness && 
+                       cursor_pos.y <= window_rect.bottom;
+      
+      if (on_top && on_left) return HTTOPLEFT;
+      if (on_top && on_right) return HTTOPRIGHT;
+      if (on_bottom && on_left) return HTBOTTOMLEFT;
+      if (on_bottom && on_right) return HTBOTTOMRIGHT;
+      if (on_left) return HTLEFT;
+      if (on_right) return HTRIGHT;
+      if (on_top) return HTTOP;
+      if (on_bottom) return HTBOTTOM;
+      
+      return hit;
+    }
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);

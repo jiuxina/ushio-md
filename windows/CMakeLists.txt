@@ -4,7 +4,9 @@ project(mdreader LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "mdreader")
+# Note: CMake doesn't support non-ASCII characters in target names,
+# so we use "Ushio" internally but display "汐" in the app.
+set(BINARY_NAME "Ushio")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

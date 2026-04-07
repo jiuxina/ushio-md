@@ -19,9 +19,12 @@
 // @version 1.3.0
 // ============================================================================
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'l10n/app_localizations.dart';
 import 'providers/file_provider.dart';
@@ -43,6 +46,26 @@ import 'widgets/global_particle_overlay.dart';
 void main() async {
   // 确保 Flutter 引擎初始化完成（异步操作前必须调用）
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 初始化窗口管理器（仅桌面端）
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+
+    const windowOptions = WindowOptions(
+      size: Size(1280, 720),
+      minimumSize: Size(800, 600),
+      center: true,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.normal, // We'll use custom title bar
+      title: '汐',
+    );
+
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
 
   // 初始化"我的文件"工作区（创建 Ushio-MD 目录）
   final myFilesService = MyFilesService();

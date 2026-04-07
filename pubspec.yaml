@@ -1,5 +1,5 @@
 name: mdreader
-description: "A new Flutter project."
+description: "汐 - 专注写作体验的 Markdown 编辑器"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -84,6 +84,9 @@ dependencies:
   screenshot: ^3.0.0
   package_info_plus: ^9.0.0
   mime: ^2.0.0
+  
+  # Window management for desktop
+  window_manager: ^0.4.3
 
 dev_dependencies:
   flutter_test:

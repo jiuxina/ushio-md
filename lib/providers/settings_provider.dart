@@ -18,6 +18,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../utils/app_style.dart';
+import '../utils/platform_adapter.dart';
 
 /// 设置状态提供者
 ///
@@ -79,8 +80,8 @@ class SettingsProvider extends ChangeNotifier {
   /// 工作区文件夹名称
   String _workspaceName = 'Ushio-md';
 
-  /// 自定义工作区基础路径（可选，为null时使用默认的getExternalStorageDirectory）
-  String? _customWorkspaceBasePath = '/storage/emulated/0/Documents';
+  /// 自定义工作区基础路径（可选，为null时使用平台默认路径）
+  String? _customWorkspaceBasePath;
 
   // ==================== 背景设置 ====================
 
@@ -367,9 +368,16 @@ class SettingsProvider extends ChangeNotifier {
     _debugEnabled = prefs.getBool('debug_enabled') ?? false;
     _defaultDirectory = prefs.getString('default_directory');
     _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
-    _customWorkspaceBasePath =
-        prefs.getString('custom_workspace_base_path') ??
-        '/storage/emulated/0/Documents';
+
+    // 自定义工作区基础路径 - 如果未设置，使用平台默认路径
+    final savedCustomPath = prefs.getString('custom_workspace_base_path');
+    if (savedCustomPath != null && savedCustomPath.isNotEmpty) {
+      _customWorkspaceBasePath = savedCustomPath;
+    } else {
+      // 使用平台默认路径
+      _customWorkspaceBasePath =
+          await PlatformAdapter.getDefaultWorkspaceBasePath();
+    }
 
     // 背景设置
     _backgroundImagePath = prefs.getString('background_image_path');

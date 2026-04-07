@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.mdreader" "\0"
-            VALUE "FileDescription", "mdreader" "\0"
+            VALUE "CompanyName", "汐 Markdown Editor" "\0"
+            VALUE "FileDescription", "汐 - Markdown 编辑器" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "mdreader" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.mdreader. All rights reserved." "\0"
-            VALUE "OriginalFilename", "mdreader.exe" "\0"
-            VALUE "ProductName", "mdreader" "\0"
+            VALUE "InternalName", "汐" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 汐 Markdown Editor. All rights reserved." "\0"
+            VALUE "OriginalFilename", "汐.exe" "\0"
+            VALUE "ProductName", "汐" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

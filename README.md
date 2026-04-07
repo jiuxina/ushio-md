@@ -1,10 +1,10 @@
-# 汐 - Android Markdown Editor
+# 汐 - Markdown Editor
 
 <p align="center">
   <img src="app.png" width="180" alt="汐 Logo">
 </p>
 <p align="center">
-  <b>专注写作体验的安卓 Markdown 编辑器</b><br>
+  <b>专注写作体验的 Markdown 编辑器</b><br>
   即点即改 · 目录导航 · 本地文件管理 · 同步与导出
 </p>
 
@@ -20,6 +20,9 @@
   </a>
   <a href="https://www.android.com">
     <img src="https://img.shields.io/badge/platform-Android-brightgreen" alt="Platform Android">
+  </a>
+  <a href="https://www.microsoft.com/windows">
+    <img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform Windows">
   </a>
 </p>
 
@@ -42,6 +45,7 @@
 - 编辑体验持续优化：目录跳转、搜索高亮、长文滚动与代码块交互更稳定。
 - 基于最新渲染编辑链路，公式、表格、代码块等复杂内容显示与编辑一致性更好。
 - 支持本地工作区管理、外部文件导入、PDF/图片/ZIP 导出和云端同步。
+- **跨平台支持**：Android 和 Windows 双平台原生应用。
 
 ## 核心功能
 
@@ -89,9 +93,36 @@
 
 ## 安装
 
+### Android
+
 1. 前往 [Releases](https://github.com/jiuxina/ushio-md/releases) 下载最新 APK。
 2. 安装后按提示授予文件访问权限。
 3. 首次启动建议先在设置中确认工作区路径。
+
+### Windows
+
+1. 前往 [Releases](https://github.com/jiuxina/ushio-md/releases) 下载最新 Windows 版本。
+2. 解压 ZIP 文件到任意目录。
+3. 运行 `mdreader.exe` 启动应用。
+4. 首次启动建议先在设置中确认工作区路径。
+
+**系统要求:**
+- Windows 10/11 (64-bit)
+- WebView2 运行时 (Windows 11 默认包含)
+
+**开发者构建:**
+```batch
+# 一键构建所有平台
+build_all_release.bat
+
+# 仅构建 Windows
+build_windows_release.bat
+
+# 仅构建 Android
+build_abi_release.bat
+```
+
+详细构建说明请参考 [构建脚本文档](docs/BUILD_SCRIPTS.md)。
 
 ## 快速上手
 

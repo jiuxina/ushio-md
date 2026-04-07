@@ -10,6 +10,7 @@ import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../widgets/app_background.dart';
+import '../widgets/custom_title_bar.dart';
 import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/themed_feedback.dart';
 import 'main/tabs/home_tab.dart';
@@ -202,11 +203,23 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           return PermissionScreen(fileProvider: fileProvider);
         }
 
+        // 桌面端使用自定义标题栏
+        final useCustomTitleBar =
+            Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
         return AppBackground(
           wrapWithSafeArea: false,
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            body: _buildBody(fileProvider),
+            body: Column(
+              children: [
+                // 自定义标题栏（仅桌面端）
+                if (useCustomTitleBar)
+                  const CustomTitleBar(isEditorMode: false),
+                // 主内容
+                Expanded(child: _buildBody(fileProvider)),
+              ],
+            ),
             bottomNavigationBar: _buildBottomNav(l10n),
             drawer: _buildDrawer(l10n),
           ),
