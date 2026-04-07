@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/file_provider.dart';
-import '../providers/settings_provider.dart';
 import '../models/file_sort_option.dart';
 import '../services/folder_sort_service.dart';
 import '../utils/file_actions.dart';

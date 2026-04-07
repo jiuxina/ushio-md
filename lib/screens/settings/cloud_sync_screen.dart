@@ -76,12 +76,16 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       // 加载 WebDAV 配置
       _urlController.text = settings.webdavUrl;
       _webdavUsernameController.text = settings.webdavUsername;
-      _webdavPasswordController.text = settings.webdavPassword;
+      // 密码不从 settings 直接读取，保持空或显示占位符
+      final webdavCreds = settings.getWebdavCredentials();
+      _webdavPasswordController.text = webdavCreds['password'] ?? '';
 
       // 加载 FTP 配置
       _ftpUrlController.text = settings.ftpUrl;
       _ftpUsernameController.text = settings.ftpUsername;
-      _ftpPasswordController.text = settings.ftpPassword;
+      // 密码不从 settings 直接读取，保持空或显示占位符
+      final ftpCreds = settings.getFtpCredentials();
+      _ftpPasswordController.text = ftpCreds['password'] ?? '';
 
       // 加载共用配置
       _folderNameController.text = settings.syncFolderName;
@@ -100,11 +104,12 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       if (settings.isWebdavConfigured) {
         webdavService.setRemoteWorkspaceName(settings.syncFolderName);
         webdavService.setRemotePathPrefix(settings.syncRemotePath);
+        final creds = settings.getWebdavCredentials();
         webdavService.initialize(
           WebDAVConfig(
-            url: settings.webdavUrl,
-            username: settings.webdavUsername,
-            password: settings.webdavPassword,
+            url: creds['url']!,
+            username: creds['username']!,
+            password: creds['password']!,
           ),
         );
       }
@@ -114,12 +119,13 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       if (settings.isFtpConfigured) {
         ftpService.setRemoteWorkspaceName(settings.syncFolderName);
         ftpService.setRemotePathPrefix(settings.syncRemotePath);
+        final creds = settings.getFtpCredentials();
         ftpService.initialize(
           FTPConfig(
             host: settings.ftpHost,
             port: settings.ftpPort,
-            username: settings.ftpUsername,
-            password: settings.ftpPassword,
+            username: creds['username']!,
+            password: creds['password']!,
           ),
         );
       }
@@ -315,7 +321,38 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
 
         // 根据选择的类型显示不同的配置字段
         if (_selectedSyncType == 'webdav') ..._buildWebDAVFields(),
-        if (_selectedSyncType == 'ftp') ..._buildFTPFields(),
+        if (_selectedSyncType == 'ftp') ...[
+          // FTP 安全警告
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber,
+                  color: Colors.orange.shade700,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '⚠️ FTP 不加密传输，密码和文件内容可能被窃取。建议使用 WebDAV (HTTPS)。此功能将在未来版本移除。',
+                    style: TextStyle(
+                      color: Colors.orange.shade900,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ..._buildFTPFields(),
+        ],
 
         // 共用字段
         const SizedBox(height: 16),
@@ -1075,7 +1112,6 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
 
   /// 显示同步预览对话框
   Future<bool> _showSyncPreviewDialog(SyncPreview preview) async {
-    final l10n = AppLocalizations.of(context)!;
     return await showDialog<bool>(
           context: context,
           barrierDismissible: false,

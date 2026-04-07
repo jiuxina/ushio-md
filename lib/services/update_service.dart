@@ -1,7 +1,7 @@
 // ============================================================================
 // 更新检查服务
 // ============================================================================
-// 
+//
 // 通过 GitHub API 检查应用是否有新版本。
 // 仓库地址：https://github.com/jiuxina/ushio-md
 // ============================================================================
@@ -12,15 +12,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import '../utils/constants.dart';
 
 /// 安装器抽象
 class AppInstaller {
   static const platform = MethodChannel('com.ushiomd/install');
-  
+
   Future<bool?> install(String filePath) async {
     try {
-      final result = await platform.invokeMethod<bool>('installApk', {'filePath': filePath});
+      final result = await platform.invokeMethod<bool>('installApk', {
+        'filePath': filePath,
+      });
       return result;
     } catch (e) {
       debugPrint('Install error: $e');
@@ -36,7 +37,7 @@ class UpdateInfo {
   final String downloadUrl;
   final String changelog;
   final bool hasUpdate;
-  
+
   UpdateInfo({
     required this.latestVersion,
     required this.currentVersion,
@@ -49,27 +50,31 @@ class UpdateInfo {
 /// 更新检查服务
 class UpdateService {
   /// GitHub API 地址
-  static const String _apiUrl = 'https://api.github.com/repos/jiuxina/ushio-md/releases/latest';
-  
+  static const String _apiUrl =
+      'https://api.github.com/repos/jiuxina/ushio-md/releases/latest';
+
   /// 检查更新
-  /// 
+  ///
   /// [currentVersion] 当前应用版本号
   /// 返回 UpdateInfo 或 null（检查失败时）
   static Future<UpdateInfo?> checkForUpdate(String currentVersion) async {
     try {
-      final response = await http.get(
-        Uri.parse(_apiUrl),
-        headers: {
-          'Accept': 'application/vnd.github.v3+json',
-        },
-      ).timeout(const Duration(seconds: 10));
-      
+      final response = await http
+          .get(
+            Uri.parse(_apiUrl),
+            headers: {'Accept': 'application/vnd.github.v3+json'},
+          )
+          .timeout(const Duration(seconds: 10));
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // 获取最新版本号（去掉 v 前缀）
-        final latestVersion = (data['tag_name'] as String).replaceFirst('v', '');
-        
+        final latestVersion = (data['tag_name'] as String).replaceFirst(
+          'v',
+          '',
+        );
+
         // 获取下载链接（查找 APK 文件）
         String downloadUrl = data['html_url'] ?? '';
         final assets = data['assets'] as List<dynamic>?;
@@ -93,13 +98,13 @@ class UpdateService {
             }
           }
         }
-        
+
         // 获取更新日志
         final changelog = data['body'] as String? ?? '暂无更新说明';
-        
+
         // 比较版本号
         final hasUpdate = _compareVersions(latestVersion, currentVersion) > 0;
-        
+
         return UpdateInfo(
           latestVersion: latestVersion,
           currentVersion: currentVersion,
@@ -114,9 +119,9 @@ class UpdateService {
       return null;
     }
   }
-  
+
   /// 比较版本号
-  /// 
+  ///
   /// 返回值：
   /// - 正数：v1 > v2
   /// - 0：v1 == v2
@@ -124,7 +129,7 @@ class UpdateService {
   static int _compareVersions(String v1, String v2) {
     final parts1 = v1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final parts2 = v2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-    
+
     // 补齐长度
     while (parts1.length < 3) {
       parts1.add(0);
@@ -132,7 +137,7 @@ class UpdateService {
     while (parts2.length < 3) {
       parts2.add(0);
     }
-    
+
     for (int i = 0; i < 3; i++) {
       if (parts1[i] > parts2[i]) return 1;
       if (parts1[i] < parts2[i]) return -1;
@@ -141,12 +146,12 @@ class UpdateService {
   }
 
   /// 下载并安装更新
-  /// 
+  ///
   /// [url] APK 下载链接
   /// [fileName] 保存的文件名
   /// [onProgress] 进度回调 (0.0 - 1.0)
   static Future<bool> downloadAndInstallUpdate(
-    String url, 
+    String url,
     String fileName, {
     Function(double)? onProgress,
     http.Client? client,
@@ -154,19 +159,29 @@ class UpdateService {
   }) async {
     // 优先使用镜像加速
     final proxyUrl = 'https://gh-proxy.org/$url';
-    
+
     // 尝试下载 (优先镜像，失败回退)
     File? apkFile;
-    if (await _downloadFile(proxyUrl, fileName, onProgress: onProgress, client: client)) {
+    if (await _downloadFile(
+      proxyUrl,
+      fileName,
+      onProgress: onProgress,
+      client: client,
+    )) {
       apkFile = await _getLocalFile(fileName);
     } else {
       // 镜像失败，尝试原链接
       debugPrint('镜像下载失败，尝试原始链接...');
-      if (await _downloadFile(url, fileName, onProgress: onProgress, client: client)) {
+      if (await _downloadFile(
+        url,
+        fileName,
+        onProgress: onProgress,
+        client: client,
+      )) {
         apkFile = await _getLocalFile(fileName);
       }
     }
-    
+
     if (apkFile != null && apkFile.existsSync()) {
       // 安装
       debugPrint('开始安装: ${apkFile.path}');
@@ -174,7 +189,7 @@ class UpdateService {
       final result = await appInstaller.install(apkFile.path);
       return result == true;
     }
-    
+
     return false;
   }
 
@@ -186,7 +201,7 @@ class UpdateService {
 
   /// 下载文件内部实现
   static Future<bool> _downloadFile(
-    String url, 
+    String url,
     String fileName, {
     Function(double)? onProgress,
     http.Client? client,
@@ -194,33 +209,37 @@ class UpdateService {
     try {
       final finalClient = client ?? http.Client();
       final request = http.Request('GET', Uri.parse(url));
-      final response = await finalClient.send(request).timeout(const Duration(seconds: 30));
-      
+      final response = await finalClient
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+
       if (response.statusCode == 200) {
         final totalBytes = response.contentLength ?? 0;
         int receivedBytes = 0;
-        
+
         final file = await _getLocalFile(fileName);
         final sink = file.openWrite();
-        
-        await response.stream.listen(
-          (List<int> chunk) {
-            receivedBytes += chunk.length;
-            sink.add(chunk);
-            if (totalBytes > 0 && onProgress != null) {
-              onProgress(receivedBytes / totalBytes);
-            }
-          },
-          onDone: () async {
-            await sink.close();
-          },
-          onError: (e) {
-            debugPrint('下载流错误: $e');
-            sink.close();
-          },
-          cancelOnError: true,
-        ).asFuture();
-        
+
+        await response.stream
+            .listen(
+              (List<int> chunk) {
+                receivedBytes += chunk.length;
+                sink.add(chunk);
+                if (totalBytes > 0 && onProgress != null) {
+                  onProgress(receivedBytes / totalBytes);
+                }
+              },
+              onDone: () async {
+                await sink.close();
+              },
+              onError: (e) {
+                debugPrint('下载流错误: $e');
+                sink.close();
+              },
+              cancelOnError: true,
+            )
+            .asFuture();
+
         return true;
       }
       return false;

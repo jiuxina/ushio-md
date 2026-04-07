@@ -12,7 +12,6 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 import 'package:mdreader/screens/editor_screen.dart';
 import 'package:mdreader/providers/settings_provider.dart';
 import 'package:mdreader/providers/file_provider.dart';
-import 'package:mdreader/providers/plugin_provider.dart';
 import 'package:mdreader/services/file_service.dart';
 
 // Mock Classes
@@ -33,32 +32,34 @@ void main() {
   group('EditorScreen UI Tests', () {
     late MockFileService mockFileService;
     late Directory tempDir;
-    
+
     // Providers
     late SettingsProvider settingsProvider;
     late FileProvider fileProvider;
-    late PluginProvider pluginProvider;
 
     setUp(() async {
       // 1. Setup Environment Mocks
       tempDir = await Directory.systemTemp.createTemp('editor_test');
       PathProviderPlatform.instance = FakePathProviderPlatform(tempDir.path);
       SharedPreferences.setMockInitialValues({}); // Empty prefs
-      
+
       // 2. Setup Service Mocks
       mockFileService = MockFileService();
-      
+
       // Default behaviors
-      when(() => mockFileService.readFile(any())).thenAnswer((_) async => '# Hello World');
-      when(() => mockFileService.hasPermissions()).thenAnswer((_) async => true);
+      when(
+        () => mockFileService.readFile(any()),
+      ).thenAnswer((_) async => '# Hello World');
+      when(
+        () => mockFileService.hasPermissions(),
+      ).thenAnswer((_) async => true);
 
       // 3. Initialize Providers
       settingsProvider = SettingsProvider();
       // Initialize settings if needed (though defaults are usually fine)
-      
+
       fileProvider = FileProvider(fileService: mockFileService);
-      
-      pluginProvider = PluginProvider();
+
       // PluginProvider initialize might be needed if Editor checks plugins immediately
       // But EditorScreen uses getters like getEditorExtensions which return empty if not init.
     });
@@ -71,51 +72,49 @@ void main() {
       } catch (_) {}
     });
 
-    testWidgets('EditorScreen should load and display content', (WidgetTester tester) async {
+    testWidgets('EditorScreen should load and display content', (
+      WidgetTester tester,
+    ) async {
       final sep = Platform.pathSeparator;
       final filePath = '${sep}test${sep}note.md';
-      
+
       await tester.pumpWidget(
         MultiProvider(
           providers: [
             ChangeNotifierProvider.value(value: settingsProvider),
             ChangeNotifierProvider.value(value: fileProvider),
-            ChangeNotifierProvider.value(value: pluginProvider),
           ],
-          child: MaterialApp(
-            home: EditorScreen(filePath: filePath),
-          ),
+          child: MaterialApp(home: EditorScreen(filePath: filePath)),
         ),
       );
 
       // Verify Loading State
       // Initially _isLoading is true.
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      
+
       // Wait for Future (_loadFile) to complete
       await tester.pumpAndSettle();
-      
+
       // Verify Content
       // Editor now uses WebView for markdown rendering; text content lives inside
       // the WebView and is not part of the Flutter widget tree, so we verify the
       // header (file name) instead of the rendered markdown text.
       expect(find.text('note'), findsOneWidget);
     });
-    
-    testWidgets('EditorScreen should switch to Edit mode', (WidgetTester tester) async {
-       final sep = Platform.pathSeparator;
-       final filePath = '${sep}test${sep}note.md';
-       
-       await tester.pumpWidget(
+
+    testWidgets('EditorScreen should switch to Edit mode', (
+      WidgetTester tester,
+    ) async {
+      final sep = Platform.pathSeparator;
+      final filePath = '${sep}test${sep}note.md';
+
+      await tester.pumpWidget(
         MultiProvider(
           providers: [
             ChangeNotifierProvider.value(value: settingsProvider),
             ChangeNotifierProvider.value(value: fileProvider),
-            ChangeNotifierProvider.value(value: pluginProvider),
           ],
-          child: MaterialApp(
-            home: EditorScreen(filePath: filePath),
-          ),
+          child: MaterialApp(home: EditorScreen(filePath: filePath)),
         ),
       );
       await tester.pumpAndSettle();
@@ -127,11 +126,11 @@ void main() {
       // Need to check EditorScreen logic for mode switch UI.
       // Since looking at code is expensive, let's just dump widget tree if we fail?
       // Or verify TextField is present when mode changes.
-      
+
       // Currently defaulting to Preview.
       // Let's check if there's an edit button.
       // Common UI: an IconButton with Icons.edit_note or similar.
-      
+
       // For now, simple content loading test is enough for "First Step".
     });
   });

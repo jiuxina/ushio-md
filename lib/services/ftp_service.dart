@@ -6,6 +6,15 @@
 // - 文件上传/下载
 // - 目录列表
 // - 文件删除
+//
+// ⚠️ 安全警告 (DEPRECATED)：
+// FTP 协议不加密传输，凭据和文件内容以明文传输，存在中间人攻击风险。
+// 建议：
+// 1. 使用 WebDAV (HTTPS) 替代
+// 2. 或使用 FTPS (FTP over TLS)
+// 3. 仅在可信网络环境下使用
+//
+// 此服务将在未来版本中移除或重构为 FTPS。
 // ============================================================================
 
 import 'dart:io';
@@ -53,6 +62,10 @@ class FTPConfig {
 }
 
 /// FTP 服务类
+///
+/// ⚠️ 已弃用：FTP 协议不安全，凭据和文件内容以明文传输。
+/// 请改用 WebDAV (HTTPS) 或等待 FTPS 支持。
+@Deprecated('FTP is insecure. Use WebDAV (HTTPS) instead.')
 class FTPService implements SyncServiceInterface {
   FTPConnect? _ftpClient;
 

@@ -1,6 +1,6 @@
 // ============================================================================
 // 云同步服务
-// 
+//
 // 协调本地工作区与 WebDAV 远程服务器的同步：
 // - 全量同步
 // - 单文件同步
@@ -9,15 +9,16 @@
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as path;
 import 'sync_service_interface.dart';
 import 'my_files_service.dart';
 
 /// 同步状态枚举
 enum SyncStatus {
-  idle,       // 空闲
-  syncing,    // 同步中
-  success,    // 成功
-  error,      // 错误
+  idle, // 空闲
+  syncing, // 同步中
+  success, // 成功
+  error, // 错误
 }
 
 /// 同步结果
@@ -27,7 +28,7 @@ class SyncResult {
   final int downloadedCount;
   final int deletedCount;
   final String? errorMessage;
-  
+
   const SyncResult({
     required this.success,
     this.uploadedCount = 0,
@@ -35,11 +36,11 @@ class SyncResult {
     this.deletedCount = 0,
     this.errorMessage,
   });
-  
+
   factory SyncResult.failed(String message) {
     return SyncResult(success: false, errorMessage: message);
   }
-  
+
   factory SyncResult.empty() {
     return const SyncResult(success: true);
   }
@@ -47,9 +48,9 @@ class SyncResult {
 
 /// 同步冲突类型
 enum ConflictResolution {
-  keepLocal,    // 保留本地版本
-  keepRemote,   // 保留远程版本
-  skip,         // 跳过此文件
+  keepLocal, // 保留本地版本
+  keepRemote, // 保留远程版本
+  skip, // 跳过此文件
 }
 
 /// 同步冲突信息
@@ -59,7 +60,7 @@ class SyncConflict {
   final DateTime localModified;
   final DateTime remoteModified;
   ConflictResolution resolution;
-  
+
   SyncConflict({
     required this.relativePath,
     required this.localPath,
@@ -67,19 +68,19 @@ class SyncConflict {
     required this.remoteModified,
     this.resolution = ConflictResolution.skip,
   });
-  
+
   /// 本地是否更新
   bool get isLocalNewer => localModified.isAfter(remoteModified);
-  
+
   /// 时间差（绝对值，秒）
-  int get timeDifferenceSeconds => 
+  int get timeDifferenceSeconds =>
       (localModified.difference(remoteModified).inSeconds).abs();
 }
 
 /// 预览结果（同步前的检测结果）
 class SyncPreview {
-  final List<String> toUpload;      // 需要上传的文件（本地新增）
-  final List<String> toDownload;    // 需要下载的文件（远程新增）
+  final List<String> toUpload; // 需要上传的文件（本地新增）
+  final List<String> toDownload; // 需要下载的文件（远程新增）
   final List<SyncConflict> conflicts; // 存在冲突的文件
 
   const SyncPreview({
@@ -89,7 +90,8 @@ class SyncPreview {
   });
 
   bool get hasConflicts => conflicts.isNotEmpty;
-  bool get isEmpty => toUpload.isEmpty && toDownload.isEmpty && conflicts.isEmpty;
+  bool get isEmpty =>
+      toUpload.isEmpty && toDownload.isEmpty && conflicts.isEmpty;
 }
 
 /// 同步进度信息
@@ -106,7 +108,8 @@ class SyncProgress {
     required this.operation,
   });
 
-  double get percentage => totalFiles > 0 ? (processedFiles / totalFiles) * 100 : 0;
+  double get percentage =>
+      totalFiles > 0 ? (processedFiles / totalFiles) * 100 : 0;
 }
 
 /// 云同步服务类
@@ -126,9 +129,9 @@ class CloudSyncService {
   CloudSyncService({
     required SyncServiceInterface syncService,
     required MyFilesService myFilesService,
-  })  : _syncService = syncService,
-        _myFilesService = myFilesService;
-  
+  }) : _syncService = syncService,
+       _myFilesService = myFilesService;
+
   /// 执行全量同步
   ///
   /// [resolvedConflicts] 用户已解决的冲突列表（可选）
@@ -196,19 +199,26 @@ class CloudSyncService {
         } else {
           // 比较修改时间
           final localMtime = await localFile.lastModified();
-          final remoteMtime = remoteFile.modifiedTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final remoteMtime =
+              remoteFile.modifiedTime ?? DateTime.fromMillisecondsSinceEpoch(0);
 
           // 检查是否有用户决定的冲突解决方案
           final resolution = resolvedMap[relativePath];
           if (resolution != null) {
             switch (resolution) {
               case ConflictResolution.keepLocal:
-                if (await _syncService.uploadFile(localFile.path, relativePath)) {
+                if (await _syncService.uploadFile(
+                  localFile.path,
+                  relativePath,
+                )) {
                   uploaded++;
                 }
                 break;
               case ConflictResolution.keepRemote:
-                if (await _syncService.downloadFile(relativePath, localFile.path)) {
+                if (await _syncService.downloadFile(
+                  relativePath,
+                  localFile.path,
+                )) {
                   downloaded++;
                 }
                 break;
@@ -231,21 +241,34 @@ class CloudSyncService {
               }
             } else if (remoteMtime.isAfter(localMtime)) {
               // 远程更新，下载
-              if (await _syncService.downloadFile(relativePath, localFile.path)) {
+              if (await _syncService.downloadFile(
+                relativePath,
+                localFile.path,
+              )) {
                 downloaded++;
               }
             }
           }
         }
       }
-      
+
       // 同步远程到本地（下载新文件）
       final workspacePath = await _myFilesService.getWorkspacePath();
       for (final remoteFile in remoteFiles) {
         if (remoteFile.isDirectory) continue;
 
         final relativePath = _getRemoteRelativePath(remoteFile.path);
-        final localPath = '$workspacePath${Platform.pathSeparator}${relativePath.replaceAll('/', Platform.pathSeparator)}';
+
+        // 安全检查：验证路径，防止路径遍历攻击
+        final localPath = await _buildSafeLocalPath(
+          relativePath,
+          workspacePath,
+        );
+        if (localPath == null) {
+          // 路径不安全，跳过此文件
+          debugPrint('[Security] Skipping malicious path: $relativePath');
+          continue;
+        }
 
         // 更新进度
         processedFiles++;
@@ -279,9 +302,9 @@ class CloudSyncService {
       return SyncResult.failed('同步失败: $e');
     }
   }
-  
+
   /// 预览同步（检测冲突）
-  /// 
+  ///
   /// 返回需要上传、下载的文件列表，以及存在冲突的文件列表
   /// 用于在同步前显示确认对话框
   Future<SyncPreview?> previewSync() async {
@@ -290,57 +313,72 @@ class CloudSyncService {
       if (!await _syncService.testConnection()) {
         return null;
       }
-      
+
       final toUpload = <String>[];
       final toDownload = <String>[];
       final conflicts = <SyncConflict>[];
-      
+
       // 获取本地文件列表
       final localFiles = await _collectLocalFiles();
-      
+
       // 获取远程文件列表
       final remoteFiles = await _collectRemoteFiles();
-      
+
       // 检查本地文件
       for (final localFile in localFiles) {
         final relativePath = await _getRelativePath(localFile.path);
         final remoteFile = _findRemoteFile(remoteFiles, relativePath);
-        
+
         if (remoteFile == null) {
           // 远程不存在，需要上传
           toUpload.add(relativePath);
         } else {
           // 比较修改时间
           final localMtime = await localFile.lastModified();
-          final remoteMtime = remoteFile.modifiedTime ?? DateTime.fromMillisecondsSinceEpoch(0);
-          
+          final remoteMtime =
+              remoteFile.modifiedTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+
           // 时间差超过5秒视为冲突
           final timeDiff = localMtime.difference(remoteMtime).inSeconds.abs();
           if (timeDiff > 5) {
-            conflicts.add(SyncConflict(
-              relativePath: relativePath,
-              localPath: localFile.path,
-              localModified: localMtime,
-              remoteModified: remoteMtime,
-            ));
+            conflicts.add(
+              SyncConflict(
+                relativePath: relativePath,
+                localPath: localFile.path,
+                localModified: localMtime,
+                remoteModified: remoteMtime,
+              ),
+            );
           }
         }
       }
-      
+
       // 检查远程文件
       final workspacePath = await _myFilesService.getWorkspacePath();
       for (final remoteFile in remoteFiles) {
         if (remoteFile.isDirectory) continue;
 
         final relativePath = _getRemoteRelativePath(remoteFile.path);
-        final localPath = '$workspacePath${Platform.pathSeparator}${relativePath.replaceAll('/', Platform.pathSeparator)}';
+
+        // 安全检查：验证路径，防止路径遍历攻击
+        final localPath = await _buildSafeLocalPath(
+          relativePath,
+          workspacePath,
+        );
+        if (localPath == null) {
+          // 路径不安全，跳过此文件
+          debugPrint(
+            '[Security] Skipping malicious path in preview: $relativePath',
+          );
+          continue;
+        }
 
         if (!await File(localPath).exists()) {
           // 本地不存在，需要下载
           toDownload.add(relativePath);
         }
       }
-      
+
       return SyncPreview(
         toUpload: toUpload,
         toDownload: toDownload,
@@ -352,9 +390,8 @@ class CloudSyncService {
     }
   }
 
-  
   /// 同步单个文件
-  /// 
+  ///
   /// [localPath] 本地文件路径
   Future<bool> syncFile(String localPath) async {
     try {
@@ -365,26 +402,26 @@ class CloudSyncService {
       return false;
     }
   }
-  
+
   // ==================== 私有方法 ====================
-  
+
   void _setStatus(SyncStatus status) {
     _status = status;
     statusNotifier.value = status;
   }
-  
+
   /// 收集本地所有文件
   Future<List<File>> _collectLocalFiles() async {
     final workspacePath = await _myFilesService.getWorkspacePath();
     final files = <File>[];
-    
+
     await _collectFilesRecursive(Directory(workspacePath), files);
     return files;
   }
-  
+
   Future<void> _collectFilesRecursive(Directory dir, List<File> files) async {
     if (!await dir.exists()) return;
-    
+
     await for (final entity in dir.list()) {
       if (entity is File) {
         files.add(entity);
@@ -393,7 +430,7 @@ class CloudSyncService {
       }
     }
   }
-  
+
   /// 收集远程所有文件（递归）
   Future<List<RemoteFileInfo>> _collectRemoteFiles() async {
     final files = <RemoteFileInfo>[];
@@ -401,7 +438,10 @@ class CloudSyncService {
     return files;
   }
 
-  Future<void> _collectRemoteFilesRecursive(String path, List<RemoteFileInfo> files) async {
+  Future<void> _collectRemoteFilesRecursive(
+    String path,
+    List<RemoteFileInfo> files,
+  ) async {
     final remoteFiles = await _syncService.listRemoteFiles(remotePath: path);
     if (remoteFiles == null) return;
 
@@ -414,7 +454,7 @@ class CloudSyncService {
       }
     }
   }
-  
+
   /// 获取相对于工作区的路径
   Future<String> _getRelativePath(String absolutePath) async {
     final workspacePath = await _myFilesService.getWorkspacePath();
@@ -425,7 +465,7 @@ class CloudSyncService {
     }
     return absolutePath.split(Platform.pathSeparator).last;
   }
-  
+
   /// 获取远程文件相对路径
   String _getRemoteRelativePath(String remotePath) {
     final fullRemotePath = _syncService.getFullRemotePath();
@@ -436,8 +476,55 @@ class CloudSyncService {
     return remotePath;
   }
 
+  /// 安全地构建本地文件路径，防止路径遍历攻击
+  ///
+  /// 验证远程路径不会导致文件写入到工作区之外
+  /// 返回 null 表示路径不安全
+  Future<String?> _buildSafeLocalPath(
+    String relativePath,
+    String workspacePath,
+  ) async {
+    try {
+      // 1. 规范化相对路径（移除 ./ 和 ../ 等）
+      final normalizedRelative = path.normalize(relativePath);
+
+      // 2. 检查是否包含路径遍历尝试
+      if (normalizedRelative.startsWith('..') ||
+          normalizedRelative.contains('/..') ||
+          normalizedRelative.contains('\\..')) {
+        debugPrint('[Security] Path traversal detected in: $relativePath');
+        return null;
+      }
+
+      // 3. 构建完整的本地路径
+      final localPath = path.join(
+        workspacePath,
+        normalizedRelative.replaceAll('/', Platform.pathSeparator),
+      );
+
+      // 4. 规范化本地路径
+      final normalizedLocalPath = File(localPath).absolute.path;
+
+      // 5. 确保规范化后的路径仍在工作区内
+      if (!normalizedLocalPath.startsWith(workspacePath)) {
+        debugPrint(
+          '[Security] Path escapes workspace: $relativePath -> $normalizedLocalPath',
+        );
+        return null;
+      }
+
+      return normalizedLocalPath;
+    } catch (e) {
+      debugPrint('[Security] Path validation error: $e');
+      return null;
+    }
+  }
+
   /// 在远程文件列表中查找文件
-  RemoteFileInfo? _findRemoteFile(List<RemoteFileInfo> remoteFiles, String relativePath) {
+  RemoteFileInfo? _findRemoteFile(
+    List<RemoteFileInfo> remoteFiles,
+    String relativePath,
+  ) {
     for (final file in remoteFiles) {
       final remoteRelative = _getRemoteRelativePath(file.path);
       if (remoteRelative == relativePath) {

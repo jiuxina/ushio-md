@@ -20,7 +20,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       // 模拟 FlutterSecureStorage 初始数据
       FlutterSecureStorage.setMockInitialValues({});
-      
+
       provider = SettingsProvider();
       await provider.initialize();
     });
@@ -38,7 +38,7 @@ void main() {
     test('setThemeMode 应更新内存和持久化存储', () async {
       await provider.setThemeMode(ThemeMode.dark);
       expect(provider.themeMode, ThemeMode.dark);
-      
+
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt('theme_mode'), ThemeMode.dark.index);
     });
@@ -46,7 +46,7 @@ void main() {
     test('setFontSize 应更新内存和持久化存储', () async {
       await provider.setFontSize(20.0);
       expect(provider.fontSize, 20.0);
-      
+
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getDouble('font_size'), 20.0);
     });
@@ -57,15 +57,20 @@ void main() {
       expect(provider.useBorderlessButtons, isTrue);
 
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('button_style_mode'), AppButtonStyleMode.softShadow.name);
+      expect(
+        prefs.getString('button_style_mode'),
+        AppButtonStyleMode.softShadow.name,
+      );
     });
 
     test('WebDAV 密码应存储在 SecureStorage 中', () async {
       const password = 'secret_password';
       await provider.setWebdavPassword(password);
-      
-      expect(provider.webdavPassword, password);
-      
+
+      // 使用安全方法验证密码
+      final creds = provider.getWebdavCredentials();
+      expect(creds['password'], password);
+
       // 验证 SecureStorage
       const storage = FlutterSecureStorage();
       expect(await storage.read(key: 'webdav_password'), password);

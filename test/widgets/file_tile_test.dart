@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mdreader/providers/file_provider.dart';
-import 'package:mdreader/providers/plugin_provider.dart';
 import 'package:mdreader/providers/settings_provider.dart';
 import 'package:mdreader/screens/folder/components/file_tile.dart';
+import 'package:mdreader/utils/file_actions.dart';
 import 'package:mdreader/services/file_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -36,7 +36,6 @@ void main() {
     late MockFileService mockFileService;
     late FileProvider fileProvider;
     late SettingsProvider settingsProvider;
-    late PluginProvider pluginProvider;
 
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('file_tile_test');
@@ -47,16 +46,19 @@ void main() {
       await file.writeAsString('# History Note');
 
       mockFileService = MockFileService();
-      when(() => mockFileService.hasPermissions()).thenAnswer((_) async => true);
+      when(
+        () => mockFileService.hasPermissions(),
+      ).thenAnswer((_) async => true);
       when(() => mockFileService.isFileCached(any())).thenReturn(false);
-      when(() => mockFileService.preloadFile(any()))
-          .thenAnswer((_) async => '# History Note');
-      when(() => mockFileService.readFile(any()))
-          .thenAnswer((_) async => '# History Note');
+      when(
+        () => mockFileService.preloadFile(any()),
+      ).thenAnswer((_) async => '# History Note');
+      when(
+        () => mockFileService.readFile(any()),
+      ).thenAnswer((_) async => '# History Note');
 
       fileProvider = FileProvider(fileService: mockFileService);
       settingsProvider = SettingsProvider();
-      pluginProvider = PluginProvider();
       await fileProvider.addToRecentFiles(file.path);
     });
 
@@ -68,21 +70,18 @@ void main() {
       } catch (_) {}
     });
 
-    testWidgets('opens markdown files from history without getting stuck',
-        (tester) async {
+    testWidgets('opens markdown files from history without getting stuck', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
             ChangeNotifierProvider.value(value: fileProvider),
             ChangeNotifierProvider.value(value: settingsProvider),
-            ChangeNotifierProvider.value(value: pluginProvider),
           ],
           child: MaterialApp(
             home: Scaffold(
-              body: FileTile(
-                entity: file,
-                source: FileSource.history,
-              ),
+              body: FileTile(entity: file, source: FileSource.history),
             ),
           ),
         ),

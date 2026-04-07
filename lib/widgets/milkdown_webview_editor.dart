@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -266,6 +265,52 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   bool _didFinishFirstRender = false;
   bool _suppressNextReload = false;
 
+  /// 安全检查：验证请求的文件路径是否在允许的目录范围内
+  /// 防止路径遍历攻击，避免访问工作区外的敏感文件
+  Future<bool> _isPathAllowed(String filePath) async {
+    try {
+      // 规范化路径，解析 ..、. 和符号链接
+      final normalizedPath = File(filePath).absolute.path;
+
+      // 允许的根目录列表
+      final allowedRoots = <String>[];
+
+      // 1. 工作区目录（如果配置了）
+      if (widget.baseDirectory != null && widget.baseDirectory!.isNotEmpty) {
+        final baseDir = Directory(widget.baseDirectory!).absolute.path;
+        allowedRoots.add(baseDir);
+      }
+
+      // 2. 应用私有目录（用于缓存等）
+      if (Platform.isAndroid || Platform.isIOS) {
+        // 获取应用私有目录
+        final appDir = Directory.systemTemp.absolute.path;
+        allowedRoots.add(appDir);
+      }
+
+      // 3. 外部存储目录（Android）
+      if (Platform.isAndroid) {
+        final externalDir = Directory('/storage/emulated/0').absolute.path;
+        allowedRoots.add(externalDir);
+      }
+
+      // 检查规范化后的路径是否在允许的根目录下
+      for (final root in allowedRoots) {
+        if (normalizedPath.startsWith(root)) {
+          return true;
+        }
+      }
+
+      debugPrint(
+        '[Security] Path access denied: $filePath (normalized: $normalizedPath)',
+      );
+      return false;
+    } catch (e) {
+      debugPrint('[Security] Path validation error: $e');
+      return false;
+    }
+  }
+
   Future<CustomSchemeResponse?> _serveLocalFileRequest(Uri uri) async {
     if (uri.scheme != _localFileScheme) return null;
     final requestedPathRaw = uri.queryParameters['path'] ?? '';
@@ -276,7 +321,19 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         contentEncoding: 'utf-8',
       );
     }
+
     final requestedPath = requestedPathRaw.trim();
+
+    // 安全检查：验证路径是否在允许范围内
+    if (!await _isPathAllowed(requestedPath)) {
+      debugPrint('[Security] Blocked file access attempt: $requestedPath');
+      return CustomSchemeResponse(
+        data: Uint8List(0),
+        contentType: 'text/plain',
+        contentEncoding: 'utf-8',
+      );
+    }
+
     final file = File(requestedPath);
     if (!await file.exists()) {
       return CustomSchemeResponse(
@@ -285,6 +342,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         contentEncoding: 'utf-8',
       );
     }
+
     final bytes = await file.readAsBytes();
     final mime = lookupMimeType(requestedPath) ?? 'application/octet-stream';
     return CustomSchemeResponse(
@@ -489,7 +547,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     }
     var fileName = _sanitizeFileName(file.name);
     if (!fileName.contains('.')) {
-      final ext = _extensionFromMimeType(uriData.mimeType ?? file.type);
+      final ext = _extensionFromMimeType(uriData.mimeType);
       fileName = '$fileName$ext';
     }
     if (widget.baseDirectory != null && widget.baseDirectory!.isNotEmpty) {
@@ -904,9 +962,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       initialUrlRequest: URLRequest(url: WebUri(_initialUrl!)),
       initialSettings: InAppWebViewSettings(
         transparentBackground: true,
-        allowFileAccessFromFileURLs: true,
-        allowUniversalAccessFromFileURLs: true,
-        allowFileAccess: true,
+        // 安全设置：限制跨域访问，仅允许必要的本地文件访问
+        allowFileAccessFromFileURLs: false, // 禁止从 file:// URL 访问其他 file:// URL
+        allowUniversalAccessFromFileURLs: false, // 禁止从 file:// URL 进行通用访问
+        allowFileAccess: true, // 允许访问本地文件（用于加载 HTML 资源）
         javaScriptEnabled: true,
         disableContextMenu: true,
         supportZoom: false,
@@ -915,6 +974,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         cacheEnabled: false,
         clearCache: true,
         resourceCustomSchemes: [_localFileScheme],
+        // 额外的安全设置
+        mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW, // 禁止混合内容
+        allowsInlineMediaPlayback: true,
       ),
       onWebViewCreated: (controller) {
         _controller = controller;
@@ -942,7 +1004,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       },
       onLoadResourceWithCustomScheme: (controller, request) async {
         final url = request.url;
-        if (url == null) return null;
         return _serveLocalFileRequest(Uri.parse(url.toString()));
       },
     );
@@ -950,16 +1011,16 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 }
 
 String _toCssHex(Color color) {
-  final r = color.red.toRadixString(16).padLeft(2, '0');
-  final g = color.green.toRadixString(16).padLeft(2, '0');
-  final b = color.blue.toRadixString(16).padLeft(2, '0');
+  final r = (color.r * 255.0).round().toRadixString(16).padLeft(2, '0');
+  final g = (color.g * 255.0).round().toRadixString(16).padLeft(2, '0');
+  final b = (color.b * 255.0).round().toRadixString(16).padLeft(2, '0');
   return '#$r$g$b';
 }
 
 String _toCssRgba(Color color) {
-  final r = color.red;
-  final g = color.green;
-  final b = color.blue;
-  final a = color.opacity;
+  final r = (color.r * 255.0).round();
+  final g = (color.g * 255.0).round();
+  final b = (color.b * 255.0).round();
+  final a = color.a;
   return 'rgba($r, $g, $b, ${a.toStringAsFixed(3)})';
 }

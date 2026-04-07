@@ -263,7 +263,8 @@ class SettingsProvider extends ChangeNotifier {
   String get syncType => _syncType;
   String get webdavUrl => _webdavUrl;
   String get webdavUsername => _webdavUsername;
-  String get webdavPassword => _webdavPassword;
+  // 密码不通过公共 getter 暴露，仅在内部使用
+  // String get webdavPassword => _webdavPassword;  // 已移除：安全性改进
   String get ftpUrl => _ftpUrl;
 
   /// 从 FTP URL 解析主机名
@@ -316,7 +317,8 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   String get ftpUsername => _ftpUsername;
-  String get ftpPassword => _ftpPassword;
+  // 密码不通过公共 getter 暴露，仅在内部使用
+  // String get ftpPassword => _ftpPassword;  // 已移除：安全性改进
   String get syncFolderName => _syncFolderName;
   String get syncRemotePath => _syncRemotePath;
   bool get autoSyncEnabled => _autoSyncEnabled;
@@ -330,6 +332,22 @@ class SettingsProvider extends ChangeNotifier {
       _ftpUrl.isNotEmpty && _ftpUsername.isNotEmpty && _ftpPassword.isNotEmpty;
   bool get isSyncConfigured =>
       _syncType == 'webdav' ? isWebdavConfigured : isFtpConfigured;
+
+  /// 安全地获取 WebDAV 凭据（仅用于创建服务实例）
+  /// 不要在 UI 层调用此方法
+  Map<String, String> getWebdavCredentials() {
+    return {
+      'url': _webdavUrl,
+      'username': _webdavUsername,
+      'password': _webdavPassword,
+    };
+  }
+
+  /// 安全地获取 FTP 凭据（仅用于创建服务实例）
+  /// 不要在 UI 层调用此方法
+  Map<String, String> getFtpCredentials() {
+    return {'url': _ftpUrl, 'username': _ftpUsername, 'password': _ftpPassword};
+  }
 
   // ==================== 初始化 ====================
 
