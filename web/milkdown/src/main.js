@@ -1434,9 +1434,18 @@ const syncRenderedDom = () => {
 
   const headingOutline = parseMarkdownOutline(currentMarkdown);
   const consumedOutlineIndexes = new Set();
+  const headingIdMap = new Map(); // Track used heading IDs for uniqueness
+  
   root.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading, index) => {
     const headingText = (heading.textContent || '').trim();
     const headingLevel = Number.parseInt((heading.tagName || '').replace(/^H/i, ''), 10);
+    
+    // Validate heading level
+    if (!Number.isFinite(headingLevel) || headingLevel < 1 || headingLevel > 6) {
+      console.warn('[Milkdown] Invalid heading level detected:', headingLevel, heading);
+      return; // Skip invalid heading
+    }
+    
     let outlineIndex = index;
     let outlineNode = headingOutline[outlineIndex];
     const outlineMatchesHeading = outlineNode
@@ -1461,14 +1470,32 @@ const syncRenderedDom = () => {
 
     const text = (outlineNode?.text || headingText).trim();
     const previousLineNumber = Number.parseInt(heading.dataset.headingLine || '', 10);
-    const lineNumber = Number.isFinite(outlineNode?.lineNumber)
+    let lineNumber = Number.isFinite(outlineNode?.lineNumber)
       ? outlineNode.lineNumber
       : Number.isFinite(previousLineNumber)
         ? previousLineNumber
         : index;
-    heading.id = `heading-line-${lineNumber}`;
+    
+    // Ensure heading ID uniqueness
+    let baseId = `heading-line-${lineNumber}`;
+    let finalId = baseId;
+    let counter = 1;
+    
+    while (headingIdMap.has(finalId)) {
+      finalId = `${baseId}-${counter}`;
+      counter++;
+    }
+    
+    heading.id = finalId;
     heading.dataset.headingLine = String(lineNumber);
     heading.dataset.headingSlug = slugifyHeading(text);
+    
+    headingIdMap.set(finalId, {
+      index,
+      text,
+      level: headingLevel,
+      lineNumber,
+    });
   });
 
   root.querySelectorAll('.milkdown-table-block').forEach((block) => {
