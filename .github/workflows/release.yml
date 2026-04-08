@@ -59,6 +59,25 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+      - name: Rename APKs with custom naming
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          cd build/app/outputs/flutter-apk
+          
+          # Rename APKs to ushio-md-v{version}-{abi}.apk format
+          if [ -f "app-armeabi-v7a-release.apk" ]; then
+            mv app-armeabi-v7a-release.apk ushio-md-v${VERSION}-armeabi-v7a.apk
+          fi
+          if [ -f "app-arm64-v8a-release.apk" ]; then
+            mv app-arm64-v8a-release.apk ushio-md-v${VERSION}-arm64-v8a.apk
+          fi
+          if [ -f "app-x86_64-release.apk" ]; then
+            mv app-x86_64-release.apk ushio-md-v${VERSION}-x86_64.apk
+          fi
+          
+          echo "Renamed APKs:"
+          ls -la *.apk
+
       - name: Generate changelog
         id: changelog
         run: |
@@ -93,9 +112,9 @@ jobs:
             ### 📦 下载说明
             
             请根据您的设备架构选择对应的 APK 文件：
-            - `app-armeabi-v7a-release.apk` - 适用于大多数 32 位设备
-            - `app-arm64-v8a-release.apk` - 适用于 64 位设备（推荐）
-            - `app-x86_64-release.apk` - 适用于 x86 模拟器
+            - `ushio-md-v${{ steps.get_version.outputs.VERSION }}-armeabi-v7a.apk` - 适用于大多数 32 位设备
+            - `ushio-md-v${{ steps.get_version.outputs.VERSION }}-arm64-v8a.apk` - 适用于 64 位设备（推荐）
+            - `ushio-md-v${{ steps.get_version.outputs.VERSION }}-x86_64.apk` - 适用于 x86 模拟器
             
             ### 💡 安装提示
             
