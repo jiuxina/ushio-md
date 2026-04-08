@@ -7,7 +7,7 @@ import 'package:flutter_highlight/themes/atom-one-light.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../providers/settings_provider.dart';
 
-class MarkdownPreview extends StatelessWidget {
+class MarkdownPreview extends StatefulWidget {
   final String data;
 
   final SettingsProvider settings;
@@ -36,51 +36,114 @@ class MarkdownPreview extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    int checkboxIndex = 0;
+  State<MarkdownPreview> createState() => _MarkdownPreviewState();
+}
 
-    final fontFamily = settings.editorFontFamily == 'System'
+class _MarkdownPreviewState extends State<MarkdownPreview> {
+  MarkdownStyleSheet? _cachedStyleSheet;
+  Brightness? _cachedBrightness;
+  String? _cachedFontFamily;
+  double? _cachedFontSize;
+  String? _cachedCodeFontFamily;
+  Color? _cachedPrimaryColor;
+  Color? _cachedDividerColor;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updateStyleSheetIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(MarkdownPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateStyleSheetIfNeeded();
+  }
+
+  void _updateStyleSheetIfNeeded() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness;
+    final fontFamily = widget.settings.editorFontFamily == 'System'
         ? null
-        : settings.editorFontFamily;
-    final lineHeight = 1.6;
+        : widget.settings.editorFontFamily;
+    final fontSize = widget.settings.fontSize;
+    final codeFontFamily = widget.settings.codeFontFamily == 'System' ? 'monospace' : widget.settings.codeFontFamily;
+    final primaryColor = theme.colorScheme.primary;
+    final dividerColor = theme.dividerColor;
 
-    final styleSheet = MarkdownStyleSheet(
+    // Check if any relevant property changed
+    if (_cachedBrightness != isDark ||
+        _cachedFontFamily != fontFamily ||
+        _cachedFontSize != fontSize ||
+        _cachedCodeFontFamily != codeFontFamily ||
+        _cachedPrimaryColor != primaryColor ||
+        _cachedDividerColor != dividerColor) {
+      // Update cache keys
+      _cachedBrightness = isDark;
+      _cachedFontFamily = fontFamily;
+      _cachedFontSize = fontSize;
+      _cachedCodeFontFamily = codeFontFamily;
+      _cachedPrimaryColor = primaryColor;
+      _cachedDividerColor = dividerColor;
+
+      // Rebuild stylesheet
+      _cachedStyleSheet = _buildStyleSheet(
+        isDark: isDark == Brightness.dark,
+        fontFamily: fontFamily,
+        fontSize: fontSize,
+        codeFontFamily: codeFontFamily,
+        primaryColor: primaryColor,
+        dividerColor: dividerColor,
+      );
+    }
+  }
+
+  MarkdownStyleSheet _buildStyleSheet({
+    required bool isDark,
+    required String? fontFamily,
+    required double fontSize,
+    required String? codeFontFamily,
+    required Color primaryColor,
+    required Color dividerColor,
+  }) {
+    const lineHeight = 1.6;
+
+    return MarkdownStyleSheet(
       p: TextStyle(
-        fontSize: settings.fontSize, 
+        fontSize: fontSize, 
         height: lineHeight,
         fontFamily: fontFamily,
       ),
       h1: TextStyle(
-        fontSize: settings.fontSize * 2,
+        fontSize: fontSize * 2,
         fontWeight: FontWeight.bold,
         height: 1.4,
         fontFamily: fontFamily,
       ),
       h2: TextStyle(
-        fontSize: settings.fontSize * 1.5,
+        fontSize: fontSize * 1.5,
         fontWeight: FontWeight.bold,
         height: 1.4,
         fontFamily: fontFamily,
       ),
       h3: TextStyle(
-        fontSize: settings.fontSize * 1.25,
+        fontSize: fontSize * 1.25,
         fontWeight: FontWeight.w600,
         height: 1.4,
         fontFamily: fontFamily,
       ),
       h4: TextStyle(
-        fontSize: settings.fontSize * 1.1,
+        fontSize: fontSize * 1.1,
         fontWeight: FontWeight.w600,
         fontFamily: fontFamily,
       ),
       h5: TextStyle(
-        fontSize: settings.fontSize,
+        fontSize: fontSize,
         fontWeight: FontWeight.w600,
         fontFamily: fontFamily,
       ),
       h6: TextStyle(
-        fontSize: settings.fontSize * 0.9,
+        fontSize: fontSize * 0.9,
         fontWeight: FontWeight.w600,
         fontFamily: fontFamily,
       ),
@@ -88,8 +151,8 @@ class MarkdownPreview extends StatelessWidget {
         backgroundColor: isDark 
             ? const Color(0xFF2d2d2d) 
             : const Color(0xFFf5f5f5),
-        fontFamily: settings.codeFontFamily == 'System' ? 'monospace' : settings.codeFontFamily,
-        fontSize: settings.fontSize * 0.9,
+        fontFamily: codeFontFamily,
+        fontSize: fontSize * 0.9,
         color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
       ),
       codeblockDecoration: BoxDecoration(
@@ -114,54 +177,64 @@ class MarkdownPreview extends StatelessWidget {
       blockquoteDecoration: BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: Theme.of(context).colorScheme.primary,
+            color: primaryColor,
             width: 4,
           ),
         ),
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+        color: primaryColor.withValues(alpha: 0.05),
       ),
       blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       listBullet: TextStyle(
-        color: Theme.of(context).colorScheme.primary,
+        color: primaryColor,
         fontFamily: fontFamily,
       ),
       horizontalRuleDecoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: Theme.of(context).dividerColor,
+            color: dividerColor,
             width: 1,
           ),
         ),
       ),
       tableHead: TextStyle(
         fontWeight: FontWeight.bold,
-        fontSize: settings.fontSize,
+        fontSize: fontSize,
         fontFamily: fontFamily,
       ),
       tableBody: TextStyle(
-        fontSize: settings.fontSize,
+        fontSize: fontSize,
         fontFamily: fontFamily,
       ),
       tableBorder: TableBorder.all(
-        color: Theme.of(context).dividerColor,
+        color: dividerColor,
         borderRadius: BorderRadius.circular(8),
       ),
       tableCellsPadding: const EdgeInsets.all(8),
       tableHeadAlign: TextAlign.center,
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    int checkboxIndex = 0;
+
+    // Ensure stylesheet is available
+    _updateStyleSheetIfNeeded();
+    final styleSheet = _cachedStyleSheet!;
 
     final builders = <String, MarkdownElementBuilder>{
       'code': CodeBlockBuilder(
         isDark: isDark,
-        fontSize: settings.fontSize,
-        fontFamily: settings.codeFontFamily == 'System' ? null : settings.codeFontFamily,
+        fontSize: widget.settings.fontSize,
+        fontFamily: widget.settings.codeFontFamily == 'System' ? null : widget.settings.codeFontFamily,
       ),
-      'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: settings.fontSize),
+      'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: widget.settings.fontSize),
     };
 
     // Add heading anchor builders when anchor keys are provided
-    if (headingAnchorKeys != null && headingAnchorKeys!.isNotEmpty) {
-      final anchorBuilder = HeadingAnchorBuilder(headingAnchorKeys!);
+    if (widget.headingAnchorKeys != null && widget.headingAnchorKeys!.isNotEmpty) {
+      final anchorBuilder = HeadingAnchorBuilder(widget.headingAnchorKeys!);
       for (final tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']) {
         builders[tag] = anchorBuilder;
       }
@@ -172,7 +245,7 @@ class MarkdownPreview extends StatelessWidget {
       return Checkbox(
         value: value,
         onChanged: (newValue) {
-          onCheckboxChanged(currentIndex, newValue ?? false);
+          widget.onCheckboxChanged(currentIndex, newValue ?? false);
           checkboxIndex = 0;
         },
         activeColor: Theme.of(context).colorScheme.primary,
@@ -185,10 +258,10 @@ class MarkdownPreview extends StatelessWidget {
       );
     }
 
-    if (shrinkWrap) {
+    if (widget.shrinkWrap) {
       return MarkdownBody(
-        data: data,
-        onTapLink: onTapLink,
+        data: widget.data,
+        onTapLink: widget.onTapLink,
         selectable: true,
         styleSheet: styleSheet,
         builders: builders,
@@ -198,9 +271,9 @@ class MarkdownPreview extends StatelessWidget {
     }
 
     return Markdown(
-      controller: controller,
-      data: data,
-      onTapLink: onTapLink,
+      controller: widget.controller,
+      data: widget.data,
+      onTapLink: widget.onTapLink,
       selectable: true,
       padding: const EdgeInsets.all(16),
       styleSheet: styleSheet,
@@ -216,9 +289,9 @@ class MarkdownPreview extends StatelessWidget {
     String imagePath = uri.toString();
     
     // Handle relative paths
-    if (baseDirectory != null && !imagePath.startsWith('http') && !imagePath.startsWith('file://')) {
+    if (widget.baseDirectory != null && !imagePath.startsWith('http') && !imagePath.startsWith('file://')) {
       // Convert relative path to absolute
-      imagePath = '$baseDirectory${Platform.pathSeparator}${imagePath.replaceAll('/', Platform.pathSeparator)}';
+      imagePath = '${widget.baseDirectory}${Platform.pathSeparator}${imagePath.replaceAll('/', Platform.pathSeparator)}';
     }
     
     // Handle file:// URI

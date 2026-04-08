@@ -67,8 +67,14 @@ class FontService {
       await _saveCustomFontInfo(fontName, destinationPath);
       
       return fontName;
-    } catch (e) {
-      debugPrint('安装字体失败: $e');
+    } on PlatformException catch (e) {
+      debugPrint('安装字体失败 (平台错误): ${e.code} - ${e.message}');
+      return null;
+    } on FileSystemException catch (e) {
+      debugPrint('安装字体失败 (文件系统错误): ${e.path} - ${e.message}');
+      return null;
+    } catch (e, stackTrace) {
+      debugPrint('安装字体失败: $e\n$stackTrace');
       return null;
     }
   }
@@ -82,9 +88,13 @@ class FontService {
         final fontLoader = FontLoader(fontName);
         fontLoader.addFont(Future.value(ByteData.view(fontData.buffer)));
         await fontLoader.load();
+      } else {
+        debugPrint('加载字体失败: 字体文件不存在 $fontPath');
       }
-    } catch (e) {
-      debugPrint('加载字体失败: $e');
+    } on FileSystemException catch (e) {
+      debugPrint('加载字体失败 (文件系统错误): ${e.path} - ${e.message}');
+    } catch (e, stackTrace) {
+      debugPrint('加载字体失败: $fontName - $e\n$stackTrace');
     }
   }
   
@@ -146,7 +156,14 @@ class FontService {
       }
       
       return true;
-    } catch (e) {
+    } on PlatformException catch (e) {
+      debugPrint('删除字体失败 (平台错误): ${e.code} - ${e.message}');
+      return false;
+    } on FileSystemException catch (e) {
+      debugPrint('删除字体失败 (文件系统错误): ${e.path} - ${e.message}');
+      return false;
+    } catch (e, stackTrace) {
+      debugPrint('删除字体失败: $fontName - $e\n$stackTrace');
       return false;
     }
   }

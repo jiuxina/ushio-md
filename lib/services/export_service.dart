@@ -41,7 +41,7 @@ class ExportService {
       Future.delayed(cleanupDelay, () {
         try {
           file.deleteSync();
-        } catch (_) {}
+        } catch (e) { debugPrint('删除失败: $e'); }
       });
       return true;
     } catch (e) {
@@ -81,7 +81,9 @@ class ExportService {
       
       // 延迟清理
       Future.delayed(cleanupDelay, () {
-        try { file.deleteSync(); } catch (_) {}
+        try { file.deleteSync(); } catch (e) {
+          debugPrint('清理临时图片文件失败: $e');
+        }
       });
       
       return true;
@@ -145,7 +147,9 @@ class ExportService {
       
       // 延迟清理
       Future.delayed(cleanupDelay, () {
-        try { file.deleteSync(); } catch (_) {}
+        try { file.deleteSync(); } catch (e) {
+          debugPrint('清理临时PDF文件失败: $e');
+        }
       });
       
       return true;

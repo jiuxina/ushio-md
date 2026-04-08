@@ -68,7 +68,7 @@ class AppConstants {
   static const String appName = '汐';
 
   /// 版本号
-  static const String appVersion = '1.4.4';
+  static const String appVersion = '1.5.0';
 
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';
@@ -266,6 +266,63 @@ class AppConstants {
 
   /// 标准动画时长
   static const Duration animationDuration = Duration(milliseconds: 300);
+
+  // ==================== 编辑器配置 ====================
+
+  /// 编辑器默认字体大小
+  static const double editorDefaultFontSize = 16.0;
+
+  /// 编辑器最小字体大小
+  static const double editorMinFontSize = 12.0;
+
+  /// 编辑器最大字体大小
+  static const double editorMaxFontSize = 24.0;
+
+  /// 编辑器默认行高
+  static const double editorDefaultLineHeight = 1.6;
+
+  /// 编辑器默认正文字体
+  static const String editorDefaultBodyFont = 'Noto Sans SC';
+
+  /// 编辑器默认代码字体
+  static const String editorDefaultMonoFont = 'JetBrains Mono';
+
+  /// 自动保存默认间隔（秒）
+  static const int autoSaveDefaultInterval = 30;
+
+  /// 自动保存最小间隔（秒）
+  static const int autoSaveMinInterval = 10;
+
+  /// 自动保存最大间隔（秒）
+  static const int autoSaveMaxInterval = 300;
+
+  /// 文件缓存最大数量
+  static const int maxCachedFiles = 24;
+
+  /// 搜索结果最大显示数量
+  static const int maxSearchMatches = 50;
+
+  /// 编辑历史最大记录数
+  static const int maxEditHistory = 100;
+
+  /// 目录跳转顶部偏移量
+  static const double tocJumpTopOffset = 32.0;
+
+  // ==================== 文件类型配置 ====================
+
+  /// 支持的 Markdown 文件扩展名
+  static const List<String> markdownExtensions = ['.md', '.markdown'];
+
+  /// 图片文件扩展名
+  static const List<String> imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+
+  // ==================== 云同步配置 ====================
+
+  /// 默认同步文件夹名称
+  static const String defaultSyncFolderName = 'Ushio-MD';
+
+  /// 默认 FTP 端口
+  static const int defaultFtpPort = 21;
 }
 
 /// ============================================================================

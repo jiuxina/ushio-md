@@ -25,10 +25,10 @@ class FolderBrowserScreen extends StatefulWidget {
   });
 
   @override
-  State<FolderBrowserScreen> createState() => _FolderBrowserScreenState();
+  State<FolderBrowserScreen> createState() => FolderBrowserScreenState();
 }
 
-class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
+class FolderBrowserScreenState extends State<FolderBrowserScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FolderSortService _sortService = FolderSortService();
 
@@ -39,6 +39,11 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   List<FileSystemEntity> _entities = [];
   String? _error;
   FileSortOption _sortOption = FileSortOption.nameAsc;
+
+  /// 刷新文件列表（公开方法，供外部调用）
+  void refresh() {
+    _loadFiles();
+  }
 
   @override
   void initState() {
@@ -65,7 +70,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
   Future<void> _loadFiles() async {
     if (!mounted) return;
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _isLoading = true;
       _error = null;
@@ -74,7 +79,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     try {
       final dir = Directory(widget.folderPath);
       if (!await dir.exists()) {
-        throw Exception(l10n.folderNotFound);
+        throw Exception(l10n?.folderNotFound ?? 'Folder not found');
       }
 
       final entities = await dir.list().toList();
@@ -206,7 +211,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   }
 
   void _showNewItemMenu() {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -221,7 +226,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.note_add, color: Colors.blue),
-              title: Text(l10n.newMarkdown),
+              title: Text(l10n?.newMarkdown ?? 'New Markdown'),
               onTap: () {
                 Navigator.pop(context);
                 FileActions.showCreateFileInFolderDialog(
@@ -237,7 +242,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
                 Icons.create_new_folder,
                 color: Colors.orange,
               ),
-              title: Text(l10n.newFolder),
+              title: Text(l10n?.newFolder ?? 'New Folder'),
               onTap: () {
                 Navigator.pop(context);
                 _showCreateFolderDialog();
@@ -250,22 +255,22 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   }
 
   void _showCreateFolderDialog() {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     // 简化的新建文件夹 Dialog，直接在当前目录
     final nameController = TextEditingController();
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.createFolder),
+        title: Text(l10n?.createFolder ?? 'Create Folder'),
         content: TextField(
           controller: nameController,
           autofocus: true,
-          decoration: InputDecoration(labelText: l10n.folderName),
+          decoration: InputDecoration(labelText: l10n?.folderName ?? 'Folder Name'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.cancel),
+            child: Text(l10n?.cancel ?? 'Cancel'),
           ),
           FilledButton(
             onPressed: () async {
@@ -279,12 +284,12 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
                 } catch (e) {
                   if (mounted)
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${l10n.createFailed}: $e')),
+                      SnackBar(content: Text('${l10n?.createFailed ?? 'Create failed'}: $e')),
                     );
                 }
               }
             },
-            child: Text(l10n.create),
+            child: Text(l10n?.create ?? 'Create'),
           ),
         ],
       ),
@@ -293,14 +298,14 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     final folderName = widget.folderPath.split(Platform.pathSeparator).last;
 
     String displayName;
     if (widget.title != null) {
       displayName = widget.title!;
     } else if (folderName == 'Ushio-MD' || folderName == 'Ushio-md') {
-      displayName = l10n.myFiles;
+      displayName = l10n?.myFiles ?? 'My Files';
     } else {
       displayName = folderName;
     }
@@ -361,7 +366,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   }
 
   Widget _buildContent() {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -369,19 +374,19 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     if (_error != null) {
       return Center(
         child: Text(
-          '${l10n.loadFailed}: $_error',
+          '${l10n?.loadFailed ?? 'Load failed'}: $_error',
           style: const TextStyle(color: Colors.red),
         ),
       );
     }
 
     if (_entities.isEmpty) {
-      return EmptyState(message: l10n.folderEmpty);
+      return EmptyState(message: l10n?.folderEmpty ?? 'Folder is empty');
     }
 
     final filtered = _filteredFiles;
     if (filtered.isEmpty) {
-      return EmptyState(message: l10n.noMatchingFiles);
+      return EmptyState(message: l10n?.noMatchingFiles ?? 'No matching files');
     }
 
     // 始终使用 ReorderableListView 以支持拖拽排序 (如果处于非自定义排序，拖拽后会自动切换到自定义)

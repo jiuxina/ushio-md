@@ -1,7 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置
+  
+  安全策略：
+  1. 默认禁用明文传输（只允许 HTTPS）
+  2. 只信任系统出厂证书（不信任用户安装的证书）
+  3. 防止抓包工具（如 Charles/Fiddler）监听
+  
+  这样配置的好处：
+  - 即使用户手机里装了 Charles/Fiddler 的证书，App 也不会被监听
+  - 只有用户主动开启"信任自签名证书"功能时，才存在风险
+  - 这个风险是用户知情并自愿承担的
+-->
 <network-security-config>
+    <!-- 基础配置：禁用明文传输，只信任系统证书 -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- 只信任系统出厂自带的证书 -->
+            <certificates src="system" />
+            <!-- 
+              重要：不要添加 <certificates src="user" />
+              这样可以防止用户手动安装的抓包证书生效
+            -->
+        </trust-anchors>
+    </base-config>
+    
+    <!-- 本地 WebView 需要 localhost 明文传输 -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>
     </domain-config>
 </network-security-config>

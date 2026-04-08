@@ -152,6 +152,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     _ftpPasswordController.dispose();
     _folderNameController.dispose();
     _remotePathController.dispose();
+    _cloudSyncService.dispose();
     super.dispose();
   }
 

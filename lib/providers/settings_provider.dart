@@ -536,7 +536,7 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (_) {}
+        } catch (e) { debugPrint('操作失败: $e'); }
       }
       _backgroundImagePath = null;
       final prefs = await SharedPreferences.getInstance();
@@ -568,7 +568,7 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (_) {}
+        } catch (e) { debugPrint('操作失败: $e'); }
       }
 
       _backgroundImagePath = destPath;
@@ -596,7 +596,7 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (_) {}
+        } catch (e) { debugPrint('操作失败: $e'); }
       }
       _editorBackgroundImagePath = null;
       final prefs = await SharedPreferences.getInstance();
@@ -626,7 +626,7 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (_) {}
+        } catch (e) { debugPrint('操作失败: $e'); }
       }
 
       _editorBackgroundImagePath = destPath;

@@ -18,46 +18,17 @@ import '../models/toc_item.dart';
 import '../models/milkdown_bridge.dart';
 import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
+import 'editor/components/editor_search_bar.dart';
+import 'editor/components/animated_fab.dart';
+import 'editor/components/shortcuts_help_dialog.dart';
+import 'editor/models/editor_models.dart';
+import 'editor/models/editor_patterns.dart';
+import 'editor/models/markdown_parser.dart';
+import 'editor/editor_shortcuts.dart';
 import '../services/export_service.dart';
 import '../services/debug_probe_service.dart';
 
 enum EditorMode { edit, preview }
-
-/// Represents a logical block of markdown content for inline editing
-class _MarkdownBlock {
-  final int startLine;
-  final int endLine;
-  final String content;
-  final bool isMultiLine;
-
-  const _MarkdownBlock({
-    required this.startLine,
-    required this.endLine,
-    required this.content,
-    required this.isMultiLine,
-  });
-}
-
-class _EditHistoryEntry {
-  final String text;
-  final TextSelection selection;
-
-  const _EditHistoryEntry({required this.text, required this.selection});
-}
-
-class _SearchMatch {
-  final int position;
-  final int length;
-  final String preview;
-  final int occurrence;
-
-  const _SearchMatch({
-    required this.position,
-    required this.length,
-    required this.preview,
-    required this.occurrence,
-  });
-}
 
 class EditorScreen extends StatefulWidget {
   final String filePath;
@@ -71,9 +42,9 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen>
     with TickerProviderStateMixin {
-  bool _isAutoCompleting = false;
+  // ==================== 状态变量 ====================
   static const int _maxEditHistory = 100;
-  final List<_EditHistoryEntry> _editHistory = <_EditHistoryEntry>[];
+  final List<EditHistoryEntry> _editHistory = [];
   int _historyIndex = -1;
   bool _isApplyingHistory = false;
   bool _textListenerAttached = false;
@@ -87,11 +58,12 @@ class _EditorScreenState extends State<EditorScreen>
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
   bool _editSelectionListenerAttached = false;
+  
+  /// 搜索防抖 Timer
+  Timer? _searchDebounceTimer;
 
-  // WebView controller for heading navigation in the rendered preview page
   final _previewWebViewController = MilkdownWebViewController();
 
-  // Inline editing state (retained for reference; not activated from WebView preview)
   int? _editingBlockIndex;
   late TextEditingController _inlineEditController;
   late FocusNode _inlineEditFocusNode;
@@ -105,31 +77,18 @@ class _EditorScreenState extends State<EditorScreen>
   bool _showSearchBar = false;
   bool _showSearchCandidates = false;
   final TocOverlayController _tocOverlayController = TocOverlayController();
-  bool _hidePlatformViews = false; // hide WebView during pop transition
+  bool _hidePlatformViews = false;
   Timer? _autoSaveTimer;
   int? _highlightedLine;
-  List<_SearchMatch> _searchMatches = const [];
+  List<SearchMatch> _searchMatches = const [];
   int _activeSearchMatchIndex = -1;
   DateTime? _lastDebugProbeAt;
   bool _suppressNextMilkdownReload = false;
 
-  // ==================== 常量 ====================
-  /// Offset from top when jumping to a target position
-  static const _jumpTopOffset = 32.0;
-
-  // ==================== 正则表达式缓存 ====================
-  static final _uncheckedBoxRegex = RegExp(r'^(\s*-\s*)\[\s*\](.*)$');
-  static final _checkedBoxRegex = RegExp(r'^(\s*-\s*)\[[xX]\](.*)$');
-  static final _wordSplitRegex = RegExp(r'\s+');
-  static final _codeBlockStartRegex = RegExp(r'^\s*```');
-  static final _tableRowRegex = RegExp(r'^\s*\|');
-  static final _blockquoteRegex = RegExp(r'^\s*>');
-  static final _listItemStartRegex = RegExp(r'^\s*(?:[-*+]|\d+\.)\s+');
-  static final _indentedContentRegex = RegExp(r'^\s{2,}\S');
-  static final _nestedListMarkerRegex = RegExp(r'^\s{2,}(?:[-*+]|\d+\.)\s+');
-
   String? _error;
   List<TocItem> _tocItems = [];
+
+  static const _jumpTopOffset = 32.0;
 
   String get fileName => widget.filePath.split(Platform.pathSeparator).last;
 
@@ -213,9 +172,8 @@ class _EditorScreenState extends State<EditorScreen>
   void _attachEditSelectionListener() {
     if (_editSelectionListenerAttached) return;
     _editSelectionListenerAttached = true;
-    // Use a post-frame callback to ensure the text field is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || !_editSelectionListenerAttached) return;
       _textController.addListener(_onEditSelectionChanged);
     });
   }
@@ -223,11 +181,8 @@ class _EditorScreenState extends State<EditorScreen>
   void _onEditSelectionChanged() {
     if (_mode != EditorMode.edit) return;
     if (!_editFocusNode.hasFocus) return;
-
     final selection = _textController.selection;
     if (!selection.isValid) return;
-
-    // Debounce scroll updates to avoid excessive scrolling during fast typing
     _scheduleEditScrollToCursor();
   }
 
@@ -250,56 +205,38 @@ class _EditorScreenState extends State<EditorScreen>
 
     final text = _textController.text;
     final cursorOffset = selection.extentOffset;
-
-    // Get the actual line height from text style
     final settings = context.read<SettingsProvider>();
     final fontSize = settings.fontSize;
-    final lineHeight = fontSize * 1.5; // Match the TextField's line height
+    final lineHeight = fontSize * 1.5;
 
-    // Calculate line number from cursor offset
     int lineCount = 0;
     int pos = 0;
     while (pos < cursorOffset && pos < text.length) {
-      if (text[pos] == '\n') {
-        lineCount++;
-      }
+      if (text[pos] == '\n') lineCount++;
       pos++;
     }
 
-    // Calculate cursor Y position with padding
     const topPadding = 16.0;
     final estimatedY = topPadding + (lineCount * lineHeight);
 
-    // Get viewport info
     if (!_editScrollController.hasClients) return;
     final scrollPosition = _editScrollController.position;
     final viewportHeight = scrollPosition.viewportDimension;
-
-    // Get keyboard height to account for toolbar and keyboard overlay
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
-    // Toolbar height (approximately 56px) + some padding
     const toolbarHeight = 56.0;
-    // Total bottom offset that reduces visible area
     final bottomOffset = keyboardInset + toolbarHeight + 16.0;
-
-    // Calculate visible range (accounting for keyboard and toolbar)
     final visibleTop = scrollPosition.pixels;
     final visibleBottom = visibleTop + viewportHeight - bottomOffset;
-
-    // Desired margin from top/bottom when scrolling
     const topMargin = 100.0;
     const effectiveBottomMargin = 16.0;
 
-    // Check if cursor is outside visible area
     if (estimatedY < visibleTop + topMargin) {
-      // Cursor is above visible area - scroll up
       _editScrollController.animateTo(
         (estimatedY - topMargin).clamp(0.0, scrollPosition.maxScrollExtent),
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
       );
     } else if (estimatedY > visibleBottom - effectiveBottomMargin) {
-      // Cursor is below visible area (including keyboard/toolbar area) - scroll down
       _editScrollController.animateTo(
         (estimatedY - viewportHeight + bottomOffset + effectiveBottomMargin)
             .clamp(0.0, scrollPosition.maxScrollExtent),
@@ -313,7 +250,6 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_isModified) {
       setState(() => _isModified = true);
     }
-
     if (!_isApplyingHistory) {
       _recordHistorySnapshot();
     }
@@ -331,7 +267,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (reset) {
       _editHistory
         ..clear()
-        ..add(_EditHistoryEntry(text: t, selection: safe));
+        ..add(EditHistoryEntry(text: t, selection: safe));
       _historyIndex = 0;
       return;
     }
@@ -345,14 +281,11 @@ class _EditorScreenState extends State<EditorScreen>
       _editHistory.removeRange(_historyIndex + 1, _editHistory.length);
     }
 
-    _editHistory.add(_EditHistoryEntry(text: t, selection: safe));
+    _editHistory.add(EditHistoryEntry(text: t, selection: safe));
     if (_editHistory.length > _maxEditHistory) {
       final overflow = _editHistory.length - _maxEditHistory;
       _editHistory.removeRange(0, overflow);
-      _historyIndex = (_historyIndex - overflow).clamp(
-        0,
-        _editHistory.length - 1,
-      );
+      _historyIndex = (_historyIndex - overflow).clamp(0, _editHistory.length - 1);
     }
     _historyIndex = _editHistory.length - 1;
     if (mounted) setState(() {});
@@ -362,16 +295,6 @@ class _EditorScreenState extends State<EditorScreen>
     final base = sel.baseOffset.clamp(0, textLength).toInt();
     final extent = sel.extentOffset.clamp(0, textLength).toInt();
     return TextSelection(baseOffset: base, extentOffset: extent);
-  }
-
-  void _applyMainTextWithSelection(String newText, TextSelection selection) {
-    _isApplyingHistory = true;
-    _textController.value = TextEditingValue(
-      text: newText,
-      selection: _safeSelection(selection, newText.length),
-    );
-    _isApplyingHistory = false;
-    _recordHistorySnapshot(text: newText, selection: selection);
   }
 
   void _undoEditHistory() {
@@ -401,18 +324,15 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _handleOutlineUpdate(OnOutlineUpdatePayload payload) {
-    final items = payload.outline
-        .map((node) {
-          final lineNumber =
-              int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
-          return TocItem(
-            level: node.level,
-            title: node.text,
-            lineNumber: lineNumber,
-            anchorKey: GlobalKey(),
-          );
-        })
-        .toList(growable: false);
+    final items = payload.outline.map((node) {
+      final lineNumber = int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
+      return TocItem(
+        level: node.level,
+        title: node.text,
+        lineNumber: lineNumber,
+        anchorKey: GlobalKey(),
+      );
+    }).toList(growable: false);
     if (!mounted) return;
     setState(() => _tocItems = items);
   }
@@ -423,7 +343,6 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     if (_mode == EditorMode.edit) {
-      // Scroll the text editor to the target line
       final lines = _textController.text.split('\n');
       int position = 0;
       for (int i = 0; i < item.lineNumber && i < lines.length; i++) {
@@ -433,14 +352,12 @@ class _EditorScreenState extends State<EditorScreen>
       if (_editScrollController.hasClients) {
         const lineHeight = 24.0;
         final maxScroll = _editScrollController.position.maxScrollExtent;
-        final targetScroll = (item.lineNumber * lineHeight - _jumpTopOffset)
-            .clamp(0.0, maxScroll);
+        final targetScroll =
+            (item.lineNumber * lineHeight - _jumpTopOffset).clamp(0.0, maxScroll);
         _editScrollController.jumpTo(targetScroll);
       }
       _flashLineHighlight(item.lineNumber);
     } else {
-      // Rendered preview page — scroll via JavaScript.
-      // The JS also handles the visual flash on the target heading.
       if (headingIndex >= 0) {
         _previewWebViewController.scrollToHeading(
           headingIndex: headingIndex,
@@ -462,18 +379,12 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
-  /// 自动保存
-  ///
-  /// 仅在内容有修改且未在保存中时触发
   Future<void> _autoSave() async {
     if (_isModified && !_isSaving) {
       await _saveFile(showSnackbar: false);
     }
   }
 
-  /// 保存文件
-  ///
-  /// [showSnackbar] 是否显示保存结果提示
   Future<void> _saveFile({bool showSnackbar = true}) async {
     final l10n = AppLocalizations.of(context)!;
     if (_isSaving) return;
@@ -543,7 +454,17 @@ class _EditorScreenState extends State<EditorScreen>
     );
     _autoSaveTimer?.cancel();
     _editScrollTimer?.cancel();
-    _textController.removeListener(_onEditSelectionChanged);
+    _searchDebounceTimer?.cancel();
+    
+    // 移除所有 listener，使用标志位防止重复移除
+    if (_textListenerAttached) {
+      _textController.removeListener(_onTextChanged);
+      _textListenerAttached = false;
+    }
+    if (_editSelectionListenerAttached) {
+      _textController.removeListener(_onEditSelectionChanged);
+      _editSelectionListenerAttached = false;
+    }
     _textController.dispose();
     _searchController.dispose();
     _editScrollController.dispose();
@@ -561,11 +482,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<bool> _onWillPop() async {
     final l10n = AppLocalizations.of(context)!;
-    // Finish any inline edit first
     if (_editingBlockIndex != null) {
       _finishInlineEdit();
     }
-
     if (!_isModified) return true;
 
     final result = await showDialog<String>(
@@ -616,15 +535,13 @@ class _EditorScreenState extends State<EditorScreen>
     return false;
   }
 
+  // ==================== 搜索功能 ====================
+
   void _showInlineSearch() {
     if (_showToc) {
       _tocOverlayController.close();
     }
-
-    setState(() {
-      _showSearchBar = true;
-    });
-
+    setState(() => _showSearchBar = true);
     _performInlineSearch(_searchController.text);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -641,7 +558,21 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  /// 执行内联搜索（带防抖）
   void _performInlineSearch(String query) {
+    // 取消之前的防抖 Timer
+    _searchDebounceTimer?.cancel();
+    
+    // 延迟 150ms 执行搜索，避免频繁搜索
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 150), () {
+      _executeSearch(query);
+    });
+  }
+  
+  /// 实际执行搜索
+  void _executeSearch(String query) {
+    if (!mounted) return;
+    
     final normalizedQuery = query.trim().toLowerCase();
     if (normalizedQuery.isEmpty) {
       setState(() {
@@ -654,26 +585,36 @@ class _EditorScreenState extends State<EditorScreen>
 
     final text = _textController.text;
     final normalizedText = text.toLowerCase();
-    final matches = <_SearchMatch>[];
+    final matches = <SearchMatch>[];
     var index = 0;
+    
+    // 限制搜索时间，防止超大文件卡顿
+    final startTime = DateTime.now();
+    const maxSearchTime = Duration(milliseconds: 500);
 
     while (matches.length < 50) {
+      // 检查是否超时
+      if (DateTime.now().difference(startTime) > maxSearchTime) {
+        debugPrint('搜索超时，已找到 ${matches.length} 个结果');
+        break;
+      }
+      
       index = normalizedText.indexOf(normalizedQuery, index);
       if (index == -1) break;
       final start = (index - 20).clamp(0, text.length);
       final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
       final preview = text.substring(start, end).replaceAll('\n', ' ');
-      matches.add(
-        _SearchMatch(
-          position: index,
-          length: normalizedQuery.length,
-          preview: preview,
-          occurrence: matches.length,
-        ),
-      );
+      matches.add(SearchMatch(
+        position: index,
+        length: normalizedQuery.length,
+        preview: preview,
+        occurrence: matches.length,
+      ));
       index += normalizedQuery.length;
     }
 
+    if (!mounted) return;
+    
     setState(() {
       _searchMatches = matches;
       _activeSearchMatchIndex = matches.isEmpty ? -1 : 0;
@@ -682,7 +623,7 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
-  void _jumpToSearchMatch(_SearchMatch match) {
+  void _jumpToSearchMatch(SearchMatch match) {
     _searchFocusNode.unfocus();
     if (_showSearchCandidates) {
       setState(() => _showSearchCandidates = false);
@@ -714,19 +655,15 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     final lineNumber =
-        (_textController.text
-                    .substring(0, position)
-                    .split('\n')
-                    .length
-                    .clamp(1, 1 << 20) -
-                1)
+        (_textController.text.substring(0, position).split('\n').length - 1)
+            .clamp(0, 1 << 20)
             .toInt();
     _flashLineHighlight(lineNumber);
 
     if (_editScrollController.hasClients) {
       final lines = _textController.text.substring(0, position).split('\n');
       const lineHeight = 24.0;
-      final targetScroll = (lines.length * lineHeight - _jumpTopOffset);
+      final targetScroll = lines.length * lineHeight - _jumpTopOffset;
       _editScrollController.jumpTo(
         targetScroll.clamp(0.0, _editScrollController.position.maxScrollExtent),
       );
@@ -748,46 +685,25 @@ class _EditorScreenState extends State<EditorScreen>
     final prev = _activeSearchMatchIndex < 0
         ? 0
         : (_activeSearchMatchIndex - 1 + _searchMatches.length) %
-              _searchMatches.length;
+            _searchMatches.length;
     _jumpToSearchOccurrence(prev);
   }
 
-  /// 切换复选框状态
-  ///
-  /// The WebView's HTML checkbox state is already correct immediately on user
-  /// tap, so we suppress the next content reload and just update the underlying
-  /// text for persistence.
+  void _closeSearch() {
+    setState(() {
+      _showSearchBar = false;
+      _searchMatches = const [];
+      _activeSearchMatchIndex = -1;
+      _showSearchCandidates = false;
+    });
+  }
+
+  // ==================== 复选框和链接处理 ====================
+
   void _toggleCheckbox(int index, bool newValue) {
-    final text = _textController.text;
-    final lines = text.split('\n');
-    int checkboxCount = 0;
-    bool changed = false;
-
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      final uncheckedMatch = _uncheckedBoxRegex.firstMatch(line);
-      final checkedMatch = _checkedBoxRegex.firstMatch(line);
-
-      if (uncheckedMatch != null || checkedMatch != null) {
-        if (checkboxCount == index) {
-          if (newValue && uncheckedMatch != null) {
-            lines[i] =
-                '${uncheckedMatch.group(1)}[x]${uncheckedMatch.group(2)}';
-            changed = true;
-          } else if (!newValue && checkedMatch != null) {
-            lines[i] = '${checkedMatch.group(1)}[ ]${checkedMatch.group(2)}';
-            changed = true;
-          }
-          break;
-        }
-        checkboxCount++;
-      }
-    }
-
-    if (changed) {
-      // Suppress the next WebView reload – the HTML checkbox is already correct.
+    final newText = toggleCheckboxInText(_textController.text, index, newValue);
+    if (newText != null) {
       _previewWebViewController.suppressNextReload();
-      final newText = lines.join('\n');
       _textController.removeListener(_onTextChanged);
       _textController.text = newText;
       _textController.addListener(_onTextChanged);
@@ -795,9 +711,6 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  /// Handle link tap in preview
-  ///
-  /// Opens external URLs in browser, navigates to local markdown files
   void _handleLinkTap(String text, String? href, String title) {
     final normalizedHref = href?.trim() ?? '';
     final normalizedText = text.trim();
@@ -806,24 +719,19 @@ class _EditorScreenState extends State<EditorScreen>
         : (normalizedHref.isEmpty ? normalizedText : '');
 
     if (headingFragment.isNotEmpty) {
-      final normalizedFragment = _slugifyHeading(headingFragment);
+      final normalizedFragment = slugifyHeading(headingFragment);
       for (var i = 0; i < _tocItems.length; i++) {
         final item = _tocItems[i];
-        if (_slugifyHeading(item.title) == normalizedFragment) {
+        if (slugifyHeading(item.title) == normalizedFragment) {
           _jumpToHeading(i, item);
           return;
         }
       }
     }
 
-    if (normalizedHref.isEmpty) {
-      return;
-    }
+    if (normalizedHref.isEmpty) return;
 
-    // Handle local markdown file links
-    if (normalizedHref.endsWith('.md') ||
-        normalizedHref.endsWith('.markdown')) {
-      // Sanitize: reject path traversal attempts
+    if (normalizedHref.endsWith('.md') || normalizedHref.endsWith('.markdown')) {
       if (!normalizedHref.contains('..')) {
         final baseDir = File(widget.filePath).parent.path;
         final targetPath =
@@ -836,29 +744,17 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
-    // Open external URLs in browser
     final uri = Uri.tryParse(normalizedHref);
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
       try {
         launchUrl(uri, mode: LaunchMode.externalApplication);
-      } catch (_) {
-        // Ignore launch failures
+      } catch (e) {
+        debugPrint('打开链接失败: $e');
       }
     }
   }
 
-  String _slugifyHeading(String input) {
-    return input
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'^\d+[\.\-_\s]+'), '')
-        .replaceAll(RegExp(r'[^\p{L}\p{N}\s\-]', unicode: true), '')
-        .replaceAll(RegExp(r'\s+'), '-')
-        .replaceAll(RegExp(r'-+'), '-')
-        .replaceAll(RegExp(r'^-+|-+$'), '');
-  }
-
-  // ==================== Block Parsing & Inline Editing ====================
+  // ==================== Milkdown WebView ====================
 
   void _handleMilkdownContentChange(String markdown) {
     final suppressReload = _suppressNextMilkdownReload;
@@ -873,163 +769,6 @@ class _EditorScreenState extends State<EditorScreen>
     _onTextChanged();
   }
 
-  /// Parse markdown text into logical blocks for inline editing.
-  /// Code blocks, tables, blockquotes, and nested list continuations are grouped.
-  /// All other lines are individual blocks.
-  List<_MarkdownBlock> _parseBlocks(String text) {
-    final lines = text.split('\n');
-    final blocks = <_MarkdownBlock>[];
-    int i = 0;
-
-    while (i < lines.length) {
-      final line = lines[i];
-      final trimmed = line.trim();
-
-      // Code block: ``` to ```
-      if (_codeBlockStartRegex.hasMatch(trimmed)) {
-        int end = i + 1;
-        while (end < lines.length &&
-            !_codeBlockStartRegex.hasMatch(lines[end].trim())) {
-          end++;
-        }
-        if (end < lines.length) end++; // include closing ```
-        blocks.add(
-          _MarkdownBlock(
-            startLine: i,
-            endLine: end - 1,
-            content: lines.sublist(i, end).join('\n'),
-            isMultiLine: true,
-          ),
-        );
-        i = end;
-        continue;
-      }
-
-      // Table: contiguous | lines (need at least 2 rows)
-      if (_tableRowRegex.hasMatch(trimmed) &&
-          i + 1 < lines.length &&
-          _tableRowRegex.hasMatch(lines[i + 1].trim())) {
-        int end = i;
-        while (end < lines.length &&
-            _tableRowRegex.hasMatch(lines[end].trim())) {
-          end++;
-        }
-        blocks.add(
-          _MarkdownBlock(
-            startLine: i,
-            endLine: end - 1,
-            content: lines.sublist(i, end).join('\n'),
-            isMultiLine: true,
-          ),
-        );
-        i = end;
-        continue;
-      }
-
-      // Blockquote: contiguous > lines
-      if (_blockquoteRegex.hasMatch(trimmed)) {
-        int end = i;
-        while (end < lines.length &&
-            _blockquoteRegex.hasMatch(lines[end].trim())) {
-          end++;
-        }
-        blocks.add(
-          _MarkdownBlock(
-            startLine: i,
-            endLine: end - 1,
-            content: lines.sublist(i, end).join('\n'),
-            isMultiLine: end > i + 1,
-          ),
-        );
-        i = end;
-        continue;
-      }
-
-      // Nested list/continuation block:
-      // Group a list item with its indented continuation lines (including
-      // nested markers) so single-tap editing on nested markdown replaces the
-      // whole logical unit instead of only one rendered <li>/<p> fragment.
-      if (_listItemStartRegex.hasMatch(trimmed)) {
-        int end = i + 1;
-        while (end < lines.length) {
-          final next = lines[end];
-          final nextTrim = next.trim();
-          if (nextTrim.isEmpty) {
-            end++;
-            continue;
-          }
-          final isIndented = _indentedContentRegex.hasMatch(next);
-          final isNestedListMarker = _nestedListMarkerRegex.hasMatch(next);
-          if (!isIndented && !isNestedListMarker) break;
-          end++;
-        }
-        blocks.add(
-          _MarkdownBlock(
-            startLine: i,
-            endLine: end - 1,
-            content: lines.sublist(i, end).join('\n'),
-            isMultiLine: end > i + 1,
-          ),
-        );
-        i = end;
-        continue;
-      }
-
-      // Single line
-      blocks.add(
-        _MarkdownBlock(
-          startLine: i,
-          endLine: i,
-          content: line,
-          isMultiLine: false,
-        ),
-      );
-      i++;
-    }
-
-    return blocks;
-  }
-
-  /// Finish inline editing and apply changes
-  void _finishInlineEdit() {
-    if (_editingBlockIndex == null) return;
-
-    final blocks = _parseBlocks(_textController.text);
-    final editingIndex = _editingBlockIndex!;
-
-    // Clear editing state first
-    setState(() => _editingBlockIndex = null);
-
-    if (editingIndex < blocks.length) {
-      final block = blocks[editingIndex];
-      final lines = _textController.text.split('\n');
-
-      final editedLines = _inlineEditController.text.split('\n');
-      final newLines = <String>[
-        ...lines.sublist(0, block.startLine),
-        ...editedLines,
-        if (block.endLine + 1 < lines.length)
-          ...lines.sublist(block.endLine + 1),
-      ];
-
-      final newText = newLines.join('\n');
-      if (newText != _textController.text) {
-        final caretOffset = newLines
-            .take(block.startLine + editedLines.length)
-            .join('\n')
-            .length
-            .clamp(0, newText.length)
-            .toInt();
-        _applyMainTextWithSelection(
-          newText,
-          TextSelection.collapsed(offset: caretOffset),
-        );
-        // _isModified will be set by _onTextChanged listener
-      }
-    }
-  }
-
-  /// Build the WebView-based preview for EditorMode.preview.
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
     return MilkdownWebViewEditor(
@@ -1088,9 +827,7 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _requestCodeBlockLanguageProbe() async {
     final now = DateTime.now();
     final last = _lastDebugProbeAt;
-    if (last != null && now.difference(last).inMilliseconds < 900) {
-      return;
-    }
+    if (last != null && now.difference(last).inMilliseconds < 900) return;
     _lastDebugProbeAt = now;
     await _previewWebViewController.execCmd(
       'debug_codeblock_language_report',
@@ -1098,19 +835,64 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  /// Save inline edit when the text field loses focus (user tapped outside).
+  // ==================== 内联编辑 ====================
+
+  void _finishInlineEdit() {
+    if (_editingBlockIndex == null) return;
+
+    final blocks = parseMarkdownBlocks(_textController.text);
+    final editingIndex = _editingBlockIndex!;
+
+    setState(() => _editingBlockIndex = null);
+
+    if (editingIndex < blocks.length) {
+      final block = blocks[editingIndex];
+      final lines = _textController.text.split('\n');
+      final editedLines = _inlineEditController.text.split('\n');
+      final newLines = <String>[
+        ...lines.sublist(0, block.startLine),
+        ...editedLines,
+        if (block.endLine + 1 < lines.length) ...lines.sublist(block.endLine + 1),
+      ];
+
+      final newText = newLines.join('\n');
+      if (newText != _textController.text) {
+        final caretOffset = newLines
+            .take(block.startLine + editedLines.length)
+            .join('\n')
+            .length
+            .clamp(0, newText.length)
+            .toInt();
+        _applyMainTextWithSelection(
+          newText,
+          TextSelection.collapsed(offset: caretOffset),
+        );
+      }
+    }
+  }
+
+  void _applyMainTextWithSelection(String newText, TextSelection selection) {
+    _isApplyingHistory = true;
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: _safeSelection(selection, newText.length),
+    );
+    _isApplyingHistory = false;
+    _recordHistorySnapshot(text: newText, selection: selection);
+  }
+
   void _onInlineEditFocusChanged() {
     if (!_inlineEditFocusNode.hasFocus && _editingBlockIndex != null) {
       _finishInlineEdit();
     }
   }
 
+  // ==================== UI 构建 ====================
+
   @override
   Widget build(BuildContext context) {
     final shouldInterceptForMilkdownBlur =
         _mode == EditorMode.preview && _isMilkdownEditorFocused;
-
-    // 桌面端使用自定义标题栏
     final useCustomTitleBar =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
@@ -1118,8 +900,6 @@ class _EditorScreenState extends State<EditorScreen>
       canPop: !_isModified && !shouldInterceptForMilkdownBlur,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
-          // Clear the WebView platform surface immediately so the native view
-          // doesn't linger as a ghost during the route-pop animation.
           if (mounted) setState(() => _hidePlatformViews = true);
           return;
         }
@@ -1139,13 +919,17 @@ class _EditorScreenState extends State<EditorScreen>
         resizeToAvoidBottomInset: false,
         body: Column(
           children: [
-            // 自定义标题栏（仅桌面端）
             if (useCustomTitleBar)
               CustomTitleBar(fileName: fileName, isEditorMode: true),
-            // 主内容
             Expanded(
               child: CallbackShortcuts(
-                bindings: _buildShortcutBindings(),
+                bindings: buildShortcutBindings(
+                  onSave: _saveFile,
+                  onUndo: _undoEditHistory,
+                  onRedo: _redoEditHistory,
+                  onSearch: _showInlineSearch,
+                  onApplyAction: _applyToolbarAction,
+                ),
                 child: Stack(
                   children: [
                     _buildBody(),
@@ -1156,10 +940,7 @@ class _EditorScreenState extends State<EditorScreen>
                         onJumpToHeading: _jumpToHeading,
                         controller: _tocOverlayController,
                       ),
-                    // Floating buttons – positioned relative to the full screen so
-                    // they stay fixed even when the keyboard is shown.
-                    if (!_isLoading && _error == null)
-                      _buildFixedFloatingButtons(),
+                    if (!_isLoading && _error == null) _buildFixedFloatingButtons(),
                   ],
                 ),
               ),
@@ -1219,9 +1000,19 @@ class _EditorScreenState extends State<EditorScreen>
                           top: 10,
                           left: 12,
                           right: 12,
-                          child: _buildInlineSearch(),
+                          child: EditorSearchBar(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            matches: _searchMatches,
+                            activeMatchIndex: _activeSearchMatchIndex,
+                            onSearch: _performInlineSearch,
+                            onJumpToMatch: _jumpToSearchMatch,
+                            onJumpToNext: _jumpToNextSearchMatch,
+                            onJumpToPrevious: _jumpToPrevSearchMatch,
+                            onClose: _closeSearch,
+                            showCandidates: _showSearchCandidates,
+                          ),
                         ),
-                      // Toolbar floats at the bottom of the content area
                       if (!_isLoading &&
                           _error == null &&
                           (_mode != EditorMode.preview ||
@@ -1266,7 +1057,6 @@ class _EditorScreenState extends State<EditorScreen>
               ],
             ),
           ),
-          // 粒子效果层（全局模式时显示）
           if (settings.particleEnabled && settings.particleGlobal)
             Positioned.fill(
               child: IgnorePointer(
@@ -1293,174 +1083,8 @@ class _EditorScreenState extends State<EditorScreen>
       final value = String.fromCharCode(char);
       return value.trim().isNotEmpty;
     }).length;
-    final words = text.split(_wordSplitRegex).where((w) => w.isNotEmpty).length;
+    final words = text.split(wordSplitRegex).where((w) => w.isNotEmpty).length;
     return l10n.wordCount(chars, glyphs, words);
-  }
-
-  Widget _buildInlineSearch() {
-    if (!_showSearchBar) {
-      return const SizedBox.shrink();
-    }
-
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final appStyle = theme.extension<AppStyleTheme>()!;
-    final displayMatches = _searchMatches.take(5).toList(growable: false);
-    final showCandidates =
-        _showSearchCandidates && _searchController.text.trim().isNotEmpty;
-
-    return Material(
-      color: Colors.transparent,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: appStyle.scaledSurfaceColor(
-                theme.colorScheme,
-                alpha: 0.98,
-              ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.2),
-              ),
-            ),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              autofocus: true,
-              onChanged: _performInlineSearch,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: l10n.searchContent,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  tooltip: l10n.closeSearch,
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    if (_searchController.text.isNotEmpty) {
-                      _searchController.clear();
-                      _performInlineSearch('');
-                      _searchFocusNode.requestFocus();
-                      return;
-                    }
-                    _searchFocusNode.unfocus();
-                    setState(() {
-                      _showSearchBar = false;
-                      _searchMatches = const [];
-                      _activeSearchMatchIndex = -1;
-                      _showSearchCandidates = false;
-                    });
-                  },
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: appStyle.scaledSurfaceColor(
-                theme.colorScheme,
-                alpha: 0.95,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.18),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _searchMatches.isEmpty
-                        ? l10n.noMatch
-                        : '${_activeSearchMatchIndex + 1}/${_searchMatches.length}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
-                IconButton(
-                  tooltip: l10n.previous,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: _searchMatches.isEmpty
-                      ? null
-                      : _jumpToPrevSearchMatch,
-                  icon: const Icon(Icons.keyboard_arrow_up),
-                ),
-                IconButton(
-                  tooltip: l10n.next,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: _searchMatches.isEmpty
-                      ? null
-                      : _jumpToNextSearchMatch,
-                  icon: const Icon(Icons.keyboard_arrow_down),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          ClipRect(
-            child: AnimatedSize(
-              duration: const Duration(milliseconds: 160),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: showCandidates
-                  ? Container(
-                      width: double.infinity,
-                      constraints: const BoxConstraints(maxHeight: 220),
-                      decoration: BoxDecoration(
-                        color: appStyle.scaledSurfaceColor(
-                          theme.colorScheme,
-                          alpha: 0.98,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withValues(
-                            alpha: 0.2,
-                          ),
-                        ),
-                      ),
-                      child: AnimatedOpacity(
-                        opacity: 1,
-                        duration: const Duration(milliseconds: 120),
-                        child: displayMatches.isEmpty
-                            ? Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Text(
-                                  l10n.noMatchContent,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.outline,
-                                  ),
-                                ),
-                              )
-                            : ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: displayMatches.length,
-                                itemBuilder: (context, index) {
-                                  final match = displayMatches[index];
-                                  return _buildSearchCandidateTile(match);
-                                },
-                              ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchCandidateTile(_SearchMatch match) {
-    final isActive = match.occurrence == _activeSearchMatchIndex;
-    return ListTile(
-      dense: true,
-      selected: isActive,
-      title: Text(match.preview, maxLines: 1, overflow: TextOverflow.ellipsis),
-      onTap: () => _jumpToSearchMatch(match),
-    );
   }
 
   Widget _buildContent() {
@@ -1495,17 +1119,19 @@ class _EditorScreenState extends State<EditorScreen>
               const SizedBox(height: 24),
               Text(
                 l10n.loadingFailed,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: Colors.red),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Colors.red),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
@@ -1528,8 +1154,6 @@ class _EditorScreenState extends State<EditorScreen>
 
     switch (_mode) {
       case EditorMode.edit:
-        // Top rounded corners at AppBar junction; clip ensures rounded corners
-        // are visible on the WebView (platform view).
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           child: Stack(
@@ -1546,7 +1170,6 @@ class _EditorScreenState extends State<EditorScreen>
           ),
         );
       case EditorMode.preview:
-        // Top rounded corners at AppBar junction.
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           child: Stack(
@@ -1579,31 +1202,13 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     final brightness = settings.editorBackgroundBrightness;
-    // Skip ColorFiltered when brightness is effectively neutral (1.0),
-    // avoiding unnecessary compositing overhead at the default value.
     if ((brightness - 1.0).abs() > 0.001) {
       imageLayer = ColorFiltered(
         colorFilter: ColorFilter.matrix([
-          brightness,
-          0,
-          0,
-          0,
-          0,
-          0,
-          brightness,
-          0,
-          0,
-          0,
-          0,
-          0,
-          brightness,
-          0,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
+          brightness, 0, 0, 0, 0,
+          0, brightness, 0, 0, 0,
+          0, 0, brightness, 0, 0,
+          0, 0, 0, 1, 0,
         ]),
         child: imageLayer,
       );
@@ -1622,19 +1227,16 @@ class _EditorScreenState extends State<EditorScreen>
     return imageLayer;
   }
 
-  /// Floating action buttons that stay anchored above keyboard/toolbars.
   Widget _buildFixedFloatingButtons() {
     final safeBottom = MediaQuery.of(context).padding.bottom;
 
     switch (_mode) {
       case EditorMode.edit:
-        // Keep button above toolbar; ignore keyboard inset so it doesn't get
-        // pushed upward when the soft keyboard appears on mobile.
         final editBottom = safeBottom + 56.0 + 16.0;
         return Positioned(
           right: 24,
           bottom: editBottom,
-          child: _AnimatedFAB(
+          child: AnimatedFab(
             icon: Icons.visibility,
             color: Theme.of(context).colorScheme.primary,
             onTap: () => setState(() {
@@ -1645,7 +1247,6 @@ class _EditorScreenState extends State<EditorScreen>
         );
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
-        // Keep buttons fixed to bottom safe area and ignore keyboard inset.
         final previewBottom = safeBottom + 24.0;
         return Positioned(
           right: 24,
@@ -1653,7 +1254,7 @@ class _EditorScreenState extends State<EditorScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _AnimatedFAB(
+              AnimatedFab(
                 icon: Icons.edit,
                 color: Theme.of(context).colorScheme.tertiary,
                 onTap: () => setState(() {
@@ -1662,7 +1263,7 @@ class _EditorScreenState extends State<EditorScreen>
                 }),
               ),
               const SizedBox(height: 12),
-              _AnimatedFAB(
+              AnimatedFab(
                 icon: Icons.list,
                 color: Theme.of(context).colorScheme.primary,
                 onTap: () {
@@ -1705,17 +1306,10 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           decoration: InputDecoration(
             border: InputBorder.none,
-            contentPadding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              16 + toolbarPadding,
-            ),
+            contentPadding: EdgeInsets.fromLTRB(16, 16, 16, 16 + toolbarPadding),
             hintText: l10n.startWriting,
             hintStyle: TextStyle(
-              color: Theme.of(
-                context,
-              ).colorScheme.outline.withValues(alpha: 0.5),
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -1726,8 +1320,6 @@ class _EditorScreenState extends State<EditorScreen>
               final accentColor = Theme.of(context).colorScheme.primary;
               const lineHeight = 24.0;
               final topPosition = _highlightedLine! * lineHeight;
-
-              // Single flash: fade in then fade out
               final opacity = _highlightAnimation.value < 0.5
                   ? _highlightAnimation.value * 2
                   : (1 - _highlightAnimation.value) * 2;
@@ -1825,8 +1417,12 @@ class _EditorScreenState extends State<EditorScreen>
     await _previewWebViewController.execCmd(cmd, args: args);
   }
 
-  Map<ShortcutActivator, VoidCallback> _buildShortcutBindings() {
-    return <ShortcutActivator, VoidCallback>{};
+  void _applyToolbarAction(MarkdownToolbarAction action) {
+    if (_mode == EditorMode.edit) {
+      // 工具栏自己处理
+    } else {
+      _handlePreviewToolbarAction(action);
+    }
   }
 
   void _showMoreMenu() {
@@ -1847,9 +1443,7 @@ class _EditorScreenState extends State<EditorScreen>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outline.withValues(alpha: 0.3),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1863,13 +1457,22 @@ class _EditorScreenState extends State<EditorScreen>
               },
             ),
             ListTile(
+              leading: const Icon(Icons.keyboard),
+              title: const Text('快捷键帮助'),
+              subtitle: const Text('查看所有可用快捷键'),
+              onTap: () {
+                Navigator.pop(context);
+                showShortcutsHelpDialog(context);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.picture_as_pdf),
               title: Text(l10n.exportAsPdf),
               onTap: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(l10n.generatingPdf)));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.generatingPdf)),
+                );
                 await ExportService.exportAndShareAsPdf(
                   _textController.text,
                   widget.filePath
@@ -1881,66 +1484,6 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             const SizedBox(height: 16),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Animated Floating Action Button
-// ──────────────────────────────────────────────────────────────────────────────
-
-/// A floating action button with a scale-down press animation and a colour
-/// glow shadow that intensifies when pressed.
-class _AnimatedFAB extends StatefulWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _AnimatedFAB({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  State<_AnimatedFAB> createState() => _AnimatedFABState();
-}
-
-class _AnimatedFABState extends State<_AnimatedFAB> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.85 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _pressed
-                ? widget.color.withValues(alpha: 0.85)
-                : widget.color,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: widget.color.withValues(alpha: _pressed ? 0.6 : 0.4),
-                blurRadius: _pressed ? 18 : 12,
-                offset: _pressed ? const Offset(0, 2) : const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Icon(widget.icon, color: Colors.white, size: 24),
         ),
       ),
     );

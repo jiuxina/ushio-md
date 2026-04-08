@@ -132,6 +132,12 @@ class CloudSyncService {
   }) : _syncService = syncService,
        _myFilesService = myFilesService;
 
+  /// 释放资源
+  void dispose() {
+    statusNotifier.dispose();
+    progressNotifier.dispose();
+  }
+
   /// 执行全量同步
   ///
   /// [resolvedConflicts] 用户已解决的冲突列表（可选）

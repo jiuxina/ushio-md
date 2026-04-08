@@ -58,8 +58,9 @@ class UpdateService {
   /// [currentVersion] 当前应用版本号
   /// 返回 UpdateInfo 或 null（检查失败时）
   static Future<UpdateInfo?> checkForUpdate(String currentVersion) async {
+    final client = http.Client();
     try {
-      final response = await http
+      final response = await client
           .get(
             Uri.parse(_apiUrl),
             headers: {'Accept': 'application/vnd.github.v3+json'},
@@ -113,10 +114,14 @@ class UpdateService {
           hasUpdate: hasUpdate,
         );
       } else {
+        debugPrint('检查更新失败: HTTP ${response.statusCode}');
         return null;
       }
     } catch (e) {
+      debugPrint('检查更新异常: $e');
       return null;
+    } finally {
+      client.close();
     }
   }
 
@@ -206,8 +211,11 @@ class UpdateService {
     Function(double)? onProgress,
     http.Client? client,
   }) async {
+    final bool shouldCloseClient = client == null;
+    final http.Client finalClient = client ?? http.Client();
+    IOSink? sink;
+    
     try {
-      final finalClient = client ?? http.Client();
       final request = http.Request('GET', Uri.parse(url));
       final response = await finalClient
           .send(request)
@@ -218,34 +226,47 @@ class UpdateService {
         int receivedBytes = 0;
 
         final file = await _getLocalFile(fileName);
-        final sink = file.openWrite();
+        sink = file.openWrite();
 
         await response.stream
             .listen(
               (List<int> chunk) {
                 receivedBytes += chunk.length;
-                sink.add(chunk);
+                sink!.add(chunk);
                 if (totalBytes > 0 && onProgress != null) {
                   onProgress(receivedBytes / totalBytes);
                 }
               },
               onDone: () async {
-                await sink.close();
+                await sink?.close();
               },
               onError: (e) {
                 debugPrint('下载流错误: $e');
-                sink.close();
+                sink?.close();
               },
               cancelOnError: true,
             )
             .asFuture();
 
         return true;
+      } else {
+        debugPrint('下载失败: HTTP ${response.statusCode}');
+        return false;
       }
-      return false;
     } catch (e) {
       debugPrint('下载异常: $url, $e');
       return false;
+    } finally {
+      // 确保关闭文件流
+      try {
+        await sink?.close();
+      } catch (e) {
+        debugPrint('关闭文件流异常: $e');
+      }
+      // 如果是自己创建的 client，需要关闭
+      if (shouldCloseClient) {
+        finalClient.close();
+      }
     }
   }
 }

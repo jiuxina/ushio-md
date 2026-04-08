@@ -5,12 +5,18 @@
 // - 工作区初始化（创建 Ushio-md 目录）
 // - 文件导入（复制外部文件到工作区）
 // - 路径检查（判断文件是否在工作区内）
+//
+// Android 存储策略：
+// - Android 10 (API 29) 及以上使用 SAF（Storage Access Framework）
+// - 引导用户授权 Documents 目录，确保持久访问
 // ============================================================================
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../providers/settings_provider.dart';
+import 'file_service.dart';
 
 /// "我的文件" 工作区服务
 class MyFilesService {
@@ -36,13 +42,19 @@ class MyFilesService {
   }
 
   /// 获取平台默认的文档目录
+  ///
+  /// Android 10+ 注意事项：
+  /// - getExternalStorageDirectory() 返回私有沙箱目录
+  /// - 我们需要使用公共 Documents 目录来支持云同步
+  /// - 通过请求存储权限或使用 SAF 来访问
   Future<Directory?> _getDefaultDocumentsDirectory() async {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       // 桌面平台：使用文档目录
       return await getApplicationDocumentsDirectory();
     } else if (Platform.isAndroid) {
-      // Android：使用外部存储目录
-      return await getExternalStorageDirectory();
+      // Android：尝试使用公共 Documents 目录
+      // 在 Android 10+ 需要特殊处理
+      return await _getAndroidDocumentsDirectory();
     } else if (Platform.isIOS) {
       // iOS：使用应用文档目录
       return await getApplicationDocumentsDirectory();
@@ -50,11 +62,68 @@ class MyFilesService {
     return null;
   }
 
+  /// 获取 Android 公共 Documents 目录
+  ///
+  /// 在 Android 10 (API 29) 及以上版本：
+  /// - getExternalStorageDirectory() 返回私有沙箱目录
+  /// - 我们需要使用 /storage/emulated/0/Documents 来支持跨应用访问
+  /// - 这需要存储权限或 SAF 授权
+  Future<Directory?> _getAndroidDocumentsDirectory() async {
+    // 首先尝试获取外部存储目录来确定存储根路径
+    final externalDir = await getExternalStorageDirectory();
+    if (externalDir == null) {
+      // 如果无法获取外部存储，回退到应用文档目录
+      debugPrint('MyFilesService: 无法获取外部存储目录，回退到应用文档目录');
+      return await getApplicationDocumentsDirectory();
+    }
+
+    // 从外部存储目录路径提取存储根路径
+    // 例如：/storage/emulated/0/Android/data/com.ushiomd/files
+    // 提取：/storage/emulated/0
+    final pathParts = externalDir.path.split(Platform.pathSeparator);
+    
+    // 查找 Android 目录的位置
+    int androidIndex = -1;
+    for (int i = 0; i < pathParts.length; i++) {
+      if (pathParts[i] == 'Android') {
+        androidIndex = i;
+        break;
+      }
+    }
+
+    String storageRoot;
+    if (androidIndex > 0) {
+      // 提取 Android 目录之前的路径作为存储根路径
+      storageRoot = pathParts.sublist(0, androidIndex).join(Platform.pathSeparator);
+    } else {
+      // 回退：尝试常见路径
+      storageRoot = '/storage/emulated/0';
+    }
+
+    // 构建 Documents 目录路径
+    final documentsPath = '$storageRoot${Platform.pathSeparator}Documents';
+    final documentsDir = Directory(documentsPath);
+
+    // 检查目录是否存在，如果不存在则创建
+    try {
+      if (!await documentsDir.exists()) {
+        await documentsDir.create(recursive: true);
+        debugPrint('MyFilesService: 创建 Documents 目录 $documentsPath');
+      }
+      return documentsDir;
+    } catch (e) {
+      debugPrint('MyFilesService: 无法访问 Documents 目录 $documentsPath: $e');
+      // 如果无法访问公共 Documents 目录，回退到应用文档目录
+      // 这会导致文件无法在文件管理器中显示，但至少应用内可用
+      return await getApplicationDocumentsDirectory();
+    }
+  }
+
   /// 获取工作区根路径
   ///
   /// 默认工作区：
   /// - Windows/macOS/Linux: ~/Documents/Ushio-md
-  /// - Android: /storage/emulated/0/Documents/Ushio-md
+  /// - Android: /storage/emulated/0/Documents/Ushio-md (公共目录)
   /// - iOS: App Documents/Ushio-md
   /// 或用户自定义的基础路径下
   Future<String> getWorkspacePath() async {
@@ -99,9 +168,62 @@ class MyFilesService {
   ///
   /// [filePath] 要检查的文件路径
   /// 返回 true 表示文件在工作区内
+  ///
+  /// 安全检查：
+  /// - 规范化路径，防止 `../` 遍历
+  /// - 检查绝对路径是否以工作区路径开头
   Future<bool> isInWorkspace(String filePath) async {
     final workspacePath = await getWorkspacePath();
-    return filePath.startsWith(workspacePath);
+    
+    // 规范化路径，防止路径遍历攻击
+    String normalizedFilePath;
+    String normalizedWorkspacePath;
+    
+    try {
+      normalizedFilePath = File(filePath).absolute.path;
+      normalizedWorkspacePath = File(workspacePath).absolute.path;
+    } catch (e) {
+      debugPrint('MyFilesService: 路径规范化失败: $e');
+      return false;
+    }
+    
+    // 检查路径是否以工作区路径开头
+    // 使用规范化比较，防止大小写差异（Windows）
+    final isWindows = Platform.isWindows;
+    final filePathCheck = isWindows ? normalizedFilePath.toLowerCase() : normalizedFilePath;
+    final workspacePathCheck = isWindows ? normalizedWorkspacePath.toLowerCase() : normalizedWorkspacePath;
+    
+    if (!filePathCheck.startsWith(workspacePathCheck)) {
+      return false;
+    }
+    
+    // 检查路径遍历攻击 (例如: /workspace/../secret)
+    try {
+      // 解析符号链接获取真实路径
+      final realFile = File(normalizedFilePath);
+      final realWorkspace = Directory(normalizedWorkspacePath);
+      
+      // 确保文件和工作区都存在
+      if (!await realFile.exists()) {
+        // 文件不存在，只检查路径
+        return filePathCheck.startsWith(workspacePathCheck);
+      }
+      
+      // 获取真实路径（解析符号链接）
+      String realFilePath;
+      try {
+        realFilePath = await realFile.resolveSymbolicLinks();
+      } catch (_) {
+        // 无法解析符号链接，使用规范路径
+        realFilePath = normalizedFilePath;
+      }
+      
+      final realFilePathCheck = isWindows ? realFilePath.toLowerCase() : realFilePath;
+      return realFilePathCheck.startsWith(workspacePathCheck);
+    } catch (e) {
+      debugPrint('MyFilesService: 路径安全检查失败: $e');
+      return false;
+    }
   }
 
   /// 复制文件到工作区
@@ -121,14 +243,22 @@ class MyFilesService {
       throw Exception('源文件不存在: $sourcePath');
     }
 
-    // 确定目标路径
-    final fileName = sourcePath.split(Platform.pathSeparator).last;
+    // 确定目标路径，验证并清理文件名
+    final rawFileName = sourcePath.split(Platform.pathSeparator).last;
+    final fileName = FileService.sanitizeFileName(rawFileName);
     String targetDir = workspacePath;
 
     if (targetSubPath != null && targetSubPath.isNotEmpty) {
-      targetDir = '$workspacePath${Platform.pathSeparator}$targetSubPath';
-      // 确保目标目录存在
-      await Directory(targetDir).create(recursive: true);
+      // 清理子路径，防止路径遍历
+      final cleanSubPath = targetSubPath
+          .replaceAll('..', '')
+          .replaceAll(RegExp(r'^[/\\]+'), '')
+          .replaceAll(RegExp(r'[/\\]+$'), '');
+      if (cleanSubPath.isNotEmpty) {
+        targetDir = '$workspacePath${Platform.pathSeparator}$cleanSubPath';
+        // 确保目标目录存在
+        await Directory(targetDir).create(recursive: true);
+      }
     }
 
     final targetPath = '$targetDir${Platform.pathSeparator}$fileName';

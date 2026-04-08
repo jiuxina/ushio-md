@@ -8,12 +8,40 @@ import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/share_service.dart';
 import '../services/export_service.dart';
+import '../services/file_service.dart';
 import '../screens/folder_browser_screen.dart';
 import '../utils/constants.dart';
 import '../widgets/milkdown_webview_editor.dart';
 import 'editor_navigation_helper.dart';
 
 enum FileSource { myFiles, pinned, history }
+
+/// 防抖管理器
+class _Debouncer {
+  static final Map<String, bool> _operations = {};
+
+  /// 检查并标记操作是否正在进行
+  static bool startOperation(String key) {
+    if (_operations[key] == true) return false;
+    _operations[key] = true;
+    return true;
+  }
+
+  /// 完成操作
+  static void endOperation(String key) {
+    _operations[key] = false;
+  }
+
+  /// 执行防抖操作
+  static Future<T?> run<T>(String key, Future<T> Function() operation) async {
+    if (!startOperation(key)) return null;
+    try {
+      return await operation();
+    } finally {
+      endOperation(key);
+    }
+  }
+}
 
 class FileActions {
   static void showFileContextMenu(
@@ -105,7 +133,11 @@ class FileActions {
               color: Colors.purple,
               onTap: () {
                 Navigator.pop(context);
-                fileProvider.togglePinFile(path);
+                // 防抖：避免快速点击
+                _Debouncer.run('pin_$path', () async {
+                  fileProvider.togglePinFile(path);
+                  return null;
+                });
               },
             ),
             const SizedBox(height: 8),
@@ -365,7 +397,7 @@ class FileActions {
   /// 提供三种分享选项：
   /// - 以文件分享：直接分享 .md 文件
   /// - 以图片分享：后台使用 Milkdown 渲染并生成长图后分享
-  /// - 以 PDF 分享：转换为 PDF 后分享（待实现）
+  /// - 以 PDF 分享：转换为 PDF 后分享
   static Widget _buildShareSubmenu(
     BuildContext context,
     String path,
@@ -433,9 +465,45 @@ class FileActions {
               subtitle: '转换为 PDF 后分享',
               onTap: () async {
                 Navigator.pop(context);
+
+                // 防抖检查
+                final debounceKey = 'pdf_share_$path';
+                if (!_Debouncer.startOperation(debounceKey)) return;
+
                 // 读取文件内容
                 try {
                   final file = File(path);
+                  final stat = await file.stat();
+
+                  // 检查文件大小
+                  if (FileService.isFileTooLarge(stat.size)) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.error, color: Colors.white),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  '文件过大 (${FileService.formatFileSize(stat.size)})，'
+                                  '最大支持 ${FileService.formatFileSize(FileService.maxFileSize)}',
+                                ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      );
+                    }
+                    _Debouncer.endOperation(debounceKey);
+                    return;
+                  }
+
                   final content = await file.readAsString();
                   final fileName = path
                       .split(Platform.pathSeparator)
@@ -494,19 +562,8 @@ class FileActions {
                       ),
                     );
                   }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('无法读取文件: $e'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    );
-                  }
+                } finally {
+                  _Debouncer.endOperation(debounceKey);
                 }
               },
             ),
@@ -899,6 +956,9 @@ class FileActions {
     final illegalCharsRegex = RegExp(r'[\\/:*?"<>|]');
     String? errorText;
 
+    // 防抖标志
+    bool isRenaming = false;
+
     final result = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -914,6 +974,7 @@ class FileActions {
                 TextField(
                   controller: controller,
                   autofocus: true,
+                  maxLength: 250, // 限制长度，留 5 字符给 .md
                   decoration: InputDecoration(
                     labelText: '新文件名',
                     suffixText: '.md',
@@ -921,6 +982,7 @@ class FileActions {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     errorText: errorText,
+                    counterText: '', // 隐藏计数器文字
                   ),
                   onChanged: (value) {
                     setState(() {
@@ -953,10 +1015,33 @@ class FileActions {
       ),
     );
 
-    if (result != null && result.isNotEmpty && result != nameWithoutExt) {
+    if (result != null &&
+        result.isNotEmpty &&
+        result != nameWithoutExt &&
+        !isRenaming) {
+      isRenaming = true;
+
+      // 使用 FileService 验证文件名
+      final sanitizedName = FileService.sanitizeFileName(
+        result,
+        defaultName: nameWithoutExt,
+      );
+
       try {
         final dir = path.substring(0, path.lastIndexOf(Platform.pathSeparator));
-        final newPath = '$dir${Platform.pathSeparator}$result.md';
+        final newPath = '$dir${Platform.pathSeparator}$sanitizedName';
+
+        // 检查目标文件是否已存在
+        if (File(newPath).existsSync() && newPath != path) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('文件名已存在')));
+          }
+          controller.dispose();
+          return;
+        }
+
         final file = File(path);
         await file.rename(newPath);
         fileProvider.refresh();
@@ -969,6 +1054,8 @@ class FileActions {
         }
       }
     }
+
+    controller.dispose();
   }
 
   static Future<void> confirmDelete(

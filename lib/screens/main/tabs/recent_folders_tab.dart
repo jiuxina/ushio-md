@@ -49,7 +49,9 @@ class RecentFoldersTab extends StatelessWidget {
         final modified = stat.modified;
         dateStr = '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('获取文件夹信息失败: $e');
+    }
 
     return GlassCard(
       icon: Icons.folder,

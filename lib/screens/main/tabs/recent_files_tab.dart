@@ -48,7 +48,9 @@ class RecentFilesTab extends StatelessWidget {
       try {
         final modified = file.lastModifiedSync();
         dateStr = '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('获取文件修改时间失败: $e');
+      }
     }
 
     return GlassCard(

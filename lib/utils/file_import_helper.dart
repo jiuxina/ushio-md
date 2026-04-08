@@ -12,6 +12,24 @@ import 'package:flutter/material.dart';
 import '../services/my_files_service.dart';
 import 'editor_navigation_helper.dart';
 
+/// 文件导入结果
+class FileImportResult {
+  /// 导入后的文件路径（如果导入了的话）
+  final String? importedPath;
+  
+  /// 是否成功打开
+  final bool success;
+  
+  /// 是否为新导入的文件
+  final bool wasImported;
+
+  const FileImportResult({
+    this.importedPath,
+    required this.success,
+    this.wasImported = false,
+  });
+}
+
 /// 文件导入助手
 ///
 /// 提供统一的外部文件导入处理逻辑
@@ -23,25 +41,27 @@ class FileImportHelper {
   /// [context] 上下文
   /// [filePath] 文件路径
   /// [onFileOpened] 文件打开后的回调（用于添加到最近文件等）
+  /// [onImportComplete] 导入完成后的回调（用于刷新文件列表等）
   ///
-  /// 返回是否成功打开文件
-  static Future<bool> openFile(
+  /// 返回导入结果
+  static Future<FileImportResult> openFile(
     BuildContext context,
     String filePath, {
     VoidCallback? onFileOpened,
+    VoidCallback? onImportComplete,
   }) async {
     // 检查文件是否在工作区内
     final isInWorkspace = await _myFilesService.isInWorkspace(filePath);
 
     if (isInWorkspace) {
       // 文件在工作区内，直接打开
-      if (!context.mounted) return false;
+      if (!context.mounted) return const FileImportResult(success: false);
       _navigateToEditor(context, filePath, onFileOpened);
-      return true;
+      return FileImportResult(importedPath: filePath, success: true);
     }
 
     // 文件不在工作区内，询问用户
-    if (!context.mounted) return false;
+    if (!context.mounted) return const FileImportResult(success: false);
 
     final result = await showDialog<String>(
       context: context,
@@ -50,7 +70,7 @@ class FileImportHelper {
 
     if (result == null) {
       // 用户取消
-      return false;
+      return const FileImportResult(success: false);
     }
 
     if (result == 'import') {
@@ -83,21 +103,29 @@ class FileImportHelper {
             ),
           );
         }
-        return true;
+        
+        // 通知刷新文件列表
+        onImportComplete?.call();
+        
+        return FileImportResult(
+          importedPath: newPath,
+          success: true,
+          wasImported: true,
+        );
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('导入失败: $e')));
         }
-        return false;
+        return const FileImportResult(success: false);
       }
     } else {
       // 用户选择仅查看（不导入）
       if (context.mounted) {
         _navigateToEditor(context, filePath, onFileOpened);
       }
-      return true;
+      return FileImportResult(importedPath: filePath, success: true);
     }
   }
 

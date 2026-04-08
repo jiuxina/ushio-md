@@ -150,6 +150,12 @@ class FTPService implements SyncServiceInterface {
       return true;
     } catch (e) {
       debugPrint('FTP 连接测试失败: $e');
+      // 确保在异常时关闭连接
+      try {
+        await _ftpClient!.disconnect();
+      } catch (disconnectError) {
+        debugPrint('FTP 断开连接失败: $disconnectError');
+      }
       return false;
     }
   }
@@ -159,20 +165,11 @@ class FTPService implements SyncServiceInterface {
   Future<void> ensureRemoteWorkspace() async {
     if (_ftpClient == null) return;
 
-    try {
+    await _safeExecute<void>('创建远程目录', () async {
       final remotePath = getFullRemotePath();
-      await _ftpClient!.connect();
-
       // 递归创建目录路径
       await _ensureRemoteDir(remotePath);
-
-      await _ftpClient!.disconnect();
-    } catch (e) {
-      debugPrint('FTP 创建远程目录失败: $e');
-      try {
-        await _ftpClient!.disconnect();
-      } catch (_) {}
-    }
+    });
   }
 
   /// 列出远程目录内容
@@ -182,11 +179,7 @@ class FTPService implements SyncServiceInterface {
   Future<List<RemoteFileInfo>?> listRemoteFiles({
     String remotePath = '',
   }) async {
-    if (_ftpClient == null) return null;
-
-    try {
-      await _ftpClient!.connect();
-
+    return _safeExecute<List<RemoteFileInfo>>('列出目录', () async {
       final fullRemotePath = getFullRemotePath();
       final path = remotePath.isEmpty
           ? fullRemotePath
@@ -195,8 +188,6 @@ class FTPService implements SyncServiceInterface {
       // Change to the directory before listing
       await _ftpClient!.changeDirectory(path);
       final files = await _ftpClient!.listDirectoryContent();
-
-      await _ftpClient!.disconnect();
 
       // 转换为通用格式
       return files
@@ -209,13 +200,7 @@ class FTPService implements SyncServiceInterface {
             ),
           )
           .toList();
-    } catch (e) {
-      debugPrint('FTP 列出目录失败: $e');
-      try {
-        await _ftpClient!.disconnect();
-      } catch (_) {}
-      return null;
-    }
+    });
   }
 
   /// 上传文件
@@ -224,22 +209,18 @@ class FTPService implements SyncServiceInterface {
   /// [remotePath] 远程文件路径（相对于工作区）
   @override
   Future<bool> uploadFile(String localPath, String remotePath) async {
-    if (_ftpClient == null) return false;
+    final file = File(localPath);
+    if (!await file.exists()) {
+      debugPrint('FTP 上传失败：本地文件不存在 $localPath');
+      return false;
+    }
 
-    try {
-      final file = File(localPath);
-      if (!await file.exists()) {
-        debugPrint('FTP 上传失败：本地文件不存在 $localPath');
-        return false;
-      }
+    final fullRemotePath = getFullRemotePath();
+    final targetPath = '$fullRemotePath/$remotePath';
+    final parentPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
 
-      await _ftpClient!.connect();
-
-      final fullRemotePath = getFullRemotePath();
-      final targetPath = '$fullRemotePath/$remotePath';
-
+    final result = await _safeExecuteBool('上传文件', () async {
       // 确保父目录存在
-      final parentPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
       await _ensureRemoteDir(parentPath);
 
       // 上传文件
@@ -248,21 +229,15 @@ class FTPService implements SyncServiceInterface {
         sRemoteName: targetPath,
       );
 
-      await _ftpClient!.disconnect();
-
       if (success) {
         debugPrint('FTP 上传成功: $localPath -> $targetPath');
       } else {
         debugPrint('FTP 上传失败: $localPath -> $targetPath');
       }
       return success;
-    } catch (e) {
-      debugPrint('FTP 上传失败: $e');
-      try {
-        await _ftpClient!.disconnect();
-      } catch (_) {}
-      return false;
-    }
+    });
+
+    return result;
   }
 
   /// 下载文件
@@ -271,28 +246,22 @@ class FTPService implements SyncServiceInterface {
   /// [localPath] 本地保存路径
   @override
   Future<bool> downloadFile(String remotePath, String localPath) async {
-    if (_ftpClient == null) return false;
+    // 确保本地父目录存在
+    final localDir = localPath.substring(
+      0,
+      localPath.lastIndexOf(Platform.pathSeparator),
+    );
+    await Directory(localDir).create(recursive: true);
 
-    try {
-      await _ftpClient!.connect();
+    final fullRemotePath = getFullRemotePath();
+    final sourcePath = '$fullRemotePath/$remotePath';
 
-      final fullRemotePath = getFullRemotePath();
-      final sourcePath = '$fullRemotePath/$remotePath';
-
-      // 确保本地父目录存在
-      final localDir = localPath.substring(
-        0,
-        localPath.lastIndexOf(Platform.pathSeparator),
-      );
-      await Directory(localDir).create(recursive: true);
-
+    final result = await _safeExecuteBool('下载文件', () async {
       // 下载文件
       final success = await _ftpClient!.downloadFile(
         sourcePath,
         File(localPath),
       );
-
-      await _ftpClient!.disconnect();
 
       if (success) {
         debugPrint('FTP 下载成功: $sourcePath -> $localPath');
@@ -300,29 +269,19 @@ class FTPService implements SyncServiceInterface {
         debugPrint('FTP 下载失败: $sourcePath -> $localPath');
       }
       return success;
-    } catch (e) {
-      debugPrint('FTP 下载失败: $e');
-      try {
-        await _ftpClient!.disconnect();
-      } catch (_) {}
-      return false;
-    }
+    });
+
+    return result;
   }
 
   /// 删除远程文件或目录
   @override
   Future<bool> deleteRemote(String remotePath) async {
-    if (_ftpClient == null) return false;
+    final fullRemotePath = getFullRemotePath();
+    final targetPath = '$fullRemotePath/$remotePath';
 
-    try {
-      await _ftpClient!.connect();
-
-      final fullRemotePath = getFullRemotePath();
-      final targetPath = '$fullRemotePath/$remotePath';
-
+    final result = await _safeExecuteBool('删除文件', () async {
       final success = await _ftpClient!.deleteFile(targetPath);
-
-      await _ftpClient!.disconnect();
 
       if (success) {
         debugPrint('FTP 删除成功: $targetPath');
@@ -330,20 +289,14 @@ class FTPService implements SyncServiceInterface {
         debugPrint('FTP 删除失败: $targetPath');
       }
       return success;
-    } catch (e) {
-      debugPrint('FTP 删除失败: $e');
-      try {
-        await _ftpClient!.disconnect();
-      } catch (_) {}
-      return false;
-    }
+    });
+
+    return result;
   }
 
   /// 获取远程文件信息
   @override
   Future<RemoteFileInfo?> getRemoteFileInfo(String remotePath) async {
-    if (_ftpClient == null) return null;
-
     try {
       final parentPath = remotePath.contains('/')
           ? remotePath.substring(0, remotePath.lastIndexOf('/'))
@@ -364,6 +317,68 @@ class FTPService implements SyncServiceInterface {
   }
 
   // ==================== 私有方法 ====================
+
+  /// 安全执行 FTP 操作，确保连接正确关闭
+  ///
+  /// [operation] 要执行的 FTP 操作
+  /// [operationName] 操作名称（用于日志）
+  /// 返回操作结果，异常时返回 null
+  Future<T?> _safeExecute<T>(
+    String operationName,
+    Future<T> Function() operation,
+  ) async {
+    if (_ftpClient == null) {
+      debugPrint('FTP $operationName 失败: 客户端未初始化');
+      return null;
+    }
+
+    try {
+      await _ftpClient!.connect();
+      final result = await operation();
+      await _ftpClient!.disconnect();
+      return result;
+    } catch (e) {
+      debugPrint('FTP $operationName 失败: $e');
+      // 确保在异常时关闭连接
+      try {
+        await _ftpClient!.disconnect();
+      } catch (disconnectError) {
+        debugPrint('FTP 断开连接失败: $disconnectError');
+      }
+      return null;
+    }
+  }
+
+  /// 安全执行 FTP 操作（无返回值版本）
+  ///
+  /// [operation] 要执行的 FTP 操作
+  /// [operationName] 操作名称（用于日志）
+  /// 返回是否成功
+  Future<bool> _safeExecuteBool(
+    String operationName,
+    Future<bool> Function() operation,
+  ) async {
+    if (_ftpClient == null) {
+      debugPrint('FTP $operationName 失败: 客户端未初始化');
+      return false;
+    }
+
+    try {
+      await _ftpClient!.connect();
+      final result = await operation();
+      await _ftpClient!.disconnect();
+      return result;
+    } catch (e) {
+      debugPrint('FTP $operationName 失败: $e');
+      // 确保在异常时关闭连接
+      try {
+        await _ftpClient!.disconnect();
+      } catch (disconnectError) {
+        debugPrint('FTP 断开连接失败: $disconnectError');
+      }
+      return false;
+    }
+  }
 
   /// 确保远程目录存在（递归创建）
   Future<void> _ensureRemoteDir(String remotePath) async {

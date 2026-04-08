@@ -144,8 +144,8 @@ class WebDAVService implements SyncServiceInterface {
       final remotePath = getFullRemotePath();
       await _client!.mkdir(remotePath);
     } catch (e) {
-      // 目录可能已存在，忽略错误
-      debugPrint('WebDAV 创建远程目录: $e');
+      // 目录可能已存在，忽略错误，但记录详细日志便于调试
+      debugPrint('WebDAV 创建远程工作区目录失败 (可能已存在): ${getFullRemotePath()} - $e');
     }
   }
 
@@ -280,6 +280,7 @@ class WebDAVService implements SyncServiceInterface {
         orElse: () => throw Exception('文件不存在'),
       );
     } catch (e) {
+      debugPrint('WebDAV 获取远程文件信息失败: $remotePath - $e');
       return null;
     }
   }
@@ -298,7 +299,8 @@ class WebDAVService implements SyncServiceInterface {
       try {
         await _client!.mkdir(currentPath);
       } catch (e) {
-        // 目录可能已存在
+        // 目录可能已存在，忽略错误，但记录详细日志便于调试
+        debugPrint('WebDAV 创建目录失败 (可能已存在): $currentPath - $e');
       }
     }
   }

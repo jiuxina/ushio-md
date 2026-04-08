@@ -19,6 +19,106 @@ const _defaultMonoFont = 'JetBrains Mono';
 const _defaultFontSize = 16.0;
 const _defaultLineHeight = 1.6;
 
+/// 内容安全工具类
+class _ContentSanitizer {
+  /// 危险的 HTML 标签
+  static final RegExp _dangerousTags = RegExp(
+    r'<\s*(script|iframe|object|embed|form|input|button|meta|link|style|base)[^>]*>',
+    caseSensitive: false,
+  );
+
+  /// 危险的事件处理器
+  static final RegExp _dangerousAttributes = RegExp(
+    r'''\s(on\w+)\s*=\s*['"][^'"]*['"]''',
+    caseSensitive: false,
+  );
+
+  /// javascript: 协议
+  static final RegExp _javascriptProtocol = RegExp(
+    r'''(href|src|action)\s*=\s*['"]?\s*javascript:''',
+    caseSensitive: false,
+  );
+
+  /// data: 协议中的潜在危险内容
+  static final RegExp _dangerousDataUri = RegExp(
+    r'data\s*:\s*(?!image/(png|jpe?g|gif|webp|svg\+xml|bmp|ico))[a-z0-9+.-]+',
+    caseSensitive: false,
+  );
+
+  /// 清理 Markdown 内容中的潜在 XSS 向量
+  ///
+  /// 注意：Milkdown 本身已有隔离机制，这是额外的防护层
+  static String sanitizeMarkdown(String markdown) {
+    var sanitized = markdown;
+
+    // 移除危险标签
+    sanitized = sanitized.replaceAll(_dangerousTags, '');
+
+    // 移除事件处理器
+    sanitized = sanitized.replaceAllMapped(_dangerousAttributes, (match) => '');
+
+    // 移除 javascript: 协议
+    sanitized = sanitized.replaceAllMapped(
+      _javascriptProtocol,
+      (match) => match
+          .group(0)!
+          .replaceFirst(RegExp(r'javascript:', caseSensitive: false), '#'),
+    );
+
+    return sanitized;
+  }
+
+  /// 清理 URL，阻止危险协议
+  static String sanitizeUrl(String url) {
+    final trimmed = url.trim();
+
+    // 允许的协议
+    const allowedProtocols = [
+      'http://',
+      'https://',
+      'ftp://',
+      'mailto:',
+      'tel:',
+    ];
+
+    // 检查是否以允许的协议开头
+    for (final proto in allowedProtocols) {
+      if (trimmed.toLowerCase().startsWith(proto)) {
+        return trimmed;
+      }
+    }
+
+    // 检查是否是相对路径或锚点
+    if (trimmed.startsWith('/') ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('?')) {
+      return trimmed;
+    }
+
+    // 检查是否是 data: URI（仅允许图片）
+    if (trimmed.toLowerCase().startsWith('data:image/')) {
+      return trimmed;
+    }
+
+    // 阻止 javascript:, vbscript: 等危险协议
+    if (trimmed.toLowerCase().startsWith('javascript:') ||
+        trimmed.toLowerCase().startsWith('vbscript:') ||
+        trimmed.toLowerCase().startsWith('data:text/html')) {
+      return '#blocked';
+    }
+
+    // 默认当作相对路径
+    return trimmed;
+  }
+
+  /// 检查内容是否包含潜在的恶意代码
+  static bool containsDangerousContent(String content) {
+    return _dangerousTags.hasMatch(content) ||
+        _dangerousAttributes.hasMatch(content) ||
+        _javascriptProtocol.hasMatch(content);
+  }
+}
+
 Future<void> warmUpMilkdownWebAssets() async {}
 
 class MilkdownWebViewController {
@@ -264,6 +364,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   bool _isServerStarting = false;
   bool _didFinishFirstRender = false;
   bool _suppressNextReload = false;
+  bool _isDisposed = false;
 
   /// 安全检查：验证请求的文件路径是否在允许的目录范围内
   /// 防止路径遍历攻击，避免访问工作区外的敏感文件
@@ -363,12 +464,12 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   }
 
   Future<void> _startLocalhostServer() async {
-    if (_isServerStarting || _localhostServer != null) return;
+    if (_isServerStarting || _localhostServer != null || _isDisposed) return;
     _isServerStarting = true;
     try {
       final server = InAppLocalhostServer(documentRoot: _documentRoot);
       await server.start();
-      if (!mounted) {
+      if (!mounted || _isDisposed) {
         await server.close();
         return;
       }
@@ -378,7 +479,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       });
     } catch (e) {
       debugPrint('Failed to start Milkdown localhost server: $e');
-      if (!mounted) return;
+      if (!mounted || _isDisposed) return;
       setState(() {
         _initialUrl = '';
       });
@@ -433,7 +534,15 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   }
 
   Future<void> _sendInitDoc({String? markdownOverride}) async {
-    final markdown = markdownOverride ?? widget.initialMarkdown;
+    var markdown = markdownOverride ?? widget.initialMarkdown;
+
+    // 内容安全检查：清理潜在的 XSS 向量
+    // 注意：Milkdown WebView 已有沙箱隔离，这是额外的防护层
+    if (_ContentSanitizer.containsDangerousContent(markdown)) {
+      debugPrint('警告: 检测到潜在危险内容，已自动清理');
+      markdown = _ContentSanitizer.sanitizeMarkdown(markdown);
+    }
+
     _lastSyncedMarkdown = markdown;
     final msg = BridgeEnvelope<InitDocPayload>(
       v: 1,
@@ -797,7 +906,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         );
         return;
       }
-      final src = selected['src']?.trim() ?? '';
+      var src = selected['src']?.trim() ?? '';
       if (src.isEmpty) {
         await _sendExecCmd(
           'upload_images_result',
@@ -809,6 +918,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         );
         return;
       }
+
+      // URL 安全检查：阻止危险协议
+      src = _ContentSanitizer.sanitizeUrl(src);
+
       await _sendExecCmd(
         'upload_images_result',
         args: {
@@ -937,6 +1050,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     widget.controller?._detach(this);
     final server = _localhostServer;
     _localhostServer = null;
