@@ -992,10 +992,10 @@ abstract class AppLocalizations {
   /// **'系统字体'**
   String get systemFont;
 
-  /// 自定义字体选项
+  /// 代码块字体选项
   ///
   /// In zh, this message translates to:
-  /// **'自定义字体'**
+  /// **'代码块字体'**
   String get customFont;
 
   /// 安装自定义字体按钮

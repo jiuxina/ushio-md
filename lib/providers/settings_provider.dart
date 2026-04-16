@@ -163,6 +163,9 @@ class SettingsProvider extends ChangeNotifier {
   /// 同步类型（webdav 或 ftp）
   String _syncType = 'webdav';
 
+  /// 专注模式（隐藏非必要 UI 元素）
+  bool _focusMode = false;
+
   /// WebDAV 服务器地址
   String _webdavUrl = '';
 
@@ -262,6 +265,7 @@ class SettingsProvider extends ChangeNotifier {
 
   // 云同步 Getters
   String get syncType => _syncType;
+  bool get focusMode => _focusMode;
   String get webdavUrl => _webdavUrl;
   String get webdavUsername => _webdavUsername;
   // 密码不通过公共 getter 暴露，仅在内部使用
@@ -453,6 +457,7 @@ class SettingsProvider extends ChangeNotifier {
 
     // 云同步设置
     _syncType = prefs.getString('sync_type') ?? 'webdav';
+    _focusMode = prefs.getBool('focusMode') ?? false;
     _webdavUrl = prefs.getString('webdav_url') ?? '';
     _webdavUsername = prefs.getString('webdav_username') ?? '';
 
@@ -536,7 +541,9 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (e) { debugPrint('操作失败: $e'); }
+        } catch (e) {
+          debugPrint('操作失败: $e');
+        }
       }
       _backgroundImagePath = null;
       final prefs = await SharedPreferences.getInstance();
@@ -568,7 +575,9 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (e) { debugPrint('操作失败: $e'); }
+        } catch (e) {
+          debugPrint('操作失败: $e');
+        }
       }
 
       _backgroundImagePath = destPath;
@@ -596,7 +605,9 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (e) { debugPrint('操作失败: $e'); }
+        } catch (e) {
+          debugPrint('操作失败: $e');
+        }
       }
       _editorBackgroundImagePath = null;
       final prefs = await SharedPreferences.getInstance();
@@ -626,7 +637,9 @@ class SettingsProvider extends ChangeNotifier {
           if (await oldFile.exists()) {
             await oldFile.delete();
           }
-        } catch (e) { debugPrint('操作失败: $e'); }
+        } catch (e) {
+          debugPrint('操作失败: $e');
+        }
       }
 
       _editorBackgroundImagePath = destPath;
@@ -1055,6 +1068,15 @@ class SettingsProvider extends ChangeNotifier {
     _autoSyncEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('auto_sync_enabled', enabled);
+    notifyListeners();
+  }
+
+  /// 设置专注模式
+  Future<void> setFocusMode(bool value) async {
+    if (_focusMode == value) return;
+    _focusMode = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('focusMode', _focusMode);
     notifyListeners();
   }
 

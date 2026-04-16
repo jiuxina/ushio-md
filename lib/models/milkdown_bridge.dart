@@ -50,12 +50,12 @@ class InitDocPayload {
   });
 
   Map<String, dynamic> toJson() => {
-        'markdown': markdown,
-        if (docId != null) 'docId': docId,
-        if (cursor != null) 'cursor': cursor,
-        if (baseDirectory != null) 'baseDirectory': baseDirectory,
-        if (readOnly != null) 'readOnly': readOnly,
-      };
+    'markdown': markdown,
+    if (docId != null) 'docId': docId,
+    if (cursor != null) 'cursor': cursor,
+    if (baseDirectory != null) 'baseDirectory': baseDirectory,
+    if (readOnly != null) 'readOnly': readOnly,
+  };
 }
 
 class ThemePalettePayload {
@@ -65,6 +65,8 @@ class ThemePalettePayload {
   final String monoFont;
   final double sizePx;
   final double lineHeight;
+  final double borderRadius;
+  final double shadowOpacity;
 
   const ThemePalettePayload({
     required this.mode,
@@ -73,43 +75,37 @@ class ThemePalettePayload {
     required this.monoFont,
     required this.sizePx,
     required this.lineHeight,
+    this.borderRadius = 12.0,
+    this.shadowOpacity = 0.08,
   });
 
   Map<String, dynamic> toJson() => {
-        'mode': mode,
-        'colors': colors,
-        'font': {
-          'body': bodyFont,
-          'mono': monoFont,
-          'sizePx': sizePx,
-          'lineHeight': lineHeight,
-        },
-      };
+    'mode': mode,
+    'colors': colors,
+    'font': {
+      'body': bodyFont,
+      'mono': monoFont,
+      'sizePx': sizePx,
+      'lineHeight': lineHeight,
+    },
+    'style': {'borderRadius': borderRadius, 'shadowOpacity': shadowOpacity},
+  };
 }
 
 class ExecCmdPayload {
   final String cmd;
   final Map<String, dynamic>? args;
 
-  const ExecCmdPayload({
-    required this.cmd,
-    this.args,
-  });
+  const ExecCmdPayload({required this.cmd, this.args});
 
-  Map<String, dynamic> toJson() => {
-        'cmd': cmd,
-        if (args != null) 'args': args,
-      };
+  Map<String, dynamic> toJson() => {'cmd': cmd, if (args != null) 'args': args};
 }
 
 class OnImageErrorPayload {
   final String src;
   final String reason;
 
-  const OnImageErrorPayload({
-    required this.src,
-    required this.reason,
-  });
+  const OnImageErrorPayload({required this.src, required this.reason});
 
   factory OnImageErrorPayload.fromJson(Map<String, dynamic> json) {
     final src = json['src']?.toString();
@@ -122,10 +118,7 @@ class OnImageErrorPayload {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'src': src,
-        'reason': reason,
-      };
+  Map<String, dynamic> toJson() => {'src': src, 'reason': reason};
 }
 
 class OutlineNodePayload {
@@ -141,7 +134,9 @@ class OutlineNodePayload {
 
   factory OutlineNodePayload.fromJson(Map<String, dynamic> json) {
     final levelRaw = json['level'];
-    final level = levelRaw is int ? levelRaw : int.tryParse(levelRaw?.toString() ?? '') ?? 1;
+    final level = levelRaw is int
+        ? levelRaw
+        : int.tryParse(levelRaw?.toString() ?? '') ?? 1;
     return OutlineNodePayload(
       id: json['id']?.toString() ?? '',
       level: level,
@@ -149,31 +144,26 @@ class OutlineNodePayload {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'level': level,
-        'text': text,
-      };
+  Map<String, dynamic> toJson() => {'id': id, 'level': level, 'text': text};
 }
 
 class OnOutlineUpdatePayload {
   final List<OutlineNodePayload> outline;
   final String? docId;
 
-  const OnOutlineUpdatePayload({
-    required this.outline,
-    this.docId,
-  });
+  const OnOutlineUpdatePayload({required this.outline, this.docId});
 
   factory OnOutlineUpdatePayload.fromJson(Map<String, dynamic> json) {
     final raw = json['outline'];
     final list = raw is List
         ? raw
-            .whereType<Map>()
-            .map((item) => OutlineNodePayload.fromJson(
+              .whereType<Map>()
+              .map(
+                (item) => OutlineNodePayload.fromJson(
                   Map<String, dynamic>.from(item),
-                ))
-            .toList(growable: false)
+                ),
+              )
+              .toList(growable: false)
         : const <OutlineNodePayload>[];
     return OnOutlineUpdatePayload(
       outline: list,
@@ -182,9 +172,26 @@ class OnOutlineUpdatePayload {
   }
 
   Map<String, dynamic> toJson() => {
-        'outline': outline.map((e) => e.toJson()).toList(growable: false),
-        if (docId != null) 'docId': docId,
-      };
+    'outline': outline.map((e) => e.toJson()).toList(growable: false),
+    if (docId != null) 'docId': docId,
+  };
+}
+
+class OnImageClickPayload {
+  final String src;
+  final String? alt;
+
+  const OnImageClickPayload({required this.src, this.alt});
+
+  factory OnImageClickPayload.fromJson(Map<String, dynamic> json) {
+    final src = json['src']?.toString();
+    if (src == null || src.isEmpty) {
+      throw const FormatException('OnImageClickPayload.src is required');
+    }
+    return OnImageClickPayload(src: src, alt: json['alt']?.toString());
+  }
+
+  Map<String, dynamic> toJson() => {'src': src, if (alt != null) 'alt': alt};
 }
 
 class OnLinkClickPayload {
@@ -214,11 +221,11 @@ class OnLinkClickPayload {
   }
 
   Map<String, dynamic> toJson() => {
-        'href': href,
-        if (text != null) 'text': text,
-        if (title != null) 'title': title,
-        'isExternal': isExternal,
-      };
+    'href': href,
+    if (text != null) 'text': text,
+    if (title != null) 'title': title,
+    'isExternal': isExternal,
+  };
 }
 
 class UploadImageFilePayload {
@@ -240,7 +247,9 @@ class UploadImageFilePayload {
       throw const FormatException('UploadImageFilePayload.dataUrl is required');
     }
     final sizeRaw = json['size'];
-    final size = sizeRaw is int ? sizeRaw : int.tryParse(sizeRaw?.toString() ?? '') ?? 0;
+    final size = sizeRaw is int
+        ? sizeRaw
+        : int.tryParse(sizeRaw?.toString() ?? '') ?? 0;
     return UploadImageFilePayload(
       name: json['name']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
@@ -250,11 +259,11 @@ class UploadImageFilePayload {
   }
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'type': type,
-        'size': size,
-        'dataUrl': dataUrl,
-      };
+    'name': name,
+    'type': type,
+    'size': size,
+    'dataUrl': dataUrl,
+  };
 }
 
 class OnUploadImagesRequestPayload {
@@ -269,47 +278,46 @@ class OnUploadImagesRequestPayload {
   factory OnUploadImagesRequestPayload.fromJson(Map<String, dynamic> json) {
     final requestId = json['requestId']?.toString();
     if (requestId == null || requestId.isEmpty) {
-      throw const FormatException('OnUploadImagesRequestPayload.requestId is required');
+      throw const FormatException(
+        'OnUploadImagesRequestPayload.requestId is required',
+      );
     }
     final rawFiles = json['files'];
     final files = rawFiles is List
         ? rawFiles
-            .whereType<Map>()
-            .map((item) => UploadImageFilePayload.fromJson(
+              .whereType<Map>()
+              .map(
+                (item) => UploadImageFilePayload.fromJson(
                   Map<String, dynamic>.from(item),
-                ))
-            .toList(growable: false)
+                ),
+              )
+              .toList(growable: false)
         : const <UploadImageFilePayload>[];
-    return OnUploadImagesRequestPayload(
-      requestId: requestId,
-      files: files,
-    );
+    return OnUploadImagesRequestPayload(requestId: requestId, files: files);
   }
 
   Map<String, dynamic> toJson() => {
-        'requestId': requestId,
-        'files': files.map((e) => e.toJson()).toList(growable: false),
-      };
+    'requestId': requestId,
+    'files': files.map((e) => e.toJson()).toList(growable: false),
+  };
 }
 
 class OnInsertImageRequestPayload {
   final String requestId;
 
-  const OnInsertImageRequestPayload({
-    required this.requestId,
-  });
+  const OnInsertImageRequestPayload({required this.requestId});
 
   factory OnInsertImageRequestPayload.fromJson(Map<String, dynamic> json) {
     final requestId = json['requestId']?.toString();
     if (requestId == null || requestId.isEmpty) {
-      throw const FormatException('OnInsertImageRequestPayload.requestId is required');
+      throw const FormatException(
+        'OnInsertImageRequestPayload.requestId is required',
+      );
     }
     return OnInsertImageRequestPayload(requestId: requestId);
   }
 
-  Map<String, dynamic> toJson() => {
-        'requestId': requestId,
-      };
+  Map<String, dynamic> toJson() => {'requestId': requestId};
 }
 
 class OnCmdMetricPayload {
@@ -340,11 +348,11 @@ class OnCmdMetricPayload {
   }
 
   Map<String, dynamic> toJson() => {
-        'cmd': cmd,
-        'ok': ok,
-        if (reason != null) 'reason': reason,
-        if (durationMs != null) 'durationMs': durationMs,
-      };
+    'cmd': cmd,
+    'ok': ok,
+    if (reason != null) 'reason': reason,
+    if (durationMs != null) 'durationMs': durationMs,
+  };
 }
 
 class OnCmdFailureAggregatePayload {
@@ -362,19 +370,17 @@ class OnCmdFailureAggregatePayload {
     final cmd = json['cmd']?.toString() ?? '';
     final reason = json['reason']?.toString() ?? 'unknown';
     final countRaw = json['count'];
-    final count = countRaw is int ? countRaw : int.tryParse(countRaw?.toString() ?? '') ?? 0;
-    return OnCmdFailureAggregatePayload(
-      cmd: cmd,
-      reason: reason,
-      count: count,
-    );
+    final count = countRaw is int
+        ? countRaw
+        : int.tryParse(countRaw?.toString() ?? '') ?? 0;
+    return OnCmdFailureAggregatePayload(cmd: cmd, reason: reason, count: count);
   }
 
   Map<String, dynamic> toJson() => {
-        'cmd': cmd,
-        'reason': reason,
-        'count': count,
-      };
+    'cmd': cmd,
+    'reason': reason,
+    'count': count,
+  };
 }
 
 String createBridgeRequestId() {
@@ -394,6 +400,7 @@ void dispatchMilkdownBridgeMessage(
   void Function(OnOutlineUpdatePayload payload)? onOutlineUpdate,
   void Function(OnLinkClickPayload payload)? onLinkClick,
   void Function(OnImageErrorPayload payload)? onImageError,
+  void Function(OnImageClickPayload payload)? onImageClick,
   void Function(OnUploadImagesRequestPayload payload)? onUploadImagesRequest,
   void Function(OnInsertImageRequestPayload payload)? onInsertImageRequest,
   void Function(OnCmdMetricPayload payload)? onCmdMetric,
@@ -449,9 +456,20 @@ void dispatchMilkdownBridgeMessage(
     return;
   }
 
+  if (type == 'on_image_click') {
+    try {
+      onImageClick?.call(OnImageClickPayload.fromJson(payloadMap));
+    } on FormatException {
+      // Ignore malformed payload.
+    }
+    return;
+  }
+
   if (type == 'on_upload_images_request') {
     try {
-      onUploadImagesRequest?.call(OnUploadImagesRequestPayload.fromJson(payloadMap));
+      onUploadImagesRequest?.call(
+        OnUploadImagesRequestPayload.fromJson(payloadMap),
+      );
     } on FormatException {
       // Ignore malformed payload.
     }
@@ -460,7 +478,9 @@ void dispatchMilkdownBridgeMessage(
 
   if (type == 'on_insert_image_request') {
     try {
-      onInsertImageRequest?.call(OnInsertImageRequestPayload.fromJson(payloadMap));
+      onInsertImageRequest?.call(
+        OnInsertImageRequestPayload.fromJson(payloadMap),
+      );
     } on FormatException {
       // Ignore malformed payload.
     }
@@ -473,14 +493,18 @@ void dispatchMilkdownBridgeMessage(
   }
 
   if (type == 'on_cmd_failure_aggregate') {
-    onCmdFailureAggregate?.call(OnCmdFailureAggregatePayload.fromJson(payloadMap));
+    onCmdFailureAggregate?.call(
+      OnCmdFailureAggregatePayload.fromJson(payloadMap),
+    );
     return;
   }
 
   if (type == 'on_checkbox_toggle') {
     final index = payloadMap['index'];
     final checked = payloadMap['checked'];
-    final parsedIndex = index is int ? index : int.tryParse(index?.toString() ?? '');
+    final parsedIndex = index is int
+        ? index
+        : int.tryParse(index?.toString() ?? '');
     if (parsedIndex != null && checked is bool) {
       onCheckboxToggle?.call(parsedIndex, checked);
     }

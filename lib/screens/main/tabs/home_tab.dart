@@ -31,7 +31,10 @@ class _HomeTabState extends State<HomeTab> {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  QuickActions(fileProvider: widget.fileProvider),
+                  QuickActions(
+                    fileProvider: widget.fileProvider,
+                    onRefresh: () => widget.fileProvider.refresh(),
+                  ),
 
                   // Pinned files section
                   if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
@@ -221,5 +224,4 @@ class _HomeTabState extends State<HomeTab> {
       },
     );
   }
-
 } // End of State class

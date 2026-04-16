@@ -8,18 +8,21 @@ import '../../../screens/folder_browser_screen.dart';
 
 class QuickActions extends StatelessWidget {
   final FileProvider fileProvider;
+  final VoidCallback? onRefresh;
 
-  const QuickActions({super.key, required this.fileProvider});
+  const QuickActions({super.key, required this.fileProvider, this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    bool hasPinnedItems = fileProvider.pinnedFiles.isNotEmpty || fileProvider.pinnedFolders.isNotEmpty;
-    
+    bool hasPinnedItems =
+        fileProvider.pinnedFiles.isNotEmpty ||
+        fileProvider.pinnedFolders.isNotEmpty;
+
     if (hasPinnedItems) {
       return _buildCompactQuickActions(context);
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -36,7 +39,9 @@ class QuickActions extends StatelessWidget {
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.2),
               ),
       ),
       child: Column(
@@ -51,9 +56,9 @@ class QuickActions extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 '快速操作',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -67,7 +72,11 @@ class QuickActions extends StatelessWidget {
                   icon: Icons.add_circle,
                   label: '新建文件',
                   color: Colors.green,
-                  onTap: () => FileActions.showCreateFileDialog(context, fileProvider),
+                  onTap: () => FileActions.showCreateFileDialog(
+                    context,
+                    fileProvider,
+                    onRefresh: onRefresh,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -77,7 +86,8 @@ class QuickActions extends StatelessWidget {
                   icon: Icons.create_new_folder,
                   label: '新建文件夹',
                   color: Colors.orange,
-                  onTap: () => FileActions.showCreateFolderDialog(context, fileProvider),
+                  onTap: () =>
+                      FileActions.showCreateFolderDialog(context, fileProvider),
                 ),
               ),
             ],
@@ -119,7 +129,8 @@ class QuickActions extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => FolderBrowserScreen(folderPath: path),
+                            builder: (context) =>
+                                FolderBrowserScreen(folderPath: path),
                           ),
                         );
                       }
@@ -152,7 +163,9 @@ class QuickActions extends StatelessWidget {
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.2),
               ),
       ),
       child: Row(
@@ -163,14 +176,19 @@ class QuickActions extends StatelessWidget {
             icon: Icons.add_circle,
             color: Colors.green,
             tooltip: '新建文件',
-            onTap: () => FileActions.showCreateFileDialog(context, fileProvider),
+            onTap: () => FileActions.showCreateFileDialog(
+              context,
+              fileProvider,
+              onRefresh: onRefresh,
+            ),
           ),
           _buildCompactIconButton(
             context,
             icon: Icons.create_new_folder,
             color: Colors.orange,
             tooltip: '新建文件夹',
-            onTap: () => FileActions.showCreateFolderDialog(context, fileProvider),
+            onTap: () =>
+                FileActions.showCreateFolderDialog(context, fileProvider),
           ),
           _buildCompactIconButton(
             context,
@@ -201,7 +219,8 @@ class QuickActions extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => FolderBrowserScreen(folderPath: path),
+                      builder: (context) =>
+                          FolderBrowserScreen(folderPath: path),
                     ),
                   );
                 }
@@ -263,9 +282,7 @@ class QuickActions extends StatelessWidget {
             ),
             border: appStyle.useBorderlessButtons
                 ? null
-                : Border.all(
-                    color: color.withValues(alpha: 0.3),
-                  ),
+                : Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Column(
             children: [
@@ -280,9 +297,9 @@ class QuickActions extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
             ],

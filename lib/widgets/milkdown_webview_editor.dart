@@ -306,6 +306,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final ValueChanged<String>? onContentChange;
   final MilkdownBridgeMessageHandler? onBridgeMessage;
   final ValueChanged<OnImageErrorPayload>? onImageError;
+  final ValueChanged<OnImageClickPayload>? onImageClick;
   final ValueChanged<OnOutlineUpdatePayload>? onOutlineUpdate;
   final ValueChanged<OnLinkClickPayload>? onLinkClick;
   final MilkdownCheckboxToggleHandler? onCheckboxToggle;
@@ -327,6 +328,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.onContentChange,
     this.onBridgeMessage,
     this.onImageError,
+    this.onImageClick,
     this.onOutlineUpdate,
     this.onLinkClick,
     this.onCheckboxToggle,
@@ -497,6 +499,13 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final monoFont = widget.monoFont ?? _defaultMonoFont;
     final fontSize = widget.fontSize ?? _defaultFontSize;
     final lineHeight = widget.lineHeight ?? _defaultLineHeight;
+
+    // Get border radius from theme or use default
+    const borderRadius = 12.0;
+
+    // Calculate shadow opacity based on theme
+    final shadowOpacity = brightness == Brightness.dark ? 0.12 : 0.08;
+
     return ThemePalettePayload(
       mode: mode,
       colors: {
@@ -517,6 +526,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       monoFont: monoFont,
       sizePx: fontSize,
       lineHeight: lineHeight,
+      borderRadius: borderRadius,
+      shadowOpacity: shadowOpacity,
     );
   }
 
@@ -978,6 +989,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onOutlineUpdate: widget.onOutlineUpdate,
       onLinkClick: widget.onLinkClick,
       onImageError: widget.onImageError,
+      onImageClick: widget.onImageClick,
       onUploadImagesRequest: (payload) {
         uploadPayload = payload;
       },

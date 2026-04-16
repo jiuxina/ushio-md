@@ -7,7 +7,13 @@ class PlatformAdapter {
   /// 获取默认的工作区基础路径
   static Future<String> getDefaultWorkspaceBasePath() async {
     if (Platform.isAndroid) {
-      // Android: 使用外部存储的 Documents 目录
+      // Android: 使用环境变量获取外部存储根目录，然后构建 Documents 路径
+      // 这样比硬编码更可靠，兼容多用户和多存储分区设备
+      final externalStorage = Platform.environment['EXTERNAL_STORAGE'];
+      if (externalStorage != null && externalStorage.isNotEmpty) {
+        return '$externalStorage${Platform.pathSeparator}Documents';
+      }
+      // 回退到硬编码路径（兼容性）
       return '/storage/emulated/0/Documents';
     } else if (Platform.isWindows) {
       // Windows: 使用用户文档目录

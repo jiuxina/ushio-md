@@ -165,7 +165,7 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  border: none !important;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 40%, transparent) !important;
   background: color-mix(in srgb, var(--milkdown-color-surface) 90%, var(--milkdown-color-primary) 10%);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--milkdown-color-shadow) 40%, transparent), 0 1px 3px color-mix(in srgb, var(--milkdown-color-shadow) 30%, transparent) !important;
 }
@@ -236,10 +236,13 @@ body {
 .milkdown .milkdown-code-block .tools {
   position: absolute !important;
   left: auto !important;
-  right: 0 !important;
-  top: auto !important;
-  bottom: -38px !important;
+  right: 8px !important;
+  top: 8px !important;
+  bottom: auto !important;
   transform: none !important;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  z-index: 2;
 
   display: flex;
   justify-content: flex-end;
@@ -255,8 +258,12 @@ body {
   border: 0 !important;
   background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%) !important;
   box-shadow: none !important;
-  z-index: 1;
   align-self: flex-end;
+}
+
+.milkdown .milkdown-code-block:hover .tools,
+.milkdown .milkdown-code-block:focus-within .tools {
+  opacity: 1;
 }
 
 .milkdown .milkdown-code-block .codemirror-host,
@@ -583,7 +590,7 @@ body {
 .milkdown img {
   max-width: 100%;
   height: auto;
-  pointer-events: none !important;
+  pointer-events: auto !important;
   user-select: none;
   -webkit-user-drag: none;
   touch-action: pan-y;
@@ -591,10 +598,19 @@ body {
 
 .milkdown .milkdown-image-block,
 .milkdown .milkdown-image-block * {
-  pointer-events: none !important;
+  pointer-events: auto !important;
   user-select: none !important;
   -webkit-user-select: none !important;
   touch-action: pan-y !important;
+}
+
+.milkdown .milkdown-image-block {
+  cursor: pointer;
+}
+
+.milkdown .milkdown-image-block:hover {
+  box-shadow: 0 0 0 2px var(--milkdown-color-primary);
+  border-radius: 8px;
 }
 
 .milkdown .milkdown-image-block > .image-wrapper .operation {
@@ -793,4 +809,245 @@ body {
   100% {
     background-color: transparent;
   }
+}
+
+/* Search highlight styles */
+.ushio-search-highlight {
+  background-color: color-mix(in srgb, var(--milkdown-color-primary) 25%, transparent);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.ushio-search-highlight-active {
+  background-color: color-mix(in srgb, var(--milkdown-color-primary) 40%, transparent);
+  box-shadow: 0 0 0 1px var(--milkdown-color-primary);
+}
+
+/* Dark mode code block enhancement */
+:root[data-theme-mode='dark'] .milkdown .milkdown-code-block {
+  background: color-mix(in srgb, var(--milkdown-color-surface) 95%, #ffffff 5%) !important;
+  border-color: color-mix(in srgb, var(--milkdown-color-outline) 60%, transparent) !important;
+}
+
+:root[data-theme-mode='dark'] .milkdown .milkdown-code-block .tools {
+  background: color-mix(in srgb, var(--milkdown-color-surface) 98%, #ffffff 2%) !important;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 50%, transparent) !important;
+}
+
+:root[data-theme-mode='dark'] .milkdown .milkdown-code-block .cm-gutters,
+:root[data-theme-mode='dark'] .milkdown .milkdown-code-block .cm-lineNumbers,
+:root[data-theme-mode='dark'] .milkdown .milkdown-code-block .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--milkdown-color-surface) 98%, #ffffff 2%) !important;
+}
+
+.ushio-longpress-hint {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--milkdown-color-surface) 95%, #ffffff 5%);
+  border: 1px solid var(--milkdown-color-outline);
+  box-shadow: 0 4px 12px var(--milkdown-color-shadow);
+  animation: ushio-longpress-hint-enter 300ms ease;
+}
+
+.ushio-longpress-hint-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--milkdown-color-on-surface);
+}
+
+.ushio-longpress-hint-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--milkdown-color-outline);
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.ushio-longpress-hint-fadeout {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+@keyframes ushio-longpress-hint-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Link Tooltip */
+.ushio-link-tooltip {
+  position: absolute;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--milkdown-color-background, #fff);
+  border: 1px solid var(--milkdown-color-outline, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--milkdown-color-shadow, rgba(0, 0, 0, 0.15));
+  font-family: var(--milkdown-font-body, sans-serif);
+  font-size: 13px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  pointer-events: none;
+}
+
+.ushio-link-tooltip[data-show="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.ushio-link-tooltip-preview {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--milkdown-color-on-surface, #374151);
+  font-size: 12px;
+}
+
+.ushio-link-tooltip-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.ushio-link-tooltip-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--milkdown-color-secondary, #6b7280);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.ushio-link-tooltip-btn:hover {
+  background: var(--milkdown-color-outline, #e5e7eb);
+  color: var(--milkdown-color-primary, #4f46e5);
+}
+
+.ushio-link-tooltip-btn:active {
+  background: var(--milkdown-color-primary, #4f46e5);
+  color: var(--milkdown-color-on-primary, #fff);
+}
+
+:root[data-theme-mode='dark'] .ushio-link-tooltip {
+  background: #1f2937;
+  border-color: #374151;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme-mode='dark'] .ushio-link-tooltip-preview {
+  color: #d1d5db;
+}
+
+:root[data-theme-mode='dark'] .ushio-link-tooltip-btn {
+  color: #9ca3af;
+}
+
+:root[data-theme-mode='dark'] .ushio-link-tooltip-btn:hover {
+  background: #374151;
+  color: #818cf8;
+}
+
+/* Link tooltip styles */
+.ushio-link-tooltip {
+  position: absolute;
+  z-index: 50;
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--milkdown-color-outline) 60%, transparent);
+  background: color-mix(in srgb, var(--milkdown-color-surface) 95%, #ffffff 5%);
+  box-shadow: 0 4px 12px var(--milkdown-color-shadow);
+  max-width: min(320px, calc(100vw - 24px));
+}
+
+.ushio-link-tooltip[data-show='true'] {
+  display: flex;
+  animation: ushio-link-tooltip-enter 150ms ease;
+}
+
+.ushio-link-tooltip-preview {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--milkdown-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.ushio-link-tooltip-preview:hover {
+  text-decoration: underline;
+}
+
+.ushio-link-tooltip-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ushio-link-tooltip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--milkdown-color-on-surface);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.ushio-link-tooltip-btn:hover {
+  background: color-mix(in srgb, var(--milkdown-color-primary) 12%, transparent);
+  color: var(--milkdown-color-primary);
+}
+
+@keyframes ushio-link-tooltip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark mode link tooltip */
+:root[data-theme-mode='dark'] .ushio-link-tooltip {
+  background: color-mix(in srgb, var(--milkdown-color-surface) 95%, #000000 5%);
+  border-color: color-mix(in srgb, var(--milkdown-color-outline) 50%, transparent);
 }

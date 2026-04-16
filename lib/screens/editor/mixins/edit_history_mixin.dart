@@ -5,7 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'editor_models.dart';
+import '../models/editor_models.dart';
 
 /// A mixin that provides undo/redo functionality for text editing.
 ///
@@ -44,10 +44,12 @@ mixin EditHistoryMixin<T extends StatefulWidget> on State<T> {
   void initHistory(String text, {TextSelection? selection}) {
     _editHistory
       ..clear()
-      ..add(EditHistoryEntry(
-        text: text,
-        selection: selection ?? const TextSelection.collapsed(offset: 0),
-      ));
+      ..add(
+        EditHistoryEntry(
+          text: text,
+          selection: selection ?? const TextSelection.collapsed(offset: 0),
+        ),
+      );
     _historyIndex = 0;
   }
 
@@ -55,7 +57,11 @@ mixin EditHistoryMixin<T extends StatefulWidget> on State<T> {
   ///
   /// Call this whenever the text changes (via listener).
   /// If [reset] is true, clears existing history and starts fresh.
-  void recordHistory(String text, {TextSelection? selection, bool reset = false}) {
+  void recordHistory(
+    String text, {
+    TextSelection? selection,
+    bool reset = false,
+  }) {
     if (_isApplyingHistory) return;
 
     final safe = _safeSelection(selection, text.length);
@@ -84,7 +90,10 @@ mixin EditHistoryMixin<T extends StatefulWidget> on State<T> {
     if (_editHistory.length > maxEditHistory) {
       final overflow = _editHistory.length - maxEditHistory;
       _editHistory.removeRange(0, overflow);
-      _historyIndex = (_historyIndex - overflow).clamp(0, _editHistory.length - 1);
+      _historyIndex = (_historyIndex - overflow).clamp(
+        0,
+        _editHistory.length - 1,
+      );
     }
 
     _historyIndex = _editHistory.length - 1;
@@ -94,7 +103,8 @@ mixin EditHistoryMixin<T extends StatefulWidget> on State<T> {
   bool get canUndo => _historyIndex > 0;
 
   /// Whether redo is available.
-  bool get canRedo => _historyIndex >= 0 && _historyIndex < _editHistory.length - 1;
+  bool get canRedo =>
+      _historyIndex >= 0 && _historyIndex < _editHistory.length - 1;
 
   /// Apply undo operation.
   ///
@@ -127,14 +137,14 @@ mixin EditHistoryMixin<T extends StatefulWidget> on State<T> {
   /// Get the current text from history.
   String? get currentText =>
       _historyIndex >= 0 && _historyIndex < _editHistory.length
-          ? _editHistory[_historyIndex].text
-          : null;
+      ? _editHistory[_historyIndex].text
+      : null;
 
   /// Get the current selection from history.
   TextSelection? get currentSelection =>
       _historyIndex >= 0 && _historyIndex < _editHistory.length
-          ? _editHistory[_historyIndex].selection
-          : null;
+      ? _editHistory[_historyIndex].selection
+      : null;
 
   /// Safely clamp a selection to text bounds.
   TextSelection _safeSelection(TextSelection? sel, int textLength) {

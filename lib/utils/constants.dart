@@ -68,7 +68,7 @@ class AppConstants {
   static const String appName = '汐';
 
   /// 版本号
-  static const String appVersion = '1.5.0';
+  static const String appVersion = '1.5.1';
 
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';
@@ -314,7 +314,14 @@ class AppConstants {
   static const List<String> markdownExtensions = ['.md', '.markdown'];
 
   /// 图片文件扩展名
-  static const List<String> imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+  static const List<String> imageExtensions = [
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+  ];
 
   // ==================== 云同步配置 ====================
 

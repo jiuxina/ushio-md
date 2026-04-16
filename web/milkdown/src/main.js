@@ -73,6 +73,9 @@ let pendingContentMarkdown = null;
 let pendingContentMode = 'full';
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
+let searchHighlightRanges = [];
+let searchHighlightActiveIndex = -1;
+let longPressHintShown = false;
 let caretViewportSyncRafId = null;
 let suppressNextCaretViewportSync = false;
 let checkboxInteractionGuardUntil = 0;
@@ -159,6 +162,8 @@ const cssVarMap = {
 const applyTheme = (payload) => {
   if (!payload || typeof payload !== 'object') return;
   const root = document.documentElement;
+
+  // Apply colors
   if (payload.colors && typeof payload.colors === 'object') {
     Object.entries(payload.colors).forEach(([k, v]) => {
       const cssVar = cssVarMap[k];
@@ -166,6 +171,8 @@ const applyTheme = (payload) => {
       root.style.setProperty(cssVar, v);
     });
   }
+
+  // Apply font settings
   const font = payload.font;
   if (font && typeof font === 'object') {
     if (typeof font.body === 'string') {
@@ -181,6 +188,19 @@ const applyTheme = (payload) => {
       root.style.setProperty('--milkdown-line-height', `${font.lineHeight}`);
     }
   }
+
+  // Apply style settings (new)
+  const style = payload.style;
+  if (style && typeof style === 'object') {
+    if (typeof style.borderRadius === 'number') {
+      root.style.setProperty('--milkdown-border-radius', `${style.borderRadius}px`);
+    }
+    if (typeof style.shadowOpacity === 'number') {
+      root.style.setProperty('--milkdown-shadow-opacity', style.shadowOpacity);
+    }
+  }
+
+  // Apply theme mode
   if (payload.mode === 'light' || payload.mode === 'dark') {
     root.setAttribute('data-theme-mode', payload.mode);
   }
@@ -1402,6 +1422,7 @@ const syncRenderedDom = () => {
     const resolvedSrc = resolveImageSrc(sanitizedRawSrc || rawSrc);
     if (resolvedSrc && img.getAttribute('src') !== resolvedSrc) {
       img.setAttribute('src', resolvedSrc);
+      img.setAttribute('data-ushio-src', resolvedSrc);
     }
     if (!img.dataset.ushioLoadBound) {
       img.dataset.ushioLoadBound = '1';
@@ -1515,14 +1536,15 @@ const syncRenderedDom = () => {
     if (!(block instanceof HTMLElement)) return;
     block.style.setProperty('position', 'relative', 'important');
     block.style.setProperty('overflow', 'visible', 'important');
+    block.style.setProperty('padding-top', '8px', 'important');
 
     const tools = block.querySelector(':scope > .tools, .tools');
     if (!(tools instanceof HTMLElement)) return;
     tools.style.setProperty('position', 'absolute', 'important');
     tools.style.setProperty('left', 'auto', 'important');
-    tools.style.setProperty('right', '0', 'important');
-    tools.style.setProperty('top', 'auto', 'important');
-    tools.style.setProperty('bottom', '-38px', 'important');
+    tools.style.setProperty('right', '8px', 'important');
+    tools.style.setProperty('top', '8px', 'important');
+    tools.style.setProperty('bottom', 'auto', 'important');
     tools.style.setProperty('transform', 'none', 'important');
 
     const nativePicker = block.querySelector('.language-picker');
@@ -1619,6 +1641,10 @@ const notifyRenderComplete = () => {
     updateActiveMarkdownHints();
     emitOutlineUpdate();
     emit('on_render_complete', {});
+    // Show long-press hint on first render (mobile only)
+    if (!longPressHintShown && !currentReadOnly && 'ontouchstart' in window) {
+      setTimeout(showLongPressHint, 1500);
+    }
   });
 };
 
@@ -1672,6 +1698,117 @@ const buildFloatingButton = (label, title, className, onClick) => {
   return btn;
 };
 
+// Link tooltip variables
+let linkTooltipElement = null;
+let linkTooltipAnchor = null;
+
+const createLinkTooltip = () => {
+  if (linkTooltipElement) return;
+  const tooltip = document.createElement('div');
+  tooltip.className = 'ushio-link-tooltip';
+  tooltip.dataset.show = 'false';
+
+  const preview = document.createElement('div');
+  preview.className = 'ushio-link-tooltip-preview';
+
+  const actions = document.createElement('div');
+  actions.className = 'ushio-link-tooltip-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'ushio-link-tooltip-btn';
+  editBtn.title = '编辑链接';
+  editBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
+  editBtn.addEventListener('click', () => {
+    if (linkTooltipAnchor instanceof HTMLAnchorElement) {
+      const currentHref = linkTooltipAnchor.getAttribute('href') || '';
+      const newHref = prompt('编辑链接地址:', currentHref);
+      if (newHref !== null && newHref.trim()) {
+        linkTooltipAnchor.setAttribute('href', newHref.trim());
+        linkTooltipAnchor.setAttribute('data-ushio-href', resolveHref(newHref.trim()));
+        editorInstance?.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          view.dispatch(view.state.tr.setNodeMarkup(
+            view.state.selection.$from.before(),
+            undefined,
+            { href: newHref.trim() }
+          ));
+        });
+      }
+    }
+    hideLinkTooltip();
+  });
+
+  const openBtn = document.createElement('button');
+  openBtn.type = 'button';
+  openBtn.className = 'ushio-link-tooltip-btn';
+  openBtn.title = '在新窗口打开';
+  openBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
+  openBtn.addEventListener('click', () => {
+    if (linkTooltipAnchor instanceof HTMLAnchorElement) {
+      const href = linkTooltipAnchor.getAttribute('data-ushio-href') || linkTooltipAnchor.getAttribute('href') || '';
+      if (href && isExternalHref(href)) {
+        window.open(href, '_blank', 'noopener,noreferrer');
+      }
+    }
+    hideLinkTooltip();
+  });
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'ushio-link-tooltip-btn';
+  copyBtn.title = '复制链接';
+  copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+  copyBtn.addEventListener('click', () => {
+    if (linkTooltipAnchor instanceof HTMLAnchorElement) {
+      const href = linkTooltipAnchor.getAttribute('data-ushio-href') || linkTooltipAnchor.getAttribute('href') || '';
+      navigator.clipboard.writeText(href).then(() => {
+        copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        setTimeout(() => {
+          copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+        }, 1500);
+      });
+    }
+  });
+
+  actions.append(copyBtn, editBtn, openBtn);
+  tooltip.append(preview, actions);
+  app.append(tooltip);
+  linkTooltipElement = tooltip;
+};
+
+const hideLinkTooltip = () => {
+  if (linkTooltipElement) {
+    linkTooltipElement.dataset.show = 'false';
+    linkTooltipAnchor = null;
+  }
+};
+
+const showLinkTooltip = (anchor) => {
+  if (!(anchor instanceof HTMLAnchorElement)) return;
+  createLinkTooltip();
+  if (!linkTooltipElement) return;
+  linkTooltipAnchor = anchor;
+  const href = anchor.getAttribute('data-ushio-href') || anchor.getAttribute('href') || '';
+  const preview = linkTooltipElement.querySelector('.ushio-link-tooltip-preview');
+  if (preview) {
+    preview.textContent = href.length > 60 ? href.substring(0, 60) + '...' : href;
+    preview.title = href;
+  }
+  const anchorRect = anchor.getBoundingClientRect();
+  const appRect = app.getBoundingClientRect();
+  const tooltipWidth = 280;
+  let left = anchorRect.left - appRect.left;
+  let top = anchorRect.bottom - appRect.top + 8;
+  if (left + tooltipWidth > appRect.width - 8) {
+    left = appRect.width - tooltipWidth - 8;
+  }
+  if (left < 8) left = 8;
+  linkTooltipElement.style.left = `${Math.max(8, left)}px`;
+  linkTooltipElement.style.top = `${top}px`;
+  linkTooltipElement.dataset.show = 'true';
+};
+
 const buildTableFloatingButton = () => {
   const button = document.createElement('button');
   button.type = 'button';
@@ -1704,20 +1841,48 @@ const buildTablePanelButton = (label, title, cmd) => {
   return button;
 };
 
+const TABLE_ICONS = {
+  addRowBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  addRowAfter: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  addColBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  addColAfter: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  deleteRow: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  deleteCol: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  deleteSelected: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  prevCell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>',
+  nextCell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+};
+
+const buildTablePanelIconButton = (icon, title, cmd) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ushio-table-panel-btn';
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.innerHTML = icon;
+  button.addEventListener('mousedown', (e) => e.preventDefault());
+  button.addEventListener('click', (e) => {
+    e.preventDefault();
+    executeCommand(cmd);
+    if (tableFloatingPanelElement) tableFloatingPanelElement.dataset.show = 'false';
+  });
+  return button;
+};
+
 const buildTableFloatingPanel = () => {
   const panel = document.createElement('div');
   panel.className = 'ushio-table-panel';
   panel.dataset.show = 'false';
   panel.append(
-    buildTablePanelButton('上方加行', '在当前行上方插入', 'table_add_row_before'),
-    buildTablePanelButton('下方加行', '在当前行下方插入', 'table_add_row_after'),
-    buildTablePanelButton('左侧加列', '在当前列左侧插入', 'table_add_col_before'),
-    buildTablePanelButton('右侧加列', '在当前列右侧插入', 'table_add_col_after'),
-    buildTablePanelButton('删行', '删除当前行', 'table_delete_row'),
-    buildTablePanelButton('删列', '删除当前列', 'table_delete_col'),
-    buildTablePanelButton('删选区', '删除选中单元格', 'table_delete_selected'),
-    buildTablePanelButton('上个单元', '跳到上一个单元格', 'table_prev_cell'),
-    buildTablePanelButton('下个单元', '跳到下一个单元格', 'table_next_cell'),
+    buildTablePanelIconButton(TABLE_ICONS.addRowBefore, '在上方插入行', 'table_add_row_before'),
+    buildTablePanelIconButton(TABLE_ICONS.addRowAfter, '在下方插入行', 'table_add_row_after'),
+    buildTablePanelIconButton(TABLE_ICONS.addColBefore, '在左侧插入列', 'table_add_col_before'),
+    buildTablePanelIconButton(TABLE_ICONS.addColAfter, '在右侧插入列', 'table_add_col_after'),
+    buildTablePanelIconButton(TABLE_ICONS.deleteRow, '删除当前行', 'table_delete_row'),
+    buildTablePanelIconButton(TABLE_ICONS.deleteCol, '删除当前列', 'table_delete_col'),
+    buildTablePanelIconButton(TABLE_ICONS.deleteSelected, '删除选中单元格', 'table_delete_selected'),
+    buildTablePanelIconButton(TABLE_ICONS.prevCell, '上一个单元格', 'table_prev_cell'),
+    buildTablePanelIconButton(TABLE_ICONS.nextCell, '下一个单元格', 'table_next_cell'),
   );
   return panel;
 };
@@ -1802,22 +1967,47 @@ const scheduleSyncTableFloatingUi = (sourceNode = null) => {
 const createContextMenuElement = () => {
   const element = document.createElement('div');
   element.className = 'ushio-context-menu';
-  const appendButton = (label, title, cmd, args = null, className = '') => {
-    element.append(
-      buildFloatingButton(label, title, className, () => executeCommand(cmd, args ?? {})),
-    );
+
+  const CONTEXT_MENU_ICONS = {
+    bold: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path></svg>',
+    italic: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="4" x2="10" y2="4"></line><line x1="14" y1="20" x2="5" y2="20"></line><line x1="15" y1="4" x2="9" y2="20"></line></svg>',
+    strikethrough: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"></line><path d="M17.5 7.5c-.7-1-1.8-1.5-3-1.5-2.5 0-4 1.5-4 3.5 0 1 .4 2 1.5 2.5"></path><path d="M8.5 14c.5.7 1.3 1 2.5 1 2 0 3.5-1 3.5-3 0-.7-.3-1.3-1-2"></path></svg>',
+    inlineCode: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>',
+    link: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>',
+    image: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
+    addRowBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+    deleteRow: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+    addColBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+    deleteCol: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+    deleteSelected: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
   };
-  appendButton('B', '加粗', 'toggle_bold', null, 'ushio-context-btn');
-  appendButton('I', '斜体', 'toggle_italic', null, 'ushio-context-btn');
-  appendButton('S', '删除线', 'toggle_strikethrough', null, 'ushio-context-btn');
-  appendButton('</>', '行内代码', 'toggle_inline_code', null, 'ushio-context-btn');
-  appendButton('链', '链接', 'toggle_link', { href: 'https://' }, 'ushio-context-btn');
-  appendButton('图', '插入图片', 'insert_image_prompt', null, 'ushio-context-btn');
-  appendButton('行+', '表格：上方加行', 'table_add_row_before', null, 'ushio-context-btn is-table-only');
-  appendButton('行-', '表格：删行', 'table_delete_row', null, 'ushio-context-btn is-table-only');
-  appendButton('列+', '表格：左侧加列', 'table_add_col_before', null, 'ushio-context-btn is-table-only');
-  appendButton('列-', '表格：删列', 'table_delete_col', null, 'ushio-context-btn is-table-only');
-  appendButton('删元', '表格：删除选中单元格', 'table_delete_selected', null, 'ushio-context-btn is-table-only');
+
+  const appendIconButton = (icon, title, cmd, args = null, className = '') => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `ushio-float-btn ${className}`.trim();
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+    btn.innerHTML = icon;
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      executeCommand(cmd, args ?? {});
+    });
+    element.append(btn);
+  };
+
+  appendIconButton(CONTEXT_MENU_ICONS.bold, '加粗', 'toggle_bold', null, 'ushio-context-btn');
+  appendIconButton(CONTEXT_MENU_ICONS.italic, '斜体', 'toggle_italic', null, 'ushio-context-btn');
+  appendIconButton(CONTEXT_MENU_ICONS.strikethrough, '删除线', 'toggle_strikethrough', null, 'ushio-context-btn');
+  appendIconButton(CONTEXT_MENU_ICONS.inlineCode, '行内代码', 'toggle_inline_code', null, 'ushio-context-btn');
+  appendIconButton(CONTEXT_MENU_ICONS.link, '链接', 'toggle_link', { href: 'https://' }, 'ushio-context-btn');
+  appendIconButton(CONTEXT_MENU_ICONS.image, '插入图片', 'insert_image_prompt', null, 'ushio-context-btn');
+  appendIconButton(CONTEXT_MENU_ICONS.addRowBefore, '表格：上方加行', 'table_add_row_before', null, 'ushio-context-btn is-table-only');
+  appendIconButton(CONTEXT_MENU_ICONS.deleteRow, '表格：删行', 'table_delete_row', null, 'ushio-context-btn is-table-only');
+  appendIconButton(CONTEXT_MENU_ICONS.addColBefore, '表格：左侧加列', 'table_add_col_before', null, 'ushio-context-btn is-table-only');
+  appendIconButton(CONTEXT_MENU_ICONS.deleteCol, '表格：删列', 'table_delete_col', null, 'ushio-context-btn is-table-only');
+  appendIconButton(CONTEXT_MENU_ICONS.deleteSelected, '表格：删除选中单元格', 'table_delete_selected', null, 'ushio-context-btn is-table-only');
   return element;
 };
 
@@ -1986,6 +2176,18 @@ const createEditor = async () => {
 app.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
+    const img = target?.closest?.('img') || target?.querySelector?.('img');
+    if (img instanceof HTMLImageElement) {
+      const src = img.getAttribute('src') || '';
+      const alt = img.getAttribute('alt') || '';
+      const resolvedSrc = img.getAttribute('data-ushio-src') || src;
+      emit('on_image_click', {
+        src: resolvedSrc,
+        alt: alt,
+      });
+      return;
+    }
+    // Fallback: blur editor
     const selection = window.getSelection();
     selection?.removeAllRanges();
     blurEditorFocus();
@@ -2030,6 +2232,26 @@ app.addEventListener('click', (event) => {
     }
   }
   scheduleSyncTableFloatingUi(target);
+});
+
+// Link hover preview
+app.addEventListener('mouseover', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const anchor = target?.closest('a');
+  if (anchor && !currentReadOnly) {
+    showLinkTooltip(anchor);
+  }
+});
+
+app.addEventListener('mouseout', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const anchor = target?.closest('a');
+  if (anchor) {
+    const related = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+    if (!related?.closest('.ushio-link-tooltip, a')) {
+      hideLinkTooltip();
+    }
+  }
 });
 
 app.addEventListener('mousedown', (event) => {
@@ -2120,6 +2342,41 @@ app.addEventListener('change', (event) => {
   event.stopPropagation();
 });
 
+const showLongPressHint = () => {
+  if (longPressHintShown) return;
+  if (currentReadOnly) return;
+
+  // Check if hint was already dismissed
+  const dismissed = localStorage.getItem('ushio-longpress-hint-dismissed');
+  if (dismissed === 'true') return;
+
+  longPressHintShown = true;
+
+  const hint = document.createElement('div');
+  hint.className = 'ushio-longpress-hint';
+  hint.innerHTML = `
+    <div class="ushio-longpress-hint-content">
+      <span>💡 长按文本可显示格式化菜单</span>
+      <button class="ushio-longpress-hint-close" aria-label="关闭提示">×</button>
+    </div>
+  `;
+
+  hint.querySelector('.ushio-longpress-hint-close').addEventListener('click', () => {
+    hint.remove();
+    localStorage.setItem('ushio-longpress-hint-dismissed', 'true');
+  });
+
+  app.append(hint);
+
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    if (hint.parentNode) {
+      hint.classList.add('ushio-longpress-hint-fadeout');
+      setTimeout(() => hint.remove(), 300);
+    }
+  }, 5000);
+};
+
 app.addEventListener('pointerdown', interceptNativeCodeLanguagePicker, true);
 app.addEventListener('mousedown', interceptNativeCodeLanguagePicker, true);
 app.addEventListener('click', interceptNativeCodeLanguagePicker, true);
@@ -2200,6 +2457,7 @@ document.addEventListener('scroll', () => {
   lastUserScrollAt = Date.now();
   suppressCaretViewportSync(1000);
   hideContextMenu();
+  hideLinkTooltip();
 }, true);
 document.addEventListener('selectionchange', () => {
   updateActiveMarkdownHints();
@@ -2223,6 +2481,9 @@ document.addEventListener('pointerdown', (event) => {
     if (tableFloatingPanelElement) {
       tableFloatingPanelElement.dataset.show = 'false';
     }
+  }
+  if (!target?.closest('.ushio-link-tooltip')) {
+    hideLinkTooltip();
   }
 });
 
@@ -2733,8 +2994,107 @@ const executeCommand = (cmd, args = {}) => {
       const node = target.startContainer.parentElement ?? target.commonAncestorContainer.parentElement;
       scrollNodeToViewport(node, Number.parseFloat(args?.topOffset) || 32);
       emitCmdResult(cmd, true, null, startedAt);
+      highlightSearchActive(occurrence);
       return;
     }
+
+const clearSearchHighlights = () => {
+  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+  if (!root) return;
+  root.querySelectorAll('.ushio-search-highlight, .ushio-search-highlight-active').forEach((span) => {
+    const parent = span.parentNode;
+    while (span.firstChild) {
+      parent?.insertBefore(span.firstChild, span);
+    }
+    span.remove();
+  });
+  parent?.normalize?.();
+  searchHighlightRanges = [];
+  searchHighlightActiveIndex = -1;
+};
+
+const highlightSearchMatches = (query) => {
+  clearSearchHighlights();
+  if (!query || typeof query !== 'string' || !query.trim()) return;
+
+  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+  if (!root) return;
+
+  const lowerQuery = query.toLowerCase().trim();
+  if (!lowerQuery) return;
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  const ranges = [];
+  textNodes.forEach((textNode) => {
+    const text = textNode.textContent || '';
+    const lowerText = text.toLowerCase();
+    let from = 0;
+    while (from < lowerText.length) {
+      const idx = lowerText.indexOf(lowerQuery, from);
+      if (idx < 0) break;
+      const range = document.createRange();
+      range.setStart(textNode, idx);
+      range.setEnd(textNode, idx + lowerQuery.length);
+      ranges.push(range);
+      from = idx + lowerQuery.length;
+    }
+  });
+
+  // Highlight all matches
+  ranges.forEach((range) => {
+    try {
+      const span = document.createElement('span');
+      span.className = 'ushio-search-highlight';
+      range.surroundContents(span);
+    } catch (e) {
+      // Skip if range crosses element boundaries
+    }
+  });
+
+  searchHighlightRanges = ranges;
+  searchHighlightActiveIndex = -1;
+};
+
+const highlightSearchActive = (index) => {
+  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+  if (!root) return;
+
+  // Remove previous active highlight
+  root.querySelectorAll('.ushio-search-highlight-active').forEach((span) => {
+    span.classList.remove('ushio-search-highlight-active');
+    span.classList.add('ushio-search-highlight');
+  });
+
+  if (index < 0) return;
+
+  // Add active highlight to current match
+  const highlights = root.querySelectorAll('.ushio-search-highlight');
+  if (index < highlights.length) {
+    highlights[index].classList.remove('ushio-search-highlight');
+    highlights[index].classList.add('ushio-search-highlight-active');
+  }
+
+  searchHighlightActiveIndex = index;
+};
+
+    if (cmd === 'search_highlight') {
+      const query = typeof args?.query === 'string' ? args.query.trim() : '';
+      highlightSearchMatches(query);
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+
+    if (cmd === 'search_clear') {
+      clearSearchHighlights();
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+
     if (cmd === 'toc_jump') {
       const headingText = typeof args?.headingText === 'string' ? args.headingText.trim() : '';
       const headingSlug = typeof args?.headingSlug === 'string' ? args.headingSlug.trim() : '';

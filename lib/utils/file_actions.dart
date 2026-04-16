@@ -1143,8 +1143,9 @@ class FileActions {
 
   static Future<void> showCreateFileDialog(
     BuildContext context,
-    FileProvider fileProvider,
-  ) async {
+    FileProvider fileProvider, {
+    VoidCallback? onRefresh,
+  }) async {
     final nameController = TextEditingController();
     final settings = context.read<SettingsProvider>();
 
@@ -1301,6 +1302,8 @@ class FileActions {
           file.path,
           initialContent: file.content,
         );
+        // Trigger refresh after returning from editor
+        onRefresh?.call();
       }
     }
   }

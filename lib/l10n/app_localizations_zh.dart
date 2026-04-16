@@ -459,7 +459,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get systemFont => '系统字体';
 
   @override
-  String get customFont => '自定义字体';
+  String get customFont => '代码块字体';
 
   @override
   String get installFont => '安装自定义字体';

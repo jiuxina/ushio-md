@@ -3,6 +3,9 @@
 /// 提供简单易用的防抖功能，防止快速重复操作
 library;
 
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+
 /// 防抖器
 ///
 /// 用于防止快速重复调用同一操作
@@ -19,12 +22,12 @@ library;
 class Debouncer {
   /// 防抖延迟时间
   final Duration duration;
-  
+
   /// 当前待执行的 Timer
   Timer? _timer;
-  
+
   Debouncer({this.duration = const Duration(milliseconds: 300)});
-  
+
   /// 执行防抖操作
   ///
   /// [action] 要执行的操作
@@ -33,7 +36,7 @@ class Debouncer {
     _timer?.cancel();
     _timer = Timer(duration, action);
   }
-  
+
   /// 执行防抖异步操作
   ///
   /// [action] 要执行的异步操作
@@ -41,7 +44,7 @@ class Debouncer {
   Future<T?> runAsync<T>(Future<T> Function() action) async {
     _timer?.cancel();
     final completer = Completer<T?>();
-    
+
     _timer = Timer(duration, () async {
       try {
         final result = await action();
@@ -54,24 +57,24 @@ class Debouncer {
         }
       }
     });
-    
+
     return completer.future;
   }
-  
+
   /// 立即执行并取消待执行的操作
   void flush(VoidCallback action) {
     _timer?.cancel();
     action();
   }
-  
+
   /// 取消待执行的操作
   void cancel() {
     _timer?.cancel();
   }
-  
+
   /// 是否有待执行的操作
   bool get isActive => _timer?.isActive ?? false;
-  
+
   /// 释放资源
   void dispose() {
     _timer?.cancel();
@@ -96,7 +99,7 @@ class Debouncer {
 /// ```
 class OperationLock {
   bool _isLocked = false;
-  
+
   /// 尝试获取锁
   ///
   /// 返回 true 表示成功获取锁
@@ -106,15 +109,15 @@ class OperationLock {
     _isLocked = true;
     return true;
   }
-  
+
   /// 释放锁
   void release() {
     _isLocked = false;
   }
-  
+
   /// 是否已锁定
   bool get isLocked => _isLocked;
-  
+
   /// 在锁保护下执行操作
   ///
   /// 如果锁已被占用，返回 null
@@ -148,10 +151,10 @@ class OperationLock {
 class GlobalDebouncer {
   static final Map<String, Timer> _timers = {};
   static final Map<String, bool> _locks = {};
-  
+
   /// 默认防抖延迟
   static const Duration defaultDuration = Duration(milliseconds: 300);
-  
+
   /// 执行防抖操作
   ///
   /// [key] 操作标识
@@ -164,7 +167,7 @@ class GlobalDebouncer {
       _timers.remove(key);
     });
   }
-  
+
   /// 执行防抖异步操作
   ///
   /// [key] 操作标识
@@ -176,7 +179,7 @@ class GlobalDebouncer {
     Duration? duration,
   }) async {
     final completer = Completer<T?>();
-    
+
     _timers[key]?.cancel();
     _timers[key] = Timer(duration ?? defaultDuration, () async {
       try {
@@ -191,17 +194,17 @@ class GlobalDebouncer {
       }
       _timers.remove(key);
     });
-    
+
     return completer.future;
   }
-  
+
   /// 尝试执行操作（带锁）
   ///
   /// 如果操作正在执行，返回 null
   /// 否则执行操作并返回结果
   static Future<T?> tryRun<T>(String key, Future<T> Function() action) async {
     if (_locks[key] == true) return null;
-    
+
     _locks[key] = true;
     try {
       return await action();
@@ -209,19 +212,19 @@ class GlobalDebouncer {
       _locks[key] = false;
     }
   }
-  
+
   /// 检查操作是否正在执行
   static bool isRunning(String key) => _locks[key] == true;
-  
+
   /// 检查是否有待执行的操作
   static bool isPending(String key) => _timers[key]?.isActive ?? false;
-  
+
   /// 取消指定操作
   static void cancel(String key) {
     _timers[key]?.cancel();
     _timers.remove(key);
   }
-  
+
   /// 取消所有操作
   static void cancelAll() {
     for (final timer in _timers.values) {
@@ -229,7 +232,7 @@ class GlobalDebouncer {
     }
     _timers.clear();
   }
-  
+
   /// 释放锁
   static void releaseLock(String key) {
     _locks[key] = false;

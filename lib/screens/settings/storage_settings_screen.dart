@@ -5,7 +5,6 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/file_provider.dart';
@@ -497,9 +496,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) async {
-    // 获取默认路径用于显示
-    final externalDir = await getExternalStorageDirectory();
-    final defaultPath = externalDir?.path ?? '/storage/emulated/0/Documents';
+    // 使用 MyFilesService 获取正确的默认工作区路径
+    // 这样可以确保显示的默认路径与实际使用的路径一致
+    final defaultPath = await _myFilesService.getWorkspacePath();
 
     final controller = TextEditingController(
       text: settings.customWorkspaceBasePath ?? '',

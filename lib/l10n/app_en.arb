@@ -169,7 +169,7 @@
   "particleTypeStars": "Stars",
   "uiFont": "UI Font",
   "systemFont": "System Font",
-  "customFont": "Custom Font",
+  "customFont": "Code Block Font",
   "installFont": "Install Custom Font",
   "fontInstalled": "Font installed successfully",
   "buttonPreview": "Button Preview",

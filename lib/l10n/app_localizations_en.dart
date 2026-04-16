@@ -461,7 +461,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get systemFont => 'System Font';
 
   @override
-  String get customFont => 'Custom Font';
+  String get customFont => 'Code Block Font';
 
   @override
   String get installFont => 'Install Custom Font';

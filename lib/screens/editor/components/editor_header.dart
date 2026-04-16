@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../utils/app_style.dart';
 
 class EditorHeader extends StatelessWidget {
   final String fileName;
+  final String? fullFilePath;
   final String wordCount;
   final bool isModified;
   final bool isSaving;
+  final bool canUndo;
+  final bool canRedo;
   final VoidCallback onBack;
   final VoidCallback onSave;
   final VoidCallback? onMore;
@@ -14,9 +18,12 @@ class EditorHeader extends StatelessWidget {
   const EditorHeader({
     super.key,
     required this.fileName,
+    this.fullFilePath,
     required this.wordCount,
     required this.isModified,
     required this.isSaving,
+    required this.canUndo,
+    required this.canRedo,
     required this.onBack,
     required this.onSave,
     this.onMore,
@@ -42,7 +49,10 @@ class EditorHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _AdaptiveFileName(fileName: _displayFileName),
+                _AdaptiveFileName(
+                  fileName: _displayFileName,
+                  fullFilePath: fullFilePath,
+                ),
                 const SizedBox(height: 4),
                 _AdaptiveWordCount(wordCount: wordCount),
               ],
@@ -50,6 +60,10 @@ class EditorHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _buildSaveButton(context),
+          if (canUndo || canRedo) ...[
+            const SizedBox(width: 6),
+            _buildUndoRedoIndicators(context),
+          ],
           if (onMore != null) ...[
             const SizedBox(width: 8),
             _buildHeaderIconButton(
@@ -98,8 +112,8 @@ class EditorHeader extends StatelessWidget {
     final iconColor = isSaving
         ? colorScheme.primary
         : isModified
-            ? colorScheme.secondary
-            : colorScheme.outline;
+        ? colorScheme.secondary
+        : colorScheme.outline;
 
     return Tooltip(
       message: isSaving ? '保存中' : '保存',
@@ -139,6 +153,36 @@ class EditorHeader extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildUndoRedoIndicators(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: canUndo
+                ? colorScheme.primary
+                : colorScheme.outline.withValues(alpha: 0.3),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: canRedo
+                ? colorScheme.primary
+                : colorScheme.outline.withValues(alpha: 0.3),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AdaptiveWordCount extends StatelessWidget {
@@ -149,9 +193,9 @@ class _AdaptiveWordCount extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.outline,
-          height: 1.1,
-        );
+      color: Theme.of(context).colorScheme.outline,
+      height: 1.1,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -175,21 +219,19 @@ class _AdaptiveWordCount extends StatelessWidget {
 
 class _AdaptiveFileName extends StatelessWidget {
   final String fileName;
+  final String? fullFilePath;
 
-  const _AdaptiveFileName({required this.fileName});
+  const _AdaptiveFileName({required this.fileName, this.fullFilePath});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final baseStyle = theme.textTheme.titleMedium?.copyWith(
+    final baseStyle =
+        theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.bold,
           height: 1.1,
         ) ??
-        const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          height: 1.1,
-        );
+        const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, height: 1.1);
 
     final title = fileName.trim().isEmpty ? '未命名' : fileName.trim();
     final glyphs = title.runes.length;
@@ -198,34 +240,85 @@ class _AdaptiveFileName extends StatelessWidget {
     final sizeScale = glyphs <= 10
         ? 1.0
         : glyphs <= 14
-            ? 0.94
-            : glyphs <= 18
-                ? 0.88
-                : 0.82;
+        ? 0.94
+        : glyphs <= 18
+        ? 0.88
+        : 0.82;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final lineHeight = (baseStyle.fontSize ?? 16) * (baseStyle.height ?? 1.1);
+        final lineHeight =
+            (baseStyle.fontSize ?? 16) * (baseStyle.height ?? 1.1);
         final maxHeight = lineHeight * lineCount + 2;
 
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: lineHeight,
-            maxHeight: maxHeight,
-            maxWidth: constraints.maxWidth,
-          ),
-          child: Text(
-            displayTitle,
-            maxLines: 2,
-            softWrap: true,
-            overflow: TextOverflow.ellipsis,
-            style: baseStyle.copyWith(
-              fontSize: (baseStyle.fontSize ?? 16) * sizeScale,
+        return GestureDetector(
+          onTap: () {
+            if (fullFilePath != null && fullFilePath!.isNotEmpty) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.description, size: 20),
+                      SizedBox(width: 8),
+                      Text('文件路径', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                  content: SelectableText(
+                    fullFilePath!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  actions: [
+                    TextButton.icon(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: fullFilePath!));
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('路径已复制'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.copy, size: 16),
+                      label: const Text('复制路径'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('关闭'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          },
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: lineHeight,
+              maxHeight: maxHeight,
+              maxWidth: constraints.maxWidth,
             ),
-            strutStyle: StrutStyle(
-              fontSize: (baseStyle.fontSize ?? 16) * sizeScale,
-              height: baseStyle.height,
-              forceStrutHeight: true,
+            child: Text(
+              displayTitle,
+              maxLines: 2,
+              softWrap: true,
+              overflow: TextOverflow.ellipsis,
+              style: baseStyle.copyWith(
+                fontSize: (baseStyle.fontSize ?? 16) * sizeScale,
+              ),
+              strutStyle: StrutStyle(
+                fontSize: (baseStyle.fontSize ?? 16) * sizeScale,
+                height: baseStyle.height,
+                forceStrutHeight: true,
+              ),
             ),
           ),
         );

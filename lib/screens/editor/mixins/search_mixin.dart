@@ -4,7 +4,7 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'editor_models.dart';
+import '../models/editor_models.dart';
 
 /// A mixin that provides search functionality for text editing.
 ///
@@ -59,12 +59,14 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
       final start = (index - 20).clamp(0, text.length);
       final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
       final preview = text.substring(start, end).replaceAll('\n', ' ');
-      matches.add(SearchMatch(
-        position: index,
-        length: normalizedQuery.length,
-        preview: preview,
-        occurrence: matches.length,
-      ));
+      matches.add(
+        SearchMatch(
+          position: index,
+          length: normalizedQuery.length,
+          preview: preview,
+          occurrence: matches.length,
+        ),
+      );
       index += normalizedQuery.length;
     }
 
@@ -113,7 +115,7 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
     final prev = _activeSearchMatchIndex < 0
         ? 0
         : (_activeSearchMatchIndex - 1 + _searchMatches.length) %
-            _searchMatches.length;
+              _searchMatches.length;
     return jumpToMatch(prev);
   }
 

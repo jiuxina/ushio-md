@@ -58,7 +58,7 @@ class _EditorScreenState extends State<EditorScreen>
   late AnimationController _highlightController;
   late Animation<double> _highlightAnimation;
   bool _editSelectionListenerAttached = false;
-  
+
   /// 搜索防抖 Timer
   Timer? _searchDebounceTimer;
 
@@ -84,6 +84,10 @@ class _EditorScreenState extends State<EditorScreen>
   int _activeSearchMatchIndex = -1;
   DateTime? _lastDebugProbeAt;
   bool _suppressNextMilkdownReload = false;
+
+  // Undo/redo feedback state
+  String? _lastActionFeedback;
+  Timer? _actionFeedbackTimer;
 
   String? _error;
   List<TocItem> _tocItems = [];
@@ -224,11 +228,20 @@ class _EditorScreenState extends State<EditorScreen>
     final viewportHeight = scrollPosition.viewportDimension;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     const toolbarHeight = 56.0;
-    final bottomOffset = keyboardInset + toolbarHeight + 16.0;
+
+    // 预留输入法遮挡的安全距离
+    // 当键盘弹出时，输入法可能会遮挡部分区域
+    // 添加预测性滚动边距，提前滚动避免光标进入遮挡区域
+    const imeSafeMargin = 80.0;
+    final bottomOffset = keyboardInset + toolbarHeight + imeSafeMargin;
+
     final visibleTop = scrollPosition.pixels;
     final visibleBottom = visibleTop + viewportHeight - bottomOffset;
+
+    // 顶部安全边距：当光标接近顶部时提前滚动
     const topMargin = 100.0;
-    const effectiveBottomMargin = 16.0;
+    // 底部预测边距：光标距离底部遮挡区域这个距离时就开始滚动
+    final predictiveBottomMargin = lineHeight * 2;
 
     if (estimatedY < visibleTop + topMargin) {
       _editScrollController.animateTo(
@@ -236,9 +249,10 @@ class _EditorScreenState extends State<EditorScreen>
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
       );
-    } else if (estimatedY > visibleBottom - effectiveBottomMargin) {
+    } else if (estimatedY > visibleBottom - predictiveBottomMargin) {
+      // 光标即将进入底部遮挡区域，提前滚动
       _editScrollController.animateTo(
-        (estimatedY - viewportHeight + bottomOffset + effectiveBottomMargin)
+        (estimatedY - viewportHeight + bottomOffset + predictiveBottomMargin)
             .clamp(0.0, scrollPosition.maxScrollExtent),
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
@@ -285,7 +299,10 @@ class _EditorScreenState extends State<EditorScreen>
     if (_editHistory.length > _maxEditHistory) {
       final overflow = _editHistory.length - _maxEditHistory;
       _editHistory.removeRange(0, overflow);
-      _historyIndex = (_historyIndex - overflow).clamp(0, _editHistory.length - 1);
+      _historyIndex = (_historyIndex - overflow).clamp(
+        0,
+        _editHistory.length - 1,
+      );
     }
     _historyIndex = _editHistory.length - 1;
     if (mounted) setState(() {});
@@ -307,6 +324,7 @@ class _EditorScreenState extends State<EditorScreen>
       selection: entry.selection,
     );
     _isApplyingHistory = false;
+    _showActionFeedback('已撤销');
     setState(() {});
   }
 
@@ -320,19 +338,23 @@ class _EditorScreenState extends State<EditorScreen>
       selection: entry.selection,
     );
     _isApplyingHistory = false;
+    _showActionFeedback('已重做');
     setState(() {});
   }
 
   void _handleOutlineUpdate(OnOutlineUpdatePayload payload) {
-    final items = payload.outline.map((node) {
-      final lineNumber = int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
-      return TocItem(
-        level: node.level,
-        title: node.text,
-        lineNumber: lineNumber,
-        anchorKey: GlobalKey(),
-      );
-    }).toList(growable: false);
+    final items = payload.outline
+        .map((node) {
+          final lineNumber =
+              int.tryParse(node.id.replaceFirst('line-', '')) ?? 0;
+          return TocItem(
+            level: node.level,
+            title: node.text,
+            lineNumber: lineNumber,
+            anchorKey: GlobalKey(),
+          );
+        })
+        .toList(growable: false);
     if (!mounted) return;
     setState(() => _tocItems = items);
   }
@@ -352,8 +374,8 @@ class _EditorScreenState extends State<EditorScreen>
       if (_editScrollController.hasClients) {
         const lineHeight = 24.0;
         final maxScroll = _editScrollController.position.maxScrollExtent;
-        final targetScroll =
-            (item.lineNumber * lineHeight - _jumpTopOffset).clamp(0.0, maxScroll);
+        final targetScroll = (item.lineNumber * lineHeight - _jumpTopOffset)
+            .clamp(0.0, maxScroll);
         _editScrollController.jumpTo(targetScroll);
       }
       _flashLineHighlight(item.lineNumber);
@@ -376,6 +398,14 @@ class _EditorScreenState extends State<EditorScreen>
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) setState(() => _highlightedLine = null);
       });
+    });
+  }
+
+  void _showActionFeedback(String message) {
+    _actionFeedbackTimer?.cancel();
+    setState(() => _lastActionFeedback = message);
+    _actionFeedbackTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _lastActionFeedback = null);
     });
   }
 
@@ -455,7 +485,8 @@ class _EditorScreenState extends State<EditorScreen>
     _autoSaveTimer?.cancel();
     _editScrollTimer?.cancel();
     _searchDebounceTimer?.cancel();
-    
+    _actionFeedbackTimer?.cancel();
+
     // 移除所有 listener，使用标志位防止重复移除
     if (_textListenerAttached) {
       _textController.removeListener(_onTextChanged);
@@ -562,17 +593,29 @@ class _EditorScreenState extends State<EditorScreen>
   void _performInlineSearch(String query) {
     // 取消之前的防抖 Timer
     _searchDebounceTimer?.cancel();
-    
+
     // 延迟 150ms 执行搜索，避免频繁搜索
     _searchDebounceTimer = Timer(const Duration(milliseconds: 150), () {
       _executeSearch(query);
+
+      // Clear or apply highlights in WebView
+      if (_mode == EditorMode.preview) {
+        if (query.trim().isEmpty) {
+          _previewWebViewController.execCmd('search_clear');
+        } else {
+          _previewWebViewController.execCmd(
+            'search_highlight',
+            args: {'query': query.trim()},
+          );
+        }
+      }
     });
   }
-  
+
   /// 实际执行搜索
   void _executeSearch(String query) {
     if (!mounted) return;
-    
+
     final normalizedQuery = query.trim().toLowerCase();
     if (normalizedQuery.isEmpty) {
       setState(() {
@@ -587,7 +630,7 @@ class _EditorScreenState extends State<EditorScreen>
     final normalizedText = text.toLowerCase();
     final matches = <SearchMatch>[];
     var index = 0;
-    
+
     // 限制搜索时间，防止超大文件卡顿
     final startTime = DateTime.now();
     const maxSearchTime = Duration(milliseconds: 500);
@@ -598,23 +641,25 @@ class _EditorScreenState extends State<EditorScreen>
         debugPrint('搜索超时，已找到 ${matches.length} 个结果');
         break;
       }
-      
+
       index = normalizedText.indexOf(normalizedQuery, index);
       if (index == -1) break;
       final start = (index - 20).clamp(0, text.length);
       final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
       final preview = text.substring(start, end).replaceAll('\n', ' ');
-      matches.add(SearchMatch(
-        position: index,
-        length: normalizedQuery.length,
-        preview: preview,
-        occurrence: matches.length,
-      ));
+      matches.add(
+        SearchMatch(
+          position: index,
+          length: normalizedQuery.length,
+          preview: preview,
+          occurrence: matches.length,
+        ),
+      );
       index += normalizedQuery.length;
     }
 
     if (!mounted) return;
-    
+
     setState(() {
       _searchMatches = matches;
       _activeSearchMatchIndex = matches.isEmpty ? -1 : 0;
@@ -685,11 +730,16 @@ class _EditorScreenState extends State<EditorScreen>
     final prev = _activeSearchMatchIndex < 0
         ? 0
         : (_activeSearchMatchIndex - 1 + _searchMatches.length) %
-            _searchMatches.length;
+              _searchMatches.length;
     _jumpToSearchOccurrence(prev);
   }
 
   void _closeSearch() {
+    // Clear highlights in WebView
+    if (_mode == EditorMode.preview) {
+      _previewWebViewController.execCmd('search_clear');
+    }
+
     setState(() {
       _showSearchBar = false;
       _searchMatches = const [];
@@ -731,7 +781,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (normalizedHref.isEmpty) return;
 
-    if (normalizedHref.endsWith('.md') || normalizedHref.endsWith('.markdown')) {
+    if (normalizedHref.endsWith('.md') ||
+        normalizedHref.endsWith('.markdown')) {
       if (!normalizedHref.contains('..')) {
         final baseDir = File(widget.filePath).parent.path;
         final targetPath =
@@ -752,6 +803,111 @@ class _EditorScreenState extends State<EditorScreen>
         debugPrint('打开链接失败: $e');
       }
     }
+  }
+
+  void _showImagePreview(OnImageClickPayload payload) async {
+    final src = payload.src;
+    if (src.isEmpty) return;
+
+    Widget imageWidget;
+
+    if (src.startsWith('http://') ||
+        src.startsWith('https://') ||
+        src.startsWith('data:')) {
+      // Network or data URL
+      imageWidget = Image.network(
+        src,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                const SizedBox(height: 8),
+                Text('图片加载失败', style: TextStyle(color: Colors.grey[600])),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      // Local file
+      final file = File(src);
+      if (await file.exists()) {
+        imageWidget = Image.file(file, fit: BoxFit.contain);
+      } else {
+        imageWidget = Center(
+          child: Text('文件不存在: $src', style: TextStyle(color: Colors.grey[600])),
+        );
+      }
+    }
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Image container
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  maxWidth: MediaQuery.of(context).size.width * 0.9,
+                ),
+                color: Colors.black87,
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: imageWidget,
+                ),
+              ),
+            ),
+            // Close button
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ),
+            // Alt text (if available)
+            if (payload.alt != null && payload.alt!.isNotEmpty)
+              Positioned(
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    payload.alt!,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ==================== Milkdown WebView ====================
@@ -786,6 +942,7 @@ class _EditorScreenState extends State<EditorScreen>
       onOutlineUpdate: _handleOutlineUpdate,
       onLinkClick: (payload) =>
           _handleLinkTap(payload.text ?? '', payload.href, payload.title ?? ''),
+      onImageClick: _showImagePreview,
       onCheckboxToggle: _toggleCheckbox,
       onBridgeMessage: _handleMilkdownBridgeMessage,
       controller: _previewWebViewController,
@@ -852,7 +1009,8 @@ class _EditorScreenState extends State<EditorScreen>
       final newLines = <String>[
         ...lines.sublist(0, block.startLine),
         ...editedLines,
-        if (block.endLine + 1 < lines.length) ...lines.sublist(block.endLine + 1),
+        if (block.endLine + 1 < lines.length)
+          ...lines.sublist(block.endLine + 1),
       ];
 
       final newText = newLines.join('\n');
@@ -891,6 +1049,8 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final isFocusMode = settings.focusMode;
     final shouldInterceptForMilkdownBlur =
         _mode == EditorMode.preview && _isMilkdownEditorFocused;
     final useCustomTitleBar =
@@ -940,7 +1100,8 @@ class _EditorScreenState extends State<EditorScreen>
                         onJumpToHeading: _jumpToHeading,
                         controller: _tocOverlayController,
                       ),
-                    if (!_isLoading && _error == null) _buildFixedFloatingButtons(),
+                    if (!_isLoading && _error == null)
+                      _buildFixedFloatingButtons(),
                   ],
                 ),
               ),
@@ -954,6 +1115,7 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildBody() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final settings = context.watch<SettingsProvider>();
+    final isFocusMode = settings.focusMode;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -973,28 +1135,34 @@ class _EditorScreenState extends State<EditorScreen>
             bottom: false,
             child: Column(
               children: [
-                EditorHeader(
-                  fileName: fileName,
-                  wordCount: _getWordCount(),
-                  isModified: _isModified,
-                  isSaving: _isSaving,
-                  onBack: () async {
-                    if (_isModified) {
-                      final shouldPop = await _onWillPop();
-                      if (shouldPop && mounted) {
+                if (!isFocusMode)
+                  EditorHeader(
+                    fileName: fileName,
+                    fullFilePath: widget.filePath,
+                    wordCount: _getWordCount(),
+                    isModified: _isModified,
+                    isSaving: _isSaving,
+                    canUndo: _historyIndex > 0,
+                    canRedo:
+                        _historyIndex >= 0 &&
+                        _historyIndex < _editHistory.length - 1,
+                    onBack: () async {
+                      if (_isModified) {
+                        final shouldPop = await _onWillPop();
+                        if (shouldPop && mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      } else {
                         Navigator.of(context).pop();
                       }
-                    } else {
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  onSave: _saveFile,
-                  onMore: _showMoreMenu,
-                ),
+                    },
+                    onSave: _saveFile,
+                    onMore: _showMoreMenu,
+                  ),
                 Expanded(
                   child: Stack(
                     children: [
-                      Positioned.fill(child: _buildContent()),
+                      Positioned.fill(child: _buildEditorWithGesture()),
                       if (_showSearchBar)
                         Positioned(
                           top: 10,
@@ -1057,7 +1225,34 @@ class _EditorScreenState extends State<EditorScreen>
               ],
             ),
           ),
-          if (settings.particleEnabled && settings.particleGlobal)
+          if (_lastActionFeedback != null)
+            Positioned(
+              top: 60,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _lastActionFeedback!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (settings.particleEnabled &&
+              settings.particleGlobal &&
+              !settings.focusMode)
             Positioned.fill(
               child: IgnorePointer(
                 child: TickerMode(
@@ -1119,19 +1314,17 @@ class _EditorScreenState extends State<EditorScreen>
               const SizedBox(height: 24),
               Text(
                 l10n.loadingFailed,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Colors.red),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.red),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
@@ -1146,6 +1339,23 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     return _buildEditor();
+  }
+
+  Widget _buildEditorWithGesture() {
+    return GestureDetector(
+      onDoubleTap: () {
+        final settings = context.read<SettingsProvider>();
+        settings.setFocusMode(!settings.focusMode);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(settings.focusMode ? '专注模式已开启' : '专注模式已关闭'),
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+      child: _buildEditor(),
+    );
   }
 
   Widget _buildEditor() {
@@ -1205,10 +1415,26 @@ class _EditorScreenState extends State<EditorScreen>
     if ((brightness - 1.0).abs() > 0.001) {
       imageLayer = ColorFiltered(
         colorFilter: ColorFilter.matrix([
-          brightness, 0, 0, 0, 0,
-          0, brightness, 0, 0, 0,
-          0, 0, brightness, 0, 0,
-          0, 0, 0, 1, 0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
         ]),
         child: imageLayer,
       );
@@ -1306,10 +1532,17 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           decoration: InputDecoration(
             border: InputBorder.none,
-            contentPadding: EdgeInsets.fromLTRB(16, 16, 16, 16 + toolbarPadding),
+            contentPadding: EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              16 + toolbarPadding,
+            ),
             hintText: l10n.startWriting,
             hintStyle: TextStyle(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -1443,7 +1676,9 @@ class _EditorScreenState extends State<EditorScreen>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1470,9 +1705,9 @@ class _EditorScreenState extends State<EditorScreen>
               title: Text(l10n.exportAsPdf),
               onTap: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.generatingPdf)),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(l10n.generatingPdf)));
                 await ExportService.exportAndShareAsPdf(
                   _textController.text,
                   widget.filePath

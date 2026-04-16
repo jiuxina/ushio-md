@@ -602,9 +602,9 @@
   "@systemFont": {
     "description": "系统字体选项"
   },
-  "customFont": "自定义字体",
+  "customFont": "代码块字体",
   "@customFont": {
-    "description": "自定义字体选项"
+    "description": "代码块字体选项"
   },
   "installFont": "安装自定义字体",
   "@installFont": {
