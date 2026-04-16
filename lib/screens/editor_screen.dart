@@ -2,14 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/editor_navigation_helper.dart';
-import '../utils/app_style.dart';
 import '../widgets/custom_title_bar.dart';
 import '../widgets/markdown_toolbar.dart';
 import '../widgets/milkdown_webview_editor.dart';
@@ -26,7 +24,6 @@ import 'editor/models/editor_patterns.dart';
 import 'editor/models/markdown_parser.dart';
 import 'editor/editor_shortcuts.dart';
 import '../services/export_service.dart';
-import '../services/debug_probe_service.dart';
 
 enum EditorMode { edit, preview }
 
@@ -82,7 +79,6 @@ class _EditorScreenState extends State<EditorScreen>
   int? _highlightedLine;
   List<SearchMatch> _searchMatches = const [];
   int _activeSearchMatchIndex = -1;
-  DateTime? _lastDebugProbeAt;
   bool _suppressNextMilkdownReload = false;
 
   // Undo/redo feedback state
@@ -123,9 +119,6 @@ class _EditorScreenState extends State<EditorScreen>
     } else {
       _loadFile();
     }
-    DebugProbeService.instance.registerCodeBlockLanguageProbe(
-      _requestCodeBlockLanguageProbe,
-    );
   }
 
   Future<void> _loadFile() async {
@@ -479,9 +472,6 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   void dispose() {
-    DebugProbeService.instance.unregisterCodeBlockLanguageProbe(
-      _requestCodeBlockLanguageProbe,
-    );
     _autoSaveTimer?.cancel();
     _editScrollTimer?.cancel();
     _searchDebounceTimer?.cancel();
@@ -964,13 +954,16 @@ class _EditorScreenState extends State<EditorScreen>
     if (settings.debugEnabled) {
       settings.appendDebugLog('bridge<$type>: $map');
     }
-    if (type == 'on_render_complete' && settings.debugEnabled) {
-      _requestCodeBlockLanguageProbe();
-      return;
-    }
     if (type == 'on_debug_report') {
       final payload = map['payload'];
       settings.appendDebugLog('debug_report: $payload');
+      return;
+    }
+    if (type == 'on_debug_log') {
+      final payload = map['payload'];
+      if (payload is Map) {
+        settings.appendDebugLog('js: ${payload['message']}');
+      }
       return;
     }
     if (type != 'on_editor_focus') return;
@@ -979,17 +972,6 @@ class _EditorScreenState extends State<EditorScreen>
     final focused = payload['focused'] == true;
     if (!mounted || focused == _isMilkdownEditorFocused) return;
     setState(() => _isMilkdownEditorFocused = focused);
-  }
-
-  Future<void> _requestCodeBlockLanguageProbe() async {
-    final now = DateTime.now();
-    final last = _lastDebugProbeAt;
-    if (last != null && now.difference(last).inMilliseconds < 900) return;
-    _lastDebugProbeAt = now;
-    await _previewWebViewController.execCmd(
-      'debug_codeblock_language_report',
-      args: {'source': 'editor_screen'},
-    );
   }
 
   // ==================== 内联编辑 ====================
@@ -1049,8 +1031,6 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<SettingsProvider>();
-    final isFocusMode = settings.focusMode;
     final shouldInterceptForMilkdownBlur =
         _mode == EditorMode.preview && _isMilkdownEditorFocused;
     final useCustomTitleBar =
@@ -1280,65 +1260,6 @@ class _EditorScreenState extends State<EditorScreen>
     }).length;
     final words = text.split(wordSplitRegex).where((w) => w.isNotEmpty).length;
     return l10n.wordCount(chars, glyphs, words);
-  }
-
-  Widget _buildContent() {
-    final l10n = AppLocalizations.of(context)!;
-    if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      );
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.error_outline,
-                  size: 48,
-                  color: Colors.red,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                l10n.loadingFailed,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: Colors.red),
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _loadFile,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.retry),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return _buildEditor();
   }
 
   Widget _buildEditorWithGesture() {

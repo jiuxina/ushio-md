@@ -921,19 +921,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get debugModeDescription => '记录 Bridge 消息、命令执行和问题诊断数据';
 
   @override
-  String get codeBlockLanguageDebug => '代码块语言标识调试';
-
-  @override
-  String get collectEditorDiagnostics => '采集当前编辑器诊断信息';
-
-  @override
-  String get collectEditorDiagnosticsDesc =>
-      '会读取代码块工具条位置、pre[data-language] 伪元素等信息';
-
-  @override
-  String get collect => '采集';
-
-  @override
   String get debugLogsSection => '日志';
 
   @override

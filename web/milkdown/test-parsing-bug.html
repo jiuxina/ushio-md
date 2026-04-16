@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Case - Image/Link Parsing Bug</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-case {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .test-case h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .test-input {
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+    .test-output {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+    .test-output img {
+      max-width: 200px;
+      border: 1px solid #ccc;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+    .status.pass { background: #d4edda; color: #155724; }
+    .status.fail { background: #f8d7da; color: #721c24; }
+    .error-detail {
+      color: #721c24;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Milkdown 解析问题测试</h1>
+  <p>测试标题/链接与图片/代码块的解析冲突问题</p>
+
+  <div id="tests"></div>
+
+  <script type="module">
+    import { Crepe } from './node_modules/@milkdown/crepe/lib/esm/index.js';
+
+    const testCases = [
+      {
+        name: '问题样例：标题 + 图片 + 链接',
+        markdown: `# qaa.md
+
+![1.00](images/JPEG_20260416_225916_5684911853037735770.jpg)
+
+[链接文本](https://example.com)`,
+        expected: '图片应该正常显示，链接应该正常工作'
+      },
+      {
+        name: '对照组：只有图片',
+        markdown: `![1.00](images/test.jpg)`,
+        expected: '图片应该正常显示'
+      },
+      {
+        name: '对照组：只有链接',
+        markdown: `[链接文本](https://example.com)`,
+        expected: '链接应该正常工作'
+      },
+      {
+        name: '对照组：标题 + 图片',
+        markdown: `# 标题
+
+![1.00](images/test.jpg)`,
+        expected: '图片应该正常显示'
+      },
+      {
+        name: '对照组：图片 + 链接',
+        markdown: `![1.00](images/test.jpg)
+
+[链接文本](https://example.com)`,
+        expected: '图片和链接都应该正常'
+      },
+      {
+        name: '代码块测试：标题 + 代码块 + 链接',
+        markdown: `# 标题
+
+\`\`\`javascript
+const x = 1;
+\`\`\`
+
+[链接文本](https://example.com)`,
+        expected: '代码块语言标识应该正确显示'
+      },
+      {
+        name: '反向顺序：链接 + 图片 + 标题',
+        markdown: `[链接文本](https://example.com)
+
+![1.00](images/test.jpg)
+
+# 标题`,
+        expected: '图片和链接都应该正常'
+      }
+    ];
+
+    async function runTest(testCase, index) {
+      const container = document.createElement('div');
+      container.className = 'test-case';
+
+      const title = document.createElement('h3');
+      title.textContent = testCase.name;
+      container.appendChild(title);
+
+      const input = document.createElement('div');
+      input.className = 'test-input';
+      input.textContent = testCase.markdown;
+      container.appendChild(input);
+
+      const output = document.createElement('div');
+      output.className = 'test-output';
+      container.appendChild(output);
+
+      document.getElementById('tests').appendChild(container);
+
+      try {
+        const app = document.createElement('div');
+        app.style.minHeight = '100px';
+        output.appendChild(app);
+
+        const crepe = new Crepe({
+          root: app,
+          defaultValue: testCase.markdown,
+          features: {
+            [Crepe.Feature.BlockEdit]: false,
+            [Crepe.Feature.Toolbar]: false,
+            [Crepe.Feature.LinkTooltip]: false,
+          },
+        });
+
+        await crepe.create();
+        crepe.setReadonly(true);
+
+        // Check if image is broken
+        const images = app.querySelectorAll('img');
+        const codeBlocks = app.querySelectorAll('pre code');
+        const links = app.querySelectorAll('a');
+
+        let status = 'pass';
+        let details = [];
+
+        // Check images
+        if (testCase.markdown.includes('![')) {
+          if (images.length === 0) {
+            status = 'fail';
+            details.push('图片未找到');
+          } else {
+            images.forEach((img, i) => {
+              // Check if image has valid src
+              if (!img.src || img.src.includes('undefined')) {
+                status = 'fail';
+                details.push(`图片 ${i+1} src 无效: ${img.src}`);
+              }
+            });
+          }
+        }
+
+        // Check code blocks
+        if (testCase.markdown.includes('```')) {
+          if (codeBlocks.length === 0) {
+            status = 'fail';
+            details.push('代码块未找到');
+          } else {
+            // Check if language class exists
+            const hasLanguageClass = Array.from(codeBlocks).some(
+              block => block.className.includes('language-')
+            );
+            if (!hasLanguageClass && testCase.markdown.match(/```\w+/)) {
+              status = 'fail';
+              details.push('代码块语言标识未正确解析');
+            }
+          }
+        }
+
+        // Check links
+        if (testCase.markdown.includes('[链接文本]')) {
+          if (links.length === 0) {
+            status = 'fail';
+            details.push('链接未找到');
+          } else {
+            links.forEach((link, i) => {
+              if (!link.href) {
+                status = 'fail';
+                details.push(`链接 ${i+1} href 无效`);
+              }
+            });
+          }
+        }
+
+        const statusSpan = document.createElement('span');
+        statusSpan.className = `status ${status}`;
+        statusSpan.textContent = status === 'pass' ? '通过' : '失败';
+        title.appendChild(statusSpan);
+
+        if (details.length > 0) {
+          const detailDiv = document.createElement('div');
+          detailDiv.className = 'error-detail';
+          detailDiv.textContent = details.join('; ');
+          output.appendChild(detailDiv);
+        }
+
+      } catch (error) {
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'status fail';
+        statusSpan.textContent = '错误';
+        title.appendChild(statusSpan);
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-detail';
+        errorDiv.textContent = error.message;
+        output.appendChild(errorDiv);
+      }
+    }
+
+    // Run all tests
+    for (let i = 0; i < testCases.length; i++) {
+      await runTest(testCases[i], i);
+    }
+  </script>
+</body>
+</html>

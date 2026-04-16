@@ -1850,30 +1850,6 @@ abstract class AppLocalizations {
   /// **'记录 Bridge 消息、命令执行和问题诊断数据'**
   String get debugModeDescription;
 
-  /// 代码块语言调试部分标题
-  ///
-  /// In zh, this message translates to:
-  /// **'代码块语言标识调试'**
-  String get codeBlockLanguageDebug;
-
-  /// 采集编辑器诊断按钮标题
-  ///
-  /// In zh, this message translates to:
-  /// **'采集当前编辑器诊断信息'**
-  String get collectEditorDiagnostics;
-
-  /// 采集编辑器诊断描述
-  ///
-  /// In zh, this message translates to:
-  /// **'会读取代码块工具条位置、pre[data-language] 伪元素等信息'**
-  String get collectEditorDiagnosticsDesc;
-
-  /// 采集按钮
-  ///
-  /// In zh, this message translates to:
-  /// **'采集'**
-  String get collect;
-
   /// 调试日志部分标题
   ///
   /// In zh, this message translates to:

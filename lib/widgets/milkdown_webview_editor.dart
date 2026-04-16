@@ -368,6 +368,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   bool _suppressNextReload = false;
   bool _isDisposed = false;
 
+  /// Log errors only (minimal logging for production)
+  void _logError(String message) {
+    debugPrint(message);
+  }
+
   /// 安全检查：验证请求的文件路径是否在允许的目录范围内
   /// 防止路径遍历攻击，避免访问工作区外的敏感文件
   Future<bool> _isPathAllowed(String filePath) async {
@@ -395,6 +400,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       if (Platform.isAndroid) {
         final externalDir = Directory('/storage/emulated/0').absolute.path;
         allowedRoots.add(externalDir);
+        // 添加 /sdcard 路径（通常是 /storage/emulated/0 的符号链接）
+        allowedRoots.add('/sdcard');
       }
 
       // 检查规范化后的路径是否在允许的根目录下
@@ -404,12 +411,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         }
       }
 
-      debugPrint(
-        '[Security] Path access denied: $filePath (normalized: $normalizedPath)',
-      );
+      _logError('[Security] Path access denied: $filePath');
       return false;
     } catch (e) {
-      debugPrint('[Security] Path validation error: $e');
+      _logError('[Security] Path validation error: $e');
       return false;
     }
   }
@@ -428,8 +433,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final requestedPath = requestedPathRaw.trim();
 
     // 安全检查：验证路径是否在允许范围内
-    if (!await _isPathAllowed(requestedPath)) {
-      debugPrint('[Security] Blocked file access attempt: $requestedPath');
+    final isAllowed = await _isPathAllowed(requestedPath);
+    if (!isAllowed) {
       return CustomSchemeResponse(
         data: Uint8List(0),
         contentType: 'text/plain',
@@ -438,7 +443,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     }
 
     final file = File(requestedPath);
-    if (!await file.exists()) {
+    final fileExists = await file.exists();
+    if (!fileExists) {
       return CustomSchemeResponse(
         data: Uint8List(0),
         contentType: 'text/plain',
@@ -446,13 +452,22 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       );
     }
 
-    final bytes = await file.readAsBytes();
-    final mime = lookupMimeType(requestedPath) ?? 'application/octet-stream';
-    return CustomSchemeResponse(
-      data: bytes,
-      contentType: mime,
-      contentEncoding: 'binary',
-    );
+    try {
+      final bytes = await file.readAsBytes();
+      final mime = lookupMimeType(requestedPath) ?? 'application/octet-stream';
+      return CustomSchemeResponse(
+        data: bytes,
+        contentType: mime,
+        contentEncoding: 'binary',
+      );
+    } catch (e) {
+      _logError('[LocalFile] Error reading file: $e');
+      return CustomSchemeResponse(
+        data: Uint8List(0),
+        contentType: 'text/plain',
+        contentEncoding: 'utf-8',
+      );
+    }
   }
 
   @override
@@ -1125,12 +1140,35 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         } catch (e) {
           debugPrint('[MilkdownRuntimeTag] eval_failed: $e');
         }
+        // Log baseDirectory via JS bridge
+        await controller.evaluateJavascript(
+          source: '''
+            (function() {
+              if (window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.emitDebug) {
+                window.__USHIO_BRIDGE__.emitDebug('[Flutter] onLoadStop - baseDirectory: "${widget.baseDirectory ?? ''}"');
+              }
+            })();
+          ''',
+        );
         await _sendInitDoc();
         await _sendTheme();
       },
       onLoadResourceWithCustomScheme: (controller, request) async {
         final url = request.url;
+        // Log via JS bridge
+        await controller.evaluateJavascript(
+          source: '''
+            (function() {
+              if (window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.emitDebug) {
+                window.__USHIO_BRIDGE__.emitDebug('[Flutter] CustomScheme request: "$url"');
+              }
+            })();
+          ''',
+        );
         return _serveLocalFileRequest(Uri.parse(url.toString()));
+      },
+      onConsoleMessage: (controller, consoleMessage) {
+        debugPrint('[WebView Console] ${consoleMessage.message}');
       },
     );
   }

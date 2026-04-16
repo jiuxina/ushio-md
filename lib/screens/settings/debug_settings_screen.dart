@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../providers/settings_provider.dart';
-import '../../services/debug_probe_service.dart';
 import '../../utils/app_style.dart';
 import '../../widgets/app_background.dart';
 
@@ -37,37 +36,6 @@ class DebugSettingsScreen extends StatelessWidget {
                     onChanged: (v) => settings.setDebugEnabled(v),
                   ),
                 ]),
-                const SizedBox(height: 16),
-                _buildSection(
-                  context,
-                  l10n.codeBlockLanguageDebug,
-                  Icons.code,
-                  [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l10n.collectEditorDiagnostics),
-                      subtitle: Text(l10n.collectEditorDiagnosticsDesc),
-                      trailing: TextButton(
-                        onPressed: () async {
-                          final ok = await DebugProbeService.instance
-                              .requestCodeBlockLanguageProbe();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                ok
-                                    ? l10n.collectRequestSent
-                                    : l10n.noActiveEditor,
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        child: Text(l10n.collect),
-                      ),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 16),
                 _buildSection(
                   context,

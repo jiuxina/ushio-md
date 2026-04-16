@@ -130,6 +130,10 @@ const emit = (type, payload = {}) => {
   });
 };
 
+const emitDebug = (message) => {
+  emit('on_debug_log', { message });
+};
+
 const recordUploadFailure = (reason) => {
   const now = Date.now();
   if (now - uploadFailureWindowStart > 10 * 60 * 1000) {
@@ -321,13 +325,18 @@ const neutralizeSetextHeadingSyntax = (markdown) => {
 
 const isFenceLine = (line) => /^\s*(```|~~~)/.test((line || '').trim());
 
-const isGhostCodeLanguageLine = (line) => {
+const extractGhostCodeLanguage = (line) => {
   const token = (line || '').trim();
   const arrowMatch = token.match(/^(.+?)[▾▼▿▽⌄˅∨]$/u);
-  if (!arrowMatch) return false;
+  if (!arrowMatch) return '';
   const language = (arrowMatch[1] || '').trim();
-  if (!language) return false;
-  return GHOST_CODE_LANGUAGE_MARKER_RE.test(language);
+  if (!language) return '';
+  if (!GHOST_CODE_LANGUAGE_MARKER_RE.test(language)) return '';
+  return language;
+};
+
+const isGhostCodeLanguageLine = (line) => {
+  return Boolean(extractGhostCodeLanguage(line));
 };
 
 const isFenceLanguageEchoLine = (line, expectedLanguage = '') => {
@@ -367,6 +376,44 @@ const collectFenceLanguages = (markdown) => {
   return result;
 };
 
+const collectMarkdownImageSources = (markdown) => {
+  if (typeof markdown !== 'string' || !markdown.includes('![')) return [];
+  const lines = markdown.split('\n');
+  const result = [];
+  let activeFence = null;
+  const imagePattern = /!\[[^\]]*]\(([^)\n]+)\)/g;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] || '';
+    const trimmed = line.trim();
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1] || '';
+      const markerChar = marker[0] || '';
+      const markerLength = marker.length;
+      if (!activeFence) {
+        activeFence = { markerChar, markerLength };
+      } else if (activeFence.markerChar === markerChar && markerLength >= activeFence.markerLength) {
+        activeFence = null;
+      }
+      continue;
+    }
+    if (activeFence) continue;
+
+    imagePattern.lastIndex = 0;
+    let match = imagePattern.exec(line);
+    while (match) {
+      const rawSrc = (match[1] || '').trim();
+      if (rawSrc) {
+        result.push(rawSrc);
+      }
+      match = imagePattern.exec(line);
+    }
+  }
+
+  return result;
+};
+
 const stripGhostCodeLanguageMarkers = (markdown) => {
   if (typeof markdown !== 'string') return markdown;
   if (!markdown.includes('```') && !markdown.includes('~~~')) return markdown;
@@ -374,6 +421,7 @@ const stripGhostCodeLanguageMarkers = (markdown) => {
   const output = [];
   let inFence = false;
   let currentFenceLanguage = '';
+  let currentFenceOutputIndex = -1;
   let changed = false;
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -384,6 +432,7 @@ const stripGhostCodeLanguageMarkers = (markdown) => {
       inFence = !inFence;
       if (!wasInFence && inFence) {
         currentFenceLanguage = extractFenceLanguage(line);
+        currentFenceOutputIndex = output.length;
       }
       output.push(line);
 
@@ -391,6 +440,7 @@ const stripGhostCodeLanguageMarkers = (markdown) => {
         let j = i + 1;
         let sawGhost = false;
         let sawBlank = false;
+        let detectedGhostLanguage = '';
         while (j < lines.length) {
           const next = (lines[j] || '').trim();
           if (!next) {
@@ -398,8 +448,20 @@ const stripGhostCodeLanguageMarkers = (markdown) => {
             j += 1;
             continue;
           }
-          if (isGhostCodeLanguageLine(next) || isFenceLanguageEchoLine(next, currentFenceLanguage)) {
+          const ghostLanguage = extractGhostCodeLanguage(next);
+          if (ghostLanguage) {
             sawGhost = true;
+            if (!detectedGhostLanguage) {
+              detectedGhostLanguage = ghostLanguage;
+            }
+            j += 1;
+            continue;
+          }
+          if (isFenceLanguageEchoLine(next, currentFenceLanguage)) {
+            sawGhost = true;
+            if (!detectedGhostLanguage) {
+              detectedGhostLanguage = next;
+            }
             j += 1;
             continue;
           }
@@ -408,11 +470,31 @@ const stripGhostCodeLanguageMarkers = (markdown) => {
 
         if (sawGhost) {
           changed = true;
+          const normalizedGhostLanguage = (detectedGhostLanguage || '').trim();
+          if (
+            !currentFenceLanguage
+            && normalizedGhostLanguage
+            && currentFenceOutputIndex >= 0
+            && currentFenceOutputIndex < output.length
+          ) {
+            const openingFenceLine = output[currentFenceOutputIndex] || '';
+            const patchedOpeningFenceLine = openingFenceLine.replace(
+              /^(\s*)(```|~~~)(.*)$/u,
+              (full, leading, marker, suffix) => {
+                if ((suffix || '').trim()) return full;
+                return `${leading}${marker} ${normalizedGhostLanguage}`;
+              },
+            );
+            if (patchedOpeningFenceLine !== openingFenceLine) {
+              output[currentFenceOutputIndex] = patchedOpeningFenceLine;
+            }
+          }
           if (sawBlank && output[output.length - 1] !== '') {
             output.push('');
           }
           i = j - 1;
         }
+        currentFenceOutputIndex = -1;
       }
       continue;
     }
@@ -1413,13 +1495,67 @@ const interceptNativeCodeLanguagePicker = (event) => {
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
   renderRawHtmlNodes(root);
-  root.querySelectorAll('img').forEach((img) => {
+  const markdownImageSources = collectMarkdownImageSources(currentMarkdown);
+
+  // Debug: Log image matching info for troubleshooting
+  const domImages = root.querySelectorAll('.ProseMirror img');
+  if (domImages.length !== markdownImageSources.length) {
+    console.warn('[syncRenderedDom] Image count mismatch:', {
+      domCount: domImages.length,
+      markdownCount: markdownImageSources.length,
+      markdownSources: markdownImageSources,
+      domSrcs: Array.from(domImages).map((img, i) => ({
+        index: i,
+        src: img.getAttribute('src'),
+        dataType: img.getAttribute('data-type'),
+        className: img.className,
+      })),
+    });
+  }
+
+  root.querySelectorAll('.ProseMirror img').forEach((img, imageIndex) => {
     const rawSrc = img.getAttribute('src') || '';
+
+    // If already a custom scheme URL, just set up event handlers and data attributes
+    if (rawSrc.startsWith(`${LOCAL_FILE_SCHEME}://`)) {
+      if (!img.dataset.ushioSrc) {
+        img.setAttribute('data-ushio-src', rawSrc);
+      }
+      if (!img.dataset.ushioLoadBound) {
+        img.dataset.ushioLoadBound = '1';
+        img.addEventListener('load', () => {
+          delete img.dataset.ushioFallbackTried;
+          img.classList.remove('ushio-image-load-failed');
+          img.closest('.milkdown-image-block')?.classList.remove('ushio-image-load-failed');
+        });
+      }
+      if (!img.dataset.ushioErrorBound) {
+        img.dataset.ushioErrorBound = '1';
+        img.addEventListener('error', () => {
+          img.classList.add('ushio-image-load-failed');
+          img.closest('.milkdown-image-block')?.classList.add('ushio-image-load-failed');
+          emit('on_image_error', {
+            src: img.getAttribute('data-ushio-src') || rawSrc,
+            reason: 'load_failed',
+          });
+        });
+      }
+      return;
+    }
+
     const sanitizedRawSrc = sanitizeImageSource(rawSrc);
+    const markdownRawSrc = sanitizeImageSource(markdownImageSources[imageIndex] || '');
     if (sanitizedRawSrc && sanitizedRawSrc !== rawSrc) {
       img.setAttribute('src', sanitizedRawSrc);
     }
-    const resolvedSrc = resolveImageSrc(sanitizedRawSrc || rawSrc);
+    const preferredRawSrc = sanitizedRawSrc || markdownRawSrc || rawSrc;
+    const resolvedSrc = resolveImageSrc(preferredRawSrc);
+    const fallbackResolvedSrc = resolveImageSrc(markdownRawSrc || sanitizedRawSrc || rawSrc);
+    if (fallbackResolvedSrc) {
+      img.dataset.ushioFallbackSrc = fallbackResolvedSrc;
+    } else {
+      delete img.dataset.ushioFallbackSrc;
+    }
     if (resolvedSrc && img.getAttribute('src') !== resolvedSrc) {
       img.setAttribute('src', resolvedSrc);
       img.setAttribute('data-ushio-src', resolvedSrc);
@@ -1427,6 +1563,7 @@ const syncRenderedDom = () => {
     if (!img.dataset.ushioLoadBound) {
       img.dataset.ushioLoadBound = '1';
       img.addEventListener('load', () => {
+        delete img.dataset.ushioFallbackTried;
         img.classList.remove('ushio-image-load-failed');
         img.closest('.milkdown-image-block')?.classList.remove('ushio-image-load-failed');
       });
@@ -1434,18 +1571,31 @@ const syncRenderedDom = () => {
     if (!img.dataset.ushioErrorBound) {
       img.dataset.ushioErrorBound = '1';
       img.addEventListener('error', () => {
+        const fallbackSrc = img.dataset.ushioFallbackSrc || '';
+        if (
+          fallbackSrc
+          && img.dataset.ushioFallbackTried !== '1'
+          && img.getAttribute('src') !== fallbackSrc
+        ) {
+          img.dataset.ushioFallbackTried = '1';
+          img.setAttribute('src', fallbackSrc);
+          img.setAttribute('data-ushio-src', fallbackSrc);
+          return;
+        }
         img.classList.add('ushio-image-load-failed');
         img.closest('.milkdown-image-block')?.classList.add('ushio-image-load-failed');
         emit('on_image_error', {
-          src: resolvedSrc || sanitizedRawSrc || rawSrc,
+          src: img.getAttribute('data-ushio-src') || fallbackSrc || resolvedSrc || markdownRawSrc || sanitizedRawSrc || rawSrc,
           reason: 'load_failed',
         });
       });
     }
   });
 
-  root.querySelectorAll('a').forEach((anchor) => {
+  root.querySelectorAll('.ProseMirror a').forEach((anchor) => {
+    if (anchor.closest('.milkdown-code-block .tools')) return;
     const rawHref = anchor.getAttribute('href') || '';
+    if (!rawHref) return;
     if (rawHref.startsWith('#')) return;
     const resolved = resolveHref(rawHref);
     if (resolved) {
@@ -1532,6 +1682,21 @@ const syncRenderedDom = () => {
   });
 
   const fenceLanguages = collectFenceLanguages(currentMarkdown);
+
+  // Debug: Log code block matching info for troubleshooting
+  const domCodeBlocks = root.querySelectorAll('.milkdown-code-block');
+  if (domCodeBlocks.length !== fenceLanguages.length) {
+    console.warn('[syncRenderedDom] Code block count mismatch:', {
+      domCount: domCodeBlocks.length,
+      markdownCount: fenceLanguages.length,
+      markdownLanguages: fenceLanguages,
+      domLanguages: Array.from(domCodeBlocks).map((block, i) => ({
+        index: i,
+        language: block.querySelector('.language-button')?.dataset?.language || 'unknown',
+      })),
+    });
+  }
+
   root.querySelectorAll('.milkdown-code-block').forEach((block, codeBlockIndex) => {
     if (!(block instanceof HTMLElement)) return;
     block.style.setProperty('position', 'relative', 'important');
@@ -1669,8 +1834,70 @@ const setMarkdown = (markdown, { emitContent = false } = {}) => {
   currentMarkdown = nextMarkdown;
   if (!editorInstance) return;
   isApplyingFromFlutter = !emitContent;
-  editorInstance.action(replaceAll(nextMarkdown));
+  // Pre-process image URLs in markdown before passing to Milkdown
+  const preprocessedMarkdown = preprocessImageUrlsInMarkdown(nextMarkdown);
+  editorInstance.action(replaceAll(preprocessedMarkdown));
   notifyRenderComplete();
+};
+
+/**
+ * Pre-process markdown to replace relative image URLs with custom scheme URLs
+ * This ensures Milkdown renders the correct URLs from the start, avoiding
+ * the browser trying to load relative URLs from localhost:8080
+ */
+const preprocessImageUrlsInMarkdown = (markdown) => {
+  if (typeof markdown !== 'string' || !markdown.includes('![')) return markdown;
+  if (!currentBaseDirectory) return markdown;
+
+  const lines = markdown.split('\n');
+  const result = [];
+  let activeFence = null;
+  const imagePattern = /(!\[[^\]]*]\()([^)\n]+)(\))/g;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] || '';
+    const trimmed = line.trim();
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1] || '';
+      const markerChar = marker[0] || '';
+      const markerLength = marker.length;
+      if (!activeFence) {
+        activeFence = { markerChar, markerLength };
+      } else if (activeFence.markerChar === markerChar && markerLength >= activeFence.markerLength) {
+        activeFence = null;
+      }
+      result.push(line);
+      continue;
+    }
+    if (activeFence) {
+      result.push(line);
+      continue;
+    }
+
+    // Replace relative image URLs with custom scheme URLs
+    const processedLine = line.replace(imagePattern, (match, prefix, src, suffix) => {
+      const trimmedSrc = src.trim();
+      // Skip if already a custom scheme URL, external URL, data URI, or absolute path
+      if (trimmedSrc.startsWith(LOCAL_FILE_SCHEME + '://')) return match;
+      if (trimmedSrc.startsWith('http://') || trimmedSrc.startsWith('https://')) return match;
+      if (trimmedSrc.startsWith('data:')) return match;
+      if (trimmedSrc.startsWith('blob:')) return match;
+      if (trimmedSrc.startsWith('/')) return match;
+      if (/^[A-Za-z]:[\\/]/.test(trimmedSrc)) return match;
+
+      // Convert relative path to custom scheme URL
+      const absolutePath = toAbsoluteLocalPath(trimmedSrc);
+      if (!absolutePath) return match;
+      const proxyUrl = buildLocalFileProxyUrl(absolutePath);
+      if (!proxyUrl) return match;
+
+      return `${prefix}${proxyUrl}${suffix}`;
+    });
+    result.push(processedLine);
+  }
+
+  return result.join('\n');
 };
 
 const showBootstrapError = (error) => {
@@ -2106,9 +2333,12 @@ const blurEditorFocus = () => {
 };
 
 const createEditor = async () => {
+  // Pre-process image URLs in the initial markdown before passing to Crepe
+  // This ensures relative image URLs are converted to custom scheme URLs
+  const preprocessedInitialMarkdown = preprocessImageUrlsInMarkdown(currentMarkdown);
   const crepe = new Crepe({
     root: app,
-    defaultValue: currentMarkdown,
+    defaultValue: preprocessedInitialMarkdown,
     features: {
       [Crepe.Feature.BlockEdit]: false,
       [Crepe.Feature.Toolbar]: false,
@@ -3236,4 +3466,5 @@ const onFlutterMessage = (message) => {
 
 window.__USHIO_BRIDGE__ = {
   onFlutterMessage,
+  emitDebug,
 };

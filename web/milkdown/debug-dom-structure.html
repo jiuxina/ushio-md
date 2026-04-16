@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug - DOM Structure Analysis</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-case {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .test-case h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .test-input {
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      font-size: 13px;
+      overflow-x: auto;
+      margin-bottom: 12px;
+    }
+    .test-output {
+      min-height: 100px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fafafa;
+      margin-bottom: 12px;
+    }
+    .debug-info {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+    .match-success { color: #155724; }
+    .match-fail { color: #721c24; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>DOM 结构与 Markdown 源匹配分析</h1>
+  <p>调试图片索引匹配问题的根源</p>
+
+  <div id="tests"></div>
+
+  <script type="module">
+    import { Crepe } from './node_modules/@milkdown/crepe/lib/esm/index.js';
+
+    // Replicate the regex-based image source collection
+    const collectMarkdownImageSources = (markdown) => {
+      if (typeof markdown !== 'string' || !markdown.includes('![')) return [];
+      const lines = markdown.split('\n');
+      const result = [];
+      let activeFence = null;
+      const imagePattern = /!\[[^\]]*]\(([^)\n]+)\)/g;
+
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i] || '';
+        const trimmed = line.trim();
+        const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+        if (fenceMatch) {
+          const marker = fenceMatch[1] || '';
+          const markerChar = marker[0] || '';
+          const markerLength = marker.length;
+          if (!activeFence) {
+            activeFence = { markerChar, markerLength };
+          } else if (activeFence.markerChar === markerChar && markerLength >= activeFence.markerLength) {
+            activeFence = null;
+          }
+          continue;
+        }
+        if (activeFence) continue;
+
+        imagePattern.lastIndex = 0;
+        let match = imagePattern.exec(line);
+        while (match) {
+          const rawSrc = (match[1] || '').trim();
+          if (rawSrc) {
+            result.push(rawSrc);
+          }
+          match = imagePattern.exec(line);
+        }
+      }
+
+      return result;
+    };
+
+    // Replicate the regex-based fence language collection
+    const collectFenceLanguages = (markdown) => {
+      if (typeof markdown !== 'string' || (!markdown.includes('```') && !markdown.includes('~~~'))) return [];
+      const lines = markdown.split('\n');
+      const result = [];
+      let inFence = false;
+      const isFenceLine = (line) => /^\s*(```|~~~)/.test((line || '').trim());
+      const extractFenceLanguageRaw = (line) => {
+        const trimmed = (line || '').trim();
+        const match = trimmed.match(/^(```|~~~)\s*([^\s`~]+)?/);
+        if (!match) return '';
+        return (match[2] || '').trim();
+      };
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        if (!isFenceLine(line)) continue;
+        if (!inFence) {
+          result.push(extractFenceLanguageRaw(line));
+        }
+        inFence = !inFence;
+      }
+      return result;
+    };
+
+    const testCases = [
+      {
+        name: '问题样例：标题 + 图片 + 链接',
+        markdown: `# qaa.md
+
+![1.00](images/JPEG_20260416_225916_5684911853037735770.jpg)
+
+[链接文本](https://example.com)`,
+      },
+      {
+        name: '对照组：只有图片',
+        markdown: `![1.00](images/test.jpg)`,
+      },
+      {
+        name: '代码块测试：标题 + 代码块 + 链接',
+        markdown: `# 标题
+
+\`\`\`javascript
+const x = 1;
+\`\`\`
+
+[链接文本](https://example.com)`,
+      },
+      {
+        name: '图片 + 代码块 + 链接',
+        markdown: `![图片](images/test.jpg)
+
+\`\`\`javascript
+const x = 1;
+\`\`\`
+
+[链接文本](https://example.com)`,
+      },
+    ];
+
+    async function runTest(testCase, index) {
+      const container = document.createElement('div');
+      container.className = 'test-case';
+
+      const title = document.createElement('h3');
+      title.textContent = testCase.name;
+      container.appendChild(title);
+
+      const input = document.createElement('div');
+      input.className = 'test-input';
+      input.textContent = testCase.markdown;
+      container.appendChild(input);
+
+      const output = document.createElement('div');
+      output.className = 'test-output';
+      container.appendChild(output);
+
+      const debugInfo = document.createElement('div');
+      debugInfo.className = 'debug-info';
+      container.appendChild(debugInfo);
+
+      document.getElementById('tests').appendChild(container);
+
+      try {
+        const app = document.createElement('div');
+        app.style.minHeight = '100px';
+        output.appendChild(app);
+
+        const crepe = new Crepe({
+          root: app,
+          defaultValue: testCase.markdown,
+          features: {
+            [Crepe.Feature.BlockEdit]: false,
+            [Crepe.Feature.Toolbar]: false,
+            [Crepe.Feature.LinkTooltip]: false,
+          },
+        });
+
+        await crepe.create();
+        crepe.setReadonly(true);
+
+        // Wait for rendering
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Collect from markdown source
+        const markdownImageSources = collectMarkdownImageSources(testCase.markdown);
+        const markdownFenceLanguages = collectFenceLanguages(testCase.markdown);
+
+        // Collect from DOM
+        const root = app.querySelector('.milkdown') || app;
+        const domImages = Array.from(root.querySelectorAll('.ProseMirror img'));
+        const domCodeBlocks = Array.from(root.querySelectorAll('.milkdown-code-block'));
+
+        // Build debug output
+        let debug = '';
+        debug += '=== Markdown Source Collection ===\n';
+        debug += `Images (${markdownImageSources.length}):\n`;
+        markdownImageSources.forEach((src, i) => {
+          debug += `  [${i}]: ${src}\n`;
+        });
+        debug += `Fence Languages (${markdownFenceLanguages.length}):\n`;
+        markdownFenceLanguages.forEach((lang, i) => {
+          debug += `  [${i}]: ${lang}\n`;
+        });
+
+        debug += '\n=== DOM Collection ===\n';
+        debug += `Images (${domImages.length}):\n`;
+        domImages.forEach((img, i) => {
+          debug += `  [${i}]: src="${img.getAttribute('src')}" data-type="${img.getAttribute('data-type') || 'none'}"\n`;
+        });
+        debug += `Code Blocks (${domCodeBlocks.length}):\n`;
+        domCodeBlocks.forEach((block, i) => {
+          const langEl = block.querySelector('.language-button');
+          const lang = langEl?.dataset?.language || block.querySelector('pre code')?.className || 'unknown';
+          debug += `  [${i}]: language="${lang}"\n`;
+        });
+
+        debug += '\n=== Index Matching Analysis ===\n';
+
+        // Check image matching
+        if (markdownImageSources.length > 0 || domImages.length > 0) {
+          debug += 'Images:\n';
+          const maxLen = Math.max(markdownImageSources.length, domImages.length);
+          let allMatch = true;
+          for (let i = 0; i < maxLen; i++) {
+            const mdSrc = markdownImageSources[i] || 'N/A';
+            const domSrc = domImages[i]?.getAttribute('src') || 'N/A';
+            const match = mdSrc === domSrc || (mdSrc === 'N/A' && domSrc === 'N/A');
+            if (!match && mdSrc !== 'N/A' && domSrc !== 'N/A') allMatch = false;
+            const status = match ? '✓' : '✗';
+            debug += `  [${i}]: MD="${mdSrc}" ↔ DOM="${domSrc}" ${status}\n`;
+          }
+          debug += allMatch ? '  Result: All matched!\n' : '  Result: MISMATCH DETECTED!\n';
+        }
+
+        // Check code block matching
+        if (markdownFenceLanguages.length > 0 || domCodeBlocks.length > 0) {
+          debug += 'Code Blocks:\n';
+          const maxLen = Math.max(markdownFenceLanguages.length, domCodeBlocks.length);
+          let allMatch = true;
+          for (let i = 0; i < maxLen; i++) {
+            const mdLang = markdownFenceLanguages[i] || 'N/A';
+            const domBlock = domCodeBlocks[i];
+            let domLang = 'N/A';
+            if (domBlock) {
+              const langEl = domBlock.querySelector('.language-button');
+              domLang = langEl?.dataset?.language || domBlock.querySelector('pre code')?.className?.replace('language-', '') || 'N/A';
+            }
+            const match = mdLang.toLowerCase() === domLang.toLowerCase() || (mdLang === 'N/A' && domLang === 'N/A') || (mdLang === '' && domLang === 'N/A');
+            if (!match && mdLang !== 'N/A' && domLang !== 'N/A') allMatch = false;
+            const status = match ? '✓' : '✗';
+            debug += `  [${i}]: MD="${mdLang}" ↔ DOM="${domLang}" ${status}\n`;
+          }
+          debug += allMatch ? '  Result: All matched!\n' : '  Result: MISMATCH DETECTED!\n';
+        }
+
+        debugInfo.textContent = debug;
+
+      } catch (error) {
+        debugInfo.textContent = `Error: ${error.message}\n\n${error.stack}`;
+      }
+    }
+
+    // Run all tests
+    for (let i = 0; i < testCases.length; i++) {
+      await runTest(testCases[i], i);
+    }
+  </script>
+</body>
+</html>

@@ -940,19 +940,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Record Bridge messages, command execution, and diagnostic data';
 
   @override
-  String get codeBlockLanguageDebug => 'Code Block Language Debug';
-
-  @override
-  String get collectEditorDiagnostics => 'Collect Editor Diagnostics';
-
-  @override
-  String get collectEditorDiagnosticsDesc =>
-      'Reads code block toolbar position, pre[data-language] pseudo-element, and other info';
-
-  @override
-  String get collect => 'Collect';
-
-  @override
   String get debugLogsSection => 'Logs';
 
   @override
