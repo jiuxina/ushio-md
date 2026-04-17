@@ -21,9 +21,6 @@
   <a href="https://www.android.com">
     <img src="https://img.shields.io/badge/platform-Android-brightgreen" alt="Platform Android">
   </a>
-  <a href="https://www.microsoft.com/windows">
-    <img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform Windows">
-  </a>
 </p>
 
 ## 目录
@@ -46,7 +43,7 @@
 - 编辑体验持续优化：目录跳转、搜索高亮、长文滚动与代码块交互更稳定。
 - 基于最新渲染编辑链路，公式、表格、代码块等复杂内容显示与编辑一致性更好。
 - 支持本地工作区管理、外部文件导入、PDF/图片/ZIP 导出和云端同步。
-- **跨平台支持**：Android 和 Windows 双平台原生应用。
+- 如果可以的话，希望能点个star支持一下呢～
 
 ## 核心功能
 
