@@ -7,6 +7,47 @@
 
 ---
 
+## [1.5.2] - 2026-04-17
+
+### 修复
+
+#### WebView 加载问题修复 🐛
+- **第二次打开文档卡在加载状态**
+  - 修复 WebView 服务器生命周期问题：不再在编辑器关闭时关闭共享的预热服务器
+  - 修复浏览器后退缓存 (bfcache) 导致 JavaScript 未重新执行的问题
+  - 添加 JS bridge 就绪检测和自动重载机制
+  - 添加 `pageshow` 事件处理检测 bfcache 恢复并强制刷新
+
+#### 代码质量改进 📋
+- **milkdown_webview_editor.dart**
+  - 添加详细调试日志追踪 WebView 初始化流程
+  - 优化服务器复用逻辑，区分预热服务器和独立服务器
+  - 添加 null 检查防止重载时的空引用异常
+
+- **main.js (JavaScript)**
+  - 添加 bfcache 防护：检测 `pageshow.persisted` 并强制刷新
+  - 添加缓存控制 meta 标签防止页面缓存
+  - 添加 `forceRender` 选项到 `setMarkdown` 支持文档切换时强制渲染
+  - 添加详细调试日志
+
+### 技术细节
+
+```
+问题根因分析：
+1. 编辑器关闭时，dispose() 关闭了共享的 _warmServer
+2. 第二个编辑器尝试复用已关闭的服务器
+3. WebView 加载失败，JavaScript bridge 未初始化
+4. 浏览器 bfcache 恢复页面状态但不重新执行 JavaScript
+
+解决方案：
+1. dispose() 时检测是否为预热服务器，不关闭共享实例
+2. 添加 JS bridge 就绪检测循环（最多 5 秒）
+3. bridge 未就绪时自动重新加载页面
+4. JavaScript 端检测 bfcache 恢复并强制刷新
+```
+
+---
+
 ## [1.5.0] - 2026-04-08
 
 ### 综合优化

@@ -39,7 +39,7 @@ class EditorScreen extends StatefulWidget {
 }
 
 class _EditorScreenState extends State<EditorScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   // ==================== 状态变量 ====================
   static const int _maxEditHistory = 100;
   final List<EditHistoryEntry> _editHistory = [];
@@ -102,6 +102,14 @@ class _EditorScreenState extends State<EditorScreen>
   @override
   void initState() {
     super.initState();
+    debugPrint('[EDITOR] initState called for: ${widget.filePath}');
+    debugPrint(
+      '[EDITOR] initialContent provided: ${widget.initialContent != null}, length: ${widget.initialContent?.length ?? "N/A"}',
+    );
+
+    final initStopwatch = Stopwatch()..start();
+
+    WidgetsBinding.instance.addObserver(this);
     _textController = TextEditingController();
     _searchController = TextEditingController();
     _editScrollController = ScrollController();
@@ -120,24 +128,38 @@ class _EditorScreenState extends State<EditorScreen>
     );
     _searchFocusNode.addListener(_onSearchFocusChanged);
     _attachEditSelectionListener();
-    _loadSearchHistory();
+
+    initStopwatch.stop();
+    debugPrint(
+      '[EDITOR] Controllers initialized in ${initStopwatch.elapsedMilliseconds}ms',
+    );
+
+    // Load search history in background without blocking UI
+    unawaited(_loadSearchHistory());
+
     if (widget.initialContent != null) {
+      debugPrint('[EDITOR] Using initialContent, skipping file load');
       _applyLoadedContent(widget.initialContent!);
       _configureAutoSave();
       _isLoading = false;
+      debugPrint('[EDITOR] initState complete (cached content)');
     } else {
+      debugPrint('[EDITOR] No initialContent, calling _loadFile()');
       _loadFile();
     }
   }
 
   Future<void> _loadSearchHistory() async {
+    debugPrint('[EDITOR] _loadSearchHistory starting...');
     final history = await _searchHistoryService.getHistory();
+    debugPrint('[EDITOR] _loadSearchHistory done, ${history.length} items');
     if (mounted) {
       setState(() => _searchHistory = history);
     }
   }
 
   Future<void> _loadFile() async {
+    debugPrint('[EDITOR] _loadFile starting...');
     setState(() {
       _isLoading = true;
       _error = null;
@@ -145,20 +167,32 @@ class _EditorScreenState extends State<EditorScreen>
 
     try {
       final fileService = context.read<FileProvider>().fileService;
+      debugPrint('[EDITOR] Reading file: ${widget.filePath}');
+      final loadStopwatch = Stopwatch()..start();
       final content = await fileService.readFile(widget.filePath);
+      loadStopwatch.stop();
+      debugPrint(
+        '[EDITOR] File read in ${loadStopwatch.elapsedMilliseconds}ms, length: ${content.length}',
+      );
+
       if (!mounted) return;
       _applyLoadedContent(content);
       _configureAutoSave();
     } catch (e) {
+      debugPrint('[EDITOR] _loadFile ERROR: $e');
       _error = e.toString();
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
+      debugPrint('[EDITOR] _loadFile complete, _isLoading = false');
     }
   }
 
   void _applyLoadedContent(String content) {
+    debugPrint(
+      '[EDITOR] _applyLoadedContent called, length: ${content.length}',
+    );
     _textController.text = content;
     if (!_textListenerAttached) {
       _textController.addListener(_onTextChanged);
@@ -503,6 +537,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _autoSaveTimer?.cancel();
     _editScrollTimer?.cancel();
     _searchDebounceTimer?.cancel();
@@ -530,6 +565,25 @@ class _EditorScreenState extends State<EditorScreen>
     _inlineEditFocusNode.dispose();
     _highlightController.dispose();
     super.dispose();
+  }
+
+  double _lastKeyboardInset = 0;
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // 使用 WidgetsBinding.instance.scheduleFrameCallback 确保在帧更新后获取正确的键盘高度
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      if (!mounted) return;
+      final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+      // 键盘弹出时（高度增加），触发光标滚动
+      if (keyboardInset > _lastKeyboardInset && keyboardInset > 0) {
+        if (_mode == EditorMode.edit && _editFocusNode.hasFocus) {
+          _scheduleEditScrollToCursor();
+        }
+      }
+      _lastKeyboardInset = keyboardInset;
+    });
   }
 
   Future<bool> _onWillPop() async {
@@ -742,10 +796,13 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (!mounted) return;
 
-    // 添加到搜索历史
+    // 添加到搜索历史（非阻塞，后台执行）
     if (matches.isNotEmpty) {
-      await _searchHistoryService.addQuery(normalizedQuery);
-      await _loadSearchHistory();
+      unawaited(
+        _searchHistoryService.addQuery(normalizedQuery).then((_) {
+          if (mounted) return _loadSearchHistory();
+        }),
+      );
     }
 
     setState(() {
@@ -757,11 +814,11 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   /// 更新搜索选项
-  void _updateSearchOptions(SearchOptions options) {
+  Future<void> _updateSearchOptions(SearchOptions options) async {
     if (_searchOptions == options) return;
     setState(() => _searchOptions = options);
     // 使用新选项重新搜索
-    _executeSearch(_searchController.text);
+    await _executeSearch(_searchController.text);
     // 更新 WebView 高亮
     if (_mode == EditorMode.preview) {
       final query = _searchController.text.trim();
@@ -1158,6 +1215,10 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
+    debugPrint(
+      '[EDITOR] build() called - _isLoading: $_isLoading, _error: $_error, _mode: $_mode',
+    );
+
     final shouldInterceptForMilkdownBlur =
         _mode == EditorMode.preview && _isMilkdownEditorFocused;
     final useCustomTitleBar =

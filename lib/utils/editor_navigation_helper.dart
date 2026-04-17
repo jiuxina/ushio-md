@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -18,19 +19,31 @@ class EditorNavigationHelper {
     VoidCallback? onFileOpened,
     String? initialContent,
   }) async {
-    if (_isOpeningDocument) return;
+    debugPrint('[NAV] openEditor called for: $filePath');
+    debugPrint(
+      '[NAV] initialContent provided: ${initialContent != null}, length: ${initialContent?.length ?? "N/A"}',
+    );
+
+    if (_isOpeningDocument) {
+      debugPrint('[NAV] Already opening document, returning');
+      return;
+    }
     _isOpeningDocument = true;
+
+    final overallStopwatch = Stopwatch()..start();
 
     final fileProvider = context.read<FileProvider>();
     final fileService = fileProvider.fileService;
     final isCached =
         initialContent != null || fileService.isFileCached(filePath);
+    debugPrint('[NAV] isCached: $isCached');
     BuildContext? dialogContext;
 
     onFileOpened?.call();
 
     bool dialogShown = false;
     if (!isCached && context.mounted) {
+      debugPrint('[NAV] Showing loading dialog');
       dialogShown = true;
       showDialog<void>(
         context: context,
@@ -48,30 +61,57 @@ class EditorNavigationHelper {
     }
 
     try {
-      final preloadTasks = <Future<dynamic>>[
-        warmUpMilkdownWebAssets().timeout(const Duration(seconds: 8)),
-        initialContent != null
-            ? Future<String>.value(initialContent)
-            : fileService.preloadFile(filePath).timeout(
-                const Duration(seconds: 8),
-              ),
-      ];
-      final results = await Future.wait(preloadTasks);
-      final content = results[1] as String;
+      debugPrint('[NAV] Starting file preload...');
+      final preloadStopwatch = Stopwatch()..start();
 
+      // Load file content (required)
+      final content =
+          initialContent ??
+          await fileService
+              .preloadFile(filePath)
+              .timeout(const Duration(seconds: 8));
+
+      preloadStopwatch.stop();
+      debugPrint(
+        '[NAV] File preload done in ${preloadStopwatch.elapsedMilliseconds}ms, content length: ${content.length}',
+      );
+
+      debugPrint('[NAV] Starting WebView warmup (non-blocking)...');
+      // Warm up WebView in background (optional, don't block on this)
+      // Each WebView instance will start its own server if needed
+      unawaited(
+        warmUpMilkdownWebAssets().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            debugPrint(
+              '[NAV] WebView warmup timed out, will start server on demand',
+            );
+          },
+        ),
+      );
+
+      debugPrint('[NAV] Dismissing dialog and navigating...');
       _dismissDialog(dialogShown, dialogContext, context);
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        debugPrint('[NAV] Context no longer mounted, returning');
+        return;
+      }
 
+      debugPrint('[NAV] Pushing EditorScreen...');
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => EditorScreen(
-            filePath: filePath,
-            initialContent: content,
-          ),
+          builder: (context) =>
+              EditorScreen(filePath: filePath, initialContent: content),
         ),
       );
+
+      overallStopwatch.stop();
+      debugPrint(
+        '[NAV] Navigation complete, total time: ${overallStopwatch.elapsedMilliseconds}ms',
+      );
     } catch (e) {
+      debugPrint('[NAV] ERROR: $e');
       _dismissDialog(dialogShown, dialogContext, context);
       if (!context.mounted) return;
 

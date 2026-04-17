@@ -232,7 +232,8 @@ const updateViewportMetrics = () => {
   const keyboardInsetIncreased = keyboardInset > lastKeyboardInsetPx + 2;
   lastKeyboardInsetPx = keyboardInset;
   if (keyboardInset > 0 && keyboardInsetIncreased) {
-    scheduleCaretIntoUpperViewport();
+    // 键盘弹出时，强制执行滚动（不受抑制机制影响）
+    forceCaretIntoUpperViewport();
   }
 };
 
@@ -533,8 +534,6 @@ const scrollNodeToViewport = (node, topOffset = 32) => {
 
 const ensureCaretInUpperViewport = () => {
   if (currentReadOnly) return;
-  // Remove keyboard inset check to enable scrolling even without keyboard
-  // if (getKeyboardInset() <= 0) return;
   if (Date.now() < editorTouchScrollSuppressUntil || Date.now() < viewportScrollSuppressUntil) return;
   const active = document.activeElement instanceof Element ? document.activeElement : null;
   if (!active?.closest('.ProseMirror')) return;
@@ -567,23 +566,52 @@ const ensureCaretInUpperViewport = () => {
 
   const vv = window.visualViewport;
   const viewportHeight = Math.max(1, vv?.height ?? window.innerHeight);
-  const desiredTop = viewportHeight * 0.28;
   const fallbackRectTop = anchorElement?.getBoundingClientRect?.().top;
   const currentTop = Number.isFinite(caretTop) ? caretTop : fallbackRectTop;
   if (!Number.isFinite(currentTop)) return;
-  // Calculate threshold based on configured font size (2 lines)
+
+  // 使用类似纯文本编辑器的预测性滚动逻辑
   const fontSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--milkdown-font-size')) || 16;
-  const lineHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--milkdown-line-height')) || 1.7;
-  const twoLinesHeight = fontSize * lineHeight * 2;
-  if (currentTop >= desiredTop - 20 && currentTop <= viewportHeight * 0.5 - twoLinesHeight) return;
+  const lineHeight = fontSize * 1.5; // 与Flutter端保持一致
+
+  // 获取键盘高度和工具栏高度
+  const keyboardInset = getKeyboardInset();
+  const toolbarHeight = 56.0;
+
+  // 预留输入法遮挡的安全距离
+  const imeSafeMargin = 80.0;
+  const bottomOffset = keyboardInset + toolbarHeight + imeSafeMargin;
+
+  // 视口可见区域（排除键盘和工具栏遮挡）
+  const visibleBottom = viewportHeight - bottomOffset;
+
+  // 顶部安全边距：当光标接近顶部时提前滚动
+  const topMargin = 100.0;
+  // 底部预测边距：光标距离底部遮挡区域这个距离时就开始滚动
+  const predictiveBottomMargin = lineHeight * 2;
+
   const scroller = document.scrollingElement || document.documentElement || document.body;
-  const delta = currentTop - desiredTop;
-  if (Math.abs(delta) < 4) return;
-  if (scroller && typeof scroller.scrollTo === 'function') {
-    const scrollTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
-    scroller.scrollTo({ top: Math.max(0, scrollTop + delta), behavior: 'auto' });
-  } else {
-    window.scrollBy(0, delta);
+  const scrollTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
+
+  // 计算滚动目标位置
+  let targetScrollTop = null;
+
+  if (currentTop < topMargin) {
+    // 光标接近顶部，向下滚动使光标显示在顶部边距以下
+    targetScrollTop = scrollTop - (topMargin - currentTop) - lineHeight;
+  } else if (currentTop > visibleBottom - predictiveBottomMargin) {
+    // 光标即将进入底部遮挡区域，提前向上滚动
+    targetScrollTop = scrollTop + (currentTop - visibleBottom + predictiveBottomMargin) + lineHeight;
+  }
+
+  if (targetScrollTop !== null && Math.abs(targetScrollTop - scrollTop) >= 4) {
+    const maxScroll = Math.max(0, (scroller.scrollHeight || 0) - viewportHeight);
+    const clampedTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+    if (scroller && typeof scroller.scrollTo === 'function') {
+      scroller.scrollTo({ top: clampedTop, behavior: 'auto' });
+    } else {
+      window.scrollBy(0, clampedTop - scrollTop);
+    }
   }
 };
 
@@ -597,6 +625,16 @@ const scheduleCaretIntoUpperViewport = () => {
     caretViewportSyncRafId = null;
     ensureCaretInUpperViewport();
   });
+};
+
+// 强制执行光标滚动（绕过抑制机制），用于键盘弹出时
+const forceCaretIntoUpperViewport = () => {
+  // 重置抑制状态，允许滚动
+  editorTouchScrollSuppressUntil = 0;
+  viewportScrollSuppressUntil = 0;
+  lastUserScrollAt = 0;
+  // 直接执行，不使用RAF延迟
+  ensureCaretInUpperViewport();
 };
 
 const suppressCaretViewportSync = (durationMs = 900) => {
@@ -1824,7 +1862,8 @@ const notifyRenderComplete = () => {
   });
 };
 
-const setMarkdown = (markdown, { emitContent = false } = {}) => {
+const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}) => {
+  emitDebug(`[JS] setMarkdown: len=${markdown?.length}, forceRender=${forceRender}`);
   const rawMarkdown = typeof markdown === 'string' ? markdown : '';
   const withoutSetext = neutralizeSetextHeadingSyntax(rawMarkdown);
   const nextMarkdown = stripGhostCodeLanguageMarkers(withoutSetext);
@@ -1834,7 +1873,10 @@ const setMarkdown = (markdown, { emitContent = false } = {}) => {
       markdown: nextMarkdown,
     });
   }
-  if (nextMarkdown === currentMarkdown) {
+  emitDebug(`[JS] setMarkdown: nextMarkdown === currentMarkdown: ${nextMarkdown === currentMarkdown}`);
+  // Skip equality check if forceRender is true (needed when switching documents)
+  if (!forceRender && nextMarkdown === currentMarkdown) {
+    emitDebug('[JS] setMarkdown: skipping (same content)');
     return;
   }
   if (contentChangeTimerId != null) {
@@ -1843,12 +1885,18 @@ const setMarkdown = (markdown, { emitContent = false } = {}) => {
   }
   pendingContentMarkdown = null;
   currentMarkdown = nextMarkdown;
-  if (!editorInstance) return;
+  if (!editorInstance) {
+    emitDebug('[JS] setMarkdown: no editorInstance, returning');
+    return;
+  }
   isApplyingFromFlutter = !emitContent;
   // Pre-process image URLs in markdown before passing to Milkdown
   const preprocessedMarkdown = preprocessImageUrlsInMarkdown(nextMarkdown);
+  emitDebug('[JS] setMarkdown: calling editorInstance.action(replaceAll)');
   editorInstance.action(replaceAll(preprocessedMarkdown));
+  emitDebug('[JS] setMarkdown: calling notifyRenderComplete');
   notifyRenderComplete();
+  emitDebug('[JS] setMarkdown: done');
 };
 
 /**
@@ -3489,7 +3537,10 @@ const onFlutterMessage = (message) => {
   }
   if (!m || typeof m !== 'object') return;
 
+  emitDebug(`[JS] onFlutterMessage: type=${m.type}`);
+
   if (m.type === 'init_doc') {
+    emitDebug('[JS] init_doc received');
     const payload = m.payload && typeof m.payload === 'object' ? m.payload : {};
     currentBaseDirectory = typeof payload.baseDirectory === 'string' ? payload.baseDirectory : '';
     currentReadOnly = payload.readOnly !== false;
@@ -3497,11 +3548,18 @@ const onFlutterMessage = (message) => {
     const markdown = neutralizeSetextHeadingSyntax(
       typeof payload.markdown === 'string' ? payload.markdown : '',
     );
+    emitDebug(`[JS] init_doc: markdown length=${markdown.length}, editorInstance=${!!editorInstance}`);
+    // Always update and render, even if markdown appears the same
+    // (needed when switching between documents)
     currentMarkdown = markdown;
     if (editorInstance) {
       crepeInstance?.setReadonly?.(currentReadOnly);
-      setMarkdown(markdown);
+      emitDebug('[JS] init_doc: calling setMarkdown with forceRender=true');
+      // Force re-render by resetting currentMarkdown before setMarkdown
+      setMarkdown(markdown, { forceRender: true });
+      emitDebug('[JS] init_doc: setMarkdown done');
     } else {
+      emitDebug('[JS] init_doc: no editorInstance, calling ensureEditor');
       ensureEditor().catch((error) => {
         console.error('Failed to initialize Milkdown', error);
         showBootstrapError(error);
@@ -3534,3 +3592,20 @@ window.__USHIO_BRIDGE__ = {
   onFlutterMessage,
   emitDebug,
 };
+
+// Prevent bfcache (back-forward cache) from restoring page without re-running JS
+// This ensures JavaScript is always executed when the page is loaded
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    console.log('[USHIO] Page restored from bfcache, forcing reload to re-execute JS');
+    window.location.reload();
+  }
+});
+
+// Also prevent caching by adding cache-control via meta tag if not present
+if (!document.querySelector('meta[http-equiv="Cache-Control"]')) {
+  const meta = document.createElement('meta');
+  meta.setAttribute('http-equiv', 'Cache-Control');
+  meta.setAttribute('content', 'no-cache, no-store, must-revalidate');
+  document.head.appendChild(meta);
+}
