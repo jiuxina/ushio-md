@@ -925,6 +925,7 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== 复选框和链接处理 ====================
 
   void _toggleCheckbox(int index, bool newValue) {
+    debugPrint('[CHECKBOX] Flutter _toggleCheckbox called: index=$index, newValue=$newValue');
     final newText = toggleCheckboxInText(_textController.text, index, newValue);
     if (newText != null) {
       _previewWebViewController.suppressNextReload();
@@ -932,18 +933,122 @@ class _EditorScreenState extends State<EditorScreen>
       _textController.text = newText;
       _textController.addListener(_onTextChanged);
       setState(() => _isModified = true);
+      debugPrint('[CHECKBOX] Checkbox toggled successfully');
+    } else {
+      debugPrint('[CHECKBOX] toggleCheckboxInText returned null - checkbox not found');
     }
   }
 
   void _handleLinkTap(String text, String? href, String title) {
     final normalizedHref = href?.trim() ?? '';
     final normalizedText = text.trim();
-    final headingFragment = normalizedHref.startsWith('#')
-        ? Uri.decodeComponent(normalizedHref.substring(1)).trim()
-        : (normalizedHref.isEmpty ? normalizedText : '');
 
-    if (headingFragment.isNotEmpty) {
-      final normalizedFragment = slugifyHeading(headingFragment);
+    // Handle anchor links (internal document links like #4-下载流程)
+    if (normalizedHref.startsWith('#')) {
+      // Safely decode URI component - may fail for non-encoded strings
+      String headingFragment;
+      try {
+        headingFragment = Uri.decodeComponent(
+          normalizedHref.substring(1),
+        ).trim();
+      } catch (e) {
+        // If decoding fails, use the raw fragment
+        headingFragment = normalizedHref.substring(1).trim();
+        debugPrint('[LINK] URI decode failed, using raw fragment: $e');
+      }
+
+      if (headingFragment.isNotEmpty) {
+        debugPrint('[LINK] href="$href" fragment="$headingFragment"');
+        debugPrint('[LINK] TOC items count: ${_tocItems.length}');
+        for (var i = 0; i < _tocItems.length; i++) {
+          final item = _tocItems[i];
+          debugPrint('[LINK] TOC[$i]: title="${item.title}" slug="${slugifyHeading(item.title)}" line=${item.lineNumber}');
+        }
+
+        // Try multiple matching strategies
+        bool jumped = false;
+
+        for (var i = 0; i < _tocItems.length; i++) {
+          final item = _tocItems[i];
+          final itemTitle = item.title;
+
+          // Strategy 1: Direct slugified comparison
+          final normalizedFragment = slugifyHeading(headingFragment);
+          final normalizedTitle = slugifyHeading(itemTitle);
+          if (normalizedTitle == normalizedFragment) {
+            debugPrint('[LINK] Matched by slug: "$normalizedTitle"');
+            _jumpToHeading(i, item);
+            jumped = true;
+            break;
+          }
+
+          // Strategy 2: Match anchor fragment against original title (with number prefix)
+          // e.g., "#4-下载流程" matches "4. 下载流程"
+          final titleWithDot = itemTitle.trim();
+          final anchorWithHyphen = headingFragment.replaceAll('-', ' ');
+          if (slugifyHeading(titleWithDot) ==
+              slugifyHeading(anchorWithHyphen)) {
+            debugPrint(
+              '[LINK] Matched by normalized: "$titleWithDot" ~ "$anchorWithHyphen"',
+            );
+            _jumpToHeading(i, item);
+            jumped = true;
+            break;
+          }
+
+          // Strategy 3: Extract text content and compare
+          // e.g., "#4-下载流程" -> "下载流程" matches "4. 下载流程" -> "下载流程"
+          final fragmentTextOnly = headingFragment
+              .replaceFirst(RegExp(r'^\d+[\.\-\s]+'), '')
+              .replaceAll('-', ' ')
+              .trim();
+          final titleTextOnly = itemTitle
+              .replaceFirst(RegExp(r'^\d+[\.\-\s]+'), '')
+              .trim();
+          if (slugifyHeading(fragmentTextOnly) ==
+              slugifyHeading(titleTextOnly)) {
+            debugPrint(
+              '[LINK] Matched by text: "$fragmentTextOnly" ~ "$titleTextOnly"',
+            );
+            _jumpToHeading(i, item);
+            jumped = true;
+            break;
+          }
+        }
+
+        // Fallback: try to find heading by partial match or line number in anchor
+        if (!jumped) {
+          // Handle anchors like "#4-下载流程" where "4" might indicate heading number
+          final lineMatch = RegExp(
+            r'^(\d+)[\-\s\.]',
+          ).firstMatch(headingFragment);
+          if (lineMatch != null) {
+            final targetLine = int.tryParse(lineMatch.group(1) ?? '');
+            if (targetLine != null &&
+                targetLine > 0 &&
+                targetLine <= _tocItems.length) {
+              debugPrint('[LINK] Matched by line number: $targetLine');
+              _jumpToHeading(targetLine - 1, _tocItems[targetLine - 1]);
+              jumped = true;
+            }
+          }
+        }
+
+        // Final fallback: try direct scroll via WebView command
+        if (!jumped) {
+          debugPrint('[LINK] No match found, trying scroll_to_anchor');
+          _previewWebViewController.execCmd(
+            'scroll_to_anchor',
+            args: {'anchor': headingFragment},
+          );
+        }
+      }
+      return;
+    }
+
+    // Handle empty href - try to use link text as heading reference
+    if (normalizedHref.isEmpty && normalizedText.isNotEmpty) {
+      final normalizedFragment = slugifyHeading(normalizedText);
       for (var i = 0; i < _tocItems.length; i++) {
         final item = _tocItems[i];
         if (slugifyHeading(item.title) == normalizedFragment) {
@@ -951,10 +1056,12 @@ class _EditorScreenState extends State<EditorScreen>
           return;
         }
       }
+      return;
     }
 
     if (normalizedHref.isEmpty) return;
 
+    // Handle .md file links
     if (normalizedHref.endsWith('.md') ||
         normalizedHref.endsWith('.markdown')) {
       if (!normalizedHref.contains('..')) {
@@ -969,6 +1076,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
+    // Handle external URLs
     final uri = Uri.tryParse(normalizedHref);
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
       try {
@@ -980,8 +1088,23 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _showImagePreview(OnImageClickPayload payload) async {
-    final src = payload.src;
+    var src = payload.src;
     if (src.isEmpty) return;
+
+    // Handle ushio-local-file:// scheme
+    if (src.startsWith('ushio-local-file://')) {
+      final uri = Uri.parse(src);
+      src = uri.queryParameters['path'] ?? src;
+    }
+
+    // Resolve relative paths relative to the document's directory
+    if (!src.startsWith('/') &&
+        !src.startsWith('http://') &&
+        !src.startsWith('https://') &&
+        !src.startsWith('data:')) {
+      final baseDir = File(widget.filePath).parent.path;
+      src = '$baseDir${Platform.pathSeparator}$src';
+    }
 
     Widget imageWidget;
 
@@ -1007,12 +1130,34 @@ class _EditorScreenState extends State<EditorScreen>
       );
     } else {
       // Local file
-      final file = File(src);
-      if (await file.exists()) {
+      var file = File(src);
+      bool exists = await file.exists();
+
+      // Try URL-decoded path if original doesn't exist
+      if (!exists) {
+        final decodedPath = Uri.decodeComponent(src);
+        file = File(decodedPath);
+        exists = await file.exists();
+      }
+
+      if (exists) {
         imageWidget = Image.file(file, fit: BoxFit.contain);
       } else {
         imageWidget = Center(
-          child: Text('文件不存在: $src', style: TextStyle(color: Colors.grey[600])),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+              const SizedBox(height: 8),
+              Text('文件不存在', style: TextStyle(color: Colors.grey[600])),
+              const SizedBox(height: 4),
+              Text(
+                payload.src,
+                style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         );
       }
     }
@@ -1357,43 +1502,66 @@ class _EditorScreenState extends State<EditorScreen>
                             onHistorySelected: _onHistorySelected,
                           ),
                         ),
-                      if (!_isLoading &&
-                          _error == null &&
-                          !isFocusMode &&
-                          (_mode != EditorMode.preview ||
-                              _editingBlockIndex != null ||
-                              _isMilkdownEditorFocused))
+                      // Toolbar with smooth slide-up animation
+                      if (!_isLoading && _error == null && !isFocusMode)
                         Positioned(
                           bottom: keyboardInset,
                           left: 0,
                           right: 0,
-                          child: MarkdownToolbar(
-                            controller: _editingBlockIndex != null
-                                ? _inlineEditController
-                                : _textController,
-                            undoController: _editingBlockIndex != null
-                                ? null
-                                : _undoController,
-                            canUndo: _editingBlockIndex != null
-                                ? _historyIndex > 0
-                                : null,
-                            canRedo: _editingBlockIndex != null
-                                ? (_historyIndex >= 0 &&
-                                      _historyIndex < _editHistory.length - 1)
-                                : null,
-                            onUndo: _editingBlockIndex != null
-                                ? _undoEditHistory
-                                : null,
-                            onRedo: _editingBlockIndex != null
-                                ? _redoEditHistory
-                                : null,
-                            filePath: widget.filePath,
-                            onSearchPressed: _showInlineSearch,
-                            onAction:
-                                _mode == EditorMode.preview &&
-                                    _editingBlockIndex == null
-                                ? _handlePreviewToolbarAction
-                                : null,
+                          child: AnimatedSlide(
+                            offset: Offset(
+                              0,
+                              (_mode != EditorMode.preview ||
+                                      _editingBlockIndex != null ||
+                                      _isMilkdownEditorFocused)
+                                  ? 0
+                                  : 1,
+                            ),
+                            duration: const Duration(milliseconds: 150),
+                            curve: Curves.easeOutCubic,
+                            child: AnimatedOpacity(
+                              opacity:
+                                  (_mode != EditorMode.preview ||
+                                          _editingBlockIndex != null ||
+                                          _isMilkdownEditorFocused)
+                                      ? 1.0
+                                      : 0.0,
+                              duration: const Duration(milliseconds: 100),
+                              curve: Curves.easeOut,
+                              child: IgnorePointer(
+                                ignoring: !(_mode != EditorMode.preview ||
+                                    _editingBlockIndex != null ||
+                                    _isMilkdownEditorFocused),
+                                child: MarkdownToolbar(
+                                  controller: _editingBlockIndex != null
+                                      ? _inlineEditController
+                                      : _textController,
+                                  undoController: _editingBlockIndex != null
+                                      ? null
+                                      : _undoController,
+                                  canUndo: _editingBlockIndex != null
+                                      ? _historyIndex > 0
+                                      : null,
+                                  canRedo: _editingBlockIndex != null
+                                      ? (_historyIndex >= 0 &&
+                                            _historyIndex < _editHistory.length - 1)
+                                      : null,
+                                  onUndo: _editingBlockIndex != null
+                                      ? _undoEditHistory
+                                      : null,
+                                  onRedo: _editingBlockIndex != null
+                                      ? _redoEditHistory
+                                      : null,
+                                  filePath: widget.filePath,
+                                  onSearchPressed: _showInlineSearch,
+                                  onAction:
+                                      _mode == EditorMode.preview &&
+                                          _editingBlockIndex == null
+                                      ? _handlePreviewToolbarAction
+                                      : null,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       // Focus mode exit hint

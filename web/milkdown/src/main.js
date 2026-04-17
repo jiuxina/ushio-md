@@ -81,7 +81,7 @@ let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
 let searchHighlightRanges = [];
 let searchHighlightActiveIndex = -1;
-let longPressHintShown = false;
+
 let caretViewportSyncRafId = null;
 let suppressNextCaretViewportSync = false;
 let checkboxInteractionGuardUntil = 0;
@@ -90,6 +90,8 @@ let viewportScrollSuppressUntil = 0;
 let lastKeyboardInsetPx = 0;
 let lastUserScrollAt = 0;
 let editorTouchTracking = null;
+// IME composition state - prevent viewport sync during composition
+let isComposing = false;
 let codeLanguagePopupElement = null;
 let codeLanguagePopupBackdrop = null;
 let codeLanguagePopupInput = null;
@@ -534,6 +536,8 @@ const scrollNodeToViewport = (node, topOffset = 32) => {
 
 const ensureCaretInUpperViewport = () => {
   if (currentReadOnly) return;
+  // Skip viewport sync during IME composition to prevent janky animations
+  if (isComposing) return;
   if (Date.now() < editorTouchScrollSuppressUntil || Date.now() < viewportScrollSuppressUntil) return;
   const active = document.activeElement instanceof Element ? document.activeElement : null;
   if (!active?.closest('.ProseMirror')) return;
@@ -616,6 +620,8 @@ const ensureCaretInUpperViewport = () => {
 };
 
 const scheduleCaretIntoUpperViewport = () => {
+  // Skip during IME composition
+  if (isComposing) return;
   if (Date.now() < checkboxInteractionGuardUntil) return;
   if (Date.now() < editorTouchScrollSuppressUntil) return;
   if (Date.now() < viewportScrollSuppressUntil) return;
@@ -1855,10 +1861,6 @@ const notifyRenderComplete = () => {
     updateActiveMarkdownHints();
     emitOutlineUpdate();
     emit('on_render_complete', {});
-    // Show long-press hint on first render (mobile only)
-    if (!longPressHintShown && !currentReadOnly && 'ontouchstart' in window) {
-      setTimeout(showLongPressHint, 1500);
-    }
   });
 };
 
@@ -2486,6 +2488,8 @@ app.addEventListener('click', (event) => {
   if (checkbox instanceof HTMLInputElement) {
     event.preventDefault();
     event.stopPropagation();
+    // DEBUG: Log checkbox click
+    emitDebug(`[CHECKBOX CLICK] native checkbox found, readOnly=${currentReadOnly}`);
     if (!currentReadOnly) {
       guardEditorFocusAfterCheckboxToggle();
       suppressNextCaretViewportSync = true;
@@ -2495,6 +2499,16 @@ app.addEventListener('click', (event) => {
         suppressNextCaretViewportSync = false;
       }, 0);
     }
+    return;
+  }
+  // Handle Milkdown custom checkbox component (.label-wrapper inside .milkdown-list-item-block)
+  const milkdownLabelWrapper = target?.closest('.milkdown-list-item-block .label-wrapper');
+  if (milkdownLabelWrapper) {
+    event.preventDefault();
+    event.stopPropagation();
+    emitDebug(`[CHECKBOX CLICK] Milkdown label-wrapper clicked, readOnly=${currentReadOnly}`);
+    // The Vue component handles the toggle internally, we just need to prevent IME
+    guardEditorFocusAfterCheckboxToggle();
     return;
   }
   if (target?.matches('a, a *')) {
@@ -2507,11 +2521,14 @@ app.addEventListener('click', (event) => {
     const resolvedHref = anchor.getAttribute('data-ushio-href') || resolveHref(rawHref);
     const anchorText = anchor.textContent?.trim() || null;
     const fallbackHref = !resolvedHref && !rawHref && anchorText ? `#${anchorText}` : '';
+    const finalHref = resolvedHref || rawHref || fallbackHref;
+    // DEBUG: Log anchor link click details
+    emitDebug(`[LINK CLICK] rawHref="${rawHref}" resolvedHref="${resolvedHref}" finalHref="${finalHref}" text="${anchorText}"`);
     emit('on_link_click', {
-      href: resolvedHref || rawHref || fallbackHref,
+      href: finalHref,
       text: anchorText,
       title: anchor.getAttribute('title'),
-      isExternal: isExternalHref(resolvedHref || rawHref || fallbackHref),
+      isExternal: isExternalHref(finalHref),
     });
     return;
   }
@@ -2555,6 +2572,13 @@ app.addEventListener('mousedown', (event) => {
   if (target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
     event.preventDefault();
     event.stopPropagation();
+    return;
+  }
+  // Handle Milkdown custom checkbox component
+  if (target?.closest('.milkdown-list-item-block .label-wrapper')) {
+    event.preventDefault();
+    event.stopPropagation();
+    emitDebug('[MOUSEDOWN] Milkdown label-wrapper - preventing default');
   }
 });
 
@@ -2564,9 +2588,17 @@ app.addEventListener('touchstart', (event) => {
     suppressCaretViewportSync(1200);
     return;
   }
-  if (!target?.matches('input[type="checkbox"], input[type="checkbox"] *')) return;
-  event.preventDefault();
-  event.stopPropagation();
+  if (target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  // Handle Milkdown custom checkbox component
+  if (target?.closest('.milkdown-list-item-block .label-wrapper')) {
+    event.preventDefault();
+    event.stopPropagation();
+    emitDebug('[TOUCHSTART] Milkdown label-wrapper - preventing default');
+  }
 }, { passive: false });
 
 const emitCheckboxToggle = (checkbox, checked) => {
@@ -2630,41 +2662,6 @@ app.addEventListener('change', (event) => {
   event.preventDefault();
   event.stopPropagation();
 });
-
-const showLongPressHint = () => {
-  if (longPressHintShown) return;
-  if (currentReadOnly) return;
-
-  // Check if hint was already dismissed
-  const dismissed = localStorage.getItem('ushio-longpress-hint-dismissed');
-  if (dismissed === 'true') return;
-
-  longPressHintShown = true;
-
-  const hint = document.createElement('div');
-  hint.className = 'ushio-longpress-hint';
-  hint.innerHTML = `
-    <div class="ushio-longpress-hint-content">
-      <span>💡 长按文本可显示格式化菜单</span>
-      <button class="ushio-longpress-hint-close" aria-label="关闭提示">×</button>
-    </div>
-  `;
-
-  hint.querySelector('.ushio-longpress-hint-close').addEventListener('click', () => {
-    hint.remove();
-    localStorage.setItem('ushio-longpress-hint-dismissed', 'true');
-  });
-
-  app.append(hint);
-
-  // Auto-dismiss after 5 seconds
-  setTimeout(() => {
-    if (hint.parentNode) {
-      hint.classList.add('ushio-longpress-hint-fadeout');
-      setTimeout(() => hint.remove(), 300);
-    }
-  }, 5000);
-};
 
 app.addEventListener('pointerdown', interceptNativeCodeLanguagePicker, true);
 app.addEventListener('mousedown', interceptNativeCodeLanguagePicker, true);
@@ -2748,6 +2745,15 @@ document.addEventListener('scroll', () => {
   hideContextMenu();
   hideLinkTooltip();
 }, true);
+
+// IME composition event handlers - prevent viewport sync during composition
+document.addEventListener('compositionstart', () => {
+  isComposing = true;
+}, true);
+document.addEventListener('compositionend', () => {
+  isComposing = false;
+}, true);
+
 document.addEventListener('selectionchange', () => {
   updateActiveMarkdownHints();
   const active = document.activeElement instanceof Element ? document.activeElement : null;
@@ -3451,7 +3457,12 @@ const executeCommand = (cmd, args = {}) => {
       const headings = Array.from(
         (app.querySelector('.milkdown .ProseMirror') || app).querySelectorAll('h1, h2, h3, h4, h5, h6'),
       );
+      
+      // DEBUG: Log TOC jump parameters
+      emitDebug(`[TOC JUMP] headingText="${headingText}" headingSlug="${headingSlug}" lineNumber=${lineNumberRaw} headingIndex=${headingIndexRaw} headings=${headings.length}`);
+      
       if (!headings.length) {
+        emitDebug('[TOC JUMP] No headings found');
         emitCmdResult(cmd, false, 'not_found', startedAt);
         return;
       }
@@ -3459,21 +3470,27 @@ const executeCommand = (cmd, args = {}) => {
       let target = null;
       if (!Number.isNaN(lineNumberRaw) && lineNumberRaw >= 0) {
         target = headings.find((heading) => Number.parseInt(heading.dataset.headingLine || '-1', 10) === lineNumberRaw);
+        emitDebug(`[TOC JUMP] Search by lineNumber: found=${!!target}`);
       }
       if (!(target instanceof Element) && headingSlug) {
         target = headings.find((heading) => (heading.dataset.headingSlug || '') === headingSlug);
+        emitDebug(`[TOC JUMP] Search by headingSlug: found=${!!target}`);
       }
       if (!(target instanceof Element) && headingText) {
         const normalized = slugifyHeading(headingText);
         target = headings.find((heading) => (heading.dataset.headingSlug || slugifyHeading(heading.textContent || '')) === normalized);
+        emitDebug(`[TOC JUMP] Search by headingText (normalized="${normalized}"): found=${!!target}`);
       }
       if (!(target instanceof Element) && !Number.isNaN(headingIndexRaw) && headingIndexRaw >= 0) {
         target = headings[Math.min(headingIndexRaw, headings.length - 1)];
+        emitDebug(`[TOC JUMP] Fallback to headingIndex: found=${!!target}`);
       }
       if (!(target instanceof Element)) {
+        emitDebug('[TOC JUMP] Target not found');
         emitCmdResult(cmd, false, 'not_found', startedAt);
         return;
       }
+      emitDebug(`[TOC JUMP] Scrolling to target: "${target.textContent?.substring(0, 50)}"`);
       scrollNodeToViewport(target, topOffset);
       emitCmdResult(cmd, true, null, startedAt);
       return;

@@ -1248,7 +1248,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
             allowUniversalAccessFromFileURLs: false, // 禁止从 file:// URL 进行通用访问
             allowFileAccess: true, // 允许访问本地文件（用于加载 HTML 资源）
             javaScriptEnabled: true,
-            disableContextMenu: true,
+            // 只读模式下允许系统上下文菜单（用于文本选择和复制）
+            // 编辑模式下也允许系统菜单，由 JavaScript 层控制是否显示自定义菜单
+            disableContextMenu: false,
             supportZoom: false,
             builtInZoomControls: false,
             displayZoomControls: false,
