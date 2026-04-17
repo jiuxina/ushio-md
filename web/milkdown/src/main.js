@@ -3240,6 +3240,142 @@ const executeCommand = (cmd, args = {}) => {
       }
       return;
     }
+
+    // Define search highlight functions BEFORE they are used
+    const clearSearchHighlights = () => {
+      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+      if (!root) return;
+      root.querySelectorAll('.ushio-search-highlight, .ushio-search-highlight-active').forEach((span) => {
+        const parent = span.parentNode;
+        while (span.firstChild) {
+          parent?.insertBefore(span.firstChild, span);
+        }
+        span.remove();
+        // Normalize the parent to merge adjacent text nodes
+        if (parent instanceof HTMLElement) {
+          parent.normalize();
+        }
+      });
+      searchHighlightRanges = [];
+      searchHighlightActiveIndex = -1;
+    };
+
+    const highlightSearchMatches = (query, options = {}) => {
+      clearSearchHighlights();
+      if (!query || typeof query !== 'string' || !query.trim()) return;
+
+      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+      if (!root) return;
+
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery) return;
+
+      const caseSensitive = options.caseSensitive === true;
+      const wholeWord = options.wholeWord === true;
+      const useRegex = options.useRegex === true;
+
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) {
+        textNodes.push(walker.currentNode);
+      }
+
+      const ranges = [];
+
+      // Build match function based on options
+      const findMatches = (text, textNode) => {
+        const matches = [];
+
+        if (useRegex) {
+          // Regular expression search
+          try {
+            const regex = new RegExp(trimmedQuery, caseSensitive ? 'g' : 'gi');
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+              matches.push({ start: match.index, end: match.index + match[0].length });
+            }
+          } catch (e) {
+            // Invalid regex
+          }
+        } else if (wholeWord) {
+          // Whole word matching
+          try {
+            const wordPattern = new RegExp(
+              '\\b' + trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b',
+              caseSensitive ? 'g' : 'gi'
+            );
+            let match;
+            while ((match = wordPattern.exec(text)) !== null) {
+              matches.push({ start: match.index, end: match.index + match[0].length });
+            }
+          } catch (e) {
+            // Invalid pattern (e.g., query ends with backslash)
+          }
+        } else {
+          // Standard substring search
+          const searchText = caseSensitive ? text : text.toLowerCase();
+          const searchQuery = caseSensitive ? trimmedQuery : trimmedQuery.toLowerCase();
+          let from = 0;
+          while (from < searchText.length) {
+            const idx = searchText.indexOf(searchQuery, from);
+            if (idx < 0) break;
+            matches.push({ start: idx, end: idx + searchQuery.length });
+            from = idx + searchQuery.length;
+          }
+        }
+
+        return matches;
+      };
+
+      textNodes.forEach((textNode) => {
+        const text = textNode.textContent || '';
+        const matches = findMatches(text, textNode);
+
+        matches.forEach(({ start, end }) => {
+          const range = document.createRange();
+          range.setStart(textNode, start);
+          range.setEnd(textNode, end);
+          ranges.push(range);
+        });
+      });
+
+      // Highlight all matches
+      ranges.forEach((range) => {
+        try {
+          const span = document.createElement('span');
+          span.className = 'ushio-search-highlight';
+          range.surroundContents(span);
+        } catch (e) {
+          // Skip if range crosses element boundaries
+        }
+      });
+
+      searchHighlightRanges = ranges;
+      searchHighlightActiveIndex = -1;
+    };
+
+    const highlightSearchActive = (index) => {
+      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
+      if (!root) return;
+
+      // Remove previous active highlight
+      root.querySelectorAll('.ushio-search-highlight-active').forEach((span) => {
+        span.classList.remove('ushio-search-highlight-active');
+        span.classList.add('ushio-search-highlight');
+      });
+
+      if (index < 0) return;
+
+      // Add active highlight to current match
+      const highlights = root.querySelectorAll('.ushio-search-highlight');
+      if (index < highlights.length) {
+        highlights[index].classList.remove('ushio-search-highlight');
+        highlights[index].classList.add('ushio-search-highlight-active');
+      }
+
+      searchHighlightActiveIndex = index;
+    };
+
     if (cmd === 'search_jump') {
       const query = typeof args?.query === 'string' ? args.query.trim() : '';
       const occurrenceRaw = Number.parseInt(args?.occurrence, 10);
@@ -3286,140 +3422,6 @@ const executeCommand = (cmd, args = {}) => {
       highlightSearchActive(occurrence);
       return;
     }
-
-const clearSearchHighlights = () => {
-  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
-  if (!root) return;
-  root.querySelectorAll('.ushio-search-highlight, .ushio-search-highlight-active').forEach((span) => {
-    const parent = span.parentNode;
-    while (span.firstChild) {
-      parent?.insertBefore(span.firstChild, span);
-    }
-    span.remove();
-    // Normalize the parent to merge adjacent text nodes
-    if (parent instanceof HTMLElement) {
-      parent.normalize();
-    }
-  });
-  searchHighlightRanges = [];
-  searchHighlightActiveIndex = -1;
-};
-
-const highlightSearchMatches = (query, options = {}) => {
-  clearSearchHighlights();
-  if (!query || typeof query !== 'string' || !query.trim()) return;
-
-  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
-  if (!root) return;
-
-  const trimmedQuery = query.trim();
-  if (!trimmedQuery) return;
-
-  const caseSensitive = options.caseSensitive === true;
-  const wholeWord = options.wholeWord === true;
-  const useRegex = options.useRegex === true;
-
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const textNodes = [];
-  while (walker.nextNode()) {
-    textNodes.push(walker.currentNode);
-  }
-
-  const ranges = [];
-
-  // Build match function based on options
-  const findMatches = (text, textNode) => {
-    const matches = [];
-
-    if (useRegex) {
-      // Regular expression search
-      try {
-        const regex = new RegExp(trimmedQuery, caseSensitive ? 'g' : 'gi');
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-          matches.push({ start: match.index, end: match.index + match[0].length });
-        }
-      } catch (e) {
-        // Invalid regex
-      }
-    } else if (wholeWord) {
-      // Whole word matching
-      try {
-        const wordPattern = new RegExp(
-          '\\b' + trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b',
-          caseSensitive ? 'g' : 'gi'
-        );
-        let match;
-        while ((match = wordPattern.exec(text)) !== null) {
-          matches.push({ start: match.index, end: match.index + match[0].length });
-        }
-      } catch (e) {
-        // Invalid pattern (e.g., query ends with backslash)
-      }
-    } else {
-      // Standard substring search
-      const searchText = caseSensitive ? text : text.toLowerCase();
-      const searchQuery = caseSensitive ? trimmedQuery : trimmedQuery.toLowerCase();
-      let from = 0;
-      while (from < searchText.length) {
-        const idx = searchText.indexOf(searchQuery, from);
-        if (idx < 0) break;
-        matches.push({ start: idx, end: idx + searchQuery.length });
-        from = idx + searchQuery.length;
-      }
-    }
-
-    return matches;
-  };
-
-  textNodes.forEach((textNode) => {
-    const text = textNode.textContent || '';
-    const matches = findMatches(text, textNode);
-
-    matches.forEach(({ start, end }) => {
-      const range = document.createRange();
-      range.setStart(textNode, start);
-      range.setEnd(textNode, end);
-      ranges.push(range);
-    });
-  });
-
-  // Highlight all matches
-  ranges.forEach((range) => {
-    try {
-      const span = document.createElement('span');
-      span.className = 'ushio-search-highlight';
-      range.surroundContents(span);
-    } catch (e) {
-      // Skip if range crosses element boundaries
-    }
-  });
-
-  searchHighlightRanges = ranges;
-  searchHighlightActiveIndex = -1;
-};
-
-const highlightSearchActive = (index) => {
-  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
-  if (!root) return;
-
-  // Remove previous active highlight
-  root.querySelectorAll('.ushio-search-highlight-active').forEach((span) => {
-    span.classList.remove('ushio-search-highlight-active');
-    span.classList.add('ushio-search-highlight');
-  });
-
-  if (index < 0) return;
-
-  // Add active highlight to current match
-  const highlights = root.querySelectorAll('.ushio-search-highlight');
-  if (index < highlights.length) {
-    highlights[index].classList.remove('ushio-search-highlight');
-    highlights[index].classList.add('ushio-search-highlight-active');
-  }
-
-  searchHighlightActiveIndex = index;
-};
 
     if (cmd === 'search_highlight') {
       const query = typeof args?.query === 'string' ? args.query.trim() : '';
