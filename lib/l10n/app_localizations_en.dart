@@ -69,12 +69,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get firstLaunchInitializing => 'First Launch Initializing';
 
   @override
-  String get firstLaunchWarmingUp =>
-      'Warming up document preview and cache components. After completion, opening large Markdown documents will be more stable and faster.';
+  String get firstLaunchWarmingUp => 'Warming up document preview and cache components. After completion, opening large Markdown documents will be more stable and faster.';
 
   @override
-  String get firstLaunchComplete =>
-      'First launch initialization complete. Opening documents will be faster next time.';
+  String get firstLaunchComplete => 'First launch initialization complete. Opening documents will be faster next time.';
 
   @override
   String newVersionFound(String version) {
@@ -244,8 +242,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get permissionRequired => 'Permission Required';
 
   @override
-  String get storagePermissionRequired =>
-      'Storage permission is required to access files';
+  String get storagePermissionRequired => 'Storage permission is required to access files';
 
   @override
   String get grantPermission => 'Grant Permission';
@@ -499,8 +496,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openSourceLicense => 'Open Source Licenses';
 
   @override
-  String get openSourceLicenseDesc =>
-      'View open source dependencies and license information';
+  String get openSourceLicenseDesc => 'View open source dependencies and license information';
 
   @override
   String get updates => 'Updates';
@@ -509,8 +505,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get autoCheckUpdate => 'Auto check for updates on startup';
 
   @override
-  String get autoCheckUpdateDesc =>
-      'Show notification when new version available';
+  String get autoCheckUpdateDesc => 'Show notification when new version available';
 
   @override
   String get checkForUpdates => 'Check for Updates';
@@ -538,8 +533,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadingWithMirror => 'Downloading with mirror acceleration...';
 
   @override
-  String get downloadFailed =>
-      'Download or installation failed. Try manual download.';
+  String get downloadFailed => 'Download or installation failed. Try manual download.';
 
   @override
   String updateError(String error) {
@@ -559,8 +553,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cloudFolderName => 'Cloud Folder Name';
 
   @override
-  String get folderNameHelper =>
-      'Changing this name will rename the cloud folder (won\'t create new folder)';
+  String get folderNameHelper => 'Changing this name will rename the cloud folder (won\'t create new folder)';
 
   @override
   String get enterFolderName => 'Please enter folder name';
@@ -572,8 +565,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cloudPathPrefix => 'Cloud Path Prefix (Optional)';
 
   @override
-  String get cloudPathHelper =>
-      'Full cloud folder path will be auto-completed as: path prefix';
+  String get cloudPathHelper => 'Full cloud folder path will be auto-completed as: path prefix';
 
   @override
   String get testing => 'Testing...';
@@ -588,8 +580,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get connectionSuccess => 'Connection successful!';
 
   @override
-  String get connectionFailed =>
-      'Connection failed, please check configuration';
+  String get connectionFailed => 'Connection failed, please check configuration';
 
   @override
   String get serverAddress => 'Server Address';
@@ -598,8 +589,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enterServerAddress => 'Please enter server address';
 
   @override
-  String get enterValidUrl =>
-      'Please enter a valid URL (starting with http:// or https://)';
+  String get enterValidUrl => 'Please enter a valid URL (starting with http:// or https://)';
 
   @override
   String get username => 'Username';
@@ -704,8 +694,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get conflictDescription =>
-      'These files have modifications in both local and cloud, please choose which version to keep:';
+  String get conflictDescription => 'These files have modifications in both local and cloud, please choose which version to keep:';
 
   @override
   String get keepLocal => 'Keep Local';
@@ -738,8 +727,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newFileDefaultLocation => 'New File Default Location';
 
   @override
-  String get notSetUseCurrentOrRecent =>
-      'Not set (default uses current or recent location)';
+  String get notSetUseCurrentOrRecent => 'Not set (default uses current or recent location)';
 
   @override
   String get change => 'Change';
@@ -772,8 +760,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reset => 'Reset';
 
   @override
-  String get workspaceFilesSyncToCloud =>
-      'Workspace files will automatically sync to cloud';
+  String get workspaceFilesSyncToCloud => 'Workspace files will automatically sync to cloud';
 
   @override
   String filesCount(int count) {
@@ -789,12 +776,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clear => 'Clear';
 
   @override
-  String get confirmClearRecentFiles =>
-      'Are you sure you want to clear all recent file records?';
+  String get confirmClearRecentFiles => 'Are you sure you want to clear all recent file records?';
 
   @override
-  String get confirmClearRecentFolders =>
-      'Are you sure you want to clear all recent folder records?';
+  String get confirmClearRecentFolders => 'Are you sure you want to clear all recent folder records?';
 
   @override
   String get cleared => 'Cleared';
@@ -806,8 +791,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inputWorkspaceFolderName => 'Enter new workspace folder name:';
 
   @override
-  String get warningChangeNameRequiresCloudSync =>
-      'Note: Cloud sync needs to be reconfigured after changing the name';
+  String get warningChangeNameRequiresCloudSync => 'Note: Cloud sync needs to be reconfigured after changing the name';
 
   @override
   String get nameCannotBeEmpty => 'Name cannot be empty';
@@ -832,8 +816,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get warningChangeBasePathAffectsWorkspace =>
-      'Warning: Changing base path will affect workspace location, please ensure the path exists and is accessible';
+  String get warningChangeBasePathAffectsWorkspace => 'Warning: Changing base path will affect workspace location, please ensure the path exists and is accessible';
 
   @override
   String get resetToDefaultPath => 'Reset to default path';
@@ -850,8 +833,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get unsavedChangesMessage =>
-      'You have unsaved changes. Do you want to save?';
+  String get unsavedChangesMessage => 'You have unsaved changes. Do you want to save?';
 
   @override
   String get discard => 'Discard';
@@ -877,8 +859,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hidden => 'Hidden';
 
   @override
-  String get homeIconSelectorHint =>
-      'Select the icon displayed in the top left corner of the home page';
+  String get homeIconSelectorHint => 'Select the icon displayed in the top left corner of the home page';
 
   @override
   String get appIconAndroidOnly => 'Note: Custom icons only work on Android';
@@ -920,8 +901,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get particleTypeFirefly => 'Firefly';
 
   @override
-  String get appIconSelectorHint =>
-      'Select the app icon displayed on home screen';
+  String get appIconSelectorHint => 'Select the app icon displayed on home screen';
 
   @override
   String get brightness => 'Brightness';
@@ -936,8 +916,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enableDebugMode => 'Enable Debug Mode';
 
   @override
-  String get debugModeDescription =>
-      'Record Bridge messages, command execution, and diagnostic data';
+  String get debugModeDescription => 'Record Bridge messages, command execution, and diagnostic data';
 
   @override
   String get debugLogsSection => 'Logs';
@@ -951,16 +930,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logCopiedToClipboard => 'Log copied to clipboard';
 
   @override
-  String get noLogsYet =>
-      'No logs yet. Enable debug mode and use the editor, then check back.';
+  String get noLogsYet => 'No logs yet. Enable debug mode and use the editor, then check back.';
 
   @override
-  String get collectRequestSent =>
-      'Collection requested. Check on_debug_report in the log area.';
+  String get collectRequestSent => 'Collection requested. Check on_debug_report in the log area.';
 
   @override
-  String get noActiveEditor =>
-      'No active editor. Please open a Markdown file first.';
+  String get noActiveEditor => 'No active editor. Please open a Markdown file first.';
 
   @override
   String get noHeadingsFound => 'No headings found';

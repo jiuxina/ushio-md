@@ -245,36 +245,7 @@ body {
 }
 
 .milkdown .milkdown-code-block .tools {
-  position: absolute !important;
-  left: auto !important;
-  right: 8px !important;
-  top: 8px !important;
-  bottom: auto !important;
-  transform: none !important;
-  opacity: 0;
-  transition: opacity 150ms ease;
-  z-index: 2;
-
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 0;
-  margin: 0;
-  width: min(33%, 220px);
-  min-width: 132px;
-  height: 32px;
-  --ushio-copy-width: clamp(46px, 33%, 82px);
-  padding: 0;
-  border-radius: 8px;
-  border: 0 !important;
-  background: color-mix(in srgb, var(--milkdown-color-surface) 94%, #ffffff 6%) !important;
-  box-shadow: none !important;
-  align-self: flex-end;
-}
-
-.milkdown .milkdown-code-block:hover .tools,
-.milkdown .milkdown-code-block:focus-within .tools {
-  opacity: 1;
+  display: none !important;
 }
 
 .milkdown .milkdown-code-block .codemirror-host,
@@ -407,6 +378,17 @@ body {
 .milkdown .milkdown-code-block .tools .tools-button-group button svg {
   width: 16px;
   height: 16px;
+}
+
+/* Fix: Remove white background on click/active state for code block tools */
+.milkdown .milkdown-code-block .tools:active,
+.milkdown .milkdown-code-block .tools .copy-button:active,
+.milkdown .milkdown-code-block .tools .tools-button-group button:active,
+.milkdown .milkdown-code-block .tools .ushio-language-trigger:active,
+.milkdown .milkdown-code-block .tools .ushio-language-input:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .milkdown .milkdown-code-block .language-picker {
