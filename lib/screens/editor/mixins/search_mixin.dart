@@ -36,11 +36,25 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
   int get activeSearchMatchIndex => _activeSearchMatchIndex;
   int _activeSearchMatchIndex = -1;
 
+  /// Maximum number of search results to return.
+  static const int maxSearchResults = 100;
+
+  /// Extract a preview snippet around a match position.
+  String _extractPreview(String text, int position, int length) {
+    final start = (position - 20).clamp(0, text.length);
+    final end = (position + length + 20).clamp(0, text.length);
+    return text.substring(start, end).replaceAll('\n', ' ');
+  }
+
   /// Perform a search on the given text.
   ///
-  /// Returns the number of matches found (capped at 50).
-  int performSearch(String text, String query) {
-    final normalizedQuery = query.trim().toLowerCase();
+  /// Returns the number of matches found (capped at [maxSearchResults]).
+  int performSearch(
+    String text,
+    String query, {
+    SearchOptions options = const SearchOptions(),
+  }) {
+    final normalizedQuery = query.trim();
     if (normalizedQuery.isEmpty) {
       setState(() {
         _searchMatches = const [];
@@ -49,25 +63,75 @@ mixin SearchMixin<T extends StatefulWidget> on State<T> {
       return 0;
     }
 
-    final normalizedText = text.toLowerCase();
     final matches = <SearchMatch>[];
-    var index = 0;
 
-    while (matches.length < 50) {
-      index = normalizedText.indexOf(normalizedQuery, index);
-      if (index == -1) break;
-      final start = (index - 20).clamp(0, text.length);
-      final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
-      final preview = text.substring(start, end).replaceAll('\n', ' ');
-      matches.add(
-        SearchMatch(
-          position: index,
-          length: normalizedQuery.length,
-          preview: preview,
-          occurrence: matches.length,
-        ),
+    if (options.useRegex) {
+      // Regular expression search
+      try {
+        final regex = RegExp(
+          normalizedQuery,
+          caseSensitive: options.caseSensitive,
+        );
+        for (final match in regex.allMatches(text)) {
+          if (matches.length >= maxSearchResults) break;
+          matches.add(
+            SearchMatch(
+              position: match.start,
+              length: match.end - match.start,
+              preview: _extractPreview(
+                text,
+                match.start,
+                match.end - match.start,
+              ),
+              occurrence: matches.length,
+            ),
+          );
+        }
+      } catch (_) {
+        // Invalid regular expression - return empty results
+      }
+    } else if (options.wholeWord) {
+      // Whole word matching
+      final wordPattern = RegExp(
+        r'\b' + RegExp.escape(normalizedQuery) + r'\b',
+        caseSensitive: options.caseSensitive,
       );
-      index += normalizedQuery.length;
+      for (final match in wordPattern.allMatches(text)) {
+        if (matches.length >= maxSearchResults) break;
+        matches.add(
+          SearchMatch(
+            position: match.start,
+            length: match.end - match.start,
+            preview: _extractPreview(
+              text,
+              match.start,
+              match.end - match.start,
+            ),
+            occurrence: matches.length,
+          ),
+        );
+      }
+    } else {
+      // Standard substring search
+      final searchText = options.caseSensitive ? text : text.toLowerCase();
+      final searchQuery = options.caseSensitive
+          ? normalizedQuery
+          : normalizedQuery.toLowerCase();
+      var index = 0;
+
+      while (matches.length < maxSearchResults) {
+        index = searchText.indexOf(searchQuery, index);
+        if (index == -1) break;
+        matches.add(
+          SearchMatch(
+            position: index,
+            length: searchQuery.length,
+            preview: _extractPreview(text, index, searchQuery.length),
+            occurrence: matches.length,
+          ),
+        );
+        index += searchQuery.length;
+      }
     }
 
     setState(() {

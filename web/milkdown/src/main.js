@@ -67,7 +67,13 @@ const cmdFailureAggregate = new Map();
 const MAX_UPLOAD_FILES = 6;
 const MAX_UPLOAD_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
-const CONTENT_CHANGE_DEBOUNCE_MS = 120;
+// Adaptive debounce: larger files get longer debounce to reduce save frequency
+// Small (< 10KB): 80ms, Medium (10-50KB): 150ms, Large (> 50KB): 300ms
+const calculateAdaptiveDebounceMs = (markdownLength) => {
+  if (markdownLength < 10000) return 80;
+  if (markdownLength < 50000) return 150;
+  return 300;
+};
 let contentChangeTimerId = null;
 let pendingContentMarkdown = null;
 let pendingContentMode = 'full';
@@ -1074,15 +1080,20 @@ const flushContentChange = () => {
 };
 
 const scheduleContentChange = (markdown, { mode = 'full' } = {}) => {
+  // Validate input to prevent runtime errors
+  if (markdown == null || typeof markdown !== 'string') return;
+  
   pendingContentMarkdown = markdown;
   pendingContentMode = mode;
   if (contentChangeTimerId != null) {
     clearTimeout(contentChangeTimerId);
   }
+  // Use adaptive debounce based on file size
+  const debounceMs = calculateAdaptiveDebounceMs(markdown.length);
   contentChangeTimerId = setTimeout(() => {
     contentChangeTimerId = null;
     flushContentChange();
-  }, CONTENT_CHANGE_DEBOUNCE_MS);
+  }, debounceMs);
 };
 
 const emitOutlineUpdate = () => {
@@ -3237,21 +3248,28 @@ const clearSearchHighlights = () => {
       parent?.insertBefore(span.firstChild, span);
     }
     span.remove();
+    // Normalize the parent to merge adjacent text nodes
+    if (parent instanceof HTMLElement) {
+      parent.normalize();
+    }
   });
-  parent?.normalize?.();
   searchHighlightRanges = [];
   searchHighlightActiveIndex = -1;
 };
 
-const highlightSearchMatches = (query) => {
+const highlightSearchMatches = (query, options = {}) => {
   clearSearchHighlights();
   if (!query || typeof query !== 'string' || !query.trim()) return;
 
   const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
   if (!root) return;
 
-  const lowerQuery = query.toLowerCase().trim();
-  if (!lowerQuery) return;
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return;
+
+  const caseSensitive = options.caseSensitive === true;
+  const wholeWord = options.wholeWord === true;
+  const useRegex = options.useRegex === true;
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const textNodes = [];
@@ -3260,19 +3278,62 @@ const highlightSearchMatches = (query) => {
   }
 
   const ranges = [];
+
+  // Build match function based on options
+  const findMatches = (text, textNode) => {
+    const matches = [];
+
+    if (useRegex) {
+      // Regular expression search
+      try {
+        const regex = new RegExp(trimmedQuery, caseSensitive ? 'g' : 'gi');
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          matches.push({ start: match.index, end: match.index + match[0].length });
+        }
+      } catch (e) {
+        // Invalid regex
+      }
+    } else if (wholeWord) {
+      // Whole word matching
+      try {
+        const wordPattern = new RegExp(
+          '\\b' + trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b',
+          caseSensitive ? 'g' : 'gi'
+        );
+        let match;
+        while ((match = wordPattern.exec(text)) !== null) {
+          matches.push({ start: match.index, end: match.index + match[0].length });
+        }
+      } catch (e) {
+        // Invalid pattern (e.g., query ends with backslash)
+      }
+    } else {
+      // Standard substring search
+      const searchText = caseSensitive ? text : text.toLowerCase();
+      const searchQuery = caseSensitive ? trimmedQuery : trimmedQuery.toLowerCase();
+      let from = 0;
+      while (from < searchText.length) {
+        const idx = searchText.indexOf(searchQuery, from);
+        if (idx < 0) break;
+        matches.push({ start: idx, end: idx + searchQuery.length });
+        from = idx + searchQuery.length;
+      }
+    }
+
+    return matches;
+  };
+
   textNodes.forEach((textNode) => {
     const text = textNode.textContent || '';
-    const lowerText = text.toLowerCase();
-    let from = 0;
-    while (from < lowerText.length) {
-      const idx = lowerText.indexOf(lowerQuery, from);
-      if (idx < 0) break;
+    const matches = findMatches(text, textNode);
+
+    matches.forEach(({ start, end }) => {
       const range = document.createRange();
-      range.setStart(textNode, idx);
-      range.setEnd(textNode, idx + lowerQuery.length);
+      range.setStart(textNode, start);
+      range.setEnd(textNode, end);
       ranges.push(range);
-      from = idx + lowerQuery.length;
-    }
+    });
   });
 
   // Highlight all matches
@@ -3314,7 +3375,12 @@ const highlightSearchActive = (index) => {
 
     if (cmd === 'search_highlight') {
       const query = typeof args?.query === 'string' ? args.query.trim() : '';
-      highlightSearchMatches(query);
+      const options = {
+        caseSensitive: args?.caseSensitive === true,
+        wholeWord: args?.wholeWord === true,
+        useRegex: args?.useRegex === true,
+      };
+      highlightSearchMatches(query, options);
       emitCmdResult(cmd, true, null, startedAt);
       return;
     }

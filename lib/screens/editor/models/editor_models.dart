@@ -52,6 +52,54 @@ class EditHistoryEntry {
   String toString() => 'EditHistoryEntry(text: ${text.length} chars)';
 }
 
+/// Search options configuration for advanced search functionality.
+class SearchOptions {
+  /// Whether search should be case-sensitive.
+  final bool caseSensitive;
+
+  /// Whether to match whole words only.
+  final bool wholeWord;
+
+  /// Whether to use regular expression matching.
+  final bool useRegex;
+
+  const SearchOptions({
+    this.caseSensitive = false,
+    this.wholeWord = false,
+    this.useRegex = false,
+  });
+
+  /// Creates a copy of this options with the given fields replaced.
+  SearchOptions copyWith({
+    bool? caseSensitive,
+    bool? wholeWord,
+    bool? useRegex,
+  }) {
+    return SearchOptions(
+      caseSensitive: caseSensitive ?? this.caseSensitive,
+      wholeWord: wholeWord ?? this.wholeWord,
+      useRegex: useRegex ?? this.useRegex,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is SearchOptions &&
+        other.caseSensitive == caseSensitive &&
+        other.wholeWord == wholeWord &&
+        other.useRegex == useRegex;
+  }
+
+  @override
+  int get hashCode =>
+      caseSensitive.hashCode ^ wholeWord.hashCode ^ useRegex.hashCode;
+
+  @override
+  String toString() =>
+      'SearchOptions(case: $caseSensitive, word: $wholeWord, regex: $useRegex)';
+}
+
 /// A search match result for inline search functionality.
 class SearchMatch {
   /// The character position where the match starts.

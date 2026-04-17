@@ -14,6 +14,7 @@ import '../widgets/milkdown_webview_editor.dart';
 import '../widgets/particle_effect_widget.dart';
 import '../models/toc_item.dart';
 import '../models/milkdown_bridge.dart';
+import '../services/search_history_service.dart';
 import 'editor/components/editor_header.dart';
 import 'editor/components/toc_overlay.dart';
 import 'editor/components/editor_search_bar.dart';
@@ -69,6 +70,8 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isLoading = true;
   bool _isModified = false;
   bool _isSaving = false;
+  bool _isAutoSaving = false;
+  DateTime? _lastSaveTime;
   bool _isMilkdownEditorFocused = false;
   bool _showToc = false;
   bool _showSearchBar = false;
@@ -79,6 +82,9 @@ class _EditorScreenState extends State<EditorScreen>
   int? _highlightedLine;
   List<SearchMatch> _searchMatches = const [];
   int _activeSearchMatchIndex = -1;
+  SearchOptions _searchOptions = const SearchOptions();
+  List<String> _searchHistory = [];
+  final _searchHistoryService = SearchHistoryService();
   bool _suppressNextMilkdownReload = false;
 
   // Undo/redo feedback state
@@ -87,6 +93,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   String? _error;
   List<TocItem> _tocItems = [];
+  int? _currentTocIndex;
 
   static const _jumpTopOffset = 32.0;
 
@@ -103,6 +110,7 @@ class _EditorScreenState extends State<EditorScreen>
     _editFocusNode = FocusNode();
     _inlineEditController = TextEditingController();
     _inlineEditFocusNode = FocusNode();
+    _inlineEditFocusNode.addListener(_onInlineEditFocusChanged);
     _highlightController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -112,12 +120,20 @@ class _EditorScreenState extends State<EditorScreen>
     );
     _searchFocusNode.addListener(_onSearchFocusChanged);
     _attachEditSelectionListener();
+    _loadSearchHistory();
     if (widget.initialContent != null) {
       _applyLoadedContent(widget.initialContent!);
       _configureAutoSave();
       _isLoading = false;
     } else {
       _loadFile();
+    }
+  }
+
+  Future<void> _loadSearchHistory() async {
+    final history = await _searchHistoryService.getHistory();
+    if (mounted) {
+      setState(() => _searchHistory = history);
     }
   }
 
@@ -353,6 +369,9 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _jumpToHeading(int headingIndex, TocItem item) {
+    // Update current TOC index for highlighting
+    setState(() => _currentTocIndex = headingIndex);
+
     if (_showToc) {
       _tocOverlayController.close();
     }
@@ -404,11 +423,18 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _autoSave() async {
     if (_isModified && !_isSaving) {
-      await _saveFile(showSnackbar: false);
+      setState(() => _isAutoSaving = true);
+      await _saveFile(showSnackbar: false, isAutoSave: true);
+      if (mounted) {
+        setState(() => _isAutoSaving = false);
+      }
     }
   }
 
-  Future<void> _saveFile({bool showSnackbar = true}) async {
+  Future<void> _saveFile({
+    bool showSnackbar = true,
+    bool isAutoSave = false,
+  }) async {
     final l10n = AppLocalizations.of(context)!;
     if (_isSaving) return;
 
@@ -417,7 +443,12 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final fileService = context.read<FileProvider>().fileService;
       await fileService.saveFile(widget.filePath, _textController.text);
-      if (mounted) setState(() => _isModified = false);
+      if (mounted) {
+        setState(() {
+          _isModified = false;
+          _lastSaveTime = DateTime.now();
+        });
+      }
 
       if (showSnackbar && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -595,7 +626,12 @@ class _EditorScreenState extends State<EditorScreen>
         } else {
           _previewWebViewController.execCmd(
             'search_highlight',
-            args: {'query': query.trim()},
+            args: {
+              'query': query.trim(),
+              'caseSensitive': _searchOptions.caseSensitive,
+              'wholeWord': _searchOptions.wholeWord,
+              'useRegex': _searchOptions.useRegex,
+            },
           );
         }
       }
@@ -603,10 +639,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   /// 实际执行搜索
-  void _executeSearch(String query) {
+  Future<void> _executeSearch(String query) async {
     if (!mounted) return;
 
-    final normalizedQuery = query.trim().toLowerCase();
+    final normalizedQuery = query.trim();
     if (normalizedQuery.isEmpty) {
       setState(() {
         _searchMatches = const [];
@@ -617,38 +653,100 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     final text = _textController.text;
-    final normalizedText = text.toLowerCase();
     final matches = <SearchMatch>[];
-    var index = 0;
 
     // 限制搜索时间，防止超大文件卡顿
     final startTime = DateTime.now();
     const maxSearchTime = Duration(milliseconds: 500);
+    const maxResults = 100;
 
-    while (matches.length < 50) {
-      // 检查是否超时
-      if (DateTime.now().difference(startTime) > maxSearchTime) {
-        debugPrint('搜索超时，已找到 ${matches.length} 个结果');
-        break;
+    try {
+      if (_searchOptions.useRegex) {
+        // 正则表达式搜索
+        final regex = RegExp(
+          normalizedQuery,
+          caseSensitive: _searchOptions.caseSensitive,
+        );
+        for (final match in regex.allMatches(text)) {
+          if (matches.length >= maxResults) break;
+          if (DateTime.now().difference(startTime) > maxSearchTime) break;
+          final start = (match.start - 20).clamp(0, text.length);
+          final end = (match.end + 20).clamp(0, text.length);
+          final preview = text.substring(start, end).replaceAll('\n', ' ');
+          matches.add(
+            SearchMatch(
+              position: match.start,
+              length: match.end - match.start,
+              preview: preview,
+              occurrence: matches.length,
+            ),
+          );
+        }
+      } else if (_searchOptions.wholeWord) {
+        // 全词匹配
+        final wordPattern = RegExp(
+          r'\b' + RegExp.escape(normalizedQuery) + r'\b',
+          caseSensitive: _searchOptions.caseSensitive,
+        );
+        for (final match in wordPattern.allMatches(text)) {
+          if (matches.length >= maxResults) break;
+          if (DateTime.now().difference(startTime) > maxSearchTime) break;
+          final start = (match.start - 20).clamp(0, text.length);
+          final end = (match.end + 20).clamp(0, text.length);
+          final preview = text.substring(start, end).replaceAll('\n', ' ');
+          matches.add(
+            SearchMatch(
+              position: match.start,
+              length: match.end - match.start,
+              preview: preview,
+              occurrence: matches.length,
+            ),
+          );
+        }
+      } else {
+        // 普通子串搜索
+        final searchText = _searchOptions.caseSensitive
+            ? text
+            : text.toLowerCase();
+        final searchQuery = _searchOptions.caseSensitive
+            ? normalizedQuery
+            : normalizedQuery.toLowerCase();
+        var index = 0;
+
+        while (matches.length < maxResults) {
+          if (DateTime.now().difference(startTime) > maxSearchTime) {
+            debugPrint('搜索超时，已找到 ${matches.length} 个结果');
+            break;
+          }
+
+          index = searchText.indexOf(searchQuery, index);
+          if (index == -1) break;
+          final start = (index - 20).clamp(0, text.length);
+          final end = (index + searchQuery.length + 20).clamp(0, text.length);
+          final preview = text.substring(start, end).replaceAll('\n', ' ');
+          matches.add(
+            SearchMatch(
+              position: index,
+              length: searchQuery.length,
+              preview: preview,
+              occurrence: matches.length,
+            ),
+          );
+          index += searchQuery.length;
+        }
       }
-
-      index = normalizedText.indexOf(normalizedQuery, index);
-      if (index == -1) break;
-      final start = (index - 20).clamp(0, text.length);
-      final end = (index + normalizedQuery.length + 20).clamp(0, text.length);
-      final preview = text.substring(start, end).replaceAll('\n', ' ');
-      matches.add(
-        SearchMatch(
-          position: index,
-          length: normalizedQuery.length,
-          preview: preview,
-          occurrence: matches.length,
-        ),
-      );
-      index += normalizedQuery.length;
+    } catch (e) {
+      // 无效的正则表达式或其他错误
+      debugPrint('搜索错误: $e');
     }
 
     if (!mounted) return;
+
+    // 添加到搜索历史
+    if (matches.isNotEmpty) {
+      await _searchHistoryService.addQuery(normalizedQuery);
+      await _loadSearchHistory();
+    }
 
     setState(() {
       _searchMatches = matches;
@@ -656,6 +754,35 @@ class _EditorScreenState extends State<EditorScreen>
       _showSearchCandidates =
           _searchFocusNode.hasFocus && normalizedQuery.isNotEmpty;
     });
+  }
+
+  /// 更新搜索选项
+  void _updateSearchOptions(SearchOptions options) {
+    if (_searchOptions == options) return;
+    setState(() => _searchOptions = options);
+    // 使用新选项重新搜索
+    _executeSearch(_searchController.text);
+    // 更新 WebView 高亮
+    if (_mode == EditorMode.preview) {
+      final query = _searchController.text.trim();
+      if (query.isNotEmpty) {
+        _previewWebViewController.execCmd(
+          'search_highlight',
+          args: {
+            'query': query,
+            'caseSensitive': options.caseSensitive,
+            'wholeWord': options.wholeWord,
+            'useRegex': options.useRegex,
+          },
+        );
+      }
+    }
+  }
+
+  /// 处理搜索历史选择
+  Future<void> _onHistorySelected(String query) async {
+    await _searchHistoryService.addQuery(query);
+    await _loadSearchHistory();
   }
 
   void _jumpToSearchMatch(SearchMatch match) {
@@ -1079,6 +1206,8 @@ class _EditorScreenState extends State<EditorScreen>
                         onClose: () => setState(() => _showToc = false),
                         onJumpToHeading: _jumpToHeading,
                         controller: _tocOverlayController,
+                        currentHeadingIndex: _currentTocIndex,
+                        keepOpenOnJump: false,
                       ),
                     if (!_isLoading && _error == null)
                       _buildFixedFloatingButtons(),
@@ -1122,6 +1251,8 @@ class _EditorScreenState extends State<EditorScreen>
                     wordCount: _getWordCount(),
                     isModified: _isModified,
                     isSaving: _isSaving,
+                    isAutoSaving: _isAutoSaving,
+                    lastSaveTime: _lastSaveTime,
                     canUndo: _historyIndex > 0,
                     canRedo:
                         _historyIndex >= 0 &&
@@ -1159,10 +1290,15 @@ class _EditorScreenState extends State<EditorScreen>
                             onJumpToPrevious: _jumpToPrevSearchMatch,
                             onClose: _closeSearch,
                             showCandidates: _showSearchCandidates,
+                            searchOptions: _searchOptions,
+                            onOptionsChanged: _updateSearchOptions,
+                            searchHistory: _searchHistory,
+                            onHistorySelected: _onHistorySelected,
                           ),
                         ),
                       if (!_isLoading &&
                           _error == null &&
+                          !isFocusMode &&
                           (_mode != EditorMode.preview ||
                               _editingBlockIndex != null ||
                               _isMilkdownEditorFocused))
@@ -1197,6 +1333,22 @@ class _EditorScreenState extends State<EditorScreen>
                                     _editingBlockIndex == null
                                 ? _handlePreviewToolbarAction
                                 : null,
+                          ),
+                        ),
+                      // Focus mode exit hint
+                      if (isFocusMode)
+                        Positioned(
+                          top: 16,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: _FocusModeHint(
+                              onHide: () {
+                                final settings = context
+                                    .read<SettingsProvider>();
+                                settings.setFocusMode(false);
+                              },
+                            ),
                           ),
                         ),
                     ],
@@ -1640,6 +1792,81 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             const SizedBox(height: 16),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Focus mode exit hint widget.
+class _FocusModeHint extends StatefulWidget {
+  final VoidCallback onHide;
+
+  const _FocusModeHint({required this.onHide});
+
+  @override
+  State<_FocusModeHint> createState() => _FocusModeHintState();
+}
+
+class _FocusModeHintState extends State<_FocusModeHint> {
+  bool _visible = true;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _visible = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: _visible ? 1.0 : 0.0,
+      child: GestureDetector(
+        onTap: widget.onHide,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.fullscreen_exit,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '双击退出专注模式',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

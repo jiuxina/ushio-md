@@ -14,6 +14,8 @@ class EditorHeader extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onSave;
   final VoidCallback? onMore;
+  final bool isAutoSaving;
+  final DateTime? lastSaveTime;
 
   const EditorHeader({
     super.key,
@@ -27,6 +29,8 @@ class EditorHeader extends StatelessWidget {
     required this.onBack,
     required this.onSave,
     this.onMore,
+    this.isAutoSaving = false,
+    this.lastSaveTime,
   });
 
   String get _displayFileName =>
@@ -54,7 +58,11 @@ class EditorHeader extends StatelessWidget {
                   fullFilePath: fullFilePath,
                 ),
                 const SizedBox(height: 4),
-                _AdaptiveWordCount(wordCount: wordCount),
+                _AdaptiveWordCount(
+                  wordCount: wordCount,
+                  isAutoSaving: isAutoSaving,
+                  lastSaveTime: lastSaveTime,
+                ),
               ],
             ),
           ),
@@ -187,29 +195,77 @@ class EditorHeader extends StatelessWidget {
 
 class _AdaptiveWordCount extends StatelessWidget {
   final String wordCount;
+  final bool isAutoSaving;
+  final DateTime? lastSaveTime;
 
-  const _AdaptiveWordCount({required this.wordCount});
+  const _AdaptiveWordCount({
+    required this.wordCount,
+    this.isAutoSaving = false,
+    this.lastSaveTime,
+  });
+
+  String _formatLastSaveTime() {
+    if (lastSaveTime == null) return '';
+    final now = DateTime.now();
+    final diff = now.difference(lastSaveTime!);
+
+    if (diff.inSeconds < 5) return '刚刚保存';
+    if (diff.inSeconds < 60) return '${diff.inSeconds}秒前保存';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}分钟前保存';
+    if (diff.inHours < 24) return '${diff.inHours}小时前保存';
+    return '${diff.inDays}天前保存';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: Theme.of(context).colorScheme.outline,
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: colorScheme.outline,
       height: 1.1,
     );
+
+    final saveInfo = _formatLastSaveTime();
+    final displayText = isAutoSaving
+        ? '保存中...'
+        : saveInfo.isNotEmpty
+        ? '$wordCount · $saveInfo'
+        : wordCount;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         return SizedBox(
           width: constraints.maxWidth,
-          child: FittedBox(
-            alignment: Alignment.centerLeft,
-            fit: BoxFit.scaleDown,
-            child: Text(
-              wordCount,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: style,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isAutoSaving)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+              Flexible(
+                child: FittedBox(
+                  alignment: Alignment.centerLeft,
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    displayText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: isAutoSaving
+                        ? style?.copyWith(color: colorScheme.primary)
+                        : style,
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },

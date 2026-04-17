@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/my_files_service.dart';
 import '../utils/app_style.dart';
@@ -66,9 +67,12 @@ class MarkdownToolbar extends StatelessWidget {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final showCustomUndoRedo =
         undoController == null && onUndo != null && onRedo != null;
+    // Increase toolbar height on touch devices
+    final isTouchDevice = MediaQuery.of(context).size.shortestSide < 600;
+    final toolbarHeight = isTouchDevice ? 64.0 : 56.0;
 
     return Container(
-      height: 56,
+      height: toolbarHeight,
       decoration: BoxDecoration(
         color: appStyle.scaledSurfaceColor(
           Theme.of(context).colorScheme,
@@ -85,7 +89,10 @@ class MarkdownToolbar extends StatelessWidget {
       ),
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: isTouchDevice ? 10 : 6,
+        ),
         children: [
           // 撤回重做按钮组
           if (undoController != null)
@@ -736,6 +743,10 @@ class MarkdownToolbar extends StatelessWidget {
   Future<void> _showTableDialog(BuildContext context) async {
     int rows = 2;
     int cols = 3;
+    List<List<String>> cells = List.generate(
+      rows,
+      (r) => List.generate(cols, (c) => r == 0 ? '列${c + 1}' : '内容'),
+    );
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -760,99 +771,106 @@ class MarkdownToolbar extends StatelessWidget {
                   const Text('插入表格'),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('行数'),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: rows > 1
-                                ? () => setDialogState(() => rows--)
-                                : null,
-                            iconSize: 20,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 32,
-                              minHeight: 32,
-                            ),
-                          ),
-                          SizedBox(
-                            width: 32,
-                            child: Text(
-                              '$rows',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: rows < 20
-                                ? () => setDialogState(() => rows++)
-                                : null,
-                            iconSize: 20,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 32,
-                              minHeight: 32,
-                            ),
-                          ),
-                        ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Row and column controls
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildStepper(
+                          label: '行',
+                          value: rows,
+                          onDecrease: rows > 1
+                              ? () {
+                                  setDialogState(() {
+                                    rows--;
+                                    cells.removeLast();
+                                  });
+                                }
+                              : null,
+                          onIncrease: rows < 20
+                              ? () {
+                                  setDialogState(() {
+                                    rows++;
+                                    cells.add(List.generate(cols, (_) => '内容'));
+                                  });
+                                }
+                              : null,
+                        ),
+                        _buildStepper(
+                          label: '列',
+                          value: cols,
+                          onDecrease: cols > 1
+                              ? () {
+                                  setDialogState(() {
+                                    cols--;
+                                    for (final row in cells) {
+                                      if (row.length > cols) row.removeLast();
+                                    }
+                                  });
+                                }
+                              : null,
+                          onIncrease: cols < 10
+                              ? () {
+                                  setDialogState(() {
+                                    cols++;
+                                    for (final row in cells) {
+                                      row.add('内容');
+                                    }
+                                  });
+                                }
+                              : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Visual preview
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withValues(alpha: 0.3),
+                        ),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('列数'),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: cols > 1
-                                ? () => setDialogState(() => cols--)
-                                : null,
-                            iconSize: 20,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 32,
-                              minHeight: 32,
-                            ),
-                          ),
-                          SizedBox(
-                            width: 32,
-                            child: Text(
-                              '$cols',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: cols < 10
-                                ? () => setDialogState(() => cols++)
-                                : null,
-                            iconSize: 20,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 32,
-                              minHeight: 32,
-                            ),
-                          ),
-                        ],
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: _buildTablePreview(context, cells),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Paste from Excel button
+                    TextButton.icon(
+                      icon: const Icon(Icons.paste, size: 18),
+                      label: const Text('从剪贴板粘贴 Excel 数据'),
+                      onPressed: () async {
+                        final data = await Clipboard.getData(
+                          Clipboard.kTextPlain,
+                        );
+                        if (data?.text == null) return;
+
+                        // Parse tab-separated data (Excel copy format)
+                        final lines = data!.text!.split('\n');
+                        final newCells = lines
+                            .where((line) => line.trim().isNotEmpty)
+                            .map((line) => line.split('\t'))
+                            .toList();
+
+                        if (newCells.isNotEmpty && newCells[0].isNotEmpty) {
+                          setDialogState(() {
+                            cells.clear();
+                            cells.addAll(newCells);
+                            rows = cells.length;
+                            cols = cells.isNotEmpty ? cells[0].length : 1;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -872,8 +890,106 @@ class MarkdownToolbar extends StatelessWidget {
     );
 
     if (confirmed == true) {
-      _insertTable(rows: rows, cols: cols);
+      _insertTableFromCells(cells);
     }
+  }
+
+  Widget _buildStepper({
+    required String label,
+    required int value,
+    required VoidCallback? onDecrease,
+    required VoidCallback? onIncrease,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.remove),
+          onPressed: onDecrease,
+          iconSize: 20,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        ),
+        SizedBox(
+          width: 32,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add),
+          onPressed: onIncrease,
+          iconSize: 20,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTablePreview(BuildContext context, List<List<String>> cells) {
+    if (cells.isEmpty || cells[0].isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Table(
+      border: TableBorder.all(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+      ),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      columnWidths: Map.fromEntries(
+        List.generate(
+          cells[0].length,
+          (i) => MapEntry(i, const FixedColumnWidth(60)),
+        ),
+      ),
+      children: cells.map((row) {
+        return TableRow(
+          children: row.map((cell) {
+            return Padding(
+              padding: const EdgeInsets.all(4),
+              child: Text(
+                cell,
+                style: const TextStyle(fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            );
+          }).toList(),
+        );
+      }).toList(),
+    );
+  }
+
+  void _insertTableFromCells(List<List<String>> cells) {
+    if (cells.isEmpty || cells[0].isEmpty) return;
+
+    final text = controller.text;
+    final selection = controller.selection;
+
+    // Build markdown table
+    final cols = cells[0].length;
+    final header = '| ${cells[0].join(' | ')} |';
+    final separator = '| ${List.generate(cols, (_) => '-----').join(' | ')} |';
+    final dataRows = cells
+        .skip(1)
+        .map((row) => '| ${row.join(' | ')} |')
+        .join('\n');
+
+    final table = '\n$header\n$separator\n$dataRows\n\n';
+
+    controller.text =
+        text.substring(0, selection.start) +
+        table +
+        text.substring(selection.end);
+    controller.selection = TextSelection.collapsed(
+      offset: selection.start + table.length,
+    );
   }
 
   void _insertTable({int rows = 2, int cols = 3}) {
@@ -933,21 +1049,30 @@ class _ToolbarButton extends StatefulWidget {
 class _ToolbarButtonState extends State<_ToolbarButton> {
   bool _isHovered = false;
 
+  void _handleTap() {
+    if (!widget.enabled) return;
+    // Provide haptic feedback on touch devices
+    HapticFeedback.lightImpact();
+    widget.onPressed();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.enabled;
+    final isTouchDevice = MediaQuery.of(context).size.shortestSide < 600;
 
     return Tooltip(
       message: widget.tooltip,
       child: GestureDetector(
-        onTap: isEnabled ? widget.onPressed : null,
+        onTap: isEnabled ? _handleTap : null,
         child: MouseRegion(
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: 36,
-            height: 36,
+            // Increase touch target size on touch devices (min 44px for accessibility)
+            width: isTouchDevice ? 44 : 36,
+            height: isTouchDevice ? 44 : 36,
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
               gradient: (_isHovered && isEnabled)
@@ -966,7 +1091,8 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
             ),
             child: Icon(
               widget.icon,
-              size: 18,
+              // Increase icon size slightly on touch devices
+              size: isTouchDevice ? 20 : 18,
               color: isEnabled
                   ? (_isHovered
                         ? Theme.of(context).colorScheme.primary

@@ -119,7 +119,21 @@ class _ContentSanitizer {
   }
 }
 
-Future<void> warmUpMilkdownWebAssets() async {}
+Future<void> warmUpMilkdownWebAssets() async {
+  // Pre-warm the localhost server to reduce first-load latency
+  // This is called during app startup
+  try {
+    final server = InAppLocalhostServer(documentRoot: 'assets/milkdown_web');
+    await server.start();
+    // Keep server running for reuse
+    _warmServer = server;
+  } catch (e) {
+    debugPrint('Failed to warm up Milkdown server: $e');
+  }
+}
+
+// Global warm server instance
+InAppLocalhostServer? _warmServer;
 
 class MilkdownWebViewController {
   _MilkdownWebViewEditorState? _state;
@@ -1090,7 +1104,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   @override
   Widget build(BuildContext context) {
     if (_initialUrl == null) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildLoadingSkeleton(context, '正在初始化编辑器...');
     }
 
     if (_initialUrl!.isEmpty) {
@@ -1099,77 +1113,145 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       );
     }
 
-    return InAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(_initialUrl!)),
-      initialSettings: InAppWebViewSettings(
-        transparentBackground: true,
-        // 安全设置：限制跨域访问，仅允许必要的本地文件访问
-        allowFileAccessFromFileURLs: false, // 禁止从 file:// URL 访问其他 file:// URL
-        allowUniversalAccessFromFileURLs: false, // 禁止从 file:// URL 进行通用访问
-        allowFileAccess: true, // 允许访问本地文件（用于加载 HTML 资源）
-        javaScriptEnabled: true,
-        disableContextMenu: true,
-        supportZoom: false,
-        builtInZoomControls: false,
-        displayZoomControls: false,
-        cacheEnabled: false,
-        clearCache: true,
-        resourceCustomSchemes: [_localFileScheme],
-        // 额外的安全设置
-        mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW, // 禁止混合内容
-        allowsInlineMediaPlayback: true,
-      ),
-      onWebViewCreated: (controller) {
-        _controller = controller;
-        widget.controller?._attach(this);
-        widget.controller?._attachWebViewController(controller);
-        controller.addJavaScriptHandler(
-          handlerName: 'bridge',
-          callback: (args) async {
-            await _handleBridgeArgs(args);
-            return {'ok': true};
+    return Stack(
+      children: [
+        InAppWebView(
+          initialUrlRequest: URLRequest(url: WebUri(_initialUrl!)),
+          initialSettings: InAppWebViewSettings(
+            transparentBackground: true,
+            // 安全设置：限制跨域访问，仅允许必要的本地文件访问
+            allowFileAccessFromFileURLs:
+                false, // 禁止从 file:// URL 访问其他 file:// URL
+            allowUniversalAccessFromFileURLs: false, // 禁止从 file:// URL 进行通用访问
+            allowFileAccess: true, // 允许访问本地文件（用于加载 HTML 资源）
+            javaScriptEnabled: true,
+            disableContextMenu: true,
+            supportZoom: false,
+            builtInZoomControls: false,
+            displayZoomControls: false,
+            cacheEnabled: false,
+            clearCache: true,
+            resourceCustomSchemes: [_localFileScheme],
+            // 额外的安全设置
+            mixedContentMode:
+                MixedContentMode.MIXED_CONTENT_NEVER_ALLOW, // 禁止混合内容
+            allowsInlineMediaPlayback: true,
+          ),
+          onWebViewCreated: (controller) {
+            _controller = controller;
+            widget.controller?._attach(this);
+            widget.controller?._attachWebViewController(controller);
+            controller.addJavaScriptHandler(
+              handlerName: 'bridge',
+              callback: (args) async {
+                await _handleBridgeArgs(args);
+                return {'ok': true};
+              },
+            );
           },
-        );
-      },
-      onLoadStop: (controller, _) async {
-        try {
-          final runtimeTag = await controller.evaluateJavascript(
-            source: 'window.__USHIO_RUNTIME_TAG || "missing_runtime_tag"',
-          );
-          debugPrint('[MilkdownRuntimeTag] $runtimeTag');
-        } catch (e) {
-          debugPrint('[MilkdownRuntimeTag] eval_failed: $e');
-        }
-        // Log baseDirectory via JS bridge
-        await controller.evaluateJavascript(
-          source: '''
-            (function() {
-              if (window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.emitDebug) {
-                window.__USHIO_BRIDGE__.emitDebug('[Flutter] onLoadStop - baseDirectory: "${widget.baseDirectory ?? ''}"');
-              }
-            })();
-          ''',
-        );
-        await _sendInitDoc();
-        await _sendTheme();
-      },
-      onLoadResourceWithCustomScheme: (controller, request) async {
-        final url = request.url;
-        // Log via JS bridge
-        await controller.evaluateJavascript(
-          source: '''
-            (function() {
-              if (window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.emitDebug) {
-                window.__USHIO_BRIDGE__.emitDebug('[Flutter] CustomScheme request: "$url"');
-              }
-            })();
-          ''',
-        );
-        return _serveLocalFileRequest(Uri.parse(url.toString()));
-      },
-      onConsoleMessage: (controller, consoleMessage) {
-        debugPrint('[WebView Console] ${consoleMessage.message}');
-      },
+          onLoadStop: (controller, _) async {
+            try {
+              final runtimeTag = await controller.evaluateJavascript(
+                source: 'window.__USHIO_RUNTIME_TAG || "missing_runtime_tag"',
+              );
+              debugPrint('[MilkdownRuntimeTag] $runtimeTag');
+            } catch (e) {
+              debugPrint('[MilkdownRuntimeTag] eval_failed: $e');
+            }
+            // Log baseDirectory via JS bridge
+            await controller.evaluateJavascript(
+              source:
+                  '''
+                (function() {
+                  if (window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.emitDebug) {
+                    window.__USHIO_BRIDGE__.emitDebug('[Flutter] onLoadStop - baseDirectory: "${widget.baseDirectory ?? ''}"');
+                  }
+                })();
+              ''',
+            );
+            await _sendInitDoc();
+            await _sendTheme();
+          },
+          onLoadResourceWithCustomScheme: (controller, request) async {
+            final url = request.url;
+            // Log via JS bridge
+            await controller.evaluateJavascript(
+              source:
+                  '''
+                (function() {
+                  if (window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.emitDebug) {
+                    window.__USHIO_BRIDGE__.emitDebug('[Flutter] CustomScheme request: "$url"');
+                  }
+                })();
+              ''',
+            );
+            return _serveLocalFileRequest(Uri.parse(url.toString()));
+          },
+          onConsoleMessage: (controller, consoleMessage) {
+            debugPrint('[WebView Console] ${consoleMessage.message}');
+          },
+        ),
+        // Loading overlay until first render
+        if (!_didFinishFirstRender)
+          Positioned.fill(child: _buildLoadingSkeleton(context, '正在加载内容...')),
+      ],
+    );
+  }
+
+  Widget _buildLoadingSkeleton(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      color: colorScheme.surface,
+      child: Column(
+        children: [
+          // Simulated title
+          Container(
+            height: 32,
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.outline.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          // Simulated paragraphs
+          ...List.generate(
+            5,
+            (i) => Container(
+              height: 16,
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: colorScheme.outline.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const Spacer(),
+          // Loading message
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  message,
+                  style: TextStyle(fontSize: 12, color: colorScheme.outline),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

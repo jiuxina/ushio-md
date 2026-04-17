@@ -23,6 +23,8 @@ class TocOverlay extends StatefulWidget {
   final VoidCallback onClose;
   final void Function(int index, TocItem item) onJumpToHeading;
   final TocOverlayController? controller;
+  final int? currentHeadingIndex;
+  final bool keepOpenOnJump;
 
   const TocOverlay({
     super.key,
@@ -30,6 +32,8 @@ class TocOverlay extends StatefulWidget {
     required this.onClose,
     required this.onJumpToHeading,
     this.controller,
+    this.currentHeadingIndex,
+    this.keepOpenOnJump = false,
   });
 
   @override
@@ -42,10 +46,12 @@ class _TocOverlayState extends State<TocOverlay>
   late final Animation<double> _scrimOpacityAnimation;
   late final Animation<Offset> _slideAnimation;
   bool _isClosing = false;
+  bool _keepOpen = false;
 
   @override
   void initState() {
     super.initState();
+    _keepOpen = widget.keepOpenOnJump;
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 180),
@@ -78,6 +84,13 @@ class _TocOverlayState extends State<TocOverlay>
     _controller.reverse().then((_) {
       if (mounted) widget.onClose();
     });
+  }
+
+  void _onItemTap(int index, TocItem item) {
+    widget.onJumpToHeading(index, item);
+    if (!_keepOpen) {
+      _startClose();
+    }
   }
 
   @override
@@ -151,6 +164,22 @@ class _TocOverlayState extends State<TocOverlay>
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const Spacer(),
+                              // Keep open toggle
+                              Tooltip(
+                                message: _keepOpen ? '跳转后保持打开' : '跳转后关闭',
+                                child: IconButton(
+                                  icon: Icon(
+                                    _keepOpen ? Icons.lock : Icons.lock_open,
+                                    size: 20,
+                                    color: _keepOpen
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).colorScheme.outline,
+                                  ),
+                                  onPressed: () {
+                                    setState(() => _keepOpen = !_keepOpen);
+                                  },
+                                ),
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.close),
                                 onPressed: _startClose,
@@ -179,10 +208,13 @@ class _TocOverlayState extends State<TocOverlay>
                                     itemCount: widget.items.length,
                                     itemBuilder: (context, index) {
                                       final item = widget.items[index];
+                                      final isCurrent =
+                                          index == widget.currentHeadingIndex;
                                       return _buildTocItem(
                                         context,
                                         item,
                                         index,
+                                        isCurrent,
                                       );
                                     },
                                   ),
@@ -200,7 +232,12 @@ class _TocOverlayState extends State<TocOverlay>
     );
   }
 
-  Widget _buildTocItem(BuildContext context, TocItem item, int index) {
+  Widget _buildTocItem(
+    BuildContext context,
+    TocItem item,
+    int index,
+    bool isCurrent,
+  ) {
     final indent = (item.level - 1) * 16.0;
     final colors = [
       Theme.of(context).colorScheme.primary,
@@ -218,13 +255,21 @@ class _TocOverlayState extends State<TocOverlay>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => widget.onJumpToHeading(index, item),
-          child: Container(
+          onTap: () => _onItemTap(index, item),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.05),
+              color: isCurrent
+                  ? color.withValues(alpha: 0.15)
+                  : color.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withValues(alpha: 0.2)),
+              border: Border.all(
+                color: isCurrent
+                    ? color.withValues(alpha: 0.5)
+                    : color.withValues(alpha: 0.2),
+                width: isCurrent ? 2 : 1,
+              ),
             ),
             child: Row(
               children: [
@@ -260,6 +305,7 @@ class _TocOverlayState extends State<TocOverlay>
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (isCurrent) Icon(Icons.arrow_left, color: color, size: 20),
               ],
             ),
           ),
