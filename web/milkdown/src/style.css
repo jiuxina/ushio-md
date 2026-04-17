@@ -56,6 +56,18 @@ body {
   line-height: var(--milkdown-line-height) !important;
 }
 
+/* Fix: Emoji (twemoji) size should match font size */
+.milkdown [data-type="emoji"],
+.milkdown [data-type="emoji"] img,
+.milkdown .emoji,
+.milkdown img.emoji {
+  display: inline-block !important;
+  width: 1em !important;
+  height: 1em !important;
+  vertical-align: text-bottom !important;
+  margin: 0 0.1em !important;
+}
+
 .milkdown .editor {
   background: transparent !important;
 }
