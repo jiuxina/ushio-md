@@ -744,6 +744,10 @@ class FileActions {
                       color: bgLayer == null
                           ? surfaceColor
                           : Colors.transparent,
+                      // NOTE: This is an offscreen, non-interactive instance used ONLY for
+                      // rendering a screenshot to share as an image. It is NOT a user-facing
+                      // read-only preview — users never see or interact with this widget.
+                      // Do NOT treat this as a "read-only mode" that needs UI polish.
                       child: MilkdownWebViewEditor(
                         initialMarkdown: markdown,
                         readOnly: true,

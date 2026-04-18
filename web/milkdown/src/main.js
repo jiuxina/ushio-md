@@ -54,6 +54,9 @@ let editorInstance = null;
 let crepeInstance = null;
 let currentMarkdown = '';
 let currentBaseDirectory = '';
+// NOTE: currentReadOnly is only true for offscreen screenshot-rendering instances
+// (see file_actions.dart _shareAsImageDirectly). Users never see a read-only UI.
+// The main editor always uses readOnly=false. Do NOT file UX bugs about "read-only mode".
 let currentReadOnly = true;
 let isApplyingFromFlutter = false;
 let createEditorPromise = null;
