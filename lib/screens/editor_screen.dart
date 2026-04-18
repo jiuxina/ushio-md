@@ -25,6 +25,7 @@ import 'editor/models/editor_patterns.dart';
 import 'editor/models/markdown_parser.dart';
 import 'editor/editor_shortcuts.dart';
 import '../services/export_service.dart';
+import '../utils/debug_log.dart';
 
 enum EditorMode { edit, preview }
 
@@ -42,10 +43,25 @@ class _EditorScreenState extends State<EditorScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   // ==================== 状态变量 ====================
   static const int _maxEditHistory = 100;
+
+  /// 根据文件大小动态限制历史步数
+  int get _effectiveMaxHistory {
+    final textLength = _textController.text.length;
+    if (textLength > 100000) return 20;   // > 100KB: 20 步
+    if (textLength > 50000) return 50;    // > 50KB: 50 步
+    return _maxEditHistory;               // 默认 100 步
+  }
+
   final List<EditHistoryEntry> _editHistory = [];
   int _historyIndex = -1;
   bool _isApplyingHistory = false;
   bool _textListenerAttached = false;
+
+  // ==================== 字数统计缓存 ====================
+  int _cachedCharCount = 0;
+  int _cachedGlyphCount = 0;
+  int _cachedWordCount = 0;
+  Timer? _wordCountDebounce;
 
   late TextEditingController _textController;
   late TextEditingController _searchController;
@@ -102,8 +118,8 @@ class _EditorScreenState extends State<EditorScreen>
   @override
   void initState() {
     super.initState();
-    debugPrint('[EDITOR] initState called for: ${widget.filePath}');
-    debugPrint(
+    appDebugLog('[EDITOR] initState called for: ${widget.filePath}');
+    appDebugLog(
       '[EDITOR] initialContent provided: ${widget.initialContent != null}, length: ${widget.initialContent?.length ?? "N/A"}',
     );
 
@@ -130,7 +146,7 @@ class _EditorScreenState extends State<EditorScreen>
     _attachEditSelectionListener();
 
     initStopwatch.stop();
-    debugPrint(
+    appDebugLog(
       '[EDITOR] Controllers initialized in ${initStopwatch.elapsedMilliseconds}ms',
     );
 
@@ -138,28 +154,28 @@ class _EditorScreenState extends State<EditorScreen>
     unawaited(_loadSearchHistory());
 
     if (widget.initialContent != null) {
-      debugPrint('[EDITOR] Using initialContent, skipping file load');
+      appDebugLog('[EDITOR] Using initialContent, skipping file load');
       _applyLoadedContent(widget.initialContent!);
       _configureAutoSave();
       _isLoading = false;
-      debugPrint('[EDITOR] initState complete (cached content)');
+      appDebugLog('[EDITOR] initState complete (cached content)');
     } else {
-      debugPrint('[EDITOR] No initialContent, calling _loadFile()');
+      appDebugLog('[EDITOR] No initialContent, calling _loadFile()');
       _loadFile();
     }
   }
 
   Future<void> _loadSearchHistory() async {
-    debugPrint('[EDITOR] _loadSearchHistory starting...');
+    appDebugLog('[EDITOR] _loadSearchHistory starting...');
     final history = await _searchHistoryService.getHistory();
-    debugPrint('[EDITOR] _loadSearchHistory done, ${history.length} items');
+    appDebugLog('[EDITOR] _loadSearchHistory done, ${history.length} items');
     if (mounted) {
       setState(() => _searchHistory = history);
     }
   }
 
   Future<void> _loadFile() async {
-    debugPrint('[EDITOR] _loadFile starting...');
+    appDebugLog('[EDITOR] _loadFile starting...');
     setState(() {
       _isLoading = true;
       _error = null;
@@ -167,11 +183,11 @@ class _EditorScreenState extends State<EditorScreen>
 
     try {
       final fileService = context.read<FileProvider>().fileService;
-      debugPrint('[EDITOR] Reading file: ${widget.filePath}');
+      appDebugLog('[EDITOR] Reading file: ${widget.filePath}');
       final loadStopwatch = Stopwatch()..start();
       final content = await fileService.readFile(widget.filePath);
       loadStopwatch.stop();
-      debugPrint(
+      appDebugLog(
         '[EDITOR] File read in ${loadStopwatch.elapsedMilliseconds}ms, length: ${content.length}',
       );
 
@@ -179,18 +195,18 @@ class _EditorScreenState extends State<EditorScreen>
       _applyLoadedContent(content);
       _configureAutoSave();
     } catch (e) {
-      debugPrint('[EDITOR] _loadFile ERROR: $e');
+      appDebugLog('[EDITOR] _loadFile ERROR: $e');
       _error = e.toString();
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
-      debugPrint('[EDITOR] _loadFile complete, _isLoading = false');
+      appDebugLog('[EDITOR] _loadFile complete, _isLoading = false');
     }
   }
 
   void _applyLoadedContent(String content) {
-    debugPrint(
+    appDebugLog(
       '[EDITOR] _applyLoadedContent called, length: ${content.length}',
     );
     _textController.text = content;
@@ -198,6 +214,13 @@ class _EditorScreenState extends State<EditorScreen>
       _textController.addListener(_onTextChanged);
       _textListenerAttached = true;
     }
+    // 初始化字数统计缓存
+    _cachedCharCount = content.length;
+    _cachedGlyphCount = content.runes.where((char) {
+      final value = String.fromCharCode(char);
+      return value.trim().isNotEmpty;
+    }).length;
+    _cachedWordCount = content.split(wordSplitRegex).where((w) => w.isNotEmpty).length;
     _recordHistorySnapshot(
       text: content,
       selection: const TextSelection.collapsed(offset: 0),
@@ -251,17 +274,13 @@ class _EditorScreenState extends State<EditorScreen>
     if (!selection.isValid) return;
 
     final text = _textController.text;
-    final cursorOffset = selection.extentOffset;
+    final cursorOffset = selection.extentOffset.clamp(0, text.length);
     final settings = context.read<SettingsProvider>();
     final fontSize = settings.fontSize;
     final lineHeight = fontSize * 1.5;
 
-    int lineCount = 0;
-    int pos = 0;
-    while (pos < cursorOffset && pos < text.length) {
-      if (text[pos] == '\n') lineCount++;
-      pos++;
-    }
+    // 使用 substring + split 计算行号，比逐字符遍历更快
+    final lineCount = text.substring(0, cursorOffset).split('\n').length - 1;
 
     const topPadding = 16.0;
     final estimatedY = topPadding + (lineCount * lineHeight);
@@ -310,6 +329,25 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_isApplyingHistory) {
       _recordHistorySnapshot();
     }
+    _scheduleWordCountUpdate();
+  }
+
+  void _scheduleWordCountUpdate() {
+    _wordCountDebounce?.cancel();
+    _wordCountDebounce = Timer(const Duration(milliseconds: 300), () {
+      _updateWordCount();
+    });
+  }
+
+  void _updateWordCount() {
+    final text = _textController.text;
+    _cachedCharCount = text.length;
+    _cachedGlyphCount = text.runes.where((char) {
+      final value = String.fromCharCode(char);
+      return value.trim().isNotEmpty;
+    }).length;
+    _cachedWordCount = text.split(wordSplitRegex).where((w) => w.isNotEmpty).length;
+    if (mounted) setState(() {});
   }
 
   void _recordHistorySnapshot({
@@ -339,8 +377,8 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     _editHistory.add(EditHistoryEntry(text: t, selection: safe));
-    if (_editHistory.length > _maxEditHistory) {
-      final overflow = _editHistory.length - _maxEditHistory;
+    if (_editHistory.length > _effectiveMaxHistory) {
+      final overflow = _editHistory.length - _effectiveMaxHistory;
       _editHistory.removeRange(0, overflow);
       _historyIndex = (_historyIndex - overflow).clamp(
         0,
@@ -542,6 +580,7 @@ class _EditorScreenState extends State<EditorScreen>
     _editScrollTimer?.cancel();
     _searchDebounceTimer?.cancel();
     _actionFeedbackTimer?.cancel();
+    _wordCountDebounce?.cancel();
 
     // 移除所有 listener，使用标志位防止重复移除
     if (_textListenerAttached) {
@@ -769,7 +808,7 @@ class _EditorScreenState extends State<EditorScreen>
 
         while (matches.length < maxResults) {
           if (DateTime.now().difference(startTime) > maxSearchTime) {
-            debugPrint('搜索超时，已找到 ${matches.length} 个结果');
+            appDebugLog('搜索超时，已找到 ${matches.length} 个结果');
             break;
           }
 
@@ -791,7 +830,7 @@ class _EditorScreenState extends State<EditorScreen>
       }
     } catch (e) {
       // 无效的正则表达式或其他错误
-      debugPrint('搜索错误: $e');
+      appDebugLog('搜索错误: $e');
     }
 
     if (!mounted) return;
@@ -925,7 +964,7 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== 复选框和链接处理 ====================
 
   void _toggleCheckbox(int index, bool newValue) {
-    debugPrint('[CHECKBOX] Flutter _toggleCheckbox called: index=$index, newValue=$newValue');
+    appDebugLog('[CHECKBOX] Flutter _toggleCheckbox called: index=$index, newValue=$newValue');
     final newText = toggleCheckboxInText(_textController.text, index, newValue);
     if (newText != null) {
       _previewWebViewController.suppressNextReload();
@@ -933,9 +972,9 @@ class _EditorScreenState extends State<EditorScreen>
       _textController.text = newText;
       _textController.addListener(_onTextChanged);
       setState(() => _isModified = true);
-      debugPrint('[CHECKBOX] Checkbox toggled successfully');
+      appDebugLog('[CHECKBOX] Checkbox toggled successfully');
     } else {
-      debugPrint('[CHECKBOX] toggleCheckboxInText returned null - checkbox not found');
+      appDebugLog('[CHECKBOX] toggleCheckboxInText returned null - checkbox not found');
     }
   }
 
@@ -954,15 +993,15 @@ class _EditorScreenState extends State<EditorScreen>
       } catch (e) {
         // If decoding fails, use the raw fragment
         headingFragment = normalizedHref.substring(1).trim();
-        debugPrint('[LINK] URI decode failed, using raw fragment: $e');
+        appDebugLog('[LINK] URI decode failed, using raw fragment: $e');
       }
 
       if (headingFragment.isNotEmpty) {
-        debugPrint('[LINK] href="$href" fragment="$headingFragment"');
-        debugPrint('[LINK] TOC items count: ${_tocItems.length}');
+        appDebugLog('[LINK] href="$href" fragment="$headingFragment"');
+        appDebugLog('[LINK] TOC items count: ${_tocItems.length}');
         for (var i = 0; i < _tocItems.length; i++) {
           final item = _tocItems[i];
-          debugPrint('[LINK] TOC[$i]: title="${item.title}" slug="${slugifyHeading(item.title)}" line=${item.lineNumber}');
+          appDebugLog('[LINK] TOC[$i]: title="${item.title}" slug="${slugifyHeading(item.title)}" line=${item.lineNumber}');
         }
 
         // Try multiple matching strategies
@@ -976,7 +1015,7 @@ class _EditorScreenState extends State<EditorScreen>
           final normalizedFragment = slugifyHeading(headingFragment);
           final normalizedTitle = slugifyHeading(itemTitle);
           if (normalizedTitle == normalizedFragment) {
-            debugPrint('[LINK] Matched by slug: "$normalizedTitle"');
+            appDebugLog('[LINK] Matched by slug: "$normalizedTitle"');
             _jumpToHeading(i, item);
             jumped = true;
             break;
@@ -988,7 +1027,7 @@ class _EditorScreenState extends State<EditorScreen>
           final anchorWithHyphen = headingFragment.replaceAll('-', ' ');
           if (slugifyHeading(titleWithDot) ==
               slugifyHeading(anchorWithHyphen)) {
-            debugPrint(
+            appDebugLog(
               '[LINK] Matched by normalized: "$titleWithDot" ~ "$anchorWithHyphen"',
             );
             _jumpToHeading(i, item);
@@ -1007,7 +1046,7 @@ class _EditorScreenState extends State<EditorScreen>
               .trim();
           if (slugifyHeading(fragmentTextOnly) ==
               slugifyHeading(titleTextOnly)) {
-            debugPrint(
+            appDebugLog(
               '[LINK] Matched by text: "$fragmentTextOnly" ~ "$titleTextOnly"',
             );
             _jumpToHeading(i, item);
@@ -1027,7 +1066,7 @@ class _EditorScreenState extends State<EditorScreen>
             if (targetLine != null &&
                 targetLine > 0 &&
                 targetLine <= _tocItems.length) {
-              debugPrint('[LINK] Matched by line number: $targetLine');
+              appDebugLog('[LINK] Matched by line number: $targetLine');
               _jumpToHeading(targetLine - 1, _tocItems[targetLine - 1]);
               jumped = true;
             }
@@ -1036,7 +1075,7 @@ class _EditorScreenState extends State<EditorScreen>
 
         // Final fallback: try direct scroll via WebView command
         if (!jumped) {
-          debugPrint('[LINK] No match found, trying scroll_to_anchor');
+          appDebugLog('[LINK] No match found, trying scroll_to_anchor');
           _previewWebViewController.execCmd(
             'scroll_to_anchor',
             args: {'anchor': headingFragment},
@@ -1082,7 +1121,7 @@ class _EditorScreenState extends State<EditorScreen>
       try {
         launchUrl(uri, mode: LaunchMode.externalApplication);
       } catch (e) {
-        debugPrint('打开链接失败: $e');
+        appDebugLog('打开链接失败: $e');
       }
     }
   }
@@ -1360,7 +1399,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   Widget build(BuildContext context) {
-    debugPrint(
+    appDebugLog(
       '[EDITOR] build() called - _isLoading: $_isLoading, _error: $_error, _mode: $_mode',
     );
 
@@ -1616,12 +1655,14 @@ class _EditorScreenState extends State<EditorScreen>
               !settings.focusMode)
             Positioned.fill(
               child: IgnorePointer(
-                child: TickerMode(
-                  enabled: true,
-                  child: ParticleEffectWidget(
-                    particleType: settings.particleType,
-                    speed: settings.particleSpeed,
+                child: RepaintBoundary(
+                  child: TickerMode(
                     enabled: true,
+                    child: ParticleEffectWidget(
+                      particleType: settings.particleType,
+                      speed: settings.particleSpeed,
+                      enabled: true,
+                    ),
                   ),
                 ),
               ),
@@ -1633,14 +1674,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _getWordCount() {
     final l10n = AppLocalizations.of(context)!;
-    final text = _textController.text;
-    final chars = text.length;
-    final glyphs = text.runes.where((char) {
-      final value = String.fromCharCode(char);
-      return value.trim().isNotEmpty;
-    }).length;
-    final words = text.split(wordSplitRegex).where((w) => w.isNotEmpty).length;
-    return l10n.wordCount(chars, glyphs, words);
+    return l10n.wordCount(_cachedCharCount, _cachedGlyphCount, _cachedWordCount);
   }
 
   Widget _buildEditorWithGesture() {
@@ -1702,9 +1736,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   Widget? _buildEditorBackgroundLayer(SettingsProvider settings) {
     final path = settings.editorBackgroundImagePath;
-    if (path == null) return null;
+    if (path == null || !settings.editorBackgroundImageExists) return null;
+
     final file = File(path);
-    if (!file.existsSync()) return null;
 
     Widget imageLayer = Image.file(
       file,

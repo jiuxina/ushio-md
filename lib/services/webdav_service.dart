@@ -12,6 +12,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 import 'sync_service_interface.dart';
+import '../utils/debug_log.dart';
 
 /// WebDAV 连接配置
 class WebDAVConfig {
@@ -130,7 +131,7 @@ class WebDAVService implements SyncServiceInterface {
       await _client!.ping();
       return true;
     } catch (e) {
-      debugPrint('WebDAV 连接测试失败: $e');
+      appDebugLog('WebDAV 连接测试失败: $e');
       return false;
     }
   }
@@ -145,7 +146,7 @@ class WebDAVService implements SyncServiceInterface {
       await _client!.mkdir(remotePath);
     } catch (e) {
       // 目录可能已存在，忽略错误，但记录详细日志便于调试
-      debugPrint('WebDAV 创建远程工作区目录失败 (可能已存在): ${getFullRemotePath()} - $e');
+      appDebugLog('WebDAV 创建远程工作区目录失败 (可能已存在): ${getFullRemotePath()} - $e');
     }
   }
 
@@ -178,7 +179,7 @@ class WebDAVService implements SyncServiceInterface {
           )
           .toList();
     } catch (e) {
-      debugPrint('WebDAV 列出目录失败: $e');
+      appDebugLog('WebDAV 列出目录失败: $e');
       return null;
     }
   }
@@ -194,7 +195,7 @@ class WebDAVService implements SyncServiceInterface {
     try {
       final file = File(localPath);
       if (!await file.exists()) {
-        debugPrint('WebDAV 上传失败：本地文件不存在 $localPath');
+        appDebugLog('WebDAV 上传失败：本地文件不存在 $localPath');
         return false;
       }
 
@@ -207,10 +208,10 @@ class WebDAVService implements SyncServiceInterface {
 
       // 上传文件
       await _client!.writeFromFile(localPath, targetPath);
-      debugPrint('WebDAV 上传成功: $localPath -> $targetPath');
+      appDebugLog('WebDAV 上传成功: $localPath -> $targetPath');
       return true;
     } catch (e) {
-      debugPrint('WebDAV 上传失败: $e');
+      appDebugLog('WebDAV 上传失败: $e');
       return false;
     }
   }
@@ -236,10 +237,10 @@ class WebDAVService implements SyncServiceInterface {
 
       // 下载文件
       await _client!.read2File(sourcePath, localPath);
-      debugPrint('WebDAV 下载成功: $sourcePath -> $localPath');
+      appDebugLog('WebDAV 下载成功: $sourcePath -> $localPath');
       return true;
     } catch (e) {
-      debugPrint('WebDAV 下载失败: $e');
+      appDebugLog('WebDAV 下载失败: $e');
       return false;
     }
   }
@@ -253,10 +254,10 @@ class WebDAVService implements SyncServiceInterface {
       final fullRemotePath = getFullRemotePath();
       final targetPath = '$fullRemotePath/$remotePath';
       await _client!.remove(targetPath);
-      debugPrint('WebDAV 删除成功: $targetPath');
+      appDebugLog('WebDAV 删除成功: $targetPath');
       return true;
     } catch (e) {
-      debugPrint('WebDAV 删除失败: $e');
+      appDebugLog('WebDAV 删除失败: $e');
       return false;
     }
   }
@@ -280,7 +281,7 @@ class WebDAVService implements SyncServiceInterface {
         orElse: () => throw Exception('文件不存在'),
       );
     } catch (e) {
-      debugPrint('WebDAV 获取远程文件信息失败: $remotePath - $e');
+      appDebugLog('WebDAV 获取远程文件信息失败: $remotePath - $e');
       return null;
     }
   }
@@ -300,7 +301,7 @@ class WebDAVService implements SyncServiceInterface {
         await _client!.mkdir(currentPath);
       } catch (e) {
         // 目录可能已存在，忽略错误，但记录详细日志便于调试
-        debugPrint('WebDAV 创建目录失败 (可能已存在): $currentPath - $e');
+        appDebugLog('WebDAV 创建目录失败 (可能已存在): $currentPath - $e');
       }
     }
   }

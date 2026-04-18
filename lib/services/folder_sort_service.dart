@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../utils/debug_log.dart';
 
 class FolderSortService {
   static final FolderSortService _instance = FolderSortService._internal();
@@ -42,7 +43,7 @@ class FolderSortService {
         }
       }
     } catch (e) {
-      debugPrint('Error loading folder sort orders: $e');
+      appDebugLog('Error loading folder sort orders: $e');
     }
     _initialized = true;
   }
@@ -63,7 +64,7 @@ class FolderSortService {
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
-      debugPrint('Error saving folder sort orders: $e');
+      appDebugLog('Error saving folder sort orders: $e');
     }
   }
 

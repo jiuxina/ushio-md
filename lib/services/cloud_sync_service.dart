@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'sync_service_interface.dart';
 import 'my_files_service.dart';
+import '../utils/debug_log.dart';
 
 /// 同步状态枚举
 enum SyncStatus {
@@ -170,6 +171,7 @@ class CloudSyncService {
 
       // 获取远程文件列表
       final remoteFiles = await _collectRemoteFiles();
+      final remoteFileMap = _buildRemoteFileMap(remoteFiles);
 
       // 计算总文件数用于进度显示
       int totalFiles = localFiles.length + remoteFiles.length;
@@ -186,7 +188,7 @@ class CloudSyncService {
       // 同步本地到远程（上传新文件或更新的文件）
       for (final localFile in localFiles) {
         final relativePath = await _getRelativePath(localFile.path);
-        final remoteFile = _findRemoteFile(remoteFiles, relativePath);
+        final remoteFile = remoteFileMap[relativePath];
 
         // 更新进度
         processedFiles++;
@@ -272,7 +274,7 @@ class CloudSyncService {
         );
         if (localPath == null) {
           // 路径不安全，跳过此文件
-          debugPrint('[Security] Skipping malicious path: $relativePath');
+          appDebugLog('[Security] Skipping malicious path: $relativePath');
           continue;
         }
 
@@ -302,7 +304,7 @@ class CloudSyncService {
         deletedCount: skipped,
       );
     } catch (e) {
-      debugPrint('CloudSync 同步失败: $e');
+      appDebugLog('CloudSync 同步失败: $e');
       _setStatus(SyncStatus.error);
       progressNotifier.value = null; // 清除进度
       return SyncResult.failed('同步失败: $e');
@@ -329,11 +331,12 @@ class CloudSyncService {
 
       // 获取远程文件列表
       final remoteFiles = await _collectRemoteFiles();
+      final remoteFileMap = _buildRemoteFileMap(remoteFiles);
 
       // 检查本地文件
       for (final localFile in localFiles) {
         final relativePath = await _getRelativePath(localFile.path);
-        final remoteFile = _findRemoteFile(remoteFiles, relativePath);
+        final remoteFile = remoteFileMap[relativePath];
 
         if (remoteFile == null) {
           // 远程不存在，需要上传
@@ -373,7 +376,7 @@ class CloudSyncService {
         );
         if (localPath == null) {
           // 路径不安全，跳过此文件
-          debugPrint(
+          appDebugLog(
             '[Security] Skipping malicious path in preview: $relativePath',
           );
           continue;
@@ -391,7 +394,7 @@ class CloudSyncService {
         conflicts: conflicts,
       );
     } catch (e) {
-      debugPrint('CloudSync 预览失败: $e');
+      appDebugLog('CloudSync 预览失败: $e');
       return null;
     }
   }
@@ -404,7 +407,7 @@ class CloudSyncService {
       final relativePath = await _getRelativePath(localPath);
       return await _syncService.uploadFile(localPath, relativePath);
     } catch (e) {
-      debugPrint('CloudSync 单文件同步失败: $e');
+      appDebugLog('CloudSync 单文件同步失败: $e');
       return false;
     }
   }
@@ -498,7 +501,7 @@ class CloudSyncService {
       if (normalizedRelative.startsWith('..') ||
           normalizedRelative.contains('/..') ||
           normalizedRelative.contains('\\..')) {
-        debugPrint('[Security] Path traversal detected in: $relativePath');
+        appDebugLog('[Security] Path traversal detected in: $relativePath');
         return null;
       }
 
@@ -513,7 +516,7 @@ class CloudSyncService {
 
       // 5. 确保规范化后的路径仍在工作区内
       if (!normalizedLocalPath.startsWith(workspacePath)) {
-        debugPrint(
+        appDebugLog(
           '[Security] Path escapes workspace: $relativePath -> $normalizedLocalPath',
         );
         return null;
@@ -521,22 +524,20 @@ class CloudSyncService {
 
       return normalizedLocalPath;
     } catch (e) {
-      debugPrint('[Security] Path validation error: $e');
+      appDebugLog('[Security] Path validation error: $e');
       return null;
     }
   }
 
-  /// 在远程文件列表中查找文件
-  RemoteFileInfo? _findRemoteFile(
+  /// 构建远程文件 Map 索引，O(1) 查找替代 O(n) 线性搜索
+  Map<String, RemoteFileInfo> _buildRemoteFileMap(
     List<RemoteFileInfo> remoteFiles,
-    String relativePath,
   ) {
+    final map = <String, RemoteFileInfo>{};
     for (final file in remoteFiles) {
       final remoteRelative = _getRemoteRelativePath(file.path);
-      if (remoteRelative == relativePath) {
-        return file;
-      }
+      map[remoteRelative] = file;
     }
-    return null;
+    return map;
   }
 }

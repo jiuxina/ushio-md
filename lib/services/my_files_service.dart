@@ -17,6 +17,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../providers/settings_provider.dart';
 import 'file_service.dart';
+import '../utils/debug_log.dart';
 
 /// "我的文件" 工作区服务
 class MyFilesService {
@@ -73,7 +74,7 @@ class MyFilesService {
     final externalDir = await getExternalStorageDirectory();
     if (externalDir == null) {
       // 如果无法获取外部存储，回退到应用文档目录
-      debugPrint('MyFilesService: 无法获取外部存储目录，回退到应用文档目录');
+      appDebugLog('MyFilesService: 无法获取外部存储目录，回退到应用文档目录');
       return await getApplicationDocumentsDirectory();
     }
 
@@ -108,11 +109,11 @@ class MyFilesService {
     try {
       if (!await documentsDir.exists()) {
         await documentsDir.create(recursive: true);
-        debugPrint('MyFilesService: 创建 Documents 目录 $documentsPath');
+        appDebugLog('MyFilesService: 创建 Documents 目录 $documentsPath');
       }
       return documentsDir;
     } catch (e) {
-      debugPrint('MyFilesService: 无法访问 Documents 目录 $documentsPath: $e');
+      appDebugLog('MyFilesService: 无法访问 Documents 目录 $documentsPath: $e');
       // 如果无法访问公共 Documents 目录，回退到应用文档目录
       // 这会导致文件无法在文件管理器中显示，但至少应用内可用
       return await getApplicationDocumentsDirectory();
@@ -160,7 +161,7 @@ class MyFilesService {
 
     if (!await dir.exists()) {
       await dir.create(recursive: true);
-      debugPrint('MyFilesService: 创建工作区目录 $path');
+      appDebugLog('MyFilesService: 创建工作区目录 $path');
     }
   }
 
@@ -183,7 +184,7 @@ class MyFilesService {
       normalizedFilePath = File(filePath).absolute.path;
       normalizedWorkspacePath = File(workspacePath).absolute.path;
     } catch (e) {
-      debugPrint('MyFilesService: 路径规范化失败: $e');
+      appDebugLog('MyFilesService: 路径规范化失败: $e');
       return false;
     }
     
@@ -221,7 +222,7 @@ class MyFilesService {
       final realFilePathCheck = isWindows ? realFilePath.toLowerCase() : realFilePath;
       return realFilePathCheck.startsWith(workspacePathCheck);
     } catch (e) {
-      debugPrint('MyFilesService: 路径安全检查失败: $e');
+      appDebugLog('MyFilesService: 路径安全检查失败: $e');
       return false;
     }
   }
@@ -272,7 +273,7 @@ class MyFilesService {
 
     // 复制文件
     await sourceFile.copy(finalPath);
-    debugPrint('MyFilesService: 复制文件 $sourcePath -> $finalPath');
+    appDebugLog('MyFilesService: 复制文件 $sourcePath -> $finalPath');
 
     return finalPath;
   }
@@ -377,7 +378,7 @@ class MyFilesService {
 
     // 写入新文件
     await File(targetPath).writeAsString(content);
-    debugPrint(
+    appDebugLog(
       'MyFilesService: 复制文档及图片 $sourcePath -> $targetPath (${imagesToCopy.length}张图片)',
     );
 
@@ -408,7 +409,7 @@ class MyFilesService {
 
     // 递归复制目录
     await _copyDirectory(sourceDir, Directory(targetPath));
-    debugPrint('MyFilesService: 复制文件夹 $sourcePath -> $targetPath');
+    appDebugLog('MyFilesService: 复制文件夹 $sourcePath -> $targetPath');
 
     return targetPath;
   }

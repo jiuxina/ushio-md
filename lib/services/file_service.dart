@@ -17,6 +17,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/markdown_file.dart';
+import '../utils/debug_log.dart';
 
 /// 文件过大异常
 class FileTooLargeException implements Exception {
@@ -236,7 +237,7 @@ class FileService {
       }
     } catch (e) {
       // 优雅处理权限错误等情况
-      debugPrint('Error listing files: $e');
+      appDebugLog('Error listing files: $e');
     }
 
     // 按修改时间倒序排列（最新的在前）
@@ -263,7 +264,7 @@ class FileService {
         }
       }
     } catch (e) {
-      debugPrint('Error listing directories: $e');
+      appDebugLog('Error listing directories: $e');
     }
 
     // 按路径字母顺序排列
@@ -298,6 +299,7 @@ class FileService {
     if (allowCache) {
       final cached = _contentCache[path];
       if (cached != null &&
+          !cached.isExpired() &&
           cached.lastModified == stat.modified &&
           cached.size == stat.size) {
         _touchCacheEntry(path, cached);
@@ -397,6 +399,10 @@ class FileService {
   bool isFileCached(String path) {
     final cached = _contentCache[path];
     if (cached == null) return false;
+    if (cached.isExpired()) {
+      _contentCache.remove(path);
+      return false;
+    }
 
     final file = File(path);
     if (!file.existsSync()) {
@@ -451,12 +457,12 @@ class FileService {
             await testFile.delete();
           }
         } catch (e) {
-          debugPrint('操作失败: $e');
+          appDebugLog('操作失败: $e');
         }
         return false;
       }
     } catch (e) {
-      debugPrint('检查磁盘空间失败: $e');
+      appDebugLog('检查磁盘空间失败: $e');
       // 无法确定时，假设有空间（让实际写入来决定）
       return true;
     }
@@ -586,11 +592,30 @@ class FileService {
       content: content,
       lastModified: lastModified,
       size: size,
+      cachedAt: DateTime.now(),
     );
 
     while (_contentCache.length > _maxCachedFiles) {
       _contentCache.remove(_contentCache.keys.first);
     }
+  }
+
+  /// 清除所有过期缓存条目
+  static void clearExpiredCache() {
+    final expiredKeys = <String>[];
+    for (final entry in _contentCache.entries) {
+      if (entry.value.isExpired()) {
+        expiredKeys.add(entry.key);
+      }
+    }
+    for (final key in expiredKeys) {
+      _contentCache.remove(key);
+    }
+  }
+
+  /// 清除所有缓存（用于内存压力时）
+  static void clearAllCache() {
+    _contentCache.clear();
   }
 
   // ==================== 常用路径 ====================
@@ -634,10 +659,17 @@ class _CachedFileContent {
   final String content;
   final DateTime lastModified;
   final int size;
+  final DateTime cachedAt;
 
   const _CachedFileContent({
     required this.content,
     required this.lastModified,
     required this.size,
+    required this.cachedAt,
   });
+
+  /// 缓存是否已过期（默认 5 分钟）
+  bool isExpired({Duration ttl = const Duration(minutes: 5)}) {
+    return DateTime.now().difference(cachedAt) > ttl;
+  }
 }

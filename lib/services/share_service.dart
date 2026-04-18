@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive.dart';
+import '../utils/debug_log.dart';
 
 /// 分享服务类
 class ShareService {
@@ -75,7 +76,7 @@ class ShareService {
         try {
           zipFile.deleteSync();
         } catch (e) {
-          debugPrint('删除失败: $e');
+          appDebugLog('删除失败: $e');
         }
       });
 

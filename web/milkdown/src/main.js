@@ -3612,6 +3612,11 @@ window.__USHIO_BRIDGE__ = {
   emitDebug,
 };
 
+// 通知 Flutter 端 JS Bridge 已就绪
+if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+  window.flutter_inappwebview.callHandler('onBridgeReady');
+}
+
 // Prevent bfcache (back-forward cache) from restoring page without re-running JS
 // This ensures JavaScript is always executed when the page is loaded
 window.addEventListener('pageshow', (event) => {
@@ -3620,11 +3625,3 @@ window.addEventListener('pageshow', (event) => {
     window.location.reload();
   }
 });
-
-// Also prevent caching by adding cache-control via meta tag if not present
-if (!document.querySelector('meta[http-equiv="Cache-Control"]')) {
-  const meta = document.createElement('meta');
-  meta.setAttribute('http-equiv', 'Cache-Control');
-  meta.setAttribute('content', 'no-cache, no-store, must-revalidate');
-  document.head.appendChild(meta);
-}

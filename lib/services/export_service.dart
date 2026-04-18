@@ -15,6 +15,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/debug_log.dart';
 
 /// 导出服务类
 class ExportService {
@@ -41,11 +42,11 @@ class ExportService {
       Future.delayed(cleanupDelay, () {
         try {
           file.deleteSync();
-        } catch (e) { debugPrint('删除失败: $e'); }
+        } catch (e) { appDebugLog('删除失败: $e'); }
       });
       return true;
     } catch (e) {
-      debugPrint('图片分享失败: $e');
+      appDebugLog('图片分享失败: $e');
       return false;
     }
   }
@@ -82,13 +83,13 @@ class ExportService {
       // 延迟清理
       Future.delayed(cleanupDelay, () {
         try { file.deleteSync(); } catch (e) {
-          debugPrint('清理临时图片文件失败: $e');
+          appDebugLog('清理临时图片文件失败: $e');
         }
       });
       
       return true;
     } catch (e) {
-      debugPrint('图片导出失败: $e');
+      appDebugLog('图片导出失败: $e');
       return false;
     }
   }
@@ -148,13 +149,13 @@ class ExportService {
       // 延迟清理
       Future.delayed(cleanupDelay, () {
         try { file.deleteSync(); } catch (e) {
-          debugPrint('清理临时PDF文件失败: $e');
+          appDebugLog('清理临时PDF文件失败: $e');
         }
       });
       
       return true;
     } catch (e) {
-      debugPrint('PDF 导出失败: $e');
+      appDebugLog('PDF 导出失败: $e');
       return false;
     }
   }

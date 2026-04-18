@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:ftpconnect/ftpconnect.dart';
 import 'sync_service_interface.dart';
+import '../utils/debug_log.dart';
 
 /// FTP 连接配置
 class FTPConfig {
@@ -149,12 +150,12 @@ class FTPService implements SyncServiceInterface {
       await _ftpClient!.disconnect();
       return true;
     } catch (e) {
-      debugPrint('FTP 连接测试失败: $e');
+      appDebugLog('FTP 连接测试失败: $e');
       // 确保在异常时关闭连接
       try {
         await _ftpClient!.disconnect();
       } catch (disconnectError) {
-        debugPrint('FTP 断开连接失败: $disconnectError');
+        appDebugLog('FTP 断开连接失败: $disconnectError');
       }
       return false;
     }
@@ -211,7 +212,7 @@ class FTPService implements SyncServiceInterface {
   Future<bool> uploadFile(String localPath, String remotePath) async {
     final file = File(localPath);
     if (!await file.exists()) {
-      debugPrint('FTP 上传失败：本地文件不存在 $localPath');
+      appDebugLog('FTP 上传失败：本地文件不存在 $localPath');
       return false;
     }
 
@@ -230,9 +231,9 @@ class FTPService implements SyncServiceInterface {
       );
 
       if (success) {
-        debugPrint('FTP 上传成功: $localPath -> $targetPath');
+        appDebugLog('FTP 上传成功: $localPath -> $targetPath');
       } else {
-        debugPrint('FTP 上传失败: $localPath -> $targetPath');
+        appDebugLog('FTP 上传失败: $localPath -> $targetPath');
       }
       return success;
     });
@@ -264,9 +265,9 @@ class FTPService implements SyncServiceInterface {
       );
 
       if (success) {
-        debugPrint('FTP 下载成功: $sourcePath -> $localPath');
+        appDebugLog('FTP 下载成功: $sourcePath -> $localPath');
       } else {
-        debugPrint('FTP 下载失败: $sourcePath -> $localPath');
+        appDebugLog('FTP 下载失败: $sourcePath -> $localPath');
       }
       return success;
     });
@@ -284,9 +285,9 @@ class FTPService implements SyncServiceInterface {
       final success = await _ftpClient!.deleteFile(targetPath);
 
       if (success) {
-        debugPrint('FTP 删除成功: $targetPath');
+        appDebugLog('FTP 删除成功: $targetPath');
       } else {
-        debugPrint('FTP 删除失败: $targetPath');
+        appDebugLog('FTP 删除失败: $targetPath');
       }
       return success;
     });
@@ -311,7 +312,7 @@ class FTPService implements SyncServiceInterface {
         orElse: () => throw Exception('文件不存在'),
       );
     } catch (e) {
-      debugPrint('FTP 获取文件信息失败: $e');
+      appDebugLog('FTP 获取文件信息失败: $e');
       return null;
     }
   }
@@ -328,7 +329,7 @@ class FTPService implements SyncServiceInterface {
     Future<T> Function() operation,
   ) async {
     if (_ftpClient == null) {
-      debugPrint('FTP $operationName 失败: 客户端未初始化');
+      appDebugLog('FTP $operationName 失败: 客户端未初始化');
       return null;
     }
 
@@ -338,12 +339,12 @@ class FTPService implements SyncServiceInterface {
       await _ftpClient!.disconnect();
       return result;
     } catch (e) {
-      debugPrint('FTP $operationName 失败: $e');
+      appDebugLog('FTP $operationName 失败: $e');
       // 确保在异常时关闭连接
       try {
         await _ftpClient!.disconnect();
       } catch (disconnectError) {
-        debugPrint('FTP 断开连接失败: $disconnectError');
+        appDebugLog('FTP 断开连接失败: $disconnectError');
       }
       return null;
     }
@@ -359,7 +360,7 @@ class FTPService implements SyncServiceInterface {
     Future<bool> Function() operation,
   ) async {
     if (_ftpClient == null) {
-      debugPrint('FTP $operationName 失败: 客户端未初始化');
+      appDebugLog('FTP $operationName 失败: 客户端未初始化');
       return false;
     }
 
@@ -369,12 +370,12 @@ class FTPService implements SyncServiceInterface {
       await _ftpClient!.disconnect();
       return result;
     } catch (e) {
-      debugPrint('FTP $operationName 失败: $e');
+      appDebugLog('FTP $operationName 失败: $e');
       // 确保在异常时关闭连接
       try {
         await _ftpClient!.disconnect();
       } catch (disconnectError) {
-        debugPrint('FTP 断开连接失败: $disconnectError');
+        appDebugLog('FTP 断开连接失败: $disconnectError');
       }
       return false;
     }
@@ -394,7 +395,7 @@ class FTPService implements SyncServiceInterface {
         await _ftpClient!.makeDirectory(currentPath);
       } catch (e) {
         // 目录可能已存在，继续处理下一级
-        debugPrint('FTP 创建目录 $currentPath: $e');
+        appDebugLog('FTP 创建目录 $currentPath: $e');
       }
     }
   }

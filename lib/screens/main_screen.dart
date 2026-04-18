@@ -19,6 +19,7 @@ import 'main/tabs/history_tab.dart';
 import 'main/tabs/settings_tab.dart';
 import 'main/components/permission_screen.dart';
 import '../services/update_service.dart';
+import '../utils/debug_log.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -56,7 +57,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         _handleSharedFiles(value);
       },
       onError: (err) {
-        debugPrint("getIntentDataStream error: $err");
+        appDebugLog("getIntentDataStream error: $err");
       },
     );
 
@@ -76,7 +77,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
 
     if (path.isEmpty) return;
 
-    debugPrint("Received shared file: $path");
+    appDebugLog("Received shared file: $path");
 
     // 确保文件存在
     if (File(path).existsSync()) {

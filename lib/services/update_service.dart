@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import '../utils/debug_log.dart';
 
 /// 安装器抽象
 class AppInstaller {
@@ -24,7 +25,7 @@ class AppInstaller {
       });
       return result;
     } catch (e) {
-      debugPrint('Install error: $e');
+      appDebugLog('Install error: $e');
       return false;
     }
   }
@@ -114,11 +115,11 @@ class UpdateService {
           hasUpdate: hasUpdate,
         );
       } else {
-        debugPrint('检查更新失败: HTTP ${response.statusCode}');
+        appDebugLog('检查更新失败: HTTP ${response.statusCode}');
         return null;
       }
     } catch (e) {
-      debugPrint('检查更新异常: $e');
+      appDebugLog('检查更新异常: $e');
       return null;
     } finally {
       client.close();
@@ -176,7 +177,7 @@ class UpdateService {
       apkFile = await _getLocalFile(fileName);
     } else {
       // 镜像失败，尝试原链接
-      debugPrint('镜像下载失败，尝试原始链接...');
+      appDebugLog('镜像下载失败，尝试原始链接...');
       if (await _downloadFile(
         url,
         fileName,
@@ -189,7 +190,7 @@ class UpdateService {
 
     if (apkFile != null && apkFile.existsSync()) {
       // 安装
-      debugPrint('开始安装: ${apkFile.path}');
+      appDebugLog('开始安装: ${apkFile.path}');
       final appInstaller = installer ?? AppInstaller();
       final result = await appInstaller.install(apkFile.path);
       return result == true;
@@ -241,7 +242,7 @@ class UpdateService {
                 await sink?.close();
               },
               onError: (e) {
-                debugPrint('下载流错误: $e');
+                appDebugLog('下载流错误: $e');
                 sink?.close();
               },
               cancelOnError: true,
@@ -250,18 +251,18 @@ class UpdateService {
 
         return true;
       } else {
-        debugPrint('下载失败: HTTP ${response.statusCode}');
+        appDebugLog('下载失败: HTTP ${response.statusCode}');
         return false;
       }
     } catch (e) {
-      debugPrint('下载异常: $url, $e');
+      appDebugLog('下载异常: $url, $e');
       return false;
     } finally {
       // 确保关闭文件流
       try {
         await sink?.close();
       } catch (e) {
-        debugPrint('关闭文件流异常: $e');
+        appDebugLog('关闭文件流异常: $e');
       }
       // 如果是自己创建的 client，需要关闭
       if (shouldCloseClient) {

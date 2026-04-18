@@ -7,6 +7,7 @@ import '../../../widgets/empty_state.dart';
 import '../../../widgets/glass_card.dart';
 import '../../../utils/file_actions.dart';
 import '../../folder_browser_screen.dart';
+import '../../../utils/debug_log.dart';
 
 class RecentFoldersTab extends StatelessWidget {
   final FileProvider fileProvider;
@@ -50,7 +51,7 @@ class RecentFoldersTab extends StatelessWidget {
         dateStr = '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
       }
     } catch (e) {
-      debugPrint('获取文件夹信息失败: $e');
+      appDebugLog('获取文件夹信息失败: $e');
     }
 
     return GlassCard(

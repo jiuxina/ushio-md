@@ -58,25 +58,32 @@ class FileProvider extends ChangeNotifier {
   /// 是否已获取存储权限
   bool _hasPermission = false;
 
+  // ==================== 缓存的验证结果 ====================
+
+  /// 已验证存在的最近文件列表（异步验证后缓存）
+  List<String> _validatedRecentFiles = [];
+  /// 已验证存在的最近文件夹列表
+  List<String> _validatedRecentFolders = [];
+  /// 已验证存在的置顶文件列表
+  List<String> _validatedPinnedFiles = [];
+  /// 已验证存在的置顶文件夹列表
+  List<String> _validatedPinnedFolders = [];
+
   // ==================== Getters ====================
   
   List<MarkdownFile> get files => _files;
   
-  /// 获取最近文件列表（过滤不存在的文件）
-  List<String> get recentFiles => 
-      _recentFiles.where((path) => File(path).existsSync()).toList();
+  /// 获取最近文件列表（使用异步验证后的缓存）
+  List<String> get recentFiles => _validatedRecentFiles;
   
-  /// 获取最近文件夹列表（过滤不存在的文件夹）
-  List<String> get recentFolders => 
-      _recentFolders.where((path) => Directory(path).existsSync()).toList();
+  /// 获取最近文件夹列表（使用异步验证后的缓存）
+  List<String> get recentFolders => _validatedRecentFolders;
   
-  /// 获取置顶文件列表（过滤不存在的文件）
-  List<String> get pinnedFiles => 
-      _pinnedFiles.where((path) => File(path).existsSync()).toList();
+  /// 获取置顶文件列表（使用异步验证后的缓存）
+  List<String> get pinnedFiles => _validatedPinnedFiles;
   
-  /// 获取置顶文件夹列表（过滤不存在的文件夹）
-  List<String> get pinnedFolders => 
-      _pinnedFolders.where((path) => Directory(path).existsSync()).toList();
+  /// 获取置顶文件夹列表（使用异步验证后的缓存）
+  List<String> get pinnedFolders => _validatedPinnedFolders;
   
   String? get currentDirectory => _currentDirectory;
   bool get isLoading => _isLoading;
@@ -98,7 +105,43 @@ class FileProvider extends ChangeNotifier {
     await _loadRecentFiles();
     await _loadRecentFolders();
     await _loadPinnedItems();
+    await _validateAllPaths();
     await checkPermissions();
+  }
+
+  /// 异步验证所有路径是否存在，更新缓存
+  Future<void> _validateAllPaths() async {
+    final validatedRecent = <String>[];
+    for (final path in _recentFiles) {
+      if (await File(path).exists()) validatedRecent.add(path);
+    }
+    _validatedRecentFiles = validatedRecent;
+
+    final validatedRecentFolders = <String>[];
+    for (final path in _recentFolders) {
+      if (await Directory(path).exists()) validatedRecentFolders.add(path);
+    }
+    _validatedRecentFolders = validatedRecentFolders;
+
+    final validatedPinned = <String>[];
+    for (final path in _pinnedFiles) {
+      if (await File(path).exists()) validatedPinned.add(path);
+    }
+    _validatedPinnedFiles = validatedPinned;
+
+    final validatedPinnedFolders = <String>[];
+    for (final path in _pinnedFolders) {
+      if (await Directory(path).exists()) validatedPinnedFolders.add(path);
+    }
+    _validatedPinnedFolders = validatedPinnedFolders;
+
+    // 移除不存在的路径
+    _recentFiles = validatedRecent;
+    _recentFolders = validatedRecentFolders;
+    _pinnedFiles = validatedPinned;
+    _pinnedFolders = validatedPinnedFolders;
+
+    notifyListeners();
   }
 
   // ==================== 权限管理 ====================
@@ -200,7 +243,7 @@ class FileProvider extends ChangeNotifier {
   Future<void> _loadRecentFiles() async {
     final prefs = await SharedPreferences.getInstance();
     _recentFiles = prefs.getStringList('recent_files') ?? [];
-    notifyListeners();
+    _validatedRecentFiles = List.from(_recentFiles);
   }
 
   /// 添加文件到最近列表
@@ -212,10 +255,13 @@ class FileProvider extends ChangeNotifier {
   Future<void> addToRecentFiles(String path) async {
     _recentFiles.remove(path);  // 移除已存在的（确保不重复）
     _recentFiles.insert(0, path);  // 添加到首位
+    _validatedRecentFiles.remove(path);
+    _validatedRecentFiles.insert(0, path);
     
     // 限制最大数量
     if (_recentFiles.length > 20) {
       _recentFiles = _recentFiles.sublist(0, 20);
+      _validatedRecentFiles = _validatedRecentFiles.sublist(0, 20);
     }
 
     // 持久化存储
@@ -227,6 +273,7 @@ class FileProvider extends ChangeNotifier {
   /// 从最近列表移除文件
   Future<void> removeFromRecentFiles(String path) async {
     _recentFiles.remove(path);
+    _validatedRecentFiles.remove(path);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('recent_files', _recentFiles);
     notifyListeners();
@@ -235,6 +282,7 @@ class FileProvider extends ChangeNotifier {
   /// 清空最近文件列表
   Future<void> clearRecentFiles() async {
     _recentFiles.clear();
+    _validatedRecentFiles.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('recent_files');
     notifyListeners();
@@ -245,6 +293,8 @@ class FileProvider extends ChangeNotifier {
     if (newIndex > oldIndex) newIndex--;
     final item = _recentFiles.removeAt(oldIndex);
     _recentFiles.insert(newIndex, item);
+    _validatedRecentFiles.remove(item);
+    _validatedRecentFiles.insert(newIndex.clamp(0, _validatedRecentFiles.length), item);
     notifyListeners();
     
     final prefs = await SharedPreferences.getInstance();
@@ -257,15 +307,18 @@ class FileProvider extends ChangeNotifier {
   Future<void> _loadRecentFolders() async {
     final prefs = await SharedPreferences.getInstance();
     _recentFolders = prefs.getStringList('recent_folders') ?? [];
-    notifyListeners();
+    _validatedRecentFolders = List.from(_recentFolders);
   }
 
   /// 添加文件夹到最近列表
   Future<void> addToRecentFolders(String path) async {
     _recentFolders.remove(path);
     _recentFolders.insert(0, path);
+    _validatedRecentFolders.remove(path);
+    _validatedRecentFolders.insert(0, path);
     if (_recentFolders.length > 20) {
       _recentFolders = _recentFolders.sublist(0, 20);
+      _validatedRecentFolders = _validatedRecentFolders.sublist(0, 20);
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -276,6 +329,7 @@ class FileProvider extends ChangeNotifier {
   /// 从最近列表移除文件夹
   Future<void> removeFromRecentFolders(String path) async {
     _recentFolders.remove(path);
+    _validatedRecentFolders.remove(path);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('recent_folders', _recentFolders);
     notifyListeners();
@@ -284,6 +338,7 @@ class FileProvider extends ChangeNotifier {
   /// 清空最近文件夹列表
   Future<void> clearRecentFolders() async {
     _recentFolders.clear();
+    _validatedRecentFolders.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('recent_folders');
     notifyListeners();
@@ -294,6 +349,8 @@ class FileProvider extends ChangeNotifier {
     if (newIndex > oldIndex) newIndex--;
     final item = _recentFolders.removeAt(oldIndex);
     _recentFolders.insert(newIndex, item);
+    _validatedRecentFolders.remove(item);
+    _validatedRecentFolders.insert(newIndex.clamp(0, _validatedRecentFolders.length), item);
     notifyListeners();
     
     final prefs = await SharedPreferences.getInstance();
@@ -307,6 +364,8 @@ class FileProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _pinnedFiles = prefs.getStringList('pinned_files') ?? [];
     _pinnedFolders = prefs.getStringList('pinned_folders') ?? [];
+    _validatedPinnedFiles = List.from(_pinnedFiles);
+    _validatedPinnedFolders = List.from(_pinnedFolders);
   }
 
   /// 检查文件是否已置顶
@@ -321,8 +380,10 @@ class FileProvider extends ChangeNotifier {
   Future<void> togglePinFile(String path) async {
     if (_pinnedFiles.contains(path)) {
       _pinnedFiles.remove(path);
+      _validatedPinnedFiles.remove(path);
     } else {
       _pinnedFiles.insert(0, path);
+      _validatedPinnedFiles.insert(0, path);
     }
     notifyListeners();
     
@@ -334,8 +395,10 @@ class FileProvider extends ChangeNotifier {
   Future<void> togglePinFolder(String path) async {
     if (_pinnedFolders.contains(path)) {
       _pinnedFolders.remove(path);
+      _validatedPinnedFolders.remove(path);
     } else {
       _pinnedFolders.insert(0, path);
+      _validatedPinnedFolders.insert(0, path);
     }
     notifyListeners();
     
@@ -348,6 +411,8 @@ class FileProvider extends ChangeNotifier {
     if (newIndex > oldIndex) newIndex--;
     final item = _pinnedFiles.removeAt(oldIndex);
     _pinnedFiles.insert(newIndex, item);
+    _validatedPinnedFiles.remove(item);
+    _validatedPinnedFiles.insert(newIndex.clamp(0, _validatedPinnedFiles.length), item);
     notifyListeners();
     
     final prefs = await SharedPreferences.getInstance();
@@ -359,6 +424,8 @@ class FileProvider extends ChangeNotifier {
     if (newIndex > oldIndex) newIndex--;
     final item = _pinnedFolders.removeAt(oldIndex);
     _pinnedFolders.insert(newIndex, item);
+    _validatedPinnedFolders.remove(item);
+    _validatedPinnedFolders.insert(newIndex.clamp(0, _validatedPinnedFolders.length), item);
     notifyListeners();
     
     final prefs = await SharedPreferences.getInstance();
@@ -397,7 +464,8 @@ class FileProvider extends ChangeNotifier {
       await _fileService.deleteFile(path);
       await removeFromRecentFiles(path);
       _pinnedFiles.remove(path);
-      // Persist pinned removal? togglePinFile logic persists. Here we just remove from memory, need to persist.
+      _validatedPinnedFiles.remove(path);
+      // Persist pinned removal
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList('pinned_files', _pinnedFiles);
       
@@ -418,6 +486,7 @@ class FileProvider extends ChangeNotifier {
         await dir.delete(recursive: true);
         await removeFromRecentFolders(path);
         _pinnedFolders.remove(path);
+        _validatedPinnedFolders.remove(path);
         
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList('pinned_folders', _pinnedFolders);

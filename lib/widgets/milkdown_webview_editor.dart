@@ -11,6 +11,7 @@ import 'package:mime/mime.dart';
 
 import '../models/milkdown_bridge.dart';
 import '../services/my_files_service.dart';
+import '../utils/debug_log.dart';
 
 typedef MilkdownBridgeMessageHandler = void Function(Map<String, dynamic> msg);
 typedef MilkdownCheckboxToggleHandler = void Function(int index, bool value);
@@ -126,42 +127,42 @@ bool _isWarmingUp = false;
 Completer<void>? _warmupCompleter;
 
 Future<void> warmUpMilkdownWebAssets() async {
-  debugPrint('[WARMUP] warmUpMilkdownWebAssets() called');
+  appDebugLog('[WARMUP] warmUpMilkdownWebAssets() called');
 
   // Return immediately if server is already running
   if (_warmServer != null) {
-    debugPrint('[WARMUP] Server already running, returning immediately');
+    appDebugLog('[WARMUP] Server already running, returning immediately');
     return;
   }
 
   // If warmup is in progress, wait for it to complete
   if (_isWarmingUp && _warmupCompleter != null) {
-    debugPrint('[WARMUP] Warmup in progress, waiting for completion');
+    appDebugLog('[WARMUP] Warmup in progress, waiting for completion');
     await _warmupCompleter!.future;
-    debugPrint('[WARMUP] Wait completed');
+    appDebugLog('[WARMUP] Wait completed');
     return;
   }
 
   _isWarmingUp = true;
   _warmupCompleter = Completer<void>();
-  debugPrint('[WARMUP] Starting server...');
+  appDebugLog('[WARMUP] Starting server...');
 
   try {
     final stopwatch = Stopwatch()..start();
     final server = InAppLocalhostServer(documentRoot: 'assets/milkdown_web');
-    debugPrint('[WARMUP] InAppLocalhostServer created, calling start()...');
+    appDebugLog('[WARMUP] InAppLocalhostServer created, calling start()...');
     await server.start();
     stopwatch.stop();
-    debugPrint('[WARMUP] Server started in ${stopwatch.elapsedMilliseconds}ms');
+    appDebugLog('[WARMUP] Server started in ${stopwatch.elapsedMilliseconds}ms');
     _warmServer = server;
-    debugPrint('[WARMUP] Server assigned to _warmServer');
+    appDebugLog('[WARMUP] Server assigned to _warmServer');
   } catch (e) {
-    debugPrint('[WARMUP] FAILED: $e');
+    appDebugLog('[WARMUP] FAILED: $e');
   } finally {
     _isWarmingUp = false;
     _warmupCompleter?.complete();
     _warmupCompleter = null;
-    debugPrint('[WARMUP] Cleanup done');
+    appDebugLog('[WARMUP] Cleanup done');
   }
 }
 
@@ -414,7 +415,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
   /// Log errors only (minimal logging for production)
   void _logError(String message) {
-    debugPrint(message);
+    appDebugLog(message);
   }
 
   /// 安全检查：验证请求的文件路径是否在允许的目录范围内
@@ -517,7 +518,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   @override
   void initState() {
     super.initState();
-    debugPrint(
+    appDebugLog(
       '[WEBVIEW] initState called, initialMarkdown length: ${widget.initialMarkdown.length}',
     );
     _lastSyncedMarkdown = widget.initialMarkdown;
@@ -528,9 +529,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   }
 
   Future<void> _startLocalhostServer() async {
-    debugPrint('[WEBVIEW] _startLocalhostServer called');
+    appDebugLog('[WEBVIEW] _startLocalhostServer called');
     if (_isServerStarting || _localhostServer != null || _isDisposed) {
-      debugPrint(
+      appDebugLog(
         '[WEBVIEW] Server already starting/started or disposed, skipping',
       );
       return;
@@ -542,9 +543,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
       // Check if warmup server is available and reuse it
       if (_warmServer != null) {
-        debugPrint('[WEBVIEW] Reusing existing warmup server');
+        appDebugLog('[WEBVIEW] Reusing existing warmup server');
         if (!mounted || _isDisposed) {
-          debugPrint('[WEBVIEW] Widget unmounted or disposed');
+          appDebugLog('[WEBVIEW] Widget unmounted or disposed');
           return;
         }
         setState(() {
@@ -552,24 +553,24 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
           _initialUrl = _buildRuntimeUrl(_warmServer!);
         });
         stopwatch.stop();
-        debugPrint(
+        appDebugLog(
           '[WEBVIEW] Warmup server reused in ${stopwatch.elapsedMilliseconds}ms, _initialUrl: $_initialUrl',
         );
         return;
       }
 
-      debugPrint(
+      appDebugLog(
         '[WEBVIEW] No warmup server, creating new InAppLocalhostServer...',
       );
       final server = InAppLocalhostServer(documentRoot: _documentRoot);
-      debugPrint('[WEBVIEW] Server created, calling start()...');
+      appDebugLog('[WEBVIEW] Server created, calling start()...');
       await server.start();
       stopwatch.stop();
-      debugPrint(
+      appDebugLog(
         '[WEBVIEW] Server started in ${stopwatch.elapsedMilliseconds}ms',
       );
       if (!mounted || _isDisposed) {
-        debugPrint('[WEBVIEW] Widget unmounted or disposed, closing server');
+        appDebugLog('[WEBVIEW] Widget unmounted or disposed, closing server');
         await server.close();
         return;
       }
@@ -577,16 +578,16 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         _localhostServer = server;
         _initialUrl = _buildRuntimeUrl(server);
       });
-      debugPrint('[WEBVIEW] Server state updated, _initialUrl: $_initialUrl');
+      appDebugLog('[WEBVIEW] Server state updated, _initialUrl: $_initialUrl');
     } catch (e) {
-      debugPrint('[WEBVIEW] FAILED to start server: $e');
+      appDebugLog('[WEBVIEW] FAILED to start server: $e');
       if (!mounted || _isDisposed) return;
       setState(() {
         _initialUrl = '';
       });
     } finally {
       _isServerStarting = false;
-      debugPrint('[WEBVIEW] _startLocalhostServer done');
+      appDebugLog('[WEBVIEW] _startLocalhostServer done');
     }
   }
 
@@ -645,16 +646,16 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   }
 
   Future<void> _sendInitDoc({String? markdownOverride}) async {
-    debugPrint(
+    appDebugLog(
       '[WEBVIEW] _sendInitDoc called, markdownOverride: ${markdownOverride != null}',
     );
     var markdown = markdownOverride ?? widget.initialMarkdown;
-    debugPrint('[WEBVIEW] _sendInitDoc: markdown length = ${markdown.length}');
+    appDebugLog('[WEBVIEW] _sendInitDoc: markdown length = ${markdown.length}');
 
     // 内容安全检查：清理潜在的 XSS 向量
     // 注意：Milkdown WebView 已有沙箱隔离，这是额外的防护层
     if (_ContentSanitizer.containsDangerousContent(markdown)) {
-      debugPrint('警告: 检测到潜在危险内容，已自动清理');
+      appDebugLog('警告: 检测到潜在危险内容，已自动清理');
       markdown = _ContentSanitizer.sanitizeMarkdown(markdown);
     }
 
@@ -672,9 +673,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         readOnly: widget.readOnly,
       ),
     );
-    debugPrint('[WEBVIEW] _sendInitDoc: sending message...');
+    appDebugLog('[WEBVIEW] _sendInitDoc: sending message...');
     await _sendMessage(msg.toJson((payload) => payload.toJson()));
-    debugPrint('[WEBVIEW] _sendInitDoc: done');
+    appDebugLog('[WEBVIEW] _sendInitDoc: done');
   }
 
   Future<void> _sendTheme({ThemePalettePayload? payloadOverride}) async {
@@ -1062,12 +1063,12 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
   Future<void> _sendMessage(Map<String, dynamic> msg) async {
     final msgType = msg['type'] as String?;
-    debugPrint(
+    appDebugLog(
       '[WEBVIEW] _sendMessage: type=$msgType, _controller=${_controller != null}',
     );
 
     if (_controller == null) {
-      debugPrint('[WEBVIEW] _sendMessage: _controller is null, cannot send');
+      appDebugLog('[WEBVIEW] _sendMessage: _controller is null, cannot send');
       return;
     }
 
@@ -1094,20 +1095,20 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
           })();
         ''',
       );
-      debugPrint('[WEBVIEW] _sendMessage result: $result');
+      appDebugLog('[WEBVIEW] _sendMessage result: $result');
     } catch (e) {
-      debugPrint('[WEBVIEW] _sendMessage ERROR: $e');
+      appDebugLog('[WEBVIEW] _sendMessage ERROR: $e');
     }
   }
 
   Future<void> _handleBridgeArgs(List<dynamic> args) async {
     if (args.isEmpty || args.first is! Map) {
-      debugPrint('[WEBVIEW] Bridge: invalid message args: $args');
+      appDebugLog('[WEBVIEW] Bridge: invalid message args: $args');
       return;
     }
     final map = Map<String, dynamic>.from(args.first as Map);
     final msgType = map['type'] as String?;
-    debugPrint('[WEBVIEW] Bridge message received: type=$msgType');
+    appDebugLog('[WEBVIEW] Bridge message received: type=$msgType');
 
     widget.onBridgeMessage?.call(map);
     OnUploadImagesRequestPayload? uploadPayload;
@@ -1131,7 +1132,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       onCheckboxToggle: widget.onCheckboxToggle,
       onCmdResult: (cmd, ok, reason) {
         if (!ok) {
-          debugPrint(
+          appDebugLog(
             'Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}',
           );
           if (mounted && reason != null && reason.isNotEmpty) {
@@ -1145,12 +1146,12 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         }
       },
       onRenderComplete: () {
-        debugPrint(
+        appDebugLog(
           '[WEBVIEW] onRenderComplete received, _didFinishFirstRender: $_didFinishFirstRender',
         );
         if (!_didFinishFirstRender) {
           _didFinishFirstRender = true;
-          debugPrint('[WEBVIEW] _didFinishFirstRender set to true');
+          appDebugLog('[WEBVIEW] _didFinishFirstRender set to true');
         }
         widget.onLoadFinished?.call();
       },
@@ -1205,7 +1206,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     // Only close the server if it's NOT the warmup server (which is shared)
     // The warmup server should remain running for reuse by other instances
     if (server != null && !identical(server, _warmServer)) {
-      debugPrint('[WEBVIEW] Closing non-warmup server');
+      appDebugLog('[WEBVIEW] Closing non-warmup server');
       server.close();
     }
     super.dispose();
@@ -1213,25 +1214,25 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint(
+    appDebugLog(
       '[WEBVIEW] build() called - _initialUrl: ${_initialUrl == null ? "null" : (_initialUrl!.isEmpty ? "empty" : "set")}, _didFinishFirstRender: $_didFinishFirstRender',
     );
 
     if (_initialUrl == null) {
-      debugPrint(
+      appDebugLog(
         '[WEBVIEW] build(): showing loading skeleton (server not ready)',
       );
       return _buildLoadingSkeleton(context, '正在初始化编辑器...');
     }
 
     if (_initialUrl!.isEmpty) {
-      debugPrint('[WEBVIEW] build(): showing error (server failed)');
+      appDebugLog('[WEBVIEW] build(): showing error (server failed)');
       return const Center(
         child: Text('Failed to start Milkdown localhost server'),
       );
     }
 
-    debugPrint('[WEBVIEW] build(): rendering InAppWebView');
+    appDebugLog('[WEBVIEW] build(): rendering InAppWebView');
     // Use a key based on the URL to force a fresh WebView instance for each document
     // This ensures JavaScript is re-executed and the bridge is properly initialized
     final webViewKey = ValueKey(_initialUrl);
@@ -1263,7 +1264,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
             allowsInlineMediaPlayback: true,
           ),
           onWebViewCreated: (controller) {
-            debugPrint('[WEBVIEW] onWebViewCreated called');
+            appDebugLog('[WEBVIEW] onWebViewCreated called');
             _controller = controller;
             widget.controller?._attach(this);
             widget.controller?._attachWebViewController(controller);
@@ -1278,18 +1279,18 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
             controller
                 .clearCache()
                 .then((_) {
-                  debugPrint('[WEBVIEW] Cache cleared');
+                  appDebugLog('[WEBVIEW] Cache cleared');
                 })
                 .catchError((e) {
-                  debugPrint('[WEBVIEW] Cache clear error: $e');
+                  appDebugLog('[WEBVIEW] Cache clear error: $e');
                 });
-            debugPrint('[WEBVIEW] onWebViewCreated done');
+            appDebugLog('[WEBVIEW] onWebViewCreated done');
           },
           onLoadStop: (controller, _) async {
-            debugPrint('[WEBVIEW] onLoadStop called');
+            appDebugLog('[WEBVIEW] onLoadStop called');
 
             // Wait for JavaScript bridge to be ready
-            debugPrint('[WEBVIEW] Waiting for JS bridge to be ready...');
+            appDebugLog('[WEBVIEW] Waiting for JS bridge to be ready...');
             int attempts = 0;
             const maxAttempts = 50; // 5 seconds max
             bool bridgeReady = false;
@@ -1300,7 +1301,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                       '!!(window.__USHIO_BRIDGE__ && window.__USHIO_BRIDGE__.onFlutterMessage)',
                 );
                 if (ready == true) {
-                  debugPrint(
+                  appDebugLog(
                     '[WEBVIEW] JS bridge ready after ${attempts * 100}ms',
                   );
                   bridgeReady = true;
@@ -1316,12 +1317,12 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
             // If bridge not ready, force a reload to re-execute JavaScript
             // This handles the case where WebView uses bfcache and doesn't re-run JS
             if (!bridgeReady) {
-              debugPrint('[WEBVIEW] JS bridge NOT ready, forcing reload...');
+              appDebugLog('[WEBVIEW] JS bridge NOT ready, forcing reload...');
               try {
                 // Use either localhostServer or warmServer for the URL
                 final server = _localhostServer ?? _warmServer;
                 if (server == null) {
-                  debugPrint('[WEBVIEW] No server available for reload');
+                  appDebugLog('[WEBVIEW] No server available for reload');
                   return;
                 }
                 // Add a new timestamp to force cache bypass
@@ -1329,10 +1330,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                 await controller.loadUrl(
                   urlRequest: URLRequest(url: WebUri(newUrl)),
                 );
-                debugPrint('[WEBVIEW] Reload triggered with new URL: $newUrl');
+                appDebugLog('[WEBVIEW] Reload triggered with new URL: $newUrl');
                 return; // onLoadStop will be called again after reload
               } catch (e) {
-                debugPrint('[WEBVIEW] Reload failed: $e');
+                appDebugLog('[WEBVIEW] Reload failed: $e');
                 return;
               }
             }
@@ -1341,9 +1342,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
               final runtimeTag = await controller.evaluateJavascript(
                 source: 'window.__USHIO_RUNTIME_TAG || "missing_runtime_tag"',
               );
-              debugPrint('[MilkdownRuntimeTag] $runtimeTag');
+              appDebugLog('[MilkdownRuntimeTag] $runtimeTag');
             } catch (e) {
-              debugPrint('[MilkdownRuntimeTag] eval_failed: $e');
+              appDebugLog('[MilkdownRuntimeTag] eval_failed: $e');
             }
             // Log baseDirectory via JS bridge
             await controller.evaluateJavascript(
@@ -1356,11 +1357,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                 })();
               ''',
             );
-            debugPrint('[WEBVIEW] onLoadStop: calling _sendInitDoc()');
+            appDebugLog('[WEBVIEW] onLoadStop: calling _sendInitDoc()');
             await _sendInitDoc();
-            debugPrint('[WEBVIEW] onLoadStop: calling _sendTheme()');
+            appDebugLog('[WEBVIEW] onLoadStop: calling _sendTheme()');
             await _sendTheme();
-            debugPrint('[WEBVIEW] onLoadStop: done');
+            appDebugLog('[WEBVIEW] onLoadStop: done');
           },
           onLoadResourceWithCustomScheme: (controller, request) async {
             final url = request.url;
@@ -1378,7 +1379,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
             return _serveLocalFileRequest(Uri.parse(url.toString()));
           },
           onConsoleMessage: (controller, consoleMessage) {
-            debugPrint('[WebView Console] ${consoleMessage.message}');
+            appDebugLog('[WebView Console] ${consoleMessage.message}');
           },
         ),
         // Loading overlay until first render

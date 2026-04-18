@@ -10,6 +10,7 @@
 // 所有设置使用 SharedPreferences 持久化存储。
 // ============================================================================
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -19,11 +20,55 @@ import 'package:path_provider/path_provider.dart';
 
 import '../utils/app_style.dart';
 import '../utils/platform_adapter.dart';
+import '../utils/debug_log.dart';
 
 /// 设置状态提供者
 ///
 /// 管理应用的外观和行为设置
 class SettingsProvider extends ChangeNotifier {
+  // ==================== 持久化缓存 ====================
+
+  /// 缓存的 SharedPreferences 实例，避免每次 setter 都 getInstance()
+  SharedPreferences? _prefsCache;
+
+  /// 防抖持久化 Timer，用于 Slider 等高频更新场景
+  Timer? _persistDebounce;
+
+  /// 待持久化的键值对
+  final Map<String, dynamic> _pendingPersist = {};
+
+  Future<SharedPreferences> _getPrefs() async {
+    return _prefsCache ??= await SharedPreferences.getInstance();
+  }
+
+  /// 立即持久化单个键值
+  Future<void> _persist(String key, dynamic value) async {
+    final prefs = await _getPrefs();
+    if (value is double) await prefs.setDouble(key, value);
+    else if (value is int) await prefs.setInt(key, value);
+    else if (value is bool) await prefs.setBool(key, value);
+    else if (value is String) await prefs.setString(key, value);
+  }
+
+  /// 防抖持久化：500ms 内多次调用只执行一次写入
+  void _schedulePersist(String key, dynamic value) {
+    _pendingPersist[key] = value;
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(milliseconds: 500), () async {
+      final entries = Map<String, dynamic>.from(_pendingPersist);
+      _pendingPersist.clear();
+      final prefs = await _getPrefs();
+      for (final entry in entries.entries) {
+        final k = entry.key;
+        final v = entry.value;
+        if (v is double) await prefs.setDouble(k, v);
+        else if (v is int) await prefs.setInt(k, v);
+        else if (v is bool) await prefs.setBool(k, v);
+        else if (v is String) await prefs.setString(k, v);
+      }
+    });
+  }
+
   // ==================== 安全存储 ====================
 
   /// 安全存储（用于敏感信息如密码）
@@ -90,6 +135,9 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 编辑器背景图片路径（null 表示无背景图）
   String? _editorBackgroundImagePath;
+
+  /// 编辑器背景图片是否存在（在设置路径时异步验证，避免 build 中 existsSync）
+  bool _editorBackgroundImageExists = false;
 
   /// 背景效果类型：none（无）、blur（模糊）
   String _backgroundEffect = 'none';
@@ -229,6 +277,7 @@ class SettingsProvider extends ChangeNotifier {
   Color get primaryColor => themeColors[_primaryColorIndex];
   String? get backgroundImagePath => _backgroundImagePath;
   String? get editorBackgroundImagePath => _editorBackgroundImagePath;
+  bool get editorBackgroundImageExists => _editorBackgroundImageExists;
   String get backgroundEffect => _backgroundEffect;
   double get backgroundBlur => _backgroundBlur;
   double get backgroundBrightness => _backgroundBrightness;
@@ -358,7 +407,7 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 从本地存储加载所有设置
   Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
 
     // 主题设置
     final themeModeIndex = prefs.getInt('theme_mode') ?? 0;
@@ -388,6 +437,10 @@ class SettingsProvider extends ChangeNotifier {
     _editorBackgroundImagePath = prefs.getString(
       'editor_background_image_path',
     );
+    // 异步验证背景图是否存在
+    if (_editorBackgroundImagePath != null) {
+      _editorBackgroundImageExists = await File(_editorBackgroundImagePath!).exists();
+    }
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
     _backgroundBlur = prefs.getDouble('background_blur') ?? 10.0;
     _backgroundBrightness = prefs.getDouble('background_brightness') ?? 1.0;
@@ -511,9 +564,8 @@ class SettingsProvider extends ChangeNotifier {
   /// [mode] ThemeMode.system / ThemeMode.light / ThemeMode.dark
   Future<void> setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('theme_mode', mode.index);
     notifyListeners();
+    _schedulePersist('theme_mode', mode.index);
   }
 
   /// 设置主题色
@@ -521,9 +573,8 @@ class SettingsProvider extends ChangeNotifier {
   /// [index] 颜色在 themeColors 中的索引（0-7）
   Future<void> setPrimaryColorIndex(int index) async {
     _primaryColorIndex = index;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('primary_color_index', index);
     notifyListeners();
+    _schedulePersist('primary_color_index', index);
   }
 
   // ==================== 背景设置方法 ====================
@@ -542,11 +593,11 @@ class SettingsProvider extends ChangeNotifier {
             await oldFile.delete();
           }
         } catch (e) {
-          debugPrint('操作失败: $e');
+          appDebugLog('操作失败: $e');
         }
       }
       _backgroundImagePath = null;
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       await prefs.remove('background_image_path');
       notifyListeners();
       return;
@@ -576,18 +627,18 @@ class SettingsProvider extends ChangeNotifier {
             await oldFile.delete();
           }
         } catch (e) {
-          debugPrint('操作失败: $e');
+          appDebugLog('操作失败: $e');
         }
       }
 
       _backgroundImagePath = destPath;
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       await prefs.setString('background_image_path', destPath);
       notifyListeners();
     } catch (e) {
       // 如果复制失败，直接使用原路径（回退方案）
       _backgroundImagePath = path;
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _getPrefs();
       await prefs.setString('background_image_path', path);
       notifyListeners();
     }
@@ -606,11 +657,12 @@ class SettingsProvider extends ChangeNotifier {
             await oldFile.delete();
           }
         } catch (e) {
-          debugPrint('操作失败: $e');
+          appDebugLog('操作失败: $e');
         }
       }
       _editorBackgroundImagePath = null;
-      final prefs = await SharedPreferences.getInstance();
+      _editorBackgroundImageExists = false;
+      final prefs = await _getPrefs();
       await prefs.remove('editor_background_image_path');
       notifyListeners();
       return;
@@ -638,18 +690,20 @@ class SettingsProvider extends ChangeNotifier {
             await oldFile.delete();
           }
         } catch (e) {
-          debugPrint('操作失败: $e');
+          appDebugLog('操作失败: $e');
         }
       }
 
       _editorBackgroundImagePath = destPath;
-      final prefs = await SharedPreferences.getInstance();
+      _editorBackgroundImageExists = true;
+      final prefs = await _getPrefs();
       await prefs.setString('editor_background_image_path', destPath);
       notifyListeners();
     } catch (e) {
       // 如果复制失败，直接使用原路径（回退方案）
       _editorBackgroundImagePath = path;
-      final prefs = await SharedPreferences.getInstance();
+      _editorBackgroundImageExists = await File(path).exists();
+      final prefs = await _getPrefs();
       await prefs.setString('editor_background_image_path', path);
       notifyListeners();
     }
@@ -658,17 +712,15 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置背景效果
   Future<void> setBackgroundEffect(String effect) async {
     _backgroundEffect = effect;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('background_effect', effect);
     notifyListeners();
+    _schedulePersist('background_effect', effect);
   }
 
   /// 设置模糊强度
   Future<void> setBackgroundBlur(double blur) async {
     _backgroundBlur = blur;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('background_blur', blur);
     notifyListeners();
+    _schedulePersist('background_blur', blur);
   }
 
   /// 仅在内存中更新背景亮度（不持久化），用于 Slider 拖动时实时预览
@@ -681,24 +733,21 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setBackgroundBrightness(double brightness) async {
     _backgroundBrightness = brightness;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('background_brightness', brightness);
+    _schedulePersist('background_brightness', brightness);
   }
 
   /// 设置编辑器背景模糊开关
   Future<void> setEditorBackgroundBlurEnabled(bool enabled) async {
     _editorBackgroundBlurEnabled = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('editor_background_blur_enabled', enabled);
     notifyListeners();
+    _schedulePersist('editor_background_blur_enabled', enabled);
   }
 
   /// 设置编辑器背景模糊强度
   Future<void> setEditorBackgroundBlur(double blur) async {
     _editorBackgroundBlur = blur;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('editor_background_blur', blur);
     notifyListeners();
+    _schedulePersist('editor_background_blur', blur);
   }
 
   /// 仅在内存中更新编辑器背景亮度（不持久化），用于 Slider 拖动时实时预览
@@ -711,16 +760,14 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setEditorBackgroundBrightness(double brightness) async {
     _editorBackgroundBrightness = brightness;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('editor_background_brightness', brightness);
+    _schedulePersist('editor_background_brightness', brightness);
   }
 
   /// 设置遮罩透明度
   Future<void> setBackgroundOverlayOpacity(double opacity) async {
     _backgroundOverlayOpacity = opacity;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('background_overlay_opacity', opacity);
     notifyListeners();
+    _schedulePersist('background_overlay_opacity', opacity);
   }
 
   // ==================== 粒子效果设置方法 ====================
@@ -728,33 +775,29 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置粒子效果开关
   Future<void> setParticleEnabled(bool enabled) async {
     _particleEnabled = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('particle_enabled', enabled);
     notifyListeners();
+    _schedulePersist('particle_enabled', enabled);
   }
 
   /// 设置粒子效果类型
   Future<void> setParticleType(String type) async {
     _particleType = type;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('particle_type', type);
     notifyListeners();
+    _schedulePersist('particle_type', type);
   }
 
   /// 设置粒子速率
   Future<void> setParticleSpeed(double speed) async {
     _particleSpeed = speed;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('particle_speed', speed);
     notifyListeners();
+    _schedulePersist('particle_speed', speed);
   }
 
   /// 设置粒子全局显示
   Future<void> setParticleGlobal(bool global) async {
     _particleGlobal = global;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('particle_global', global);
     notifyListeners();
+    _schedulePersist('particle_global', global);
   }
 
   // ==================== 编辑器设置方法 ====================
@@ -762,36 +805,32 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置编辑器字体大小
   Future<void> setFontSize(double size) async {
     _fontSize = size;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('font_size', size);
     notifyListeners();
+    _schedulePersist('font_size', size);
   }
 
   /// 设置是否启用自动保存
   Future<void> setAutoSave(bool value) async {
     _autoSave = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('auto_save', value);
     notifyListeners();
+    _schedulePersist('auto_save', value);
   }
 
   /// 设置自动保存间隔
   Future<void> setAutoSaveInterval(int seconds) async {
     _autoSaveInterval = seconds;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('auto_save_interval', seconds);
     notifyListeners();
+    _schedulePersist('auto_save_interval', seconds);
   }
 
   /// 设置调试开关
   Future<void> setDebugEnabled(bool value) async {
     _debugEnabled = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('debug_enabled', value);
     notifyListeners();
+    _schedulePersist('debug_enabled', value);
   }
 
-  /// 追加调试日志（内存最多保留 300 条）
+  /// 追加调试日志（内存最多保留 300 条，批量通知避免高频重建）
   void appendDebugLog(String message) {
     final ts = DateTime.now().toIso8601String();
     _debugLogs.add('[$ts] $message');
@@ -799,7 +838,17 @@ class SettingsProvider extends ChangeNotifier {
     if (_debugLogs.length > maxLogs) {
       _debugLogs.removeRange(0, _debugLogs.length - maxLogs);
     }
-    notifyListeners();
+    _scheduleDebugLogNotify();
+  }
+
+  Timer? _debugLogNotifyTimer;
+
+  /// 每 500ms 最多通知一次，避免每条日志都触发 notifyListeners
+  void _scheduleDebugLogNotify() {
+    _debugLogNotifyTimer?.cancel();
+    _debugLogNotifyTimer = Timer(const Duration(milliseconds: 500), () {
+      notifyListeners();
+    });
   }
 
   /// 清空调试日志
@@ -811,33 +860,32 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置默认目录
   Future<void> setDefaultDirectory(String? path) async {
     _defaultDirectory = path;
-    final prefs = await SharedPreferences.getInstance();
+    notifyListeners();
+    final prefs = await _getPrefs();
     if (path != null) {
       await prefs.setString('default_directory', path);
     } else {
       await prefs.remove('default_directory');
     }
-    notifyListeners();
   }
 
   /// 设置工作区文件夹名称
   Future<void> setWorkspaceName(String name) async {
     _workspaceName = name;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('workspace_name', name);
     notifyListeners();
+    _schedulePersist('workspace_name', name);
   }
 
   /// 设置自定义工作区基础路径
   Future<void> setCustomWorkspaceBasePath(String? path) async {
     _customWorkspaceBasePath = path;
-    final prefs = await SharedPreferences.getInstance();
+    notifyListeners();
+    final prefs = await _getPrefs();
     if (path != null && path.isNotEmpty) {
       await prefs.setString('custom_workspace_base_path', path);
     } else {
       await prefs.remove('custom_workspace_base_path');
     }
-    notifyListeners();
   }
 
   // ==================== 语言设置方法 ====================
@@ -845,9 +893,8 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置应用语言
   Future<void> setLocale(Locale locale) async {
     _locale = locale;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('locale', locale.languageCode);
     notifyListeners();
+    _schedulePersist('locale', locale.languageCode);
   }
 
   // ==================== 更新设置方法 ====================
@@ -855,25 +902,22 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置启动时是否自动检查更新
   Future<void> setAutoCheckUpdate(bool value) async {
     _autoCheckUpdate = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('auto_check_update', value);
     notifyListeners();
+    _schedulePersist('auto_check_update', value);
   }
 
   /// 设置卡片透明度
   Future<void> setCardOpacity(double opacity) async {
     _cardOpacity = opacity;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('card_opacity', opacity);
     notifyListeners();
+    _schedulePersist('card_opacity', opacity);
   }
 
   /// 设置底部导航栏透明度
   Future<void> setTabBarOpacity(double opacity) async {
     _tabBarOpacity = opacity;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('tab_bar_opacity', opacity);
     notifyListeners();
+    _schedulePersist('tab_bar_opacity', opacity);
   }
 
   // ==================== 图标设置方法 ====================
@@ -881,38 +925,35 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置桌面图标索引（0=默认, 1=icon2）
   Future<void> setAppIconIndex(int index) async {
     _appIconIndex = index;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('app_icon_index', index);
     notifyListeners();
+    _schedulePersist('app_icon_index', index);
   }
 
   /// 设置主页图标模式
   Future<void> setHomeIconMode(String mode) async {
     _homeIconMode = mode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('home_icon_mode', mode);
     notifyListeners();
+    _schedulePersist('home_icon_mode', mode);
   }
 
   /// 设置主页自定义图标路径
   Future<void> setHomeIconCustomPath(String? path) async {
     _homeIconCustomPath = path;
-    final prefs = await SharedPreferences.getInstance();
+    notifyListeners();
+    final prefs = await _getPrefs();
     if (path != null) {
       await prefs.setString('home_icon_custom_path', path);
     } else {
       await prefs.remove('home_icon_custom_path');
     }
-    notifyListeners();
   }
 
   /// 设置主页标题文字
   Future<void> setHomeTitleText(String text) async {
     final normalized = text.trim().isEmpty ? '汐' : text.trim();
     _homeTitleText = normalized;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('home_title_text', normalized);
     notifyListeners();
+    _schedulePersist('home_title_text', normalized);
   }
 
   // ==================== 夜间主题和字体设置方法 ====================
@@ -920,49 +961,43 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置夜间主题索引
   Future<void> setDarkThemeIndex(int index) async {
     _darkThemeIndex = index;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('dark_theme_index', index);
     notifyListeners();
+    _schedulePersist('dark_theme_index', index);
   }
 
   /// 设置浅色主题索引
   Future<void> setLightThemeIndex(int index) async {
     _lightThemeIndex = index;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('light_theme_index', index);
     notifyListeners();
+    _schedulePersist('light_theme_index', index);
   }
 
   /// 设置按钮风格
   Future<void> setButtonStyleMode(AppButtonStyleMode mode) async {
     _buttonStyleMode = mode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('button_style_mode', mode.name);
     notifyListeners();
+    _schedulePersist('button_style_mode', mode.name);
   }
 
   /// 设置 UI 字体
   Future<void> setUiFontFamily(String fontFamily) async {
     _uiFontFamily = fontFamily;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('font_family_ui', fontFamily);
     notifyListeners();
+    _schedulePersist('font_family_ui', fontFamily);
   }
 
   /// 设置编辑器字体
   Future<void> setEditorFontFamily(String fontFamily) async {
     _editorFontFamily = fontFamily;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('font_family_editor', fontFamily);
     notifyListeners();
+    _schedulePersist('font_family_editor', fontFamily);
   }
 
   /// 设置代码块字体
   Future<void> setCodeFontFamily(String fontFamily) async {
     _codeFontFamily = fontFamily;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('font_family_code', fontFamily);
     notifyListeners();
+    _schedulePersist('font_family_code', fontFamily);
   }
 
   // ==================== 云同步设置方法 ====================
@@ -970,25 +1005,22 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置同步类型
   Future<void> setSyncType(String type) async {
     _syncType = type;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('sync_type', type);
     notifyListeners();
+    _schedulePersist('sync_type', type);
   }
 
   /// 设置 WebDAV 服务器地址
   Future<void> setWebdavUrl(String url) async {
     _webdavUrl = url;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('webdav_url', url);
     notifyListeners();
+    _schedulePersist('webdav_url', url);
   }
 
   /// 设置 WebDAV 用户名
   Future<void> setWebdavUsername(String username) async {
     _webdavUsername = username;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('webdav_username', username);
     notifyListeners();
+    _schedulePersist('webdav_username', username);
   }
 
   /// 设置 WebDAV 密码（安全存储）
@@ -1004,17 +1036,15 @@ class SettingsProvider extends ChangeNotifier {
     String cleanUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
 
     _ftpUrl = cleanUrl;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('ftp_url', cleanUrl);
     notifyListeners();
+    _schedulePersist('ftp_url', cleanUrl);
   }
 
   /// 设置 FTP 用户名
   Future<void> setFtpUsername(String username) async {
     _ftpUsername = username;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('ftp_username', username);
     notifyListeners();
+    _schedulePersist('ftp_username', username);
   }
 
   /// 设置 FTP 密码（安全存储）
@@ -1027,17 +1057,15 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置云端同步文件夹名称
   Future<void> setSyncFolderName(String folderName) async {
     _syncFolderName = folderName;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('sync_folder_name', folderName);
     notifyListeners();
+    _schedulePersist('sync_folder_name', folderName);
   }
 
   /// 设置云端文件夹路径前缀
   Future<void> setSyncRemotePath(String path) async {
     _syncRemotePath = path;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('sync_remote_path', path);
     notifyListeners();
+    _schedulePersist('sync_remote_path', path);
   }
 
   /// 获取完整的云端文件夹路径（路径前缀 + 文件夹名称）
@@ -1066,26 +1094,23 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置自动同步开关
   Future<void> setAutoSyncEnabled(bool enabled) async {
     _autoSyncEnabled = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('auto_sync_enabled', enabled);
     notifyListeners();
+    _schedulePersist('auto_sync_enabled', enabled);
   }
 
   /// 设置专注模式
   Future<void> setFocusMode(bool value) async {
     if (_focusMode == value) return;
     _focusMode = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('focusMode', _focusMode);
     notifyListeners();
+    _schedulePersist('focusMode', value);
   }
 
   /// 更新上次同步时间
   Future<void> updateLastSyncTime() async {
     _lastSyncTime = DateTime.now();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('last_sync_time', _lastSyncTime!.millisecondsSinceEpoch);
     notifyListeners();
+    _schedulePersist('last_sync_time', _lastSyncTime!.millisecondsSinceEpoch);
   }
 
   /// 保存所有 WebDAV 凭据
@@ -1100,7 +1125,7 @@ class SettingsProvider extends ChangeNotifier {
     _webdavUsername = username;
     _webdavPassword = password;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.setString('webdav_url', url);
     await prefs.setString('webdav_username', username);
     // 密码使用安全存储

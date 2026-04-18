@@ -7,6 +7,7 @@ import '../../../widgets/empty_state.dart';
 import '../../../widgets/glass_card.dart';
 import '../../../utils/file_actions.dart';
 import '../../../utils/editor_navigation_helper.dart';
+import '../../../utils/debug_log.dart';
 
 class RecentFilesTab extends StatelessWidget {
   final FileProvider fileProvider;
@@ -49,7 +50,7 @@ class RecentFilesTab extends StatelessWidget {
         final modified = file.lastModifiedSync();
         dateStr = '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
       } catch (e) {
-        debugPrint('获取文件修改时间失败: $e');
+        appDebugLog('获取文件修改时间失败: $e');
       }
     }
 

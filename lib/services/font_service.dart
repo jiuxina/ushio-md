@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/debug_log.dart';
 
 /// 字体服务
 class FontService {
@@ -68,13 +69,13 @@ class FontService {
       
       return fontName;
     } on PlatformException catch (e) {
-      debugPrint('安装字体失败 (平台错误): ${e.code} - ${e.message}');
+      appDebugLog('安装字体失败 (平台错误): ${e.code} - ${e.message}');
       return null;
     } on FileSystemException catch (e) {
-      debugPrint('安装字体失败 (文件系统错误): ${e.path} - ${e.message}');
+      appDebugLog('安装字体失败 (文件系统错误): ${e.path} - ${e.message}');
       return null;
     } catch (e, stackTrace) {
-      debugPrint('安装字体失败: $e\n$stackTrace');
+      appDebugLog('安装字体失败: $e\n$stackTrace');
       return null;
     }
   }
@@ -89,12 +90,12 @@ class FontService {
         fontLoader.addFont(Future.value(ByteData.view(fontData.buffer)));
         await fontLoader.load();
       } else {
-        debugPrint('加载字体失败: 字体文件不存在 $fontPath');
+        appDebugLog('加载字体失败: 字体文件不存在 $fontPath');
       }
     } on FileSystemException catch (e) {
-      debugPrint('加载字体失败 (文件系统错误): ${e.path} - ${e.message}');
+      appDebugLog('加载字体失败 (文件系统错误): ${e.path} - ${e.message}');
     } catch (e, stackTrace) {
-      debugPrint('加载字体失败: $fontName - $e\n$stackTrace');
+      appDebugLog('加载字体失败: $fontName - $e\n$stackTrace');
     }
   }
   
@@ -157,13 +158,13 @@ class FontService {
       
       return true;
     } on PlatformException catch (e) {
-      debugPrint('删除字体失败 (平台错误): ${e.code} - ${e.message}');
+      appDebugLog('删除字体失败 (平台错误): ${e.code} - ${e.message}');
       return false;
     } on FileSystemException catch (e) {
-      debugPrint('删除字体失败 (文件系统错误): ${e.path} - ${e.message}');
+      appDebugLog('删除字体失败 (文件系统错误): ${e.path} - ${e.message}');
       return false;
     } catch (e, stackTrace) {
-      debugPrint('删除字体失败: $fontName - $e\n$stackTrace');
+      appDebugLog('删除字体失败: $fontName - $e\n$stackTrace');
       return false;
     }
   }

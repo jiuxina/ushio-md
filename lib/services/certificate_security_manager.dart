@@ -20,6 +20,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/debug_log.dart';
 
 /// 证书验证结果
 enum CertificateValidationResult {
@@ -110,7 +111,7 @@ class CertificateSecurityManager {
         }
       }
     } catch (e) {
-      debugPrint('加载信任主机失败: $e');
+      appDebugLog('加载信任主机失败: $e');
     }
 
     _initialized = true;
@@ -146,7 +147,7 @@ class CertificateSecurityManager {
     _trustedHostsCache[key] = trustedHost;
     await _saveTrustedHosts();
     
-    debugPrint('用户信任主机: $key');
+    appDebugLog('用户信任主机: $key');
   }
 
   /// 移除信任的主机
@@ -162,7 +163,7 @@ class CertificateSecurityManager {
     _trustedHostsCache.remove(key);
     await _saveTrustedHosts();
     
-    debugPrint('移除信任主机: $key');
+    appDebugLog('移除信任主机: $key');
   }
 
   /// 获取所有信任的主机
@@ -195,13 +196,13 @@ class CertificateSecurityManager {
       return CertificateValidationResult.valid;
     } on HandshakeException catch (e) {
       // 证书验证失败（自签名或过期）
-      debugPrint('证书验证失败: $e');
+      appDebugLog('证书验证失败: $e');
       return CertificateValidationResult.invalid;
     } on SocketException catch (e) {
-      debugPrint('连接失败: $e');
+      appDebugLog('连接失败: $e');
       return CertificateValidationResult.connectionFailed;
     } catch (e) {
-      debugPrint('未知错误: $e');
+      appDebugLog('未知错误: $e');
       return CertificateValidationResult.connectionFailed;
     }
   }
@@ -242,12 +243,12 @@ class CertificateSecurityManager {
       final isAllowed = host == allowedHost && (allowedPort == null || port == allowedPort);
       
       if (isAllowed) {
-        debugPrint('⚠️ 允许不安全连接: $host:$port (用户已信任)');
+        appDebugLog('⚠️ 允许不安全连接: $host:$port (用户已信任)');
         return true;
       }
       
       // 其他主机拒绝
-      debugPrint('🚫 拒绝不安全连接: $host:$port (非信任主机)');
+      appDebugLog('🚫 拒绝不安全连接: $host:$port (非信任主机)');
       return false;
     };
     
