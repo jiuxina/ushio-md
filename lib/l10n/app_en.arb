@@ -796,5 +796,11 @@
   "largestFirst": "Largest First",
   "@largestFirst": { "description": "Sort by largest size" },
   "smallestFirst": "Smallest First",
-  "@smallestFirst": { "description": "Sort by smallest size" }
+  "@smallestFirst": { "description": "Sort by smallest size" },
+  "cardColor": "Card Color",
+  "@cardColor": { "description": "Card color setting" },
+  "customCardColor": "Custom Card Color",
+  "@customCardColor": { "description": "Custom card color toggle" },
+  "useThemeDefault": "Use Theme Default",
+  "@useThemeDefault": { "description": "Use theme default color" }
 }

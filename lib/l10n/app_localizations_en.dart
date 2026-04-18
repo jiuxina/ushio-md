@@ -1046,4 +1046,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get smallestFirst => 'Smallest First';
+
+  @override
+  String get cardColor => 'Card Color';
+
+  @override
+  String get customCardColor => 'Custom Card Color';
+
+  @override
+  String get useThemeDefault => 'Use Theme Default';
 }

@@ -148,6 +148,8 @@ class MyApp extends StatelessWidget {
               lightThemeIndex,
               settings.buttonStyleMode,
               settings.cardOpacity,
+              settings.customCardColor,
+              settings.useCustomCardColor,
             ), // 浅色主题
             darkTheme: _buildDarkTheme(
               primaryColor,
@@ -155,6 +157,8 @@ class MyApp extends StatelessWidget {
               fontFamily,
               settings.buttonStyleMode,
               settings.cardOpacity,
+              settings.customCardColor,
+              settings.useCustomCardColor,
             ), // 深色主题
             themeMode: settings.themeMode, // 主题模式（跟随系统/浅色/深色）
             builder: (context, child) {
@@ -179,6 +183,8 @@ class MyApp extends StatelessWidget {
     int lightThemeIndex,
     AppButtonStyleMode buttonStyleMode,
     double cardOpacity,
+    Color? customCardColor,
+    bool useCustomCardColor,
   ) {
     final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
 
@@ -198,6 +204,8 @@ class MyApp extends StatelessWidget {
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,
+      customCardColor: customCardColor,
+      useCustomCardColor: useCustomCardColor,
     );
   }
 
@@ -212,6 +220,8 @@ class MyApp extends StatelessWidget {
     String? fontFamily,
     AppButtonStyleMode buttonStyleMode,
     double cardOpacity,
+    Color? customCardColor,
+    bool useCustomCardColor,
   ) {
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
 
@@ -231,6 +241,8 @@ class MyApp extends StatelessWidget {
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,
+      customCardColor: customCardColor,
+      useCustomCardColor: useCustomCardColor,
     );
   }
 
@@ -243,6 +255,8 @@ class MyApp extends StatelessWidget {
     required String? fontFamily,
     required AppButtonStyleMode buttonStyleMode,
     required double cardOpacity,
+    Color? customCardColor,
+    bool useCustomCardColor = false,
   }) {
     final effectiveColorScheme = _applyGlobalCardOpacity(
       colorScheme,
@@ -254,6 +268,8 @@ class MyApp extends StatelessWidget {
       textSecondary: textSecondaryColor,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,
+      customCardColor: customCardColor,
+      useCustomCardColor: useCustomCardColor,
     );
 
     final buttonForeground = appStyle.useBorderlessButtons

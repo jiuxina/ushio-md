@@ -105,6 +105,8 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 _buildSection(l10n.cardOpacity, Icons.opacity_rounded, [
                   _buildCardOpacitySlider(settings, l10n),
+                  const SizedBox(height: 12),
+                  _buildCardColorSelector(settings, l10n),
                 ]),
 
                 // 浅色主题方案（仅在浅色模式下显示）
@@ -232,6 +234,223 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildCardColorSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 启用自定义颜色开关
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.customCardColor),
+            Switch(
+              value: settings.useCustomCardColor,
+              onChanged: (value) => settings.setUseCustomCardColor(value),
+            ),
+          ],
+        ),
+        // 颜色选择器（仅在启用时显示）
+        if (settings.useCustomCardColor) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(l10n.cardColor),
+              const SizedBox(width: 16),
+              // 颜色预览和选择按钮
+              GestureDetector(
+                onTap: () => _showColorPicker(settings),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: settings.customCardColor ?? Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (settings.customCardColor ?? Theme.of(context).colorScheme.surface).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.colorize,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // 重置按钮
+              TextButton.icon(
+                onPressed: () => settings.setCustomCardColor(null),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text(l10n.useThemeDefault),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showColorPicker(SettingsProvider settings) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        Color selectedColor = settings.customCardColor ?? Theme.of(context).colorScheme.surface;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(AppLocalizations.of(context)!.cardColor),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 预设颜色网格
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      // 常用卡片颜色
+                      Colors.white,
+                      Colors.black,
+                      const Color(0xFFF5F5F5), // 浅灰
+                      const Color(0xFF1E1E1E), // 深灰
+                      const Color(0xFFE3F2FD), // 浅蓝
+                      const Color(0xFF0D47A1), // 深蓝
+                      const Color(0xFFFFF3E0), // 浅橙
+                      const Color(0xFFE65100), // 深橙
+                      const Color(0xFFE8F5E9), // 浅绿
+                      const Color(0xFF1B5E20), // 深绿
+                      const Color(0xFFFCE4EC), // 浅粉
+                      const Color(0xFF880E4F), // 深粉
+                      const Color(0xFFF3E5F5), // 浅紫
+                      const Color(0xFF4A148C), // 深紫
+                    ].map((color) {
+                      final isSelected = selectedColor.value == color.value;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedColor = color;
+                          });
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.outline,
+                              width: isSelected ? 3 : 1,
+                            ),
+                          ),
+                          child: isSelected
+                              ? Icon(
+                                  Icons.check,
+                                  size: 20,
+                                  color: color.computeLuminance() > 0.5
+                                      ? Colors.black
+                                      : Colors.white,
+                                )
+                              : null,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  // 颜色滑块（HSL）
+                  ..._buildColorSliders(selectedColor, (color) {
+                    setState(() {
+                      selectedColor = color;
+                    });
+                  }),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(AppLocalizations.of(context)!.cancel),
+                ),
+                TextButton(
+                  onPressed: () {
+                    settings.setCustomCardColor(selectedColor);
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(AppLocalizations.of(context)!.confirm),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildColorSliders(Color color, void Function(Color) onUpdate) {
+    final hsl = HSLColor.fromColor(color);
+    
+    return [
+      // 色相滑块
+      Row(
+        children: [
+          const SizedBox(width: 40, child: Text('H')),
+          Expanded(
+            child: Slider(
+              value: hsl.hue,
+              min: 0,
+              max: 360,
+              onChanged: (value) {
+                onUpdate(HSLColor.fromAHSL(1.0, value, hsl.saturation, hsl.lightness).toColor());
+              },
+            ),
+          ),
+        ],
+      ),
+      // 饱和度滑块
+      Row(
+        children: [
+          const SizedBox(width: 40, child: Text('S')),
+          Expanded(
+            child: Slider(
+              value: hsl.saturation,
+              min: 0,
+              max: 1,
+              onChanged: (value) {
+                onUpdate(HSLColor.fromAHSL(1.0, hsl.hue, value, hsl.lightness).toColor());
+              },
+            ),
+          ),
+        ],
+      ),
+      // 亮度滑块
+      Row(
+        children: [
+          const SizedBox(width: 40, child: Text('L')),
+          Expanded(
+            child: Slider(
+              value: hsl.lightness,
+              min: 0,
+              max: 1,
+              onChanged: (value) {
+                onUpdate(HSLColor.fromAHSL(1.0, hsl.hue, hsl.saturation, value).toColor());
+              },
+            ),
+          ),
+        ],
+      ),
+    ];
   }
 
   Widget _buildSection(String title, IconData icon, List<Widget> children) {

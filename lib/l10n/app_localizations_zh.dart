@@ -1024,4 +1024,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get smallestFirst => '最小优先';
+
+  @override
+  String get cardColor => '卡片颜色';
+
+  @override
+  String get customCardColor => '自定义卡片颜色';
+
+  @override
+  String get useThemeDefault => '使用主题默认';
 }

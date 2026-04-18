@@ -187,6 +187,12 @@ class SettingsProvider extends ChangeNotifier {
   /// 底部导航栏透明度（0.1–1.0）
   double _tabBarOpacity = 0.95;
 
+  /// 自定义卡片颜色（null 表示使用主题默认颜色）
+  Color? _customCardColor;
+
+  /// 是否启用自定义卡片颜色
+  bool _useCustomCardColor = false;
+
   // ==================== 图标设置 ====================
 
   /// 桌面图标索引（0=默认 app.png, 1=icon2.png）
@@ -289,6 +295,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get autoCheckUpdate => _autoCheckUpdate;
   double get cardOpacity => _cardOpacity;
   double get tabBarOpacity => _tabBarOpacity;
+  Color? get customCardColor => _customCardColor;
+  bool get useCustomCardColor => _useCustomCardColor;
 
   // 图标设置 Getters
   int get appIconIndex => _appIconIndex;
@@ -481,6 +489,13 @@ class SettingsProvider extends ChangeNotifier {
     // 底栏设置
     _cardOpacity = prefs.getDouble('card_opacity') ?? 1.0;
     _tabBarOpacity = prefs.getDouble('tab_bar_opacity') ?? 0.95;
+
+    // 自定义卡片颜色
+    _useCustomCardColor = prefs.getBool('use_custom_card_color') ?? false;
+    final customCardColorValue = prefs.getInt('custom_card_color');
+    if (customCardColorValue != null) {
+      _customCardColor = Color(customCardColorValue);
+    }
 
     // 图标设置
     _appIconIndex = prefs.getInt('app_icon_index') ?? 0;
@@ -918,6 +933,25 @@ class SettingsProvider extends ChangeNotifier {
     _tabBarOpacity = opacity;
     notifyListeners();
     _schedulePersist('tab_bar_opacity', opacity);
+  }
+
+  /// 设置自定义卡片颜色
+  Future<void> setCustomCardColor(Color? color) async {
+    _customCardColor = color;
+    notifyListeners();
+    final prefs = await _getPrefs();
+    if (color != null) {
+      await prefs.setInt('custom_card_color', color.value);
+    } else {
+      await prefs.remove('custom_card_color');
+    }
+  }
+
+  /// 设置是否启用自定义卡片颜色
+  Future<void> setUseCustomCardColor(bool use) async {
+    _useCustomCardColor = use;
+    notifyListeners();
+    _schedulePersist('use_custom_card_color', use);
   }
 
   // ==================== 图标设置方法 ====================

@@ -2047,6 +2047,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'最小优先'**
   String get smallestFirst;
+
+  /// 卡片颜色设置
+  ///
+  /// In zh, this message translates to:
+  /// **'卡片颜色'**
+  String get cardColor;
+
+  /// 自定义卡片颜色开关
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义卡片颜色'**
+  String get customCardColor;
+
+  /// 使用主题默认颜色
+  ///
+  /// In zh, this message translates to:
+  /// **'使用主题默认'**
+  String get useThemeDefault;
 }
 
 class _AppLocalizationsDelegate

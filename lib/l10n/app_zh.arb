@@ -1273,5 +1273,11 @@
   "largestFirst": "最大优先",
   "@largestFirst": { "description": "按最大大小排序" },
   "smallestFirst": "最小优先",
-  "@smallestFirst": { "description": "按最小大小排序" }
+  "@smallestFirst": { "description": "按最小大小排序" },
+  "cardColor": "卡片颜色",
+  "@cardColor": { "description": "卡片颜色设置" },
+  "customCardColor": "自定义卡片颜色",
+  "@customCardColor": { "description": "自定义卡片颜色开关" },
+  "useThemeDefault": "使用主题默认",
+  "@useThemeDefault": { "description": "使用主题默认颜色" }
 }

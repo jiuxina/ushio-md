@@ -18,6 +18,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   final List<BoxShadow> surfaceShadow;
   final List<BoxShadow> prominentShadow;
   final double cardOpacity;
+  final Color? customCardColor;
+  final bool useCustomCardColor;
 
   const AppStyleTheme({
     required this.buttonStyleMode,
@@ -28,6 +30,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     required this.surfaceShadow,
     required this.prominentShadow,
     required this.cardOpacity,
+    this.customCardColor,
+    this.useCustomCardColor = false,
   });
 
   bool get useBorderlessButtons => buttonStyleMode == AppButtonStyleMode.softShadow;
@@ -38,6 +42,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     required Color textSecondary,
     required AppButtonStyleMode buttonStyleMode,
     required double cardOpacity,
+    Color? customCardColor,
+    bool useCustomCardColor = false,
   }) {
     final isDark = brightness == Brightness.dark;
     final mutedAlpha = (cardOpacity * (isDark ? 0.82 : 0.76)).clamp(0.0, 1.0);
@@ -48,12 +54,22 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     final shadowColor = Colors.black.withValues(alpha: isDark ? 0.24 : 0.10);
     final prominentColor = colorScheme.primary.withValues(alpha: isDark ? 0.24 : 0.18);
 
+    // 计算卡片表面颜色：如果启用自定义颜色则使用自定义颜色，否则使用主题默认
+    final effectiveCardSurface = useCustomCardColor && customCardColor != null
+        ? customCardColor.withValues(alpha: cardOpacity)
+        : colorScheme.surface.withValues(alpha: cardOpacity);
+
+    // 计算muted和strong表面颜色：如果启用自定义颜色则基于自定义颜色
+    final baseSurface = useCustomCardColor && customCardColor != null
+        ? customCardColor
+        : colorScheme.surface;
+
     return AppStyleTheme(
       buttonStyleMode: buttonStyleMode,
       outlineColor: outlineColor,
-      mutedSurface: colorScheme.surface.withValues(alpha: mutedAlpha),
-      strongSurface: colorScheme.surface.withValues(alpha: strongAlpha),
-      cardSurface: colorScheme.surface.withValues(alpha: cardOpacity),
+      mutedSurface: baseSurface.withValues(alpha: mutedAlpha),
+      strongSurface: baseSurface.withValues(alpha: strongAlpha),
+      cardSurface: effectiveCardSurface,
       surfaceShadow: buttonStyleMode == AppButtonStyleMode.softShadow
           ? [
               BoxShadow(
@@ -79,6 +95,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
           spreadRadius: buttonStyleMode == AppButtonStyleMode.softShadow ? -10 : -8,
         ),
       ],
+      customCardColor: customCardColor,
+      useCustomCardColor: useCustomCardColor,
     );
   }
 
@@ -129,6 +147,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     List<BoxShadow>? surfaceShadow,
     List<BoxShadow>? prominentShadow,
     double? cardOpacity,
+    Color? customCardColor,
+    bool? useCustomCardColor,
   }) {
     return AppStyleTheme(
       buttonStyleMode: buttonStyleMode ?? this.buttonStyleMode,
@@ -139,6 +159,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       surfaceShadow: surfaceShadow ?? this.surfaceShadow,
       prominentShadow: prominentShadow ?? this.prominentShadow,
       cardOpacity: cardOpacity ?? this.cardOpacity,
+      customCardColor: customCardColor ?? this.customCardColor,
+      useCustomCardColor: useCustomCardColor ?? this.useCustomCardColor,
     );
   }
 
@@ -154,6 +176,8 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       surfaceShadow: t < 0.5 ? surfaceShadow : other.surfaceShadow,
       prominentShadow: t < 0.5 ? prominentShadow : other.prominentShadow,
       cardOpacity: lerpDouble(cardOpacity, other.cardOpacity, t) ?? cardOpacity,
+      customCardColor: Color.lerp(customCardColor, other.customCardColor, t),
+      useCustomCardColor: t < 0.5 ? useCustomCardColor : other.useCustomCardColor,
     );
   }
 }
