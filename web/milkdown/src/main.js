@@ -95,15 +95,8 @@ let lastUserScrollAt = 0;
 let editorTouchTracking = null;
 // IME composition state - prevent viewport sync during composition
 let isComposing = false;
-let codeLanguagePopupElement = null;
-let codeLanguagePopupBackdrop = null;
-let codeLanguagePopupInput = null;
-let codeLanguagePopupList = null;
-let codeLanguagePopupAnchor = null;
-let codeLanguagePopupBlock = null;
-let codeLanguagePopupCandidates = [];
-let codeLanguagePopupCurrentLanguage = '';
-let suppressNativeLanguageClickUntil = 0;
+// NOTE: Custom code language popup has been removed. Users change code language
+// by clicking the language label in the code block toolbar and typing directly.
 let codeLanguageUiDebugSeq = 0;
 const codeLanguageDisplayCache = new Map();
 const highlightParser = createRefractorParser(refractor);
@@ -1240,11 +1233,6 @@ const resolveCodeBlockLanguage = (codeBlock, fallback = '') => {
   return isPlainTextLanguage(fallbackLanguage) ? '' : fallbackLanguage;
 };
 
-const isCodeLanguageNativeTarget = (target) => {
-  const targetElement = target instanceof Element ? target : null;
-  return Boolean(targetElement?.closest('.milkdown-code-block .tools .language-button, .milkdown-code-block .language-picker'));
-};
-
 const resolveCodeLanguageForBackend = (rawLanguage) => {
   const normalized = normalizeCodeLanguage(rawLanguage);
   if (!normalized || isPlainTextLanguage(normalized)) return '';
@@ -1372,183 +1360,6 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
   languageButton.setAttribute('aria-label', `代码语言，当前 ${label}`);
 };
 
-const hideCodeLanguagePopup = () => {
-  if (!codeLanguagePopupElement) return;
-  codeLanguagePopupElement.dataset.show = 'false';
-  if (codeLanguagePopupBackdrop) {
-    codeLanguagePopupBackdrop.dataset.show = 'false';
-  }
-  codeLanguagePopupAnchor = null;
-  codeLanguagePopupBlock = null;
-  codeLanguagePopupCurrentLanguage = '';
-};
-
-const renderCodeLanguagePopupList = (query = '') => {
-  if (!codeLanguagePopupList) return;
-  const keyword = normalizeCodeLanguage(query);
-  const allowPlainText =
-    !keyword ||
-    'plaintext'.includes(keyword) ||
-    'plain text'.includes(keyword) ||
-    'none'.includes(keyword) ||
-    'text'.includes(keyword) ||
-    '无语言'.includes(keyword) ||
-    '纯文本'.includes(keyword);
-
-  const languageOptions = KNOWN_CODE_LANGUAGES
-    .filter((item) => !keyword || item.includes(keyword))
-    .slice(0, 120);
-
-  const current = normalizeCodeLanguage(codeLanguagePopupCurrentLanguage);
-  if (!isPlainTextLanguage(current) && !languageOptions.includes(current)) {
-    languageOptions.unshift(current);
-  }
-
-  if (keyword && !languageOptions.includes(keyword) && /^[a-z0-9_+-]+$/i.test(keyword)) {
-    languageOptions.unshift(keyword);
-  }
-
-  const options = allowPlainText ? ['', ...languageOptions] : languageOptions;
-  codeLanguagePopupCandidates = options;
-  codeLanguagePopupList.innerHTML = '';
-  if (options.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'ushio-language-popup-empty';
-    empty.textContent = '没有匹配的语言';
-    codeLanguagePopupList.append(empty);
-    return;
-  }
-  options.forEach((item, index) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'ushio-language-popup-item';
-    if (index === 0) {
-      btn.classList.add('is-active');
-    }
-    const label = item ? item : 'plain text（无语言）';
-    btn.textContent = label;
-    if (!item) {
-      btn.dataset.isPlain = 'true';
-    }
-    btn.addEventListener('mousedown', (event) => event.preventDefault());
-    btn.addEventListener('click', () => {
-      if (!(codeLanguagePopupBlock instanceof HTMLElement)) return;
-      const nextLanguage = isPlainTextLanguage(item) ? '' : item;
-      const applied = setCodeBlockLanguage(codeLanguagePopupBlock, nextLanguage);
-      if (applied) {
-        updateCodeLanguageButtonLabel(codeLanguagePopupBlock, nextLanguage);
-      }
-      hideCodeLanguagePopup();
-    });
-    codeLanguagePopupList.append(btn);
-  });
-};
-
-const ensureCodeLanguagePopup = () => {
-  if (codeLanguagePopupElement) return;
-  const backdrop = document.createElement('div');
-  backdrop.className = 'ushio-language-popup-backdrop';
-  backdrop.dataset.show = 'false';
-  backdrop.addEventListener('mousedown', (event) => {
-    event.preventDefault();
-    hideCodeLanguagePopup();
-  });
-
-  const panel = document.createElement('div');
-  panel.className = 'ushio-language-popup';
-  panel.dataset.show = 'false';
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'ushio-language-popup-input';
-  input.placeholder = '搜索语言...';
-  input.setAttribute('aria-label', '搜索代码语言');
-  input.addEventListener('input', () => {
-    renderCodeLanguagePopupList(input.value);
-  });
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      hideCodeLanguagePopup();
-      return;
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const first = codeLanguagePopupCandidates[0];
-      if (!(codeLanguagePopupBlock instanceof HTMLElement)) return;
-      const nextLanguage = isPlainTextLanguage(first) ? '' : (first || '');
-      const applied = setCodeBlockLanguage(codeLanguagePopupBlock, nextLanguage);
-      if (applied) {
-        updateCodeLanguageButtonLabel(codeLanguagePopupBlock, nextLanguage);
-      }
-      hideCodeLanguagePopup();
-    }
-  });
-
-  const list = document.createElement('div');
-  list.className = 'ushio-language-popup-list';
-
-  panel.append(input, list);
-  app.append(backdrop);
-  app.append(panel);
-  codeLanguagePopupBackdrop = backdrop;
-  codeLanguagePopupElement = panel;
-  codeLanguagePopupInput = input;
-  codeLanguagePopupList = list;
-};
-
-const showCodeLanguagePopup = (anchor, codeBlock, currentLanguage = '') => {
-  if (!(anchor instanceof HTMLElement) || !(codeBlock instanceof HTMLElement)) return;
-  ensureCodeLanguagePopup();
-  if (!(codeLanguagePopupElement instanceof HTMLElement) || !(codeLanguagePopupInput instanceof HTMLInputElement)) return;
-
-  codeLanguagePopupAnchor = anchor;
-  codeLanguagePopupBlock = codeBlock;
-  const normalizedCurrentLanguage = normalizeCodeLanguage(currentLanguage || resolveFallbackLanguageFromBlock(codeBlock));
-  codeLanguagePopupCurrentLanguage = normalizedCurrentLanguage;
-  codeLanguagePopupInput.value = normalizedCurrentLanguage;
-  renderCodeLanguagePopupList(normalizedCurrentLanguage);
-  codeLanguagePopupElement.dataset.show = 'true';
-  if (codeLanguagePopupBackdrop) {
-    codeLanguagePopupBackdrop.dataset.show = 'true';
-  }
-  emitCodeLanguageUiDebug('popup_show', {
-    language: normalizedCurrentLanguage,
-  });
-
-  const panelWidth = Math.min(520, Math.max(260, window.innerWidth - 24));
-  const panelMaxHeight = Math.min(560, Math.max(260, window.innerHeight - 48));
-  codeLanguagePopupElement.style.width = `${panelWidth}px`;
-  codeLanguagePopupElement.style.maxHeight = `${panelMaxHeight}px`;
-  void anchor;
-
-  requestAnimationFrame(() => codeLanguagePopupInput?.focus());
-};
-
-const openCodeLanguagePopupByTarget = (target) => {
-  const targetElement = target instanceof Element ? target : null;
-  void targetElement;
-  return false;
-};
-
-const interceptNativeCodeLanguagePicker = (event) => {
-  const now = Date.now();
-  const shouldHandle = openCodeLanguagePopupByTarget(event.target);
-  const shouldBlockNativeOnly = !shouldHandle && now <= suppressNativeLanguageClickUntil && isCodeLanguageNativeTarget(event.target);
-  if (!shouldHandle && !shouldBlockNativeOnly) return;
-  if (shouldHandle) {
-    suppressNativeLanguageClickUntil = now + 450;
-  }
-  event.preventDefault();
-  event.stopPropagation();
-  if (typeof event.stopImmediatePropagation === 'function') {
-    event.stopImmediatePropagation();
-  }
-  emitCodeLanguageUiDebug('native_event_blocked', {
-    type: event.type,
-    handledByCustomPopup: shouldHandle,
-  });
-};
 
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
@@ -2073,6 +1884,7 @@ const hideLinkTooltip = () => {
     linkTooltipElement.dataset.show = 'false';
     linkTooltipAnchor = null;
   }
+  linkTooltipShownByTouch = false;
 };
 
 const showLinkTooltip = (anchor) => {
@@ -2133,12 +1945,12 @@ const buildTablePanelButton = (label, title, cmd) => {
 };
 
 const TABLE_ICONS = {
-  addRowBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
-  addRowAfter: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
-  addColBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
-  addColAfter: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
-  deleteRow: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
-  deleteCol: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  addRowBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="7" x2="12" y2="13"></line><line x1="9" y1="10" x2="15" y2="10"></line><polyline points="8 3 12 3 12 7"></polyline><polyline points="16 3 12 3 12 7"></polyline><rect x="3" y="15" width="18" height="6" rx="1"></rect></svg>',
+  addRowAfter: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="11"></line><line x1="9" y1="14" x2="15" y2="14"></line><polyline points="8 21 12 21 12 17"></polyline><polyline points="16 21 12 21 12 17"></polyline><rect x="3" y="3" width="18" height="6" rx="1"></rect></svg>',
+  addColBefore: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="7" y1="12" x2="13" y2="12"></line><line x1="10" y1="9" x2="10" y2="15"></line><polyline points="3 8 3 12 7 12"></polyline><polyline points="3 16 3 12 7 12"></polyline><rect x="15" y="3" width="6" height="18" rx="1"></rect></svg>',
+  addColAfter: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="12" x2="11" y2="12"></line><line x1="14" y1="9" x2="14" y2="15"></line><polyline points="21 8 21 12 17 12"></polyline><polyline points="21 16 21 12 17 12"></polyline><rect x="3" y="3" width="6" height="18" rx="1"></rect></svg>',
+  deleteRow: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
+  deleteCol: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="4" x2="12" y2="20"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
   deleteSelected: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>',
   prevCell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>',
   nextCell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>',
@@ -2172,8 +1984,6 @@ const buildTableFloatingPanel = () => {
     buildTablePanelIconButton(TABLE_ICONS.deleteRow, '删除当前行', 'table_delete_row'),
     buildTablePanelIconButton(TABLE_ICONS.deleteCol, '删除当前列', 'table_delete_col'),
     buildTablePanelIconButton(TABLE_ICONS.deleteSelected, '删除选中单元格', 'table_delete_selected'),
-    buildTablePanelIconButton(TABLE_ICONS.prevCell, '上一个单元格', 'table_prev_cell'),
-    buildTablePanelIconButton(TABLE_ICONS.nextCell, '下一个单元格', 'table_next_cell'),
   );
   return panel;
 };
@@ -2202,10 +2012,10 @@ const updateTableFloatingUiPosition = (table) => {
   const minMargin = 8;
   const keyboardInset = getKeyboardInset();
 
-  const buttonWidth = tableFloatingButtonElement.offsetWidth || 52;
-  const buttonHeight = tableFloatingButtonElement.offsetHeight || 26;
-  const panelWidth = tableFloatingPanelElement.offsetWidth || 320;
-  const panelHeight = tableFloatingPanelElement.offsetHeight || 180;
+  const buttonWidth = tableFloatingButtonElement.offsetWidth || 72;
+  const buttonHeight = tableFloatingButtonElement.offsetHeight || 36;
+  const panelWidth = tableFloatingPanelElement.offsetWidth || 280;
+  const panelHeight = tableFloatingPanelElement.offsetHeight || 160;
 
   const maxButtonLeft = Math.max(minMargin, appRect.width - buttonWidth - minMargin);
   const maxButtonTop = Math.max(minMargin, appRect.height - keyboardInset - buttonHeight - minMargin);
@@ -2487,6 +2297,17 @@ app.addEventListener('click', (event) => {
     blurEditorFocus();
     return;
   }
+  // Allow interactive elements inside HTML blocks to function natively
+  // (details/summary toggle, button clicks, form inputs, etc.)
+  if (target?.closest('.ushio-html-block, .ushio-html-inline')) {
+    const interactiveSelector = 'details, summary, button, input, select, textarea, label';
+    if (target?.matches(interactiveSelector) || target?.closest(interactiveSelector)) {
+      event.stopPropagation();
+      // Let native behavior happen (e.g., details/summary toggle)
+      return;
+    }
+    // Links inside HTML blocks should still be handled by our link handler below
+  }
   const checkbox = target?.closest('input[type="checkbox"]');
   if (checkbox instanceof HTMLInputElement) {
     event.preventDefault();
@@ -2520,11 +2341,69 @@ app.addEventListener('click', (event) => {
   const anchor = target?.closest('a');
   if (anchor) {
     event.preventDefault();
+    // On touch devices (no hover capability), first tap shows the link tooltip
+    // with actions (open, edit, copy). Second tap on the same link navigates.
+    // On desktop, tooltip is shown via mouseover so click navigates directly.
+    const isTouchDevice = !window.matchMedia('(hover: hover)').matches;
+    if (isTouchDevice && linkTooltipAnchor !== anchor) {
+      showLinkTooltip(anchor);
+      linkTooltipShownByTouch = true;
+      return; // Don't navigate on first tap on touch
+    }
+    if (isTouchDevice && linkTooltipShownByTouch) {
+      linkTooltipShownByTouch = false;
+      // Fall through to navigate on second tap
+    }
     const rawHref = anchor.getAttribute('href') || '';
     const resolvedHref = anchor.getAttribute('data-ushio-href') || resolveHref(rawHref);
     const anchorText = anchor.textContent?.trim() || null;
     const fallbackHref = !resolvedHref && !rawHref && anchorText ? `#${anchorText}` : '';
     const finalHref = resolvedHref || rawHref || fallbackHref;
+
+    // Handle internal anchor links (#fragment) directly in JS for precise heading scroll,
+    // using the same toc_jump logic that the TOC panel uses (accurate positioning)
+    if (rawHref.startsWith('#') && !isExternalHref(finalHref)) {
+      let headingFragment = '';
+      try {
+        headingFragment = decodeURIComponent(rawHref.substring(1)).trim();
+      } catch (_) {
+        headingFragment = rawHref.substring(1).trim();
+      }
+      if (headingFragment) {
+        const headings = Array.from(
+          (app.querySelector('.milkdown .ProseMirror') || app).querySelectorAll('h1, h2, h3, h4, h5, h6'),
+        );
+        let targetHeading = null;
+        // Strategy 1: Match by heading slug (data-heading-slug)
+        const normalizedFragment = slugifyHeading(headingFragment);
+        for (const h of headings) {
+          if ((h.dataset.headingSlug || '') === normalizedFragment) {
+            targetHeading = h;
+            break;
+          }
+        }
+        // Strategy 2: Match by heading id
+        if (!targetHeading) {
+          targetHeading = headings.find((h) => h.id === headingFragment || h.id === `heading-line-${headingFragment}`);
+        }
+        // Strategy 3: Match by heading text
+        if (!targetHeading) {
+          targetHeading = headings.find((h) => slugifyHeading(h.textContent || '') === normalizedFragment);
+        }
+        if (targetHeading) {
+          scrollNodeToViewport(targetHeading, 32);
+          emitDebug(`[LINK CLICK] Internal anchor resolved to heading: "${targetHeading.textContent?.substring(0, 50)}"`);
+          return;
+        }
+      }
+      // Fallback: try to find by ID directly
+      const targetEl = document.getElementById(headingFragment);
+      if (targetEl) {
+        scrollNodeToViewport(targetEl, 32);
+        return;
+      }
+    }
+
     // DEBUG: Log anchor link click details
     emitDebug(`[LINK CLICK] rawHref="${rawHref}" resolvedHref="${resolvedHref}" finalHref="${finalHref}" text="${anchorText}"`);
     emit('on_link_click', {
@@ -2543,7 +2422,9 @@ app.addEventListener('click', (event) => {
   scheduleSyncTableFloatingUi(target);
 });
 
-// Link hover preview
+// Link hover preview (desktop: mouseover, mobile: first tap shows tooltip)
+let linkTooltipShownByTouch = false;
+
 app.addEventListener('mouseover', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   const anchor = target?.closest('a');
@@ -2568,20 +2449,28 @@ app.addEventListener('mousedown', (event) => {
   if (isImageInteractionTarget(target)) {
     return;
   }
+  // Allow interactive elements inside HTML blocks to function normally
+  if (target?.closest('.ushio-html-block, .ushio-html-inline')) {
+    const interactiveSelector = 'details, summary, button, input, select, textarea, label, a';
+    if (target?.matches(interactiveSelector) || target?.closest(interactiveSelector)) {
+      event.stopPropagation();
+      return;
+    }
+  }
+  // Prevent ProseMirror from handling link clicks (we handle in 'click' event)
   if (target?.matches('a, a *')) {
     event.preventDefault();
     return;
   }
+  // Prevent ProseMirror from stealing focus on checkbox clicks
   if (target?.matches('input[type="checkbox"], input[type="checkbox"] *')) {
     event.preventDefault();
     event.stopPropagation();
     return;
   }
-  // Handle Milkdown custom checkbox component
   if (target?.closest('.milkdown-list-item-block .label-wrapper')) {
     event.preventDefault();
     event.stopPropagation();
-    emitDebug('[MOUSEDOWN] Milkdown label-wrapper - preventing default');
   }
 });
 
@@ -2665,10 +2554,6 @@ app.addEventListener('change', (event) => {
   event.preventDefault();
   event.stopPropagation();
 });
-
-app.addEventListener('pointerdown', interceptNativeCodeLanguagePicker, true);
-app.addEventListener('mousedown', interceptNativeCodeLanguagePicker, true);
-app.addEventListener('click', interceptNativeCodeLanguagePicker, true);
 
 app.addEventListener('focusin', (event) => {
   const target = event.target;
@@ -2768,10 +2653,6 @@ document.addEventListener('selectionchange', () => scheduleSyncTableFloatingUi()
 document.addEventListener('scroll', () => scheduleSyncTableFloatingUi(), true);
 document.addEventListener('pointerdown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  const isLanguagePopupClick = Boolean(target?.closest('.ushio-language-popup, .ushio-language-trigger, .language-button, .language-picker'));
-  if (!isLanguagePopupClick) {
-    hideCodeLanguagePopup();
-  }
   if (!target?.closest('.ushio-context-menu')) {
     hideContextMenu();
   }
@@ -2791,11 +2672,6 @@ const ensureEditor = () => {
 };
 
 const handleEditorShortcut = (event) => {
-  if (event.key === 'Escape' && codeLanguagePopupElement?.dataset.show === 'true') {
-    event.preventDefault();
-    hideCodeLanguagePopup();
-    return;
-  }
   if (currentReadOnly) return;
   if (event.key === 'Escape') {
     const focusedNode = document.activeElement instanceof Element ? document.activeElement : null;
@@ -2906,7 +2782,6 @@ const collectCodeBlockLanguageDebugReport = () => {
     const tools = block.querySelector('.tools');
     const pre = block.querySelector('pre');
     const languageButton = getCodeLanguageButton(block);
-    const popupVisible = codeLanguagePopupElement?.dataset?.show === 'true';
     const blockRect = block.getBoundingClientRect();
     const toolsRect = tools?.getBoundingClientRect?.();
     const preComputed = pre ? window.getComputedStyle(pre) : null;
@@ -2937,8 +2812,6 @@ const collectCodeBlockLanguageDebugReport = () => {
             bound: languageButton.dataset.ushioLanguageBind || '',
           }
         : null,
-      popupMounted: Boolean(codeLanguagePopupElement),
-      popupVisible,
       toolsRect: toolsRect
         ? {
             top: Math.round(toolsRect.top),
