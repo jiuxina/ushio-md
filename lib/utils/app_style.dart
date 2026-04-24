@@ -117,9 +117,15 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   }
 
   /// 为局部 surface 颜色提供统一的透明度缩放：
-  /// 传入的 [alpha] 会与全局卡片透明度相乘，确保“卡片透明度”全局生效。
+  /// 传入的 [alpha] 会与全局卡片透明度相乘，确保"卡片透明度"全局生效。
+  /// 如果启用自定义卡片颜色，则使用自定义颜色作为基础色。
   Color scaledSurfaceColor(ColorScheme colorScheme, {double alpha = 1}) {
     final effectiveAlpha = (cardOpacity * alpha).clamp(0.0, 1.0);
+    // 如果启用自定义卡片颜色且颜色不为空，使用自定义颜色
+    final customColor = customCardColor;
+    if (useCustomCardColor && customColor != null) {
+      return customColor.withValues(alpha: effectiveAlpha);
+    }
     return colorScheme.surface.withValues(alpha: effectiveAlpha);
   }
 

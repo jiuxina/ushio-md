@@ -261,6 +261,8 @@ class MyApp extends StatelessWidget {
     final effectiveColorScheme = _applyGlobalCardOpacity(
       colorScheme,
       cardOpacity,
+      customCardColor: customCardColor,
+      useCustomCardColor: useCustomCardColor,
     );
     final appStyle = AppStyleTheme.resolve(
       brightness: brightness,
@@ -482,21 +484,33 @@ class MyApp extends StatelessWidget {
     return theme;
   }
 
+  /// 应用全局卡片样式（透明度和自定义颜色）
+  ///
+  /// 将卡片透明度和自定义颜色应用到 ColorScheme 的所有 surface 相关颜色，
+  /// 确保所有使用 colorScheme.surface 的组件都能获得一致的卡片样式。
   ColorScheme _applyGlobalCardOpacity(
     ColorScheme colorScheme,
-    double cardOpacity,
-  ) {
-    Color applyOpacity(Color color) => color.withValues(alpha: cardOpacity);
+    double cardOpacity, {
+    Color? customCardColor,
+    bool useCustomCardColor = false,
+  }) {
+    // 应用透明度，如果启用自定义颜色则使用自定义颜色作为基础
+    Color applyStyle(Color originalColor) {
+      final baseColor = useCustomCardColor && customCardColor != null
+          ? customCardColor
+          : originalColor;
+      return baseColor.withValues(alpha: cardOpacity);
+    }
 
     return colorScheme.copyWith(
-      surface: applyOpacity(colorScheme.surface),
-      surfaceDim: applyOpacity(colorScheme.surfaceDim),
-      surfaceBright: applyOpacity(colorScheme.surfaceBright),
-      surfaceContainerLowest: applyOpacity(colorScheme.surfaceContainerLowest),
-      surfaceContainerLow: applyOpacity(colorScheme.surfaceContainerLow),
-      surfaceContainer: applyOpacity(colorScheme.surfaceContainer),
-      surfaceContainerHigh: applyOpacity(colorScheme.surfaceContainerHigh),
-      surfaceContainerHighest: applyOpacity(
+      surface: applyStyle(colorScheme.surface),
+      surfaceDim: applyStyle(colorScheme.surfaceDim),
+      surfaceBright: applyStyle(colorScheme.surfaceBright),
+      surfaceContainerLowest: applyStyle(colorScheme.surfaceContainerLowest),
+      surfaceContainerLow: applyStyle(colorScheme.surfaceContainerLow),
+      surfaceContainer: applyStyle(colorScheme.surfaceContainer),
+      surfaceContainerHigh: applyStyle(colorScheme.surfaceContainerHigh),
+      surfaceContainerHighest: applyStyle(
         colorScheme.surfaceContainerHighest,
       ),
     );

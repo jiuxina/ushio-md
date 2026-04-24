@@ -26,6 +26,7 @@ import 'editor/models/markdown_parser.dart';
 import 'editor/editor_shortcuts.dart';
 import '../services/export_service.dart';
 import '../utils/debug_log.dart';
+import '../utils/markdown_incremental_merge.dart';
 
 enum EditorMode { edit, preview }
 
@@ -102,6 +103,10 @@ class _EditorScreenState extends State<EditorScreen>
   List<String> _searchHistory = [];
   final _searchHistoryService = SearchHistoryService();
   bool _suppressNextMilkdownReload = false;
+
+  // Original Markdown for incremental merge (preserves original formatting)
+  String _originalMarkdown = '';
+  static const bool _enableIncrementalMerge = true;
 
   // Undo/redo feedback state
   String? _lastActionFeedback;
@@ -210,6 +215,8 @@ class _EditorScreenState extends State<EditorScreen>
       '[EDITOR] _applyLoadedContent called, length: ${content.length}',
     );
     _textController.text = content;
+    // Store original markdown for incremental merge
+    _originalMarkdown = content;
     if (!_textListenerAttached) {
       _textController.addListener(_onTextChanged);
       _textListenerAttached = true;
@@ -516,6 +523,9 @@ class _EditorScreenState extends State<EditorScreen>
       final fileService = context.read<FileProvider>().fileService;
       await fileService.saveFile(widget.filePath, _textController.text);
       if (mounted) {
+        // Update original markdown after successful save
+        // This resets the baseline for future incremental merges
+        _originalMarkdown = _textController.text;
         setState(() {
           _isModified = false;
           _lastSaveTime = DateTime.now();
@@ -1273,12 +1283,31 @@ class _EditorScreenState extends State<EditorScreen>
   void _handleMilkdownContentChange(String markdown) {
     final suppressReload = _suppressNextMilkdownReload;
     _suppressNextMilkdownReload = false;
-    if (markdown == _textController.text) return;
+
+    // Apply incremental merge to preserve original formatting
+    String finalMarkdown = markdown;
+    if (_enableIncrementalMerge && _originalMarkdown.isNotEmpty) {
+      final result = incrementalMerge(
+        original: _originalMarkdown,
+        newContent: markdown,
+      );
+      finalMarkdown = result.content;
+
+      // Log merge statistics for debugging
+      if (result.hasChanges) {
+        appDebugLog(
+          '[INCREMENTAL_MERGE] Preserved ${result.preservedBlocks} blocks, '
+          'replaced ${result.replacedBlocks} blocks',
+        );
+      }
+    }
+
+    if (finalMarkdown == _textController.text) return;
     if (suppressReload) {
       _previewWebViewController.suppressNextReload();
     }
     _textController.removeListener(_onTextChanged);
-    _textController.text = markdown;
+    _textController.text = finalMarkdown;
     _textController.addListener(_onTextChanged);
     _onTextChanged();
   }
