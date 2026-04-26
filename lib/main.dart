@@ -105,6 +105,9 @@ class MyApp extends StatelessWidget {
           // 获取用户选择的主题色
           Color primaryColor = settings.primaryColor;
 
+          // 获取界面字体颜色
+          Color uiFontColor = settings.uiFontColor;
+
           // 获取字体设置（System 表示使用系统默认）
           final fontFamily = settings.uiFontFamily == 'System'
               ? null
@@ -144,6 +147,7 @@ class MyApp extends StatelessWidget {
             },
             theme: _buildLightTheme(
               primaryColor,
+              uiFontColor,
               fontFamily,
               lightThemeIndex,
               settings.buttonStyleMode,
@@ -153,6 +157,7 @@ class MyApp extends StatelessWidget {
             ), // 浅色主题
             darkTheme: _buildDarkTheme(
               primaryColor,
+              uiFontColor,
               darkThemeIndex,
               fontFamily,
               settings.buttonStyleMode,
@@ -176,9 +181,11 @@ class MyApp extends StatelessWidget {
   /// 构建浅色主题
   ///
   /// [primaryColor] 用户选择的主题色
+  /// [uiFontColor] 用户选择的界面字体颜色
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
   ThemeData _buildLightTheme(
     Color primaryColor,
+    Color uiFontColor,
     String? fontFamily,
     int lightThemeIndex,
     AppButtonStyleMode buttonStyleMode,
@@ -199,7 +206,7 @@ class MyApp extends StatelessWidget {
       brightness: Brightness.light,
       colorScheme: colorScheme,
       backgroundColor: scheme.background,
-      textColor: scheme.text,
+      textColor: uiFontColor,
       textSecondaryColor: scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
@@ -212,10 +219,12 @@ class MyApp extends StatelessWidget {
   /// 构建深色主题
   ///
   /// [primaryColor] 用户选择的主题色
+  /// [uiFontColor] 用户选择的界面字体颜色
   /// [darkThemeIndex] 夜间主题配色方案索引
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
   ThemeData _buildDarkTheme(
     Color primaryColor,
+    Color uiFontColor,
     int darkThemeIndex,
     String? fontFamily,
     AppButtonStyleMode buttonStyleMode,
@@ -236,7 +245,7 @@ class MyApp extends StatelessWidget {
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       backgroundColor: scheme.background,
-      textColor: scheme.text,
+      textColor: uiFontColor,
       textSecondaryColor: scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,

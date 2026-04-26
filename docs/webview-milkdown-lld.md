@@ -336,6 +336,8 @@ class ThemePalettePayload {
   final String monoFont;
   final double sizePx;
   final double lineHeight;
+  final double letterSpacing;
+  final double paragraphSpacing;
 
   const ThemePalettePayload({
     required this.mode,
@@ -344,6 +346,8 @@ class ThemePalettePayload {
     required this.monoFont,
     required this.sizePx,
     required this.lineHeight,
+    this.letterSpacing = 0.0,
+    this.paragraphSpacing = 8.0,
   });
 
   Map<String, dynamic> toJson() => {
@@ -354,6 +358,8 @@ class ThemePalettePayload {
           'mono': monoFont,
           'sizePx': sizePx,
           'lineHeight': lineHeight,
+          'letterSpacing': letterSpacing,
+          'paragraphSpacing': paragraphSpacing,
         },
       };
 }
@@ -390,6 +396,8 @@ class ExecCmdPayload {
   --milkdown-font-mono: "JetBrains Mono", monospace;
   --milkdown-font-size: 16px;
   --milkdown-line-height: 1.7;
+  --milkdown-letter-spacing: 0px;
+  --milkdown-paragraph-spacing: 8px;
 }
 
 html,
@@ -408,6 +416,12 @@ body,
   font-family: var(--milkdown-font-body);
   font-size: var(--milkdown-font-size);
   line-height: var(--milkdown-line-height);
+  letter-spacing: var(--milkdown-letter-spacing);
+}
+
+.milkdown p,
+.milkdown .paragraph {
+  margin-bottom: var(--milkdown-paragraph-spacing);
 }
 ```
 
@@ -419,7 +433,14 @@ type ThemeMsg = {
   payload: {
     mode: 'light' | 'dark';
     colors: Record<string, string>;
-    font: { body: string; mono: string; sizePx: number; lineHeight: number };
+    font: {
+      body: string;
+      mono: string;
+      sizePx: number;
+      lineHeight: number;
+      letterSpacing: number;
+      paragraphSpacing: number;
+    };
   };
 };
 
@@ -449,6 +470,8 @@ export function applyTheme(msg: ThemeMsg) {
   root.style.setProperty('--milkdown-font-mono', msg.payload.font.mono);
   root.style.setProperty('--milkdown-font-size', `${msg.payload.font.sizePx}px`);
   root.style.setProperty('--milkdown-line-height', `${msg.payload.font.lineHeight}`);
+  root.style.setProperty('--milkdown-letter-spacing', `${msg.payload.font.letterSpacing}px`);
+  root.style.setProperty('--milkdown-paragraph-spacing', `${msg.payload.font.paragraphSpacing}px`);
   root.setAttribute('data-theme-mode', msg.payload.mode);
 }
 ```

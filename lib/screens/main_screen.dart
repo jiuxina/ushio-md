@@ -108,6 +108,20 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     if (settingsProvider.autoCheckUpdate) {
       Future.delayed(const Duration(seconds: 2), _checkUpdateOnStartup);
     }
+
+    // 启动行为：恢复上次打开的文件
+    if (settingsProvider.startupBehavior == 'restore') {
+      final lastFilePath = settingsProvider.lastOpenedFilePath;
+      if (lastFilePath != null && lastFilePath.isNotEmpty) {
+        // 检查文件是否存在
+        if (File(lastFilePath).existsSync()) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            EditorNavigationHelper.openEditor(context, lastFilePath);
+          });
+        }
+      }
+    }
   }
 
   Future<void> _runFirstLaunchWarmupIfNeeded() async {

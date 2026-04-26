@@ -18,6 +18,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirm => 'Confirm';
 
   @override
+  String get invalidRange => 'Please enter a valid number in range';
+
+  @override
   String get save => 'Save';
 
   @override
@@ -116,6 +119,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lineHeight => 'Line Height';
+
+  @override
+  String get letterSpacing => '字间距';
+
+  @override
+  String get paragraphSpacing => '段落间距';
 
   @override
   String get autoSave => 'Auto Save';
@@ -893,6 +902,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectFromGallery => 'Select from Gallery';
 
   @override
+  String get advancedParticleSettings => 'Advanced Settings';
+
+  @override
   String get homeTitleHint => 'Custom text displayed next to the home icon';
 
   @override
@@ -1082,4 +1094,141 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get customThemeColor => 'Custom Theme Color';
+
+  @override
+  String get letterSpacingDesc =>
+      'Adjust horizontal spacing between characters';
+
+  @override
+  String get paragraphSpacingDesc =>
+      'Adjust vertical spacing between paragraphs';
+
+  @override
+  String get lineHeightDesc => 'Adjust vertical spacing between lines of text';
+
+  @override
+  String get startupBehavior => 'Startup Behavior';
+
+  @override
+  String get startupShowBlank => 'Show Blank Page';
+
+  @override
+  String get startupRestoreLast => 'Restore Last File';
+
+  @override
+  String get startupRestoreLastDesc =>
+      'Automatically open the last edited file';
+
+  @override
+  String get defaultEncoding => 'Default Encoding';
+
+  @override
+  String get encodingUtf8 => 'UTF-8';
+
+  @override
+  String get encodingGbk => 'GBK';
+
+  @override
+  String get encodingDesc => 'Default encoding for new and saved files';
+
+  @override
+  String get onOpen => 'On Open';
+
+  @override
+  String get particleCount => 'Particle Count';
+
+  @override
+  String get particleSize => 'Particle Size';
+
+  @override
+  String get particleOpacity => 'Particle Opacity';
+
+  @override
+  String get particleWind => 'Wind Direction';
+
+  @override
+  String get particleWindLeft => 'Left';
+
+  @override
+  String get particleWindRight => 'Right';
+
+  @override
+  String get particleWindNone => 'None';
+
+  @override
+  String get particleCountDesc => 'Adjust the number of particles on screen';
+
+  @override
+  String get particleSizeDesc => 'Adjust the display size of particles';
+
+  @override
+  String get particleOpacityDesc => 'Adjust the transparency of particles';
+
+  @override
+  String get particleWindDesc =>
+      'Adjust the horizontal direction of particle movement';
+
+  @override
+  String get uiFontColor => 'UI Font Color';
+
+  @override
+  String get customUiFontColor => 'Custom Font Color';
+
+  @override
+  String get uiFontColorLabel => 'Font Color';
+
+  @override
+  String get adaptiveGradient => 'Adaptive Gradient';
+
+  @override
+  String get adaptiveGradientDesc =>
+      'Automatically calculate gradient from custom color';
+
+  @override
+  String get uiFontAdaptiveGradientDesc =>
+      'Automatically calculate gradient effect from font color';
+
+  @override
+  String get editorFontColor => 'Editor Font Color';
+
+  @override
+  String get customEditorFontColor => 'Custom Font Color';
+
+  @override
+  String get editorFontColorLabel => 'Font Color';
+
+  @override
+  String get editorFontAdaptiveGradientDesc =>
+      'Automatically calculate gradient effect from font color';
+
+  @override
+  String get previewText => 'Preview Text';
+
+  @override
+  String get themeSettings => 'Theme Settings';
+
+  @override
+  String get themeSettingsDesc =>
+      'Theme mode, language, theme color, font colors, button style';
+
+  @override
+  String get fontSettings => 'Font Settings';
+
+  @override
+  String get fontSettingsDesc =>
+      'UI font, editor font, code font, code block theme';
+
+  @override
+  String get backgroundSettings => 'Background Settings';
+
+  @override
+  String get backgroundSettingsDesc =>
+      'Background image, editor background, particle effects';
+
+  @override
+  String get otherAppearanceSettings => 'Other Appearance';
+
+  @override
+  String get otherAppearanceSettingsDesc =>
+      'App icon, home avatar, home title, bottom navigation bar';
 }

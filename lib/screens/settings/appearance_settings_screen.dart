@@ -4,6 +4,7 @@
 // 设置主题模式、主题色、字体、背景等外观相关选项
 // ============================================================================
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,18 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   List<CustomFontInfo> _customFonts = [];
   bool _loadingFonts = true;
   late final TextEditingController _homeTitleController;
+  
+  // 粒子速率防抖
+  Timer? _particleSpeedDebounce;
+  double _pendingParticleSpeed = 0.5;
+
+  // 背景亮度防抖
+  Timer? _backgroundBrightnessDebounce;
+  double _pendingBackgroundBrightness = 100;
+
+  // 编辑器背景亮度防抖
+  Timer? _editorBackgroundBrightnessDebounce;
+  double _pendingEditorBackgroundBrightness = 100;
 
   @override
   void initState() {
@@ -39,6 +52,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   @override
   void dispose() {
     _homeTitleController.dispose();
+    _particleSpeedDebounce?.cancel();
+    _backgroundBrightnessDebounce?.cancel();
+    _editorBackgroundBrightnessDebounce?.cancel();
     super.dispose();
   }
 
@@ -76,6 +92,16 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 ),
               );
             }
+            // 初始化亮度值（将 0-1 范围转换为 0-200 范围）
+            if (_pendingBackgroundBrightness == 100 &&
+                settings.backgroundBrightness != 1.0) {
+              _pendingBackgroundBrightness = settings.backgroundBrightness * 100;
+            }
+            if (_pendingEditorBackgroundBrightness == 100 &&
+                settings.editorBackgroundBrightness != 1.0) {
+              _pendingEditorBackgroundBrightness =
+                  settings.editorBackgroundBrightness * 100;
+            }
             final l10n = AppLocalizations.of(context)!;
             return ListView(
               padding: const EdgeInsets.all(20),
@@ -94,6 +120,18 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 _buildSection(l10n.themeColor, Icons.color_lens, [
                   _buildThemeColorSelector(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(l10n.uiFontColor, Icons.text_fields, [
+                  _buildUiFontColorSelector(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(l10n.editorFontColor, Icons.edit_note, [
+                  _buildEditorFontColorSelector(settings),
                 ]),
 
                 const SizedBox(height: 16),
@@ -1036,6 +1074,32 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 ),
             ],
           ),
+          const SizedBox(height: 12),
+          // 自适应渐变色开关（仅在自定义颜色开启时显示）
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.adaptiveGradient),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.adaptiveGradientDesc,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: settings.adaptiveGradientEnabled,
+                onChanged: (value) => settings.setAdaptiveGradientEnabled(value),
+              ),
+            ],
+          ),
         ],
       ],
     );
@@ -1064,6 +1128,30 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // 颜色预览区域
+                    Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: selectedColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          AppLocalizations.of(context)!.previewText,
+                          style: TextStyle(
+                            color: selectedColor.computeLuminance() > 0.5 
+                                ? Colors.black 
+                                : Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     // 预设颜色网格
                     Wrap(
                       spacing: 8,
@@ -1218,6 +1306,699 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 TextButton(
                   onPressed: () {
                     settings.setCustomThemeColor(selectedColor);
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(AppLocalizations.of(context)!.confirm),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// 构建界面字体颜色选择器
+  Widget _buildUiFontColorSelector(SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 预设界面字体颜色
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: SettingsProvider.uiFontColors.asMap().entries.map((entry) {
+            final index = entry.key;
+            final color = entry.value;
+            final isSelected = !settings.useCustomUiFontColor && settings.uiFontColorIndex == index;
+            return GestureDetector(
+              onTap: () => settings.setUiFontColorIndex(index),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? Colors.white : Colors.transparent,
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: isSelected
+                    ? Icon(
+                        Icons.check,
+                        color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                        size: 20,
+                      )
+                    : null,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        // 自定义界面字体颜色
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.customUiFontColor),
+            Switch(
+              value: settings.useCustomUiFontColor,
+              onChanged: (value) => settings.setUseCustomUiFontColor(value),
+            ),
+          ],
+        ),
+        if (settings.useCustomUiFontColor) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(l10n.uiFontColorLabel),
+              const SizedBox(width: 16),
+              // 颜色预览和选择按钮
+              GestureDetector(
+                onTap: () => _showUiFontColorPicker(settings),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: settings.customUiFontColor ?? Theme.of(context).colorScheme.onSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (settings.customUiFontColor ?? Theme.of(context).colorScheme.onSurface).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.colorize,
+                    size: 20,
+                    color: (settings.customUiFontColor ?? Theme.of(context).colorScheme.onSurface).computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // 显示当前颜色的十六进制值
+              if (settings.customUiFontColor != null)
+                Text(
+                  '#${settings.customUiFontColor!.value.toRadixString(16).substring(2).toUpperCase()}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 自适应渐变色开关（仅在自定义颜色开启时显示）
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.adaptiveGradient),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.uiFontAdaptiveGradientDesc,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: settings.uiFontAdaptiveGradientEnabled,
+                onChanged: (value) => settings.setUiFontAdaptiveGradientEnabled(value),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 显示界面字体颜色选择弹窗
+  void _showUiFontColorPicker(SettingsProvider settings) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        Color selectedColor = settings.customUiFontColor ?? Theme.of(context).colorScheme.onSurface;
+        bool useHslMode = true;
+        final hexController = TextEditingController(
+          text: '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+        );
+        
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final newHex = '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+            if (hexController.text.toUpperCase() != newHex) {
+              hexController.text = newHex;
+            }
+            
+            return AlertDialog(
+              title: Text(AppLocalizations.of(context)!.customUiFontColor),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 颜色预览区域（带白色背景，因为字体颜色通常在浅色背景上显示）
+                    Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          AppLocalizations.of(context)!.previewText,
+                          style: TextStyle(
+                            color: selectedColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // 预设颜色网格
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: SettingsProvider.uiFontColors.asMap().entries.map((entry) {
+                        final color = entry.value;
+                        final isSelected = selectedColor.value == color.value;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              selectedColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.outline,
+                                width: isSelected ? 3 : 1,
+                              ),
+                            ),
+                            child: isSelected
+                                ? Icon(
+                                    Icons.check,
+                                    size: 20,
+                                    color: color.computeLuminance() > 0.5
+                                        ? Colors.black
+                                        : Colors.white,
+                                  )
+                                : null,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    // 十六进制输入
+                    Row(
+                      children: [
+                        Text('HEX', style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: hexController,
+                            decoration: InputDecoration(
+                              hintText: '#RRGGBB',
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onSubmitted: (value) {
+                              final color = _parseHexColor(value);
+                              if (color != null) {
+                                setState(() {
+                                  selectedColor = color;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 模式切换
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'HSL',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: !useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'RGB',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: !useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 颜色滑块
+                    if (useHslMode)
+                      ..._buildHslSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      })
+                    else
+                      ..._buildRgbSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      }),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(AppLocalizations.of(context)!.cancel),
+                ),
+                TextButton(
+                  onPressed: () {
+                    settings.setCustomUiFontColor(selectedColor);
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(AppLocalizations.of(context)!.confirm),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEditorFontColorSelector(SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 预设编辑器文字颜色
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: SettingsProvider.editorFontColors.asMap().entries.map((entry) {
+            final index = entry.key;
+            final color = entry.value;
+            final isSelected = !settings.useCustomEditorFontColor && settings.editorFontColorIndex == index;
+            return GestureDetector(
+              onTap: () => settings.setEditorFontColorIndex(index),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? Colors.white : Colors.transparent,
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: isSelected
+                    ? Icon(
+                        Icons.check,
+                        color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                        size: 20,
+                      )
+                    : null,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        // 自定义编辑器文字颜色
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.customEditorFontColor),
+            Switch(
+              value: settings.useCustomEditorFontColor,
+              onChanged: (value) => settings.setUseCustomEditorFontColor(value),
+            ),
+          ],
+        ),
+        if (settings.useCustomEditorFontColor) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(l10n.editorFontColorLabel),
+              const SizedBox(width: 16),
+              // 颜色预览和选择按钮
+              GestureDetector(
+                onTap: () => _showEditorFontColorPicker(settings),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: settings.customEditorFontColor ?? Theme.of(context).colorScheme.onSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (settings.customEditorFontColor ?? Theme.of(context).colorScheme.onSurface).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.colorize,
+                    size: 20,
+                    color: (settings.customEditorFontColor ?? Theme.of(context).colorScheme.onSurface).computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // 显示当前颜色的十六进制值
+              if (settings.customEditorFontColor != null)
+                Text(
+                  '#${settings.customEditorFontColor!.value.toRadixString(16).substring(2).toUpperCase()}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 自适应渐变色开关（仅在自定义颜色开启时显示）
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.adaptiveGradient),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.editorFontAdaptiveGradientDesc,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: settings.editorFontAdaptiveGradientEnabled,
+                onChanged: (value) => settings.setEditorFontAdaptiveGradientEnabled(value),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 显示编辑器文字颜色选择弹窗
+  void _showEditorFontColorPicker(SettingsProvider settings) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        Color selectedColor = settings.customEditorFontColor ?? Theme.of(context).colorScheme.onSurface;
+        bool useHslMode = true;
+        final hexController = TextEditingController(
+          text: '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+        );
+        
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final newHex = '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+            if (hexController.text.toUpperCase() != newHex) {
+              hexController.text = newHex;
+            }
+            
+            return AlertDialog(
+              title: Text(AppLocalizations.of(context)!.customEditorFontColor),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 颜色预览区域（带白色背景，因为字体颜色通常在浅色背景上显示）
+                    Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          AppLocalizations.of(context)!.previewText,
+                          style: TextStyle(
+                            color: selectedColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // 预设颜色网格
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: SettingsProvider.editorFontColors.asMap().entries.map((entry) {
+                        final color = entry.value;
+                        final isSelected = selectedColor.value == color.value;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              selectedColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.outline,
+                                width: isSelected ? 3 : 1,
+                              ),
+                            ),
+                            child: isSelected
+                                ? Icon(
+                                    Icons.check,
+                                    size: 20,
+                                    color: color.computeLuminance() > 0.5
+                                        ? Colors.black
+                                        : Colors.white,
+                                  )
+                                : null,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    // 十六进制输入
+                    Row(
+                      children: [
+                        Text('HEX', style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: hexController,
+                            decoration: InputDecoration(
+                              hintText: '#RRGGBB',
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onSubmitted: (value) {
+                              final color = _parseHexColor(value);
+                              if (color != null) {
+                                setState(() {
+                                  selectedColor = color;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 模式切换
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'HSL',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: !useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'RGB',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: !useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 颜色滑块
+                    if (useHslMode)
+                      ..._buildHslSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      })
+                    else
+                      ..._buildRgbSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      }),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(AppLocalizations.of(context)!.cancel),
+                ),
+                TextButton(
+                  onPressed: () {
+                    settings.setCustomEditorFontColor(selectedColor);
                     Navigator.of(context).pop();
                   },
                   child: Text(AppLocalizations.of(context)!.confirm),
@@ -1621,18 +2402,54 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               Text(l10n.brightness),
               Expanded(
                 child: Slider(
-                  value: settings.backgroundBrightness,
-                  min: 0.2,
-                  max: 1.8,
-                  divisions: 32,
-                  label: '${(settings.backgroundBrightness * 100).round()}%',
-                  onChanged: (value) =>
-                      settings.updateBackgroundBrightnessInMemory(value),
-                  onChangeEnd: (value) =>
-                      settings.setBackgroundBrightness(value),
+                  value: _pendingBackgroundBrightness,
+                  min: 0,
+                  max: 200,
+                  divisions: 200,
+                  label: '${_pendingBackgroundBrightness.round()}%',
+                  onChanged: (value) {
+                    setState(() {
+                      _pendingBackgroundBrightness = value;
+                    });
+                    settings.updateBackgroundBrightnessInMemory(value / 100);
+                    _backgroundBrightnessDebounce?.cancel();
+                    _backgroundBrightnessDebounce = Timer(
+                      const Duration(milliseconds: 300),
+                      () {
+                        settings.setBackgroundBrightness(value / 100);
+                      },
+                    );
+                  },
                 ),
               ),
-              Text('${(settings.backgroundBrightness * 100).round()}%'),
+              GestureDetector(
+                onTap: () {
+                  _showNumberEditDialog(
+                    title: l10n.brightness,
+                    currentValue: _pendingBackgroundBrightness.round(),
+                    minValue: 0,
+                    maxValue: 200,
+                    onSaved: (value) {
+                      setState(() {
+                        _pendingBackgroundBrightness = value.toDouble();
+                      });
+                      settings.updateBackgroundBrightnessInMemory(value / 100);
+                      settings.setBackgroundBrightness(value / 100);
+                    },
+                  );
+                },
+                child: SizedBox(
+                  width: 50,
+                  child: Text(
+                    '${_pendingBackgroundBrightness.round()}%',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      decoration: TextDecoration.underline,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           // 模糊强度滑块
@@ -1730,19 +2547,54 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               Text(l10n.brightness),
               Expanded(
                 child: Slider(
-                  value: settings.editorBackgroundBrightness,
-                  min: 0.2,
-                  max: 1.8,
-                  divisions: 32,
-                  label:
-                      '${(settings.editorBackgroundBrightness * 100).round()}%',
-                  onChanged: (value) =>
-                      settings.updateEditorBackgroundBrightnessInMemory(value),
-                  onChangeEnd: (value) =>
-                      settings.setEditorBackgroundBrightness(value),
+                  value: _pendingEditorBackgroundBrightness,
+                  min: 0,
+                  max: 200,
+                  divisions: 200,
+                  label: '${_pendingEditorBackgroundBrightness.round()}%',
+                  onChanged: (value) {
+                    setState(() {
+                      _pendingEditorBackgroundBrightness = value;
+                    });
+                    settings.updateEditorBackgroundBrightnessInMemory(value / 100);
+                    _editorBackgroundBrightnessDebounce?.cancel();
+                    _editorBackgroundBrightnessDebounce = Timer(
+                      const Duration(milliseconds: 300),
+                      () {
+                        settings.setEditorBackgroundBrightness(value / 100);
+                      },
+                    );
+                  },
                 ),
               ),
-              Text('${(settings.editorBackgroundBrightness * 100).round()}%'),
+              GestureDetector(
+                onTap: () {
+                  _showNumberEditDialog(
+                    title: l10n.brightness,
+                    currentValue: _pendingEditorBackgroundBrightness.round(),
+                    minValue: 0,
+                    maxValue: 200,
+                    onSaved: (value) {
+                      setState(() {
+                        _pendingEditorBackgroundBrightness = value.toDouble();
+                      });
+                      settings.updateEditorBackgroundBrightnessInMemory(value / 100);
+                      settings.setEditorBackgroundBrightness(value / 100);
+                    },
+                  );
+                },
+                child: SizedBox(
+                  width: 50,
+                  child: Text(
+                    '${_pendingEditorBackgroundBrightness.round()}%',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      decoration: TextDecoration.underline,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           if (settings.editorBackgroundBlurEnabled) ...[
@@ -1906,23 +2758,156 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           const SizedBox(height: 16),
 
           // 速率滑块
+          // 实际范围: 0.01-0.5，界面显示: 0.1-1.0 (显示值 = 实际值 × 2)
+          Builder(
+            builder: (context) {
+              // 将实际值转换为显示值
+              final displayValue = settings.particleSpeed * 2;
+              return Row(
+                children: [
+                  Text(l10n.particleSpeed),
+                  Expanded(
+                    child: Slider(
+                      value: displayValue,
+                      min: 0.1,
+                      max: 1.0,
+                      divisions: 9,
+                      label: '${displayValue.toStringAsFixed(1)}x',
+                      onChanged: (value) {
+                        // 取消之前的防抖定时器
+                        _particleSpeedDebounce?.cancel();
+                        // 保存待处理的值
+                        _pendingParticleSpeed = value / 2; // 转换为实际值
+                        // 设置防抖定时器 (300ms)
+                        _particleSpeedDebounce = Timer(
+                          const Duration(milliseconds: 300),
+                          () {
+                            settings.setParticleSpeed(_pendingParticleSpeed);
+                          },
+                        );
+                        // 立即更新 UI
+                        setState(() {});
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '${displayValue.toStringAsFixed(1)}x',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 8),
+
+          // 粒子数量滑块
           Row(
             children: [
-              Text(l10n.particleSpeed),
+              Text(l10n.particleCount),
               Expanded(
                 child: Slider(
-                  value: settings.particleSpeed,
-                  min: 0.1,
-                  max: 1.0,
-                  divisions: 9,
-                  label: '${settings.particleSpeed.toStringAsFixed(1)}x',
-                  onChanged: (value) => settings.setParticleSpeed(value),
+                  value: settings.particleCount,
+                  min: 0.25,
+                  max: 2.0,
+                  divisions: 7,
+                  label: '${settings.particleCount.toStringAsFixed(2)}x',
+                  onChanged: (value) => settings.setParticleCount(value),
                 ),
               ),
               SizedBox(
                 width: 40,
                 child: Text(
-                  '${settings.particleSpeed.toStringAsFixed(1)}x',
+                  '${settings.particleCount.toStringAsFixed(2)}x',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // 粒子大小滑块
+          Row(
+            children: [
+              Text(l10n.particleSize),
+              Expanded(
+                child: Slider(
+                  value: settings.particleSize,
+                  min: 0.5,
+                  max: 2.0,
+                  divisions: 6,
+                  label: '${settings.particleSize.toStringAsFixed(1)}x',
+                  onChanged: (value) => settings.setParticleSize(value),
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  '${settings.particleSize.toStringAsFixed(1)}x',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // 粒子透明度滑块
+          Row(
+            children: [
+              Text(l10n.particleOpacity),
+              Expanded(
+                child: Slider(
+                  value: settings.particleOpacity,
+                  min: 0.1,
+                  max: 1.0,
+                  divisions: 9,
+                  label: '${(settings.particleOpacity * 100).toInt()}%',
+                  onChanged: (value) => settings.setParticleOpacity(value),
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  '${(settings.particleOpacity * 100).toInt()}%',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // 风向滑块
+          Row(
+            children: [
+              Text(l10n.particleWind),
+              Expanded(
+                child: Slider(
+                  value: settings.particleWind,
+                  min: -1.0,
+                  max: 1.0,
+                  divisions: 20,
+                  label: settings.particleWind < -0.1
+                      ? l10n.particleWindLeft
+                      : settings.particleWind > 0.1
+                          ? l10n.particleWindRight
+                          : l10n.particleWindNone,
+                  onChanged: (value) => settings.setParticleWind(value),
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  settings.particleWind < -0.1
+                      ? '← ${settings.particleWind.abs().toStringAsFixed(1)}'
+                      : settings.particleWind > 0.1
+                          ? '${settings.particleWind.toStringAsFixed(1)} →'
+                          : '0',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -2448,5 +3433,71 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         ),
       ],
     );
+  }
+
+  /// 显示精确编辑数字的弹窗
+  ///
+  /// [title] 弹窗标题
+  /// [currentValue] 当前值
+  /// [minValue] 最小值
+  /// [maxValue] 最大值
+  /// [onSaved] 保存回调
+  Future<void> _showNumberEditDialog({
+    required String title,
+    required int currentValue,
+    required int minValue,
+    required int maxValue,
+    required void Function(int) onSaved,
+  }) async {
+    final controller = TextEditingController(text: currentValue.toString());
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+            ],
+            decoration: InputDecoration(
+              hintText: '$minValue - $maxValue',
+              suffixText: '',
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(AppLocalizations.of(context)!.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = int.tryParse(controller.text);
+                if (value != null && value >= minValue && value <= maxValue) {
+                  Navigator.pop(context, value);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${AppLocalizations.of(context)!.invalidRange} ($minValue - $maxValue)',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: Text(AppLocalizations.of(context)!.confirm),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+    if (result != null) {
+      onSaved(result);
+    }
   }
 }

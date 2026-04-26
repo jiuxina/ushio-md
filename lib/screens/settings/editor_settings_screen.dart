@@ -37,6 +37,36 @@ class EditorSettingsScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
+                _buildSection(context, l10n.lineHeight, Icons.format_line_spacing, [
+                  _buildLineHeightSlider(context, settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(context, l10n.letterSpacing, Icons.text_fields, [
+                  _buildLetterSpacingSlider(context, settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(context, l10n.paragraphSpacing, Icons.format_line_spacing, [
+                  _buildParagraphSpacingSlider(context, settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(context, l10n.startupBehavior, Icons.launch, [
+                  _buildStartupBehaviorSelector(context, settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(context, l10n.defaultEncoding, Icons.text_snippet, [
+                  _buildEncodingSelector(context, settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
                 _buildSection(context, l10n.autoSave, Icons.save, [
                   _buildAutoSaveToggle(context, settings, l10n),
                   if (settings.autoSave) ...[
@@ -128,6 +158,105 @@ class EditorSettingsScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildLineHeightSlider(
+    BuildContext context,
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.lineHeightDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(settings.lineHeight.toStringAsFixed(1)),
+          ],
+        ),
+        Slider(
+          value: settings.lineHeight,
+          min: 1.0,
+          max: 2.5,
+          divisions: 15,
+          label: settings.lineHeight.toStringAsFixed(1),
+          onChanged: (v) => settings.setLineHeight(v),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLetterSpacingSlider(
+    BuildContext context,
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.letterSpacingDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(settings.letterSpacing.toStringAsFixed(1)),
+          ],
+        ),
+        Slider(
+          value: settings.letterSpacing,
+          min: -2.0,
+          max: 10.0,
+          divisions: 60,
+          label: settings.letterSpacing.toStringAsFixed(1),
+          onChanged: (v) => settings.setLetterSpacing(v),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParagraphSpacingSlider(
+    BuildContext context,
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.paragraphSpacingDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.current(settings.paragraphSpacing.toInt())),
+          ],
+        ),
+        Slider(
+          value: settings.paragraphSpacing,
+          min: 0,
+          max: 40,
+          divisions: 40,
+          label: '${settings.paragraphSpacing.toInt()}',
+          onChanged: (v) => settings.setParagraphSpacing(v),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAutoSaveToggle(
     BuildContext context,
     SettingsProvider settings,
@@ -173,6 +302,92 @@ class EditorSettingsScreen extends StatelessWidget {
           onChanged: (value) {
             if (value != null) settings.setAutoSaveInterval(value);
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStartupBehaviorSelector(
+    BuildContext context,
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.startupRestoreLastDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.onOpen),
+            DropdownButton<String>(
+              value: settings.startupBehavior,
+              underline: const SizedBox(),
+              borderRadius: BorderRadius.circular(12),
+              items: [
+                DropdownMenuItem(
+                  value: 'restore',
+                  child: Text(l10n.startupRestoreLast),
+                ),
+                DropdownMenuItem(
+                  value: 'blank',
+                  child: Text(l10n.startupShowBlank),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) settings.setStartupBehavior(value);
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEncodingSelector(
+    BuildContext context,
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.encodingDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.defaultEncoding),
+            DropdownButton<String>(
+              value: settings.defaultEncoding,
+              underline: const SizedBox(),
+              borderRadius: BorderRadius.circular(12),
+              items: [
+                DropdownMenuItem(
+                  value: 'utf8',
+                  child: Text(l10n.encodingUtf8),
+                ),
+                DropdownMenuItem(
+                  value: 'gbk',
+                  child: Text(l10n.encodingGbk),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) settings.setDefaultEncoding(value);
+              },
+            ),
+          ],
         ),
       ],
     );

@@ -18,6 +18,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get confirm => '确认';
 
   @override
+  String get invalidRange => '请输入有效范围内的数值';
+
+  @override
   String get save => '保存';
 
   @override
@@ -115,6 +118,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get lineHeight => '行高';
+
+  @override
+  String get letterSpacing => '字间距';
+
+  @override
+  String get paragraphSpacing => '段落间距';
 
   @override
   String get autoSave => '自动保存';
@@ -876,6 +885,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get selectFromGallery => '从相册选择';
 
   @override
+  String get advancedParticleSettings => '高级设置';
+
+  @override
   String get homeTitleHint => '自定义主页图标旁显示的文字';
 
   @override
@@ -1060,4 +1072,130 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get customThemeColor => '自定义主题色';
+
+  @override
+  String get letterSpacingDesc => '调整文字之间的水平间距';
+
+  @override
+  String get paragraphSpacingDesc => '调整段落之间的垂直间距';
+
+  @override
+  String get lineHeightDesc => '调整文本行与行之间的垂直间距';
+
+  @override
+  String get startupBehavior => '启动行为';
+
+  @override
+  String get startupShowBlank => '显示空白页';
+
+  @override
+  String get startupRestoreLast => '恢复上次文件';
+
+  @override
+  String get startupRestoreLastDesc => '自动打开上次编辑的文件';
+
+  @override
+  String get defaultEncoding => '默认编码';
+
+  @override
+  String get encodingUtf8 => 'UTF-8';
+
+  @override
+  String get encodingGbk => 'GBK';
+
+  @override
+  String get encodingDesc => '新建和保存文件时使用的默认编码';
+
+  @override
+  String get onOpen => '启动时';
+
+  @override
+  String get particleCount => '粒子数量';
+
+  @override
+  String get particleSize => '粒子大小';
+
+  @override
+  String get particleOpacity => '粒子透明度';
+
+  @override
+  String get particleWind => '风向';
+
+  @override
+  String get particleWindLeft => '向左';
+
+  @override
+  String get particleWindRight => '向右';
+
+  @override
+  String get particleWindNone => '无风';
+
+  @override
+  String get particleCountDesc => '调整屏幕上粒子的数量';
+
+  @override
+  String get particleSizeDesc => '调整粒子的显示大小';
+
+  @override
+  String get particleOpacityDesc => '调整粒子的透明度';
+
+  @override
+  String get particleWindDesc => '调整粒子飘动的水平方向';
+
+  @override
+  String get uiFontColor => '界面字体颜色';
+
+  @override
+  String get customUiFontColor => '自定义字体颜色';
+
+  @override
+  String get uiFontColorLabel => '字体颜色';
+
+  @override
+  String get adaptiveGradient => '自适应渐变色';
+
+  @override
+  String get adaptiveGradientDesc => '根据自定义颜色自动计算渐变色';
+
+  @override
+  String get uiFontAdaptiveGradientDesc => '根据字体颜色自动计算渐变效果';
+
+  @override
+  String get editorFontColor => '编辑器文字颜色';
+
+  @override
+  String get customEditorFontColor => '自定义文字颜色';
+
+  @override
+  String get editorFontColorLabel => '文字颜色';
+
+  @override
+  String get editorFontAdaptiveGradientDesc => '根据文字颜色自动计算渐变效果';
+
+  @override
+  String get previewText => '预览文字';
+
+  @override
+  String get themeSettings => '主题设置';
+
+  @override
+  String get themeSettingsDesc => '主题模式、语言、主题色、字体颜色、按钮样式';
+
+  @override
+  String get fontSettings => '字体设置';
+
+  @override
+  String get fontSettingsDesc => '界面字体、编辑器字体、代码字体、代码块主题';
+
+  @override
+  String get backgroundSettings => '背景设置';
+
+  @override
+  String get backgroundSettingsDesc => '背景图片、编辑器背景、粒子特效';
+
+  @override
+  String get otherAppearanceSettings => '其他外观';
+
+  @override
+  String get otherAppearanceSettingsDesc => '应用图标、首页头像、首页标题、底部导航栏';
 }

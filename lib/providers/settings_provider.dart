@@ -90,6 +90,33 @@ class SettingsProvider extends ChangeNotifier {
   /// 自定义主题色
   Color? _customThemeColor;
 
+  /// 是否启用自适应渐变色（当使用自定义主题色时生效）
+  bool _adaptiveGradientEnabled = true;
+
+  /// 界面字体颜色索引（对应 uiFontColors 列表）
+  int _uiFontColorIndex = 0;
+
+  /// 是否使用自定义界面字体颜色
+  bool _useCustomUiFontColor = false;
+
+  /// 自定义界面字体颜色
+  Color? _customUiFontColor;
+
+  /// 界面字体颜色是否启用自适应渐变色
+  bool _uiFontAdaptiveGradientEnabled = true;
+
+  /// 编辑器文字颜色索引（对应 editorFontColors 列表）
+  int _editorFontColorIndex = 0;
+
+  /// 是否使用自定义编辑器文字颜色
+  bool _useCustomEditorFontColor = false;
+
+  /// 自定义编辑器文字颜色
+  Color? _customEditorFontColor;
+
+  /// 编辑器文字颜色是否启用自适应渐变色
+  bool _editorFontAdaptiveGradientEnabled = true;
+
   /// 夜间主题索引（对应 AppConstants.darkThemeSchemes 列表）
   int _darkThemeIndex = 0;
 
@@ -113,7 +140,7 @@ class SettingsProvider extends ChangeNotifier {
 
   // ==================== 编辑器设置 ====================
 
-  /// 编辑器字体大小（12-24px）
+  /// 编辑器字体大小（6-80px）
   double _fontSize = 16.0;
 
   /// 是否启用自动保存
@@ -121,6 +148,24 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 自动保存间隔（秒）
   int _autoSaveInterval = 30;
+
+  /// 行高（1.0-2.5）
+  double _lineHeight = 1.6;
+
+  /// 字间距（-2.0 到 10.0，单位 px）
+  double _letterSpacing = 0.0;
+
+  /// 段落间距（0-40px）
+  double _paragraphSpacing = 8.0;
+
+  /// 启动行为：blank（空白页）/ restore（恢复上次文件）
+  String _startupBehavior = 'restore';
+
+  /// 上次打开的文件路径
+  String? _lastOpenedFilePath;
+
+  /// 默认文件编码：utf8 / gbk
+  String _defaultEncoding = 'utf8';
 
   /// 调试模式开关
   bool _debugEnabled = false;
@@ -177,11 +222,23 @@ class SettingsProvider extends ChangeNotifier {
   /// 粒子效果类型：sakura/rain/firefly/snow
   String _particleType = 'sakura';
 
-  /// 粒子速率（0.5-2.0）
-  double _particleSpeed = 1.0;
+  /// 粒子速率（0.01-0.5，界面显示为0.1-1.0）
+  double _particleSpeed = 0.5;
 
   /// 是否全局显示（false 则仅在非编辑器区域显示）
   bool _particleGlobal = true;
+
+  /// 粒子数量倍数（0.25-2.0，1.0 为默认）
+  double _particleCount = 1.0;
+
+  /// 粒子大小倍数（0.5-2.0，1.0 为默认）
+  double _particleSize = 1.0;
+
+  /// 粒子透明度（0.1-1.0）
+  double _particleOpacity = 1.0;
+
+  /// 风向（-1.0 到 1.0，负数向左，正数向右）
+  double _particleWind = 0.0;
 
   // ==================== 更新设置 ====================
 
@@ -277,10 +334,41 @@ class SettingsProvider extends ChangeNotifier {
     Color(0xFFD946EF), // 洋红
   ];
 
+  // ==================== 预设界面字体颜色 ====================
+
+  /// 8种精选界面字体颜色（适合阅读的颜色）
+  static const List<Color> uiFontColors = [
+    Color(0xFF1F2937), // 深灰（默认）- 近黑色，适合阅读
+    Color(0xFF374151), // 灰色 - 中等深度
+    Color(0xFF1E3A5F), // 深蓝 - 沉稳
+    Color(0xFF1B4332), // 深绿 - 自然
+    Color(0xFF4A1D1D), // 深红 - 温暖
+    Color(0xFF3B2D5F), // 深紫 - 优雅
+    Color(0xFF3D3D3D), // 中灰 - 中性
+    Color(0xFF2D3748), // 蓝灰 - 柔和
+  ];
+
+  // ==================== 预设编辑器文字颜色 ====================
+
+  /// 8种精选编辑器文字颜色（适合长时间编辑阅读）
+  static const List<Color> editorFontColors = [
+    Color(0xFF1F2937), // 深灰（默认）- 近黑色，经典编辑器风格
+    Color(0xFF2D3748), // 蓝灰 - 柔和护眼
+    Color(0xFF1E3A5F), // 深蓝 - 沉稳专注
+    Color(0xFF1B4332), // 深绿 - 自然清新
+    Color(0xFF4A1D1D), // 深红 - 温暖复古
+    Color(0xFF3B2D5F), // 深紫 - 优雅独特
+    Color(0xFF374151), // 灰色 - 中等深度
+    Color(0xFF0F172A), // 纯黑 - 高对比度
+  ];
+
   // ==================== Getters ====================
 
   ThemeMode get themeMode => _themeMode;
   double get fontSize => _fontSize;
+  double get lineHeight => _lineHeight;
+  double get letterSpacing => _letterSpacing;
+  double get paragraphSpacing => _paragraphSpacing;
   bool get autoSave => _autoSave;
   int get autoSaveInterval => _autoSaveInterval;
   bool get debugEnabled => _debugEnabled;
@@ -288,12 +376,35 @@ class SettingsProvider extends ChangeNotifier {
   String? get defaultDirectory => _defaultDirectory;
   String get workspaceName => _workspaceName;
   String? get customWorkspaceBasePath => _customWorkspaceBasePath;
+  String get startupBehavior => _startupBehavior;
+  String? get lastOpenedFilePath => _lastOpenedFilePath;
+  String get defaultEncoding => _defaultEncoding;
   int get primaryColorIndex => _primaryColorIndex;
   Color get primaryColor => _useCustomThemeColor && _customThemeColor != null
       ? _customThemeColor!
       : themeColors[_primaryColorIndex];
   bool get useCustomThemeColor => _useCustomThemeColor;
   Color? get customThemeColor => _customThemeColor;
+  bool get adaptiveGradientEnabled => _adaptiveGradientEnabled;
+  
+  // 界面字体颜色 Getters
+  int get uiFontColorIndex => _uiFontColorIndex;
+  Color get uiFontColor => _useCustomUiFontColor && _customUiFontColor != null
+      ? _customUiFontColor!
+      : uiFontColors[_uiFontColorIndex];
+  bool get useCustomUiFontColor => _useCustomUiFontColor;
+  Color? get customUiFontColor => _customUiFontColor;
+  bool get uiFontAdaptiveGradientEnabled => _uiFontAdaptiveGradientEnabled;
+  
+  // 编辑器文字颜色 Getters
+  int get editorFontColorIndex => _editorFontColorIndex;
+  Color get editorFontColor => _useCustomEditorFontColor && _customEditorFontColor != null
+      ? _customEditorFontColor!
+      : editorFontColors[_editorFontColorIndex];
+  bool get useCustomEditorFontColor => _useCustomEditorFontColor;
+  Color? get customEditorFontColor => _customEditorFontColor;
+  bool get editorFontAdaptiveGradientEnabled => _editorFontAdaptiveGradientEnabled;
+  
   String? get backgroundImagePath => _backgroundImagePath;
   String? get editorBackgroundImagePath => _editorBackgroundImagePath;
   bool get editorBackgroundImageExists => _editorBackgroundImageExists;
@@ -322,6 +433,10 @@ class SettingsProvider extends ChangeNotifier {
   String get particleType => _particleType;
   double get particleSpeed => _particleSpeed;
   bool get particleGlobal => _particleGlobal;
+  double get particleCount => _particleCount;
+  double get particleSize => _particleSize;
+  double get particleOpacity => _particleOpacity;
+  double get particleWind => _particleWind;
 
   Locale get locale => _locale;
   int get darkThemeIndex => _darkThemeIndex;
@@ -440,11 +555,36 @@ class SettingsProvider extends ChangeNotifier {
     if (customThemeColorValue != null) {
       _customThemeColor = Color(customThemeColorValue);
     }
+    _adaptiveGradientEnabled = prefs.getBool('adaptive_gradient_enabled') ?? true;
+    
+    // 界面字体颜色设置
+    _uiFontColorIndex = prefs.getInt('ui_font_color_index') ?? 0;
+    _useCustomUiFontColor = prefs.getBool('use_custom_ui_font_color') ?? false;
+    final customUiFontColorValue = prefs.getInt('custom_ui_font_color');
+    if (customUiFontColorValue != null) {
+      _customUiFontColor = Color(customUiFontColorValue);
+    }
+    _uiFontAdaptiveGradientEnabled = prefs.getBool('ui_font_adaptive_gradient_enabled') ?? true;
+
+    // 编辑器文字颜色设置
+    _editorFontColorIndex = prefs.getInt('editor_font_color_index') ?? 0;
+    _useCustomEditorFontColor = prefs.getBool('use_custom_editor_font_color') ?? false;
+    final customEditorFontColorValue = prefs.getInt('custom_editor_font_color');
+    if (customEditorFontColorValue != null) {
+      _customEditorFontColor = Color(customEditorFontColorValue);
+    }
+    _editorFontAdaptiveGradientEnabled = prefs.getBool('editor_font_adaptive_gradient_enabled') ?? true;
 
     // 编辑器设置
     _fontSize = prefs.getDouble('font_size') ?? 16.0;
     _autoSave = prefs.getBool('auto_save') ?? false;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
+    _lineHeight = prefs.getDouble('line_height') ?? 1.6;
+    _letterSpacing = prefs.getDouble('letter_spacing') ?? 0.0;
+    _paragraphSpacing = prefs.getDouble('paragraph_spacing') ?? 8.0;
+    _startupBehavior = prefs.getString('startup_behavior') ?? 'restore';
+    _lastOpenedFilePath = prefs.getString('last_opened_file_path');
+    _defaultEncoding = prefs.getString('default_encoding') ?? 'utf8';
     _debugEnabled = prefs.getBool('debug_enabled') ?? false;
     _defaultDirectory = prefs.getString('default_directory');
     _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
@@ -482,8 +622,12 @@ class SettingsProvider extends ChangeNotifier {
     // 粒子效果设置
     _particleEnabled = prefs.getBool('particle_enabled') ?? false;
     _particleType = prefs.getString('particle_type') ?? 'sakura';
-    _particleSpeed = prefs.getDouble('particle_speed') ?? 1.0;
+    _particleSpeed = prefs.getDouble('particle_speed') ?? 0.5;
     _particleGlobal = prefs.getBool('particle_global') ?? true;
+    _particleCount = prefs.getDouble('particle_count') ?? 1.0;
+    _particleSize = prefs.getDouble('particle_size') ?? 1.0;
+    _particleOpacity = prefs.getDouble('particle_opacity') ?? 1.0;
+    _particleWind = prefs.getDouble('particle_wind') ?? 0.0;
 
     // 语言设置
     // 如果用户没有设置过语言，则使用系统语言
@@ -637,6 +781,95 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       await prefs.remove('custom_theme_color');
     }
+  }
+
+  /// 设置自适应渐变色开关（主题色）
+  Future<void> setAdaptiveGradientEnabled(bool enabled) async {
+    _adaptiveGradientEnabled = enabled;
+    notifyListeners();
+    _schedulePersist('adaptive_gradient_enabled', enabled);
+  }
+
+  // ==================== 界面字体颜色设置方法 ====================
+
+  /// 设置界面字体颜色索引
+  Future<void> setUiFontColorIndex(int index) async {
+    _uiFontColorIndex = index;
+    _useCustomUiFontColor = false; // 切换到预设颜色时禁用自定义
+    notifyListeners();
+    _schedulePersist('ui_font_color_index', index);
+    _schedulePersist('use_custom_ui_font_color', false);
+  }
+
+  /// 设置是否使用自定义界面字体颜色
+  Future<void> setUseCustomUiFontColor(bool use) async {
+    _useCustomUiFontColor = use;
+    notifyListeners();
+    _schedulePersist('use_custom_ui_font_color', use);
+  }
+
+  /// 设置自定义界面字体颜色
+  Future<void> setCustomUiFontColor(Color? color) async {
+    _customUiFontColor = color;
+    if (color != null) {
+      _useCustomUiFontColor = true;
+    }
+    notifyListeners();
+    final prefs = await _getPrefs();
+    if (color != null) {
+      await prefs.setInt('custom_ui_font_color', color.value);
+      await prefs.setBool('use_custom_ui_font_color', true);
+    } else {
+      await prefs.remove('custom_ui_font_color');
+    }
+  }
+
+  /// 设置界面字体颜色的自适应渐变色开关
+  Future<void> setUiFontAdaptiveGradientEnabled(bool enabled) async {
+    _uiFontAdaptiveGradientEnabled = enabled;
+    notifyListeners();
+    _schedulePersist('ui_font_adaptive_gradient_enabled', enabled);
+  }
+
+  // ==================== 编辑器文字颜色设置方法 ====================
+
+  /// 设置编辑器文字颜色索引
+  Future<void> setEditorFontColorIndex(int index) async {
+    _editorFontColorIndex = index;
+    _useCustomEditorFontColor = false; // 切换到预设颜色时禁用自定义
+    notifyListeners();
+    _schedulePersist('editor_font_color_index', index);
+    _schedulePersist('use_custom_editor_font_color', false);
+  }
+
+  /// 设置是否使用自定义编辑器文字颜色
+  Future<void> setUseCustomEditorFontColor(bool use) async {
+    _useCustomEditorFontColor = use;
+    notifyListeners();
+    _schedulePersist('use_custom_editor_font_color', use);
+  }
+
+  /// 设置自定义编辑器文字颜色
+  Future<void> setCustomEditorFontColor(Color? color) async {
+    _customEditorFontColor = color;
+    if (color != null) {
+      _useCustomEditorFontColor = true;
+    }
+    notifyListeners();
+    final prefs = await _getPrefs();
+    if (color != null) {
+      await prefs.setInt('custom_editor_font_color', color.value);
+      await prefs.setBool('use_custom_editor_font_color', true);
+    } else {
+      await prefs.remove('custom_editor_font_color');
+    }
+  }
+
+  /// 设置编辑器文字颜色的自适应渐变色开关
+  Future<void> setEditorFontAdaptiveGradientEnabled(bool enabled) async {
+    _editorFontAdaptiveGradientEnabled = enabled;
+    notifyListeners();
+    _schedulePersist('editor_font_adaptive_gradient_enabled', enabled);
   }
 
   // ==================== 背景设置方法 ====================
@@ -862,6 +1095,34 @@ class SettingsProvider extends ChangeNotifier {
     _schedulePersist('particle_global', global);
   }
 
+  /// 设置粒子数量倍数
+  Future<void> setParticleCount(double count) async {
+    _particleCount = count;
+    notifyListeners();
+    _schedulePersist('particle_count', count);
+  }
+
+  /// 设置粒子大小倍数
+  Future<void> setParticleSize(double size) async {
+    _particleSize = size;
+    notifyListeners();
+    _schedulePersist('particle_size', size);
+  }
+
+  /// 设置粒子透明度
+  Future<void> setParticleOpacity(double opacity) async {
+    _particleOpacity = opacity;
+    notifyListeners();
+    _schedulePersist('particle_opacity', opacity);
+  }
+
+  /// 设置风向
+  Future<void> setParticleWind(double wind) async {
+    _particleWind = wind;
+    notifyListeners();
+    _schedulePersist('particle_wind', wind);
+  }
+
   // ==================== 编辑器设置方法 ====================
 
   /// 设置编辑器字体大小
@@ -883,6 +1144,53 @@ class SettingsProvider extends ChangeNotifier {
     _autoSaveInterval = seconds;
     notifyListeners();
     _schedulePersist('auto_save_interval', seconds);
+  }
+
+  /// 设置行高
+  Future<void> setLineHeight(double height) async {
+    _lineHeight = height;
+    notifyListeners();
+    _schedulePersist('line_height', height);
+  }
+
+  /// 设置字间距
+  Future<void> setLetterSpacing(double spacing) async {
+    _letterSpacing = spacing;
+    notifyListeners();
+    _schedulePersist('letter_spacing', spacing);
+  }
+
+  /// 设置段落间距
+  Future<void> setParagraphSpacing(double spacing) async {
+    _paragraphSpacing = spacing;
+    notifyListeners();
+    _schedulePersist('paragraph_spacing', spacing);
+  }
+
+  /// 设置启动行为
+  Future<void> setStartupBehavior(String behavior) async {
+    _startupBehavior = behavior;
+    notifyListeners();
+    _schedulePersist('startup_behavior', behavior);
+  }
+
+  /// 设置上次打开的文件路径
+  Future<void> setLastOpenedFilePath(String? path) async {
+    _lastOpenedFilePath = path;
+    notifyListeners();
+    if (path != null) {
+      _schedulePersist('last_opened_file_path', path);
+    } else {
+      final prefs = await _getPrefs();
+      await prefs.remove('last_opened_file_path');
+    }
+  }
+
+  /// 设置默认文件编码
+  Future<void> setDefaultEncoding(String encoding) async {
+    _defaultEncoding = encoding;
+    notifyListeners();
+    _schedulePersist('default_encoding', encoding);
   }
 
   /// 设置调试开关

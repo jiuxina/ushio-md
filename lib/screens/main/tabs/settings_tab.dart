@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
-import '../../settings/appearance_settings_screen.dart';
+import '../../settings/appearance_categories_screen.dart';
 import '../../settings/editor_settings_screen.dart';
 import '../../settings/cloud_sync_screen.dart';
 import '../../settings/storage_settings_screen.dart';
@@ -38,7 +38,7 @@ class SettingsTab extends StatelessWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const AppearanceSettingsScreen(),
+                builder: (_) => const AppearanceCategoriesScreen(),
               ),
             ),
           ),

@@ -43,17 +43,33 @@ class ParticleEffectWidget extends StatefulWidget {
   /// 粒子类型：sakura/rain/firefly/snow
   final String particleType;
   
-  /// 粒子速率 (0.5-2.0)
+  /// 粒子速率 (0.1-3.0)
   final double speed;
   
   /// 是否启用
   final bool enabled;
+  
+  /// 粒子数量倍数 (0.25-2.0)
+  final double count;
+  
+  /// 粒子大小倍数 (0.5-2.0)
+  final double size;
+  
+  /// 粒子透明度 (0.1-1.0)
+  final double opacity;
+  
+  /// 风向 (-1.0 到 1.0)
+  final double wind;
 
   const ParticleEffectWidget({
     super.key,
     required this.particleType,
     this.speed = 1.0,
     this.enabled = true,
+    this.count = 1.0,
+    this.size = 1.0,
+    this.opacity = 1.0,
+    this.wind = 0.0,
   });
 
   @override
@@ -66,8 +82,8 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
   final List<Particle> _particles = [];
   final Random _random = Random();
   
-  // 粒子数量配置
-  static const Map<String, int> _particleCounts = {
+  // 粒子数量配置（基础值）
+  static const Map<String, int> _baseParticleCounts = {
     'sakura': 30,
     'rain': 100,
     'firefly': 25,
@@ -93,8 +109,9 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
   void didUpdateWidget(ParticleEffectWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     
-    // 效果类型或启用状态变化时重新初始化
+    // 效果类型、数量或启用状态变化时重新初始化
     if (oldWidget.particleType != widget.particleType ||
+        oldWidget.count != widget.count ||
         oldWidget.enabled != widget.enabled) {
       _particles.clear();
       if (widget.enabled) {
@@ -110,7 +127,8 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
 
   /// 初始化粒子
   void _initParticles() {
-    final count = _particleCounts[widget.particleType] ?? 30;
+    final baseCount = _baseParticleCounts[widget.particleType] ?? 30;
+    final count = (baseCount * widget.count).round();
     
     for (int i = 0; i < count; i++) {
       _particles.add(_createParticle(randomY: true));
@@ -135,14 +153,15 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
 
   /// 创建樱花粒子
   Particle _createSakuraParticle({bool randomY = false}) {
+    final baseOpacity = 0.6 + _random.nextDouble() * 0.4;
     return Particle(
       x: _random.nextDouble(),
       y: randomY ? _random.nextDouble() : -0.1,
-      size: 8 + _random.nextDouble() * 8,
+      size: (8 + _random.nextDouble() * 8) * widget.size,
       speed: 0.3 + _random.nextDouble() * 0.3,
       angle: _random.nextDouble() * 2 * pi,
       wobble: _random.nextDouble() * 2 * pi,
-      opacity: 0.6 + _random.nextDouble() * 0.4,
+      opacity: baseOpacity * widget.opacity,
       phase: _random.nextDouble() * 2 * pi,
       color: Color.lerp(
         const Color(0xFFFFB7C5),  // 淡粉
@@ -154,27 +173,29 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
 
   /// 创建雨滴粒子
   Particle _createRainParticle({bool randomY = false}) {
+    final baseOpacity = 0.3 + _random.nextDouble() * 0.4;
     return Particle(
       x: _random.nextDouble(),
       y: randomY ? _random.nextDouble() : -0.1,
-      size: 2 + _random.nextDouble() * 3,
+      size: (2 + _random.nextDouble() * 3) * widget.size,
       speed: 1.5 + _random.nextDouble() * 1.0,
       angle: 0.15, // 雨滴倾斜角度
-      opacity: 0.3 + _random.nextDouble() * 0.4,
+      opacity: baseOpacity * widget.opacity,
       color: const Color(0xFF87CEEB).withValues(alpha: 0.6),
     );
   }
 
   /// 创建萤火虫粒子
   Particle _createFireflyParticle({bool randomY = false}) {
+    final baseOpacity = 0.4 + _random.nextDouble() * 0.6;
     return Particle(
       x: _random.nextDouble(),
       y: randomY ? _random.nextDouble() : _random.nextDouble(),
-      size: 3 + _random.nextDouble() * 4,
+      size: (3 + _random.nextDouble() * 4) * widget.size,
       speed: 0.1 + _random.nextDouble() * 0.15,
       angle: _random.nextDouble() * 2 * pi,
       phase: _random.nextDouble() * 2 * pi,
-      opacity: 0.4 + _random.nextDouble() * 0.6,
+      opacity: baseOpacity * widget.opacity,
       color: Color.lerp(
         const Color(0xFF9ACD32),  // 黄绿
         const Color(0xFFADFF2F),  // 荧光绿
@@ -185,14 +206,15 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
 
   /// 创建雪花粒子
   Particle _createSnowParticle({bool randomY = false}) {
+    final baseOpacity = 0.5 + _random.nextDouble() * 0.5;
     return Particle(
       x: _random.nextDouble(),
       y: randomY ? _random.nextDouble() : -0.1,
-      size: 3 + _random.nextDouble() * 5,
+      size: (3 + _random.nextDouble() * 5) * widget.size,
       speed: 0.2 + _random.nextDouble() * 0.3,
       wobble: _random.nextDouble() * 2 * pi,
       phase: _random.nextDouble() * 2 * pi,
-      opacity: 0.5 + _random.nextDouble() * 0.5,
+      opacity: baseOpacity * widget.opacity,
       color: Colors.white,
     );
   }
@@ -221,22 +243,23 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
   /// 更新粒子位置
   void _updateParticles() {
     final dt = 0.016 * widget.speed; // 约 60fps
+    final windEffect = widget.wind * 0.003; // 风向影响
 
     for (int i = 0; i < _particles.length; i++) {
       final p = _particles[i];
       
       switch (widget.particleType) {
         case 'sakura':
-          _updateSakuraParticle(p, dt);
+          _updateSakuraParticle(p, dt, windEffect);
           break;
         case 'rain':
-          _updateRainParticle(p, dt);
+          _updateRainParticle(p, dt, windEffect);
           break;
         case 'firefly':
-          _updateFireflyParticle(p, dt);
+          _updateFireflyParticle(p, dt, windEffect);
           break;
         case 'snow':
-          _updateSnowParticle(p, dt);
+          _updateSnowParticle(p, dt, windEffect);
           break;
       }
 
@@ -255,25 +278,25 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
     return p.y > 1.1 || p.x < -0.1 || p.x > 1.1;
   }
 
-  void _updateSakuraParticle(Particle p, double dt) {
+  void _updateSakuraParticle(Particle p, double dt, double windEffect) {
     p.y += p.speed * dt;
     p.wobble += dt * 2;
-    p.x += sin(p.wobble) * 0.002;
+    p.x += sin(p.wobble) * 0.002 + windEffect;
     p.angle += dt * 0.5;
   }
 
-  void _updateRainParticle(Particle p, double dt) {
+  void _updateRainParticle(Particle p, double dt, double windEffect) {
     p.y += p.speed * dt;
-    p.x += p.angle * dt * 0.3; // 水平偏移
+    p.x += p.angle * dt * 0.3 + windEffect; // 水平偏移 + 风向
   }
 
-  void _updateFireflyParticle(Particle p, double dt) {
+  void _updateFireflyParticle(Particle p, double dt, double windEffect) {
     p.phase += dt * 3;
     // 随机漂浮
-    p.x += sin(p.phase) * 0.002;
+    p.x += sin(p.phase) * 0.002 + windEffect * 0.3;
     p.y += cos(p.phase * 0.7) * 0.001;
     // 闪烁效果
-    p.opacity = 0.3 + sin(p.phase * 2) * 0.35 + 0.35;
+    p.opacity = (0.3 + sin(p.phase * 2) * 0.35 + 0.35) * widget.opacity;
     
     // 边界反弹
     if (p.x < 0) p.x = 0;
@@ -282,10 +305,10 @@ class _ParticleEffectWidgetState extends State<ParticleEffectWidget>
     if (p.y > 1) p.y = 1;
   }
 
-  void _updateSnowParticle(Particle p, double dt) {
+  void _updateSnowParticle(Particle p, double dt, double windEffect) {
     p.y += p.speed * dt;
     p.wobble += dt * 1.5;
-    p.x += sin(p.wobble) * 0.001;
+    p.x += sin(p.wobble) * 0.001 + windEffect;
   }
 }
 

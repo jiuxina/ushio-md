@@ -364,6 +364,8 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final String? monoFont;
   final double? fontSize;
   final double? lineHeight;
+  final double? letterSpacing;
+  final double? paragraphSpacing;
   final String? baseDirectory;
   final String? codeBlockTheme;
 
@@ -387,6 +389,8 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.monoFont,
     this.fontSize,
     this.lineHeight,
+    this.letterSpacing,
+    this.paragraphSpacing,
     this.baseDirectory,
     this.codeBlockTheme,
   });
@@ -602,6 +606,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final monoFont = widget.monoFont ?? _defaultMonoFont;
     final fontSize = widget.fontSize ?? _defaultFontSize;
     final lineHeight = widget.lineHeight ?? _defaultLineHeight;
+    final letterSpacing = widget.letterSpacing ?? 0.0;
+    final paragraphSpacing = widget.paragraphSpacing ?? 8.0;
 
     // Get border radius from theme or use default
     const borderRadius = 12.0;
@@ -629,6 +635,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       monoFont: monoFont,
       sizePx: fontSize,
       lineHeight: lineHeight,
+      letterSpacing: letterSpacing,
+      paragraphSpacing: paragraphSpacing,
       borderRadius: borderRadius,
       shadowOpacity: shadowOpacity,
       codeBlockTheme: widget.codeBlockTheme ?? 'auto',

@@ -65,6 +65,8 @@ class ThemePalettePayload {
   final String monoFont;
   final double sizePx;
   final double lineHeight;
+  final double letterSpacing;
+  final double paragraphSpacing;
   final double borderRadius;
   final double shadowOpacity;
   final String codeBlockTheme;
@@ -76,6 +78,8 @@ class ThemePalettePayload {
     required this.monoFont,
     required this.sizePx,
     required this.lineHeight,
+    this.letterSpacing = 0.0,
+    this.paragraphSpacing = 8.0,
     this.borderRadius = 12.0,
     this.shadowOpacity = 0.08,
     this.codeBlockTheme = 'auto',
@@ -89,6 +93,8 @@ class ThemePalettePayload {
       'mono': monoFont,
       'sizePx': sizePx,
       'lineHeight': lineHeight,
+      'letterSpacing': letterSpacing,
+      'paragraphSpacing': paragraphSpacing,
     },
     'style': {'borderRadius': borderRadius, 'shadowOpacity': shadowOpacity},
     'codeBlockTheme': codeBlockTheme,

@@ -35,6 +35,10 @@ class GlobalParticleOverlay extends StatelessWidget {
                   child: ParticleEffectWidget(
                     particleType: settings.particleType,
                     speed: settings.particleSpeed,
+                    count: settings.particleCount,
+                    size: settings.particleSize,
+                    opacity: settings.particleOpacity,
+                    wind: settings.particleWind,
                     enabled: true,
                   ),
                 ),

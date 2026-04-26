@@ -752,6 +752,9 @@ class FileActions {
                         initialMarkdown: markdown,
                         readOnly: true,
                         fontSize: settings.fontSize,
+                        lineHeight: settings.lineHeight,
+                        letterSpacing: settings.letterSpacing,
+                        paragraphSpacing: settings.paragraphSpacing,
                         bodyFont: settings.editorFontFamily == 'System'
                             ? null
                             : settings.editorFontFamily,

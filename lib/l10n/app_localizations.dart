@@ -116,6 +116,12 @@ abstract class AppLocalizations {
   /// **'确认'**
   String get confirm;
 
+  /// 输入数值超出范围提示
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入有效范围内的数值'**
+  String get invalidRange;
+
   /// 保存按钮
   ///
   /// In zh, this message translates to:
@@ -307,6 +313,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'行高'**
   String get lineHeight;
+
+  /// 字间距设置
+  ///
+  /// In zh, this message translates to:
+  /// **'字间距'**
+  String get letterSpacing;
+
+  /// 段落间距设置
+  ///
+  /// In zh, this message translates to:
+  /// **'段落间距'**
+  String get paragraphSpacing;
 
   /// 自动保存设置
   ///
@@ -1760,6 +1778,12 @@ abstract class AppLocalizations {
   /// **'从相册选择'**
   String get selectFromGallery;
 
+  /// 高级粒子设置标题
+  ///
+  /// In zh, this message translates to:
+  /// **'高级设置'**
+  String get advancedParticleSettings;
+
   /// 主页标题输入提示
   ///
   /// In zh, this message translates to:
@@ -2119,6 +2143,258 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'自定义主题色'**
   String get customThemeColor;
+
+  /// 字间距设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'调整文字之间的水平间距'**
+  String get letterSpacingDesc;
+
+  /// 段落间距设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'调整段落之间的垂直间距'**
+  String get paragraphSpacingDesc;
+
+  /// 行高设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'调整文本行与行之间的垂直间距'**
+  String get lineHeightDesc;
+
+  /// 启动行为设置
+  ///
+  /// In zh, this message translates to:
+  /// **'启动行为'**
+  String get startupBehavior;
+
+  /// 启动时显示空白页
+  ///
+  /// In zh, this message translates to:
+  /// **'显示空白页'**
+  String get startupShowBlank;
+
+  /// 启动时恢复上次打开的文件
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复上次文件'**
+  String get startupRestoreLast;
+
+  /// 恢复上次文件描述
+  ///
+  /// In zh, this message translates to:
+  /// **'自动打开上次编辑的文件'**
+  String get startupRestoreLastDesc;
+
+  /// 默认文件编码设置
+  ///
+  /// In zh, this message translates to:
+  /// **'默认编码'**
+  String get defaultEncoding;
+
+  /// UTF-8 编码
+  ///
+  /// In zh, this message translates to:
+  /// **'UTF-8'**
+  String get encodingUtf8;
+
+  /// GBK 编码
+  ///
+  /// In zh, this message translates to:
+  /// **'GBK'**
+  String get encodingGbk;
+
+  /// 编码设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'新建和保存文件时使用的默认编码'**
+  String get encodingDesc;
+
+  /// 启动时选项标签
+  ///
+  /// In zh, this message translates to:
+  /// **'启动时'**
+  String get onOpen;
+
+  /// 粒子数量设置
+  ///
+  /// In zh, this message translates to:
+  /// **'粒子数量'**
+  String get particleCount;
+
+  /// 粒子大小设置
+  ///
+  /// In zh, this message translates to:
+  /// **'粒子大小'**
+  String get particleSize;
+
+  /// 粒子透明度设置
+  ///
+  /// In zh, this message translates to:
+  /// **'粒子透明度'**
+  String get particleOpacity;
+
+  /// 风向设置
+  ///
+  /// In zh, this message translates to:
+  /// **'风向'**
+  String get particleWind;
+
+  /// 风向向左
+  ///
+  /// In zh, this message translates to:
+  /// **'向左'**
+  String get particleWindLeft;
+
+  /// 风向向右
+  ///
+  /// In zh, this message translates to:
+  /// **'向右'**
+  String get particleWindRight;
+
+  /// 无风
+  ///
+  /// In zh, this message translates to:
+  /// **'无风'**
+  String get particleWindNone;
+
+  /// 粒子数量设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'调整屏幕上粒子的数量'**
+  String get particleCountDesc;
+
+  /// 粒子大小设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'调整粒子的显示大小'**
+  String get particleSizeDesc;
+
+  /// 粒子透明度设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'调整粒子的透明度'**
+  String get particleOpacityDesc;
+
+  /// 风向设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'调整粒子飘动的水平方向'**
+  String get particleWindDesc;
+
+  /// 界面字体颜色设置
+  ///
+  /// In zh, this message translates to:
+  /// **'界面字体颜色'**
+  String get uiFontColor;
+
+  /// 自定义界面字体颜色开关
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义字体颜色'**
+  String get customUiFontColor;
+
+  /// 字体颜色标签
+  ///
+  /// In zh, this message translates to:
+  /// **'字体颜色'**
+  String get uiFontColorLabel;
+
+  /// 自适应渐变色开关
+  ///
+  /// In zh, this message translates to:
+  /// **'自适应渐变色'**
+  String get adaptiveGradient;
+
+  /// 自适应渐变色开关描述
+  ///
+  /// In zh, this message translates to:
+  /// **'根据自定义颜色自动计算渐变色'**
+  String get adaptiveGradientDesc;
+
+  /// 界面字体自适应渐变色描述
+  ///
+  /// In zh, this message translates to:
+  /// **'根据字体颜色自动计算渐变效果'**
+  String get uiFontAdaptiveGradientDesc;
+
+  /// 编辑器文字颜色设置
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑器文字颜色'**
+  String get editorFontColor;
+
+  /// 自定义编辑器文字颜色开关
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义文字颜色'**
+  String get customEditorFontColor;
+
+  /// 编辑器文字颜色标签
+  ///
+  /// In zh, this message translates to:
+  /// **'文字颜色'**
+  String get editorFontColorLabel;
+
+  /// 编辑器文字自适应渐变色描述
+  ///
+  /// In zh, this message translates to:
+  /// **'根据文字颜色自动计算渐变效果'**
+  String get editorFontAdaptiveGradientDesc;
+
+  /// 颜色预览文字
+  ///
+  /// In zh, this message translates to:
+  /// **'预览文字'**
+  String get previewText;
+
+  /// 主题设置标题
+  ///
+  /// In zh, this message translates to:
+  /// **'主题设置'**
+  String get themeSettings;
+
+  /// 主题设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'主题模式、语言、主题色、字体颜色、按钮样式'**
+  String get themeSettingsDesc;
+
+  /// 字体设置标题
+  ///
+  /// In zh, this message translates to:
+  /// **'字体设置'**
+  String get fontSettings;
+
+  /// 字体设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'界面字体、编辑器字体、代码字体、代码块主题'**
+  String get fontSettingsDesc;
+
+  /// 背景设置标题
+  ///
+  /// In zh, this message translates to:
+  /// **'背景设置'**
+  String get backgroundSettings;
+
+  /// 背景设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'背景图片、编辑器背景、粒子特效'**
+  String get backgroundSettingsDesc;
+
+  /// 其他外观设置标题
+  ///
+  /// In zh, this message translates to:
+  /// **'其他外观'**
+  String get otherAppearanceSettings;
+
+  /// 其他外观设置描述
+  ///
+  /// In zh, this message translates to:
+  /// **'应用图标、首页头像、首页标题、底部导航栏'**
+  String get otherAppearanceSettingsDesc;
 }
 
 class _AppLocalizationsDelegate

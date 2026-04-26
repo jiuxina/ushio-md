@@ -132,6 +132,13 @@ class _EditorScreenState extends State<EditorScreen>
     final initStopwatch = Stopwatch()..start();
 
     WidgetsBinding.instance.addObserver(this);
+    
+    // Save last opened file path for startup restore
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settings = context.read<SettingsProvider>();
+      settings.setLastOpenedFilePath(widget.filePath);
+    });
+    
     _textController = TextEditingController();
     _searchController = TextEditingController();
     _editScrollController = ScrollController();
@@ -1319,6 +1326,9 @@ class _EditorScreenState extends State<EditorScreen>
       initialMarkdown: _textController.text,
       readOnly: false,
       fontSize: settings.fontSize,
+      lineHeight: settings.lineHeight,
+      letterSpacing: settings.letterSpacing,
+      paragraphSpacing: settings.paragraphSpacing,
       bodyFont: settings.editorFontFamily == 'System'
           ? null
           : settings.editorFontFamily,
@@ -1692,6 +1702,10 @@ class _EditorScreenState extends State<EditorScreen>
                     child: ParticleEffectWidget(
                       particleType: settings.particleType,
                       speed: settings.particleSpeed,
+                      count: settings.particleCount,
+                      size: settings.particleSize,
+                      opacity: settings.particleOpacity,
+                      wind: settings.particleWind,
                       enabled: true,
                     ),
                   ),
