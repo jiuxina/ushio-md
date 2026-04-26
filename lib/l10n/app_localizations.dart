@@ -2065,6 +2065,60 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'使用主题默认'**
   String get useThemeDefault;
+
+  /// 代码块主题设置
+  ///
+  /// In zh, this message translates to:
+  /// **'代码块主题'**
+  String get codeBlockTheme;
+
+  /// 自动代码块主题
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随应用主题'**
+  String get codeBlockThemeAuto;
+
+  /// One Dark 代码块主题
+  ///
+  /// In zh, this message translates to:
+  /// **'One Dark'**
+  String get codeBlockThemeOneDark;
+
+  /// One Light 代码块主题
+  ///
+  /// In zh, this message translates to:
+  /// **'One Light'**
+  String get codeBlockThemeOneLight;
+
+  /// GitHub Dark 代码块主题
+  ///
+  /// In zh, this message translates to:
+  /// **'GitHub Dark'**
+  String get codeBlockThemeGithubDark;
+
+  /// GitHub Light 代码块主题
+  ///
+  /// In zh, this message translates to:
+  /// **'GitHub Light'**
+  String get codeBlockThemeGithubLight;
+
+  /// Nord 代码块主题
+  ///
+  /// In zh, this message translates to:
+  /// **'Nord'**
+  String get codeBlockThemeNord;
+
+  /// Material 代码块主题
+  ///
+  /// In zh, this message translates to:
+  /// **'Material'**
+  String get codeBlockThemeMaterial;
+
+  /// 自定义主题色开关
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义主题色'**
+  String get customThemeColor;
 }
 
 class _AppLocalizationsDelegate

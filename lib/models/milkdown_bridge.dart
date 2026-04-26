@@ -67,6 +67,7 @@ class ThemePalettePayload {
   final double lineHeight;
   final double borderRadius;
   final double shadowOpacity;
+  final String codeBlockTheme;
 
   const ThemePalettePayload({
     required this.mode,
@@ -77,6 +78,7 @@ class ThemePalettePayload {
     required this.lineHeight,
     this.borderRadius = 12.0,
     this.shadowOpacity = 0.08,
+    this.codeBlockTheme = 'auto',
   });
 
   Map<String, dynamic> toJson() => {
@@ -89,6 +91,7 @@ class ThemePalettePayload {
       'lineHeight': lineHeight,
     },
     'style': {'borderRadius': borderRadius, 'shadowOpacity': shadowOpacity},
+    'codeBlockTheme': codeBlockTheme,
   };
 }
 

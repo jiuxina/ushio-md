@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/constants.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../widgets/custom_title_bar.dart';
 import '../widgets/markdown_toolbar.dart';
@@ -1333,6 +1334,7 @@ class _EditorScreenState extends State<EditorScreen>
       onCheckboxToggle: _toggleCheckbox,
       onBridgeMessage: _handleMilkdownBridgeMessage,
       controller: _previewWebViewController,
+      codeBlockTheme: AppConstants.codeBlockThemes[settings.codeBlockThemeIndex].themeId,
     );
   }
 

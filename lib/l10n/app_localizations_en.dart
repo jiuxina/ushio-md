@@ -1055,4 +1055,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get useThemeDefault => 'Use Theme Default';
+
+  @override
+  String get codeBlockTheme => 'Code Block Theme';
+
+  @override
+  String get codeBlockThemeAuto => 'Follow App Theme';
+
+  @override
+  String get codeBlockThemeOneDark => 'One Dark';
+
+  @override
+  String get codeBlockThemeOneLight => 'One Light';
+
+  @override
+  String get codeBlockThemeGithubDark => 'GitHub Dark';
+
+  @override
+  String get codeBlockThemeGithubLight => 'GitHub Light';
+
+  @override
+  String get codeBlockThemeNord => 'Nord';
+
+  @override
+  String get codeBlockThemeMaterial => 'Material';
+
+  @override
+  String get customThemeColor => 'Custom Theme Color';
 }

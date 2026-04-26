@@ -765,6 +765,7 @@ class FileActions {
                         },
                         controller: controller,
                         baseDirectory: File(path).parent.path,
+                        codeBlockTheme: AppConstants.codeBlockThemes[settings.codeBlockThemeIndex].themeId,
                       ),
                     ),
                   ],

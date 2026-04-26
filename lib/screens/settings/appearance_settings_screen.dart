@@ -133,6 +133,12 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
 
                 const SizedBox(height: 16),
 
+                _buildSection(l10n.codeBlockTheme, Icons.code_rounded, [
+                  _buildCodeBlockThemeSelector(settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
                 _buildSection(l10n.background, Icons.image, [
                   _buildBackgroundSettings(settings, l10n),
                 ]),
@@ -308,75 +314,185 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       context: context,
       builder: (context) {
         Color selectedColor = settings.customCardColor ?? Theme.of(context).colorScheme.surface;
+        bool useHslMode = true; // true = HSL, false = RGB
+        final hexController = TextEditingController(
+          text: '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+        );
+        
         return StatefulBuilder(
           builder: (context, setState) {
+            // Update hex controller when color changes
+            final newHex = '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+            if (hexController.text.toUpperCase() != newHex) {
+              hexController.text = newHex;
+            }
+            
             return AlertDialog(
               title: Text(AppLocalizations.of(context)!.cardColor),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 预设颜色网格
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      // 常用卡片颜色
-                      Colors.white,
-                      Colors.black,
-                      const Color(0xFFF5F5F5), // 浅灰
-                      const Color(0xFF1E1E1E), // 深灰
-                      const Color(0xFFE3F2FD), // 浅蓝
-                      const Color(0xFF0D47A1), // 深蓝
-                      const Color(0xFFFFF3E0), // 浅橙
-                      const Color(0xFFE65100), // 深橙
-                      const Color(0xFFE8F5E9), // 浅绿
-                      const Color(0xFF1B5E20), // 深绿
-                      const Color(0xFFFCE4EC), // 浅粉
-                      const Color(0xFF880E4F), // 深粉
-                      const Color(0xFFF3E5F5), // 浅紫
-                      const Color(0xFF4A148C), // 深紫
-                    ].map((color) {
-                      final isSelected = selectedColor.value == color.value;
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            selectedColor = color;
-                          });
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: color,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.outline,
-                              width: isSelected ? 3 : 1,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 预设颜色网格
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // 常用卡片颜色
+                        Colors.white,
+                        Colors.black,
+                        const Color(0xFFF5F5F5), // 浅灰
+                        const Color(0xFF1E1E1E), // 深灰
+                        const Color(0xFFE3F2FD), // 浅蓝
+                        const Color(0xFF0D47A1), // 深蓝
+                        const Color(0xFFFFF3E0), // 浅橙
+                        const Color(0xFFE65100), // 深橙
+                        const Color(0xFFE8F5E9), // 浅绿
+                        const Color(0xFF1B5E20), // 深绿
+                        const Color(0xFFFCE4EC), // 浅粉
+                        const Color(0xFF880E4F), // 深粉
+                        const Color(0xFFF3E5F5), // 浅紫
+                        const Color(0xFF4A148C), // 深紫
+                      ].map((color) {
+                        final isSelected = selectedColor.value == color.value;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              selectedColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.outline,
+                                width: isSelected ? 3 : 1,
+                              ),
+                            ),
+                            child: isSelected
+                                ? Icon(
+                                    Icons.check,
+                                    size: 20,
+                                    color: color.computeLuminance() > 0.5
+                                        ? Colors.black
+                                        : Colors.white,
+                                  )
+                                : null,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    // 十六进制输入
+                    Row(
+                      children: [
+                        Text('HEX', style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: hexController,
+                            decoration: InputDecoration(
+                              hintText: '#RRGGBB',
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onSubmitted: (value) {
+                              final color = _parseHexColor(value);
+                              if (color != null) {
+                                setState(() {
+                                  selectedColor = color;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 模式切换
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'HSL',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                          child: isSelected
-                              ? Icon(
-                                  Icons.check,
-                                  size: 20,
-                                  color: color.computeLuminance() > 0.5
-                                      ? Colors.black
-                                      : Colors.white,
-                                )
-                              : null,
                         ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  // 颜色滑块（HSL）
-                  ..._buildColorSliders(selectedColor, (color) {
-                    setState(() {
-                      selectedColor = color;
-                    });
-                  }),
-                ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: !useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'RGB',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: !useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 颜色滑块
+                    if (useHslMode)
+                      ..._buildHslSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      })
+                    else
+                      ..._buildRgbSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      }),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -398,14 +514,32 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     );
   }
 
-  List<Widget> _buildColorSliders(Color color, void Function(Color) onUpdate) {
+  /// Parse hex color string to Color
+  Color? _parseHexColor(String hex) {
+    try {
+      String cleanHex = hex.trim().toUpperCase();
+      if (cleanHex.startsWith('#')) {
+        cleanHex = cleanHex.substring(1);
+      }
+      if (cleanHex.length == 6) {
+        cleanHex = 'FF$cleanHex'; // Add full opacity
+      }
+      if (cleanHex.length == 8) {
+        final intValue = int.parse(cleanHex, radix: 16);
+        return Color(intValue);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  List<Widget> _buildHslSliders(Color color, void Function(Color) onUpdate) {
     final hsl = HSLColor.fromColor(color);
     
     return [
       // 色相滑块
       Row(
         children: [
-          const SizedBox(width: 40, child: Text('H')),
+          SizedBox(width: 40, child: Text('H: ${(hsl.hue).round()}°')),
           Expanded(
             child: Slider(
               value: hsl.hue,
@@ -421,7 +555,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       // 饱和度滑块
       Row(
         children: [
-          const SizedBox(width: 40, child: Text('S')),
+          SizedBox(width: 40, child: Text('S: ${(hsl.saturation * 100).round()}%')),
           Expanded(
             child: Slider(
               value: hsl.saturation,
@@ -437,7 +571,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       // 亮度滑块
       Row(
         children: [
-          const SizedBox(width: 40, child: Text('L')),
+          SizedBox(width: 40, child: Text('L: ${(hsl.lightness * 100).round()}%')),
           Expanded(
             child: Slider(
               value: hsl.lightness,
@@ -445,6 +579,59 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               max: 1,
               onChanged: (value) {
                 onUpdate(HSLColor.fromAHSL(1.0, hsl.hue, hsl.saturation, value).toColor());
+              },
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  List<Widget> _buildRgbSliders(Color color, void Function(Color) onUpdate) {
+    return [
+      // R 滑块
+      Row(
+        children: [
+          SizedBox(width: 40, child: Text('R: ${color.red}')),
+          Expanded(
+            child: Slider(
+              value: color.red.toDouble(),
+              min: 0,
+              max: 255,
+              onChanged: (value) {
+                onUpdate(Color.fromARGB(255, value.round(), color.green, color.blue));
+              },
+            ),
+          ),
+        ],
+      ),
+      // G 滑块
+      Row(
+        children: [
+          SizedBox(width: 40, child: Text('G: ${color.green}')),
+          Expanded(
+            child: Slider(
+              value: color.green.toDouble(),
+              min: 0,
+              max: 255,
+              onChanged: (value) {
+                onUpdate(Color.fromARGB(255, color.red, value.round(), color.blue));
+              },
+            ),
+          ),
+        ],
+      ),
+      // B 滑块
+      Row(
+        children: [
+          SizedBox(width: 40, child: Text('B: ${color.blue}')),
+          Expanded(
+            child: Slider(
+              value: color.blue.toDouble(),
+              min: 0,
+              max: 255,
+              onChanged: (value) {
+                onUpdate(Color.fromARGB(255, color.red, color.green, value.round()));
               },
             ),
           ),
@@ -753,39 +940,293 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   }
 
   Widget _buildThemeColorSelector(SettingsProvider settings) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: SettingsProvider.themeColors.asMap().entries.map((entry) {
-        final index = entry.key;
-        final color = entry.value;
-        final isSelected = settings.primaryColorIndex == index;
-        return GestureDetector(
-          onTap: () => settings.setPrimaryColorIndex(index),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected ? Colors.white : Colors.transparent,
-                width: 3,
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 预设主题色
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: SettingsProvider.themeColors.asMap().entries.map((entry) {
+            final index = entry.key;
+            final color = entry.value;
+            final isSelected = !settings.useCustomThemeColor && settings.primaryColorIndex == index;
+            return GestureDetector(
+              onTap: () => settings.setPrimaryColorIndex(index),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? Colors.white : Colors.transparent,
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check, color: Colors.white, size: 20)
+                    : null,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.4),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        // 自定义主题色
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.customThemeColor),
+            Switch(
+              value: settings.useCustomThemeColor,
+              onChanged: (value) => settings.setUseCustomThemeColor(value),
+            ),
+          ],
+        ),
+        if (settings.useCustomThemeColor) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(l10n.themeColor),
+              const SizedBox(width: 16),
+              // 颜色预览和选择按钮
+              GestureDetector(
+                onTap: () => _showThemeColorPicker(settings),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: settings.customThemeColor ?? Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (settings.customThemeColor ?? Theme.of(context).colorScheme.primary).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.colorize,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // 显示当前颜色的十六进制值
+              if (settings.customThemeColor != null)
+                Text(
+                  '#${settings.customThemeColor!.value.toRadixString(16).substring(2).toUpperCase()}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showThemeColorPicker(SettingsProvider settings) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        Color selectedColor = settings.customThemeColor ?? Theme.of(context).colorScheme.primary;
+        bool useHslMode = true;
+        final hexController = TextEditingController(
+          text: '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+        );
+        
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final newHex = '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+            if (hexController.text.toUpperCase() != newHex) {
+              hexController.text = newHex;
+            }
+            
+            return AlertDialog(
+              title: Text(AppLocalizations.of(context)!.customThemeColor),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 预设颜色网格
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: SettingsProvider.themeColors.asMap().entries.map((entry) {
+                        final color = entry.value;
+                        final isSelected = selectedColor.value == color.value;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              selectedColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.outline,
+                                width: isSelected ? 3 : 1,
+                              ),
+                            ),
+                            child: isSelected
+                                ? Icon(
+                                    Icons.check,
+                                    size: 20,
+                                    color: color.computeLuminance() > 0.5
+                                        ? Colors.black
+                                        : Colors.white,
+                                  )
+                                : null,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    // 十六进制输入
+                    Row(
+                      children: [
+                        Text('HEX', style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: hexController,
+                            decoration: InputDecoration(
+                              hintText: '#RRGGBB',
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            onSubmitted: (value) {
+                              final color = _parseHexColor(value);
+                              if (color != null) {
+                                setState(() {
+                                  selectedColor = color;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 模式切换
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'HSL',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => useHslMode = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: !useHslMode
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              child: Text(
+                                'RGB',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: !useHslMode
+                                      ? Colors.white
+                                      : Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // 颜色滑块
+                    if (useHslMode)
+                      ..._buildHslSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      })
+                    else
+                      ..._buildRgbSliders(selectedColor, (color) {
+                        setState(() {
+                          selectedColor = color;
+                        });
+                      }),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(AppLocalizations.of(context)!.cancel),
+                ),
+                TextButton(
+                  onPressed: () {
+                    settings.setCustomThemeColor(selectedColor);
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(AppLocalizations.of(context)!.confirm),
                 ),
               ],
-            ),
-            child: isSelected
-                ? const Icon(Icons.check, color: Colors.white, size: 20)
-                : null,
-          ),
+            );
+          },
         );
-      }).toList(),
+      },
     );
   }
 
@@ -1018,6 +1459,100 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 },
           icon: const Icon(Icons.add),
           label: Text(l10n.installFont),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCodeBlockThemeSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 主题选择网格
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 2.5,
+          children: List.generate(AppConstants.codeBlockThemes.length, (index) {
+            final theme = AppConstants.codeBlockThemes[index];
+            final isSelected = settings.codeBlockThemeIndex == index;
+            // 获取本地化名称
+            String themeName;
+            switch (theme.name) {
+              case 'codeBlockThemeAuto':
+                themeName = l10n.codeBlockThemeAuto;
+                break;
+              case 'codeBlockThemeOneDark':
+                themeName = l10n.codeBlockThemeOneDark;
+                break;
+              case 'codeBlockThemeOneLight':
+                themeName = l10n.codeBlockThemeOneLight;
+                break;
+              case 'codeBlockThemeGithubDark':
+                themeName = l10n.codeBlockThemeGithubDark;
+                break;
+              case 'codeBlockThemeGithubLight':
+                themeName = l10n.codeBlockThemeGithubLight;
+                break;
+              case 'codeBlockThemeNord':
+                themeName = l10n.codeBlockThemeNord;
+                break;
+              case 'codeBlockThemeMaterial':
+                themeName = l10n.codeBlockThemeMaterial;
+                break;
+              default:
+                themeName = theme.name;
+            }
+            return GestureDetector(
+              onTap: () => settings.setCodeBlockThemeIndex(index),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                      : Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).dividerColor,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.code_rounded,
+                      size: 18,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        themeName,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ),
       ],
     );

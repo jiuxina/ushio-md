@@ -1033,4 +1033,31 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get useThemeDefault => '使用主题默认';
+
+  @override
+  String get codeBlockTheme => '代码块主题';
+
+  @override
+  String get codeBlockThemeAuto => '跟随应用主题';
+
+  @override
+  String get codeBlockThemeOneDark => 'One Dark';
+
+  @override
+  String get codeBlockThemeOneLight => 'One Light';
+
+  @override
+  String get codeBlockThemeGithubDark => 'GitHub Dark';
+
+  @override
+  String get codeBlockThemeGithubLight => 'GitHub Light';
+
+  @override
+  String get codeBlockThemeNord => 'Nord';
+
+  @override
+  String get codeBlockThemeMaterial => 'Material';
+
+  @override
+  String get customThemeColor => '自定义主题色';
 }

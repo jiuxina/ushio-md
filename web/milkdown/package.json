@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babel/runtime": "^7.29.2",
     "@milkdown/core": "7.19.1",
     "@milkdown/crepe": "^7.19.1",
     "@milkdown/plugin-automd": "7.19.1",
@@ -26,6 +27,9 @@
     "@milkdown/preset-gfm": "7.19.1",
     "@milkdown/theme-nord": "7.19.1",
     "@milkdown/utils": "7.19.1",
+    "@uiw/codemirror-theme-github": "^4.25.9",
+    "@uiw/codemirror-theme-material": "^4.25.9",
+    "@uiw/codemirror-theme-nord": "^4.25.9",
     "katex": "0.16.25",
     "prismjs": "1.30.0",
     "refractor": "^5.0.0",

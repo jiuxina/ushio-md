@@ -84,6 +84,12 @@ class SettingsProvider extends ChangeNotifier {
   /// 主题色索引（对应 themeColors 列表）
   int _primaryColorIndex = 0;
 
+  /// 是否使用自定义主题色
+  bool _useCustomThemeColor = false;
+
+  /// 自定义主题色
+  Color? _customThemeColor;
+
   /// 夜间主题索引（对应 AppConstants.darkThemeSchemes 列表）
   int _darkThemeIndex = 0;
 
@@ -101,6 +107,9 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 代码块字体族
   String _codeFontFamily = 'System';
+
+  /// 代码块主题索引（对应 AppConstants.codeBlockThemes 列表）
+  int _codeBlockThemeIndex = 0;
 
   // ==================== 编辑器设置 ====================
 
@@ -280,7 +289,11 @@ class SettingsProvider extends ChangeNotifier {
   String get workspaceName => _workspaceName;
   String? get customWorkspaceBasePath => _customWorkspaceBasePath;
   int get primaryColorIndex => _primaryColorIndex;
-  Color get primaryColor => themeColors[_primaryColorIndex];
+  Color get primaryColor => _useCustomThemeColor && _customThemeColor != null
+      ? _customThemeColor!
+      : themeColors[_primaryColorIndex];
+  bool get useCustomThemeColor => _useCustomThemeColor;
+  Color? get customThemeColor => _customThemeColor;
   String? get backgroundImagePath => _backgroundImagePath;
   String? get editorBackgroundImagePath => _editorBackgroundImagePath;
   bool get editorBackgroundImageExists => _editorBackgroundImageExists;
@@ -319,6 +332,7 @@ class SettingsProvider extends ChangeNotifier {
       _buttonStyleMode == AppButtonStyleMode.softShadow;
   String get editorFontFamily => _editorFontFamily;
   String get codeFontFamily => _codeFontFamily;
+  int get codeBlockThemeIndex => _codeBlockThemeIndex;
 
   // 云同步 Getters
   String get syncType => _syncType;
@@ -421,6 +435,11 @@ class SettingsProvider extends ChangeNotifier {
     final themeModeIndex = prefs.getInt('theme_mode') ?? 0;
     _themeMode = ThemeMode.values[themeModeIndex];
     _primaryColorIndex = prefs.getInt('primary_color_index') ?? 0;
+    _useCustomThemeColor = prefs.getBool('use_custom_theme_color') ?? false;
+    final customThemeColorValue = prefs.getInt('custom_theme_color');
+    if (customThemeColorValue != null) {
+      _customThemeColor = Color(customThemeColorValue);
+    }
 
     // 编辑器设置
     _fontSize = prefs.getDouble('font_size') ?? 16.0;
@@ -523,6 +542,9 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getString('font_family_code') ??
         'JetBrains Mono'; // 代码块默认使用 JetBrains Mono 如果有
 
+    // 代码块主题设置
+    _codeBlockThemeIndex = prefs.getInt('code_block_theme_index') ?? 0;
+
     // 云同步设置
     _syncType = prefs.getString('sync_type') ?? 'webdav';
     _focusMode = prefs.getBool('focusMode') ?? false;
@@ -588,8 +610,33 @@ class SettingsProvider extends ChangeNotifier {
   /// [index] 颜色在 themeColors 中的索引（0-7）
   Future<void> setPrimaryColorIndex(int index) async {
     _primaryColorIndex = index;
+    _useCustomThemeColor = false; // 切换到预设颜色时禁用自定义
     notifyListeners();
     _schedulePersist('primary_color_index', index);
+    _schedulePersist('use_custom_theme_color', false);
+  }
+
+  /// 设置是否使用自定义主题色
+  Future<void> setUseCustomThemeColor(bool use) async {
+    _useCustomThemeColor = use;
+    notifyListeners();
+    _schedulePersist('use_custom_theme_color', use);
+  }
+
+  /// 设置自定义主题色
+  Future<void> setCustomThemeColor(Color? color) async {
+    _customThemeColor = color;
+    if (color != null) {
+      _useCustomThemeColor = true;
+    }
+    notifyListeners();
+    final prefs = await _getPrefs();
+    if (color != null) {
+      await prefs.setInt('custom_theme_color', color.value);
+      await prefs.setBool('use_custom_theme_color', true);
+    } else {
+      await prefs.remove('custom_theme_color');
+    }
   }
 
   // ==================== 背景设置方法 ====================
@@ -982,12 +1029,11 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
-  /// 设置主页标题文字
+  /// 设置主页标题文字（允许为空）
   Future<void> setHomeTitleText(String text) async {
-    final normalized = text.trim().isEmpty ? '汐' : text.trim();
-    _homeTitleText = normalized;
+    _homeTitleText = text.trim();
     notifyListeners();
-    _schedulePersist('home_title_text', normalized);
+    _schedulePersist('home_title_text', text.trim());
   }
 
   // ==================== 夜间主题和字体设置方法 ====================
@@ -1032,6 +1078,13 @@ class SettingsProvider extends ChangeNotifier {
     _codeFontFamily = fontFamily;
     notifyListeners();
     _schedulePersist('font_family_code', fontFamily);
+  }
+
+  /// 设置代码块主题索引
+  Future<void> setCodeBlockThemeIndex(int index) async {
+    _codeBlockThemeIndex = index;
+    notifyListeners();
+    _schedulePersist('code_block_theme_index', index);
   }
 
   // ==================== 云同步设置方法 ====================

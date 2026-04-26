@@ -43,6 +43,11 @@ import { createParser as createRefractorParser } from 'prosemirror-highlight/ref
 import { refractor } from 'refractor/all';
 import { nord } from '@milkdown/theme-nord';
 import { replaceAll } from '@milkdown/utils';
+// CodeMirror themes for code block syntax highlighting
+import { oneDark } from '@codemirror/theme-one-dark';
+import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
+import { nord as nordTheme } from '@uiw/codemirror-theme-nord';
+import { material } from '@uiw/codemirror-theme-material';
 import '@milkdown/crepe/theme/nord.css';
 import 'katex/dist/katex.min.css';
 import 'prismjs/themes/prism.css';
@@ -70,6 +75,34 @@ const cmdFailureAggregate = new Map();
 const MAX_UPLOAD_FILES = 6;
 const MAX_UPLOAD_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
+
+// Code block theme state
+// Theme IDs: auto, oneDark, oneLight, githubDark, githubLight, nord, material
+let currentCodeBlockTheme = 'auto';
+let currentThemeMode = 'light';
+
+// CodeMirror theme mapping
+const CODE_BLOCK_THEMES = {
+  oneDark: oneDark,
+  githubDark: githubDark,
+  githubLight: githubLight,
+  nord: nordTheme,
+  material: material,
+};
+
+// Get the effective CodeMirror theme based on current settings
+const getEffectiveCodeBlockTheme = () => {
+  const themeId = currentCodeBlockTheme;
+  if (themeId === 'auto') {
+    // Follow app theme mode
+    return currentThemeMode === 'dark' ? CODE_BLOCK_THEMES.oneDark : null;
+  }
+  if (themeId === 'oneLight') {
+    // oneLight is not available as a separate package, use default (null) for light
+    return null;
+  }
+  return CODE_BLOCK_THEMES[themeId] || null;
+};
 // Adaptive debounce: larger files get longer debounce to reduce save frequency
 // Small (< 10KB): 80ms, Medium (10-50KB): 150ms, Large (> 50KB): 300ms
 const calculateAdaptiveDebounceMs = (markdownLength) => {
@@ -210,7 +243,21 @@ const applyTheme = (payload) => {
 
   // Apply theme mode
   if (payload.mode === 'light' || payload.mode === 'dark') {
+    currentThemeMode = payload.mode;
     root.setAttribute('data-theme-mode', payload.mode);
+  }
+
+  // Apply code block theme
+  if (typeof payload.codeBlockTheme === 'string') {
+    const previousTheme = currentCodeBlockTheme;
+    currentCodeBlockTheme = payload.codeBlockTheme;
+    // If theme changed and editor exists, we need to rebuild with new theme
+    if (previousTheme !== currentCodeBlockTheme && editorInstance) {
+      // Note: Changing CodeMirror theme requires recreating the editor
+      // For now, we store the preference and it will be applied on next editor creation
+      // A full implementation would require dynamic theme switching support in Crepe
+      emitDebug(`[THEME] Code block theme changed: ${previousTheme} -> ${currentCodeBlockTheme}`);
+    }
   }
 };
 
@@ -2210,6 +2257,10 @@ const createEditor = async () => {
   // Pre-process image URLs in the initial markdown before passing to Crepe
   // This ensures relative image URLs are converted to custom scheme URLs
   const preprocessedInitialMarkdown = preprocessImageUrlsInMarkdown(currentMarkdown);
+  
+  // Get the effective CodeMirror theme
+  const codeBlockTheme = getEffectiveCodeBlockTheme();
+  
   const crepe = new Crepe({
     root: app,
     defaultValue: preprocessedInitialMarkdown,
@@ -2217,6 +2268,9 @@ const createEditor = async () => {
       [Crepe.Feature.BlockEdit]: false,
       [Crepe.Feature.Toolbar]: false,
       [Crepe.Feature.LinkTooltip]: false,
+    },
+    featureConfigs: {
+      [Crepe.Feature.CodeMirror]: codeBlockTheme ? { theme: codeBlockTheme } : {},
     },
   });
   crepe.editor

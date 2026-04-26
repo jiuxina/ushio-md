@@ -58,6 +58,16 @@ class FontOption {
   const FontOption({required this.name, required this.fontFamily});
 }
 
+/// 代码块主题选项
+///
+/// 定义可选的代码块语法高亮主题
+class CodeBlockThemeOption {
+  final String name; // 显示名称（本地化键）
+  final String themeId; // CodeMirror 主题 ID
+
+  const CodeBlockThemeOption({required this.name, required this.themeId});
+}
+
 /// 应用常量
 ///
 /// 使用静态常量确保全局一致性
@@ -243,6 +253,21 @@ class AppConstants {
     FontOption(name: '系统默认', fontFamily: 'System'),
     FontOption(name: '思源黑体', fontFamily: 'Noto Sans SC'),
     FontOption(name: 'JetBrains Mono', fontFamily: 'JetBrains Mono'),
+  ];
+
+  // ==================== 代码块主题 ====================
+
+  /// 代码块语法高亮主题列表
+  ///
+  /// 第一个为跟随应用主题，其余为固定主题
+  static const List<CodeBlockThemeOption> codeBlockThemes = [
+    CodeBlockThemeOption(name: 'codeBlockThemeAuto', themeId: 'auto'),
+    CodeBlockThemeOption(name: 'codeBlockThemeOneDark', themeId: 'oneDark'),
+    CodeBlockThemeOption(name: 'codeBlockThemeOneLight', themeId: 'oneLight'),
+    CodeBlockThemeOption(name: 'codeBlockThemeGithubDark', themeId: 'githubDark'),
+    CodeBlockThemeOption(name: 'codeBlockThemeGithubLight', themeId: 'githubLight'),
+    CodeBlockThemeOption(name: 'codeBlockThemeNord', themeId: 'nord'),
+    CodeBlockThemeOption(name: 'codeBlockThemeMaterial', themeId: 'material'),
   ];
 
   // ==================== 尺寸规范 ====================

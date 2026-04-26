@@ -365,6 +365,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final double? fontSize;
   final double? lineHeight;
   final String? baseDirectory;
+  final String? codeBlockTheme;
 
   const MilkdownWebViewEditor({
     super.key,
@@ -387,6 +388,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.fontSize,
     this.lineHeight,
     this.baseDirectory,
+    this.codeBlockTheme,
   });
 
   @override
@@ -629,6 +631,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       lineHeight: lineHeight,
       borderRadius: borderRadius,
       shadowOpacity: shadowOpacity,
+      codeBlockTheme: widget.codeBlockTheme ?? 'auto',
     );
   }
 
@@ -1185,7 +1188,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     if (oldWidget.bodyFont != widget.bodyFont ||
         oldWidget.monoFont != widget.monoFont ||
         oldWidget.fontSize != widget.fontSize ||
-        oldWidget.lineHeight != widget.lineHeight) {
+        oldWidget.lineHeight != widget.lineHeight ||
+        oldWidget.codeBlockTheme != widget.codeBlockTheme) {
       _sendTheme();
     }
     _syncThemeIfNeeded();
