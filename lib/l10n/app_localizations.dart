@@ -2557,6 +2557,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'配色方案已保存'**
   String get monetSaved;
+
+  /// 退出文档时自动保存
+  ///
+  /// In zh, this message translates to:
+  /// **'退出文档时自动保存'**
+  String get saveOnExit;
+
+  /// 启用退出文档时自动保存开关标签
+  ///
+  /// In zh, this message translates to:
+  /// **'退出文档时自动保存'**
+  String get enableSaveOnExit;
+
+  /// 退出文档时自动保存描述
+  ///
+  /// In zh, this message translates to:
+  /// **'离开编辑器时自动保存当前文档'**
+  String get saveOnExitDesc;
 }
 
 class _AppLocalizationsDelegate

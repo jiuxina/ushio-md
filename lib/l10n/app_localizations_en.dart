@@ -1315,4 +1315,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get monetSaved => 'Color scheme saved';
+
+  @override
+  String get saveOnExit => 'Save on Exit';
+
+  @override
+  String get enableSaveOnExit => 'Save on Exit';
+
+  @override
+  String get saveOnExitDesc => 'Automatically save document when leaving editor';
 }

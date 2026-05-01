@@ -1279,4 +1279,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get monetSaved => '配色方案已保存';
+
+  @override
+  String get saveOnExit => '退出文档时自动保存';
+
+  @override
+  String get enableSaveOnExit => '退出文档时自动保存';
+
+  @override
+  String get saveOnExitDesc => '离开编辑器时自动保存当前文档';
 }

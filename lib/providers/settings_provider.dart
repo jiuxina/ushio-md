@@ -151,6 +151,9 @@ class SettingsProvider extends ChangeNotifier {
   /// 自动保存间隔（秒）
   int _autoSaveInterval = 30;
 
+  /// 退出文档时自动保存
+  bool _saveOnExit = false;
+
   /// 行高（1.0-2.5）
   double _lineHeight = 1.6;
 
@@ -389,6 +392,7 @@ class SettingsProvider extends ChangeNotifier {
   double get paragraphSpacing => _paragraphSpacing;
   bool get autoSave => _autoSave;
   int get autoSaveInterval => _autoSaveInterval;
+  bool get saveOnExit => _saveOnExit;
   bool get debugEnabled => _debugEnabled;
   List<String> get debugLogs => List.unmodifiable(_debugLogs);
   String? get defaultDirectory => _defaultDirectory;
@@ -634,6 +638,7 @@ class SettingsProvider extends ChangeNotifier {
     _fontSize = prefs.getDouble('font_size') ?? 16.0;
     _autoSave = prefs.getBool('auto_save') ?? false;
     _autoSaveInterval = prefs.getInt('auto_save_interval') ?? 30;
+    _saveOnExit = prefs.getBool('save_on_exit') ?? false;
     _lineHeight = prefs.getDouble('line_height') ?? 1.6;
     _letterSpacing = prefs.getDouble('letter_spacing') ?? 0.0;
     _paragraphSpacing = prefs.getDouble('paragraph_spacing') ?? 8.0;
@@ -1218,6 +1223,13 @@ class SettingsProvider extends ChangeNotifier {
     _autoSaveInterval = seconds;
     notifyListeners();
     _schedulePersist('auto_save_interval', seconds);
+  }
+
+  /// 设置退出文档时是否自动保存
+  Future<void> setSaveOnExit(bool value) async {
+    _saveOnExit = value;
+    notifyListeners();
+    _schedulePersist('save_on_exit', value);
   }
 
   /// 设置行高

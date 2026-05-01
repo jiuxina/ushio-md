@@ -701,6 +701,13 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (!_isModified) return true;
 
+    // 检查是否启用了退出时自动保存
+    final settings = context.read<SettingsProvider>();
+    if (settings.saveOnExit) {
+      await _saveFile(showSnackbar: false);
+      return true;
+    }
+
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(

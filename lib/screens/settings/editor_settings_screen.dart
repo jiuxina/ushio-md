@@ -77,6 +77,12 @@ class EditorSettingsScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
+                _buildSection(context, l10n.saveOnExit, Icons.exit_to_app, [
+                  _buildSaveOnExitToggle(context, settings, l10n),
+                ]),
+
+                const SizedBox(height: 16),
+
                 _buildSection(context, l10n.permanentFloatingButtons, Icons.smart_button, [
                   _buildPermanentFloatingButtonsToggle(context, settings, l10n),
                 ]),
@@ -275,6 +281,35 @@ class EditorSettingsScreen extends StatelessWidget {
         Switch(
           value: settings.autoSave,
           onChanged: (v) => settings.setAutoSave(v),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaveOnExitToggle(
+    BuildContext context,
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.enableSaveOnExit),
+            Switch(
+              value: settings.saveOnExit,
+              onChanged: (v) => settings.setSaveOnExit(v),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          l10n.saveOnExitDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
         ),
       ],
     );
