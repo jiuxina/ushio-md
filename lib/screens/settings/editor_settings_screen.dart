@@ -61,12 +61,6 @@ class EditorSettingsScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                _buildSection(context, l10n.defaultEncoding, Icons.text_snippet, [
-                  _buildEncodingSelector(context, settings, l10n),
-                ]),
-
-                const SizedBox(height: 16),
-
                 _buildSection(context, l10n.autoSave, Icons.save, [
                   _buildAutoSaveToggle(context, settings, l10n),
                   if (settings.autoSave) ...[
@@ -443,49 +437,6 @@ class EditorSettingsScreen extends StatelessWidget {
               ],
               onChanged: (value) {
                 if (value != null) settings.setStartupBehavior(value);
-              },
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEncodingSelector(
-    BuildContext context,
-    SettingsProvider settings,
-    AppLocalizations l10n,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.encodingDesc,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(l10n.defaultEncoding),
-            DropdownButton<String>(
-              value: settings.defaultEncoding,
-              underline: const SizedBox(),
-              borderRadius: BorderRadius.circular(12),
-              items: [
-                DropdownMenuItem(
-                  value: 'utf8',
-                  child: Text(l10n.encodingUtf8),
-                ),
-                DropdownMenuItem(
-                  value: 'gbk',
-                  child: Text(l10n.encodingGbk),
-                ),
-              ],
-              onChanged: (value) {
-                if (value != null) settings.setDefaultEncoding(value);
               },
             ),
           ],

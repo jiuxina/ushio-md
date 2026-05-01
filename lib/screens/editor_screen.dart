@@ -28,6 +28,11 @@ import 'editor/editor_shortcuts.dart';
 import '../services/export_service.dart';
 import '../utils/debug_log.dart';
 import '../utils/markdown_incremental_merge.dart';
+import '../services/cloud_sync_service.dart';
+import '../services/webdav_service.dart';
+import '../services/ftp_service.dart';
+import '../services/my_files_service.dart';
+import '../services/sync_service_interface.dart';
 
 enum EditorMode { edit, preview }
 
@@ -613,6 +618,14 @@ class _EditorScreenState extends State<EditorScreen>
           ),
         );
       }
+
+      // 自动云同步
+      if (mounted) {
+        final settings = context.read<SettingsProvider>();
+        if (settings.autoSyncEnabled && settings.isSyncConfigured) {
+          _triggerAutoSync();
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -636,6 +649,66 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (mounted) {
       setState(() => _isSaving = false);
+    }
+  }
+
+  /// 触发自动云同步（后台执行，不阻塞 UI）
+  void _triggerAutoSync() async {
+    try {
+      final settings = context.read<SettingsProvider>();
+
+      // 初始化同步服务
+      SyncServiceInterface syncService;
+      if (settings.syncType == 'webdav') {
+        syncService = WebDAVService();
+        if (settings.isWebdavConfigured) {
+          syncService.setRemoteWorkspaceName(settings.syncFolderName);
+          syncService.setRemotePathPrefix(settings.syncRemotePath);
+          final creds = settings.getWebdavCredentials();
+          (syncService as WebDAVService).initialize(
+            WebDAVConfig(
+              url: creds['url']!,
+              username: creds['username']!,
+              password: creds['password']!,
+            ),
+          );
+        }
+      } else {
+        syncService = FTPService();
+        if (settings.isFtpConfigured) {
+          syncService.setRemoteWorkspaceName(settings.syncFolderName);
+          syncService.setRemotePathPrefix(settings.syncRemotePath);
+          final creds = settings.getFtpCredentials();
+          (syncService as FTPService).initialize(
+            FTPConfig(
+              host: settings.ftpHost,
+              port: settings.ftpPort,
+              username: creds['username']!,
+              password: creds['password']!,
+            ),
+          );
+        }
+      }
+
+      final myFilesService = MyFilesService();
+      myFilesService.setSettingsProvider(settings);
+
+      final cloudSyncService = CloudSyncService(
+        syncService: syncService,
+        myFilesService: myFilesService,
+      );
+
+      // 同步单个文件
+      final success = await cloudSyncService.syncFile(widget.filePath);
+
+      if (success) {
+        settings.updateLastSyncTime();
+        appDebugLog('[AutoSync] 文件同步成功: ${widget.filePath}');
+      }
+
+      cloudSyncService.dispose();
+    } catch (e) {
+      appDebugLog('[AutoSync] 同步失败: $e');
     }
   }
 

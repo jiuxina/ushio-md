@@ -2228,29 +2228,23 @@ abstract class AppLocalizations {
   /// **'自动打开上次编辑的文件'**
   String get startupRestoreLastDesc;
 
-  /// 默认文件编码设置
+  /// 退出时保存
   ///
   /// In zh, this message translates to:
-  /// **'默认编码'**
-  String get defaultEncoding;
+  /// **'退出时保存'**
+  String get saveOnExit;
 
-  /// UTF-8 编码
+  /// 启用退出时自动保存
   ///
   /// In zh, this message translates to:
-  /// **'UTF-8'**
-  String get encodingUtf8;
+  /// **'退出时自动保存'**
+  String get enableSaveOnExit;
 
-  /// GBK 编码
+  /// 退出时自动保存描述
   ///
   /// In zh, this message translates to:
-  /// **'GBK'**
-  String get encodingGbk;
-
-  /// 编码设置描述
-  ///
-  /// In zh, this message translates to:
-  /// **'新建和保存文件时使用的默认编码'**
-  String get encodingDesc;
+  /// **'退出文档时自动保存未保存的更改'**
+  String get saveOnExitDesc;
 
   /// 启动时选项标签
   ///
@@ -2557,24 +2551,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'配色方案已保存'**
   String get monetSaved;
-
-  /// 退出文档时自动保存
-  ///
-  /// In zh, this message translates to:
-  /// **'退出文档时自动保存'**
-  String get saveOnExit;
-
-  /// 启用退出文档时自动保存开关标签
-  ///
-  /// In zh, this message translates to:
-  /// **'退出文档时自动保存'**
-  String get enableSaveOnExit;
-
-  /// 退出文档时自动保存描述
-  ///
-  /// In zh, this message translates to:
-  /// **'离开编辑器时自动保存当前文档'**
-  String get saveOnExitDesc;
 }
 
 class _AppLocalizationsDelegate

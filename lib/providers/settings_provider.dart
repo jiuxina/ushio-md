@@ -169,9 +169,6 @@ class SettingsProvider extends ChangeNotifier {
   /// 上次打开的文件路径
   String? _lastOpenedFilePath;
 
-  /// 默认文件编码：utf8 / gbk
-  String _defaultEncoding = 'utf8';
-
   /// 调试模式开关
   bool _debugEnabled = false;
 
@@ -400,7 +397,6 @@ class SettingsProvider extends ChangeNotifier {
   String? get customWorkspaceBasePath => _customWorkspaceBasePath;
   String get startupBehavior => _startupBehavior;
   String? get lastOpenedFilePath => _lastOpenedFilePath;
-  String get defaultEncoding => _defaultEncoding;
   int get primaryColorIndex => _primaryColorIndex;
   Color get primaryColor => _useCustomThemeColor && _customThemeColor != null
       ? _customThemeColor!
@@ -644,7 +640,6 @@ class SettingsProvider extends ChangeNotifier {
     _paragraphSpacing = prefs.getDouble('paragraph_spacing') ?? 8.0;
     _startupBehavior = prefs.getString('startup_behavior') ?? 'restore';
     _lastOpenedFilePath = prefs.getString('last_opened_file_path');
-    _defaultEncoding = prefs.getString('default_encoding') ?? 'utf8';
     _debugEnabled = prefs.getBool('debug_enabled') ?? false;
     _defaultDirectory = prefs.getString('default_directory');
     _workspaceName = prefs.getString('workspace_name') ?? 'Ushio-md';
@@ -1270,13 +1265,6 @@ class SettingsProvider extends ChangeNotifier {
       final prefs = await _getPrefs();
       await prefs.remove('last_opened_file_path');
     }
-  }
-
-  /// 设置默认文件编码
-  Future<void> setDefaultEncoding(String encoding) async {
-    _defaultEncoding = encoding;
-    notifyListeners();
-    _schedulePersist('default_encoding', encoding);
   }
 
   /// 设置调试开关

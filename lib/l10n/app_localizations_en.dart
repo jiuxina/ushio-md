@@ -1144,16 +1144,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Automatically open the last edited file';
 
   @override
-  String get defaultEncoding => 'Default Encoding';
+  String get saveOnExit => 'Save on Exit';
 
   @override
-  String get encodingUtf8 => 'UTF-8';
+  String get enableSaveOnExit => 'Auto-save on Exit';
 
   @override
-  String get encodingGbk => 'GBK';
-
-  @override
-  String get encodingDesc => 'Default encoding for new and saved files';
+  String get saveOnExitDesc =>
+      'Automatically save unsaved changes when exiting document';
 
   @override
   String get onOpen => 'On Open';
@@ -1315,13 +1313,4 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get monetSaved => 'Color scheme saved';
-
-  @override
-  String get saveOnExit => 'Save on Exit';
-
-  @override
-  String get enableSaveOnExit => 'Save on Exit';
-
-  @override
-  String get saveOnExitDesc => 'Automatically save document when leaving editor';
 }

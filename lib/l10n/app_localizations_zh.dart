@@ -1116,16 +1116,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get startupRestoreLastDesc => '自动打开上次编辑的文件';
 
   @override
-  String get defaultEncoding => '默认编码';
+  String get saveOnExit => '退出时保存';
 
   @override
-  String get encodingUtf8 => 'UTF-8';
+  String get enableSaveOnExit => '退出时自动保存';
 
   @override
-  String get encodingGbk => 'GBK';
-
-  @override
-  String get encodingDesc => '新建和保存文件时使用的默认编码';
+  String get saveOnExitDesc => '退出文档时自动保存未保存的更改';
 
   @override
   String get onOpen => '启动时';
@@ -1279,13 +1276,4 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get monetSaved => '配色方案已保存';
-
-  @override
-  String get saveOnExit => '退出文档时自动保存';
-
-  @override
-  String get enableSaveOnExit => '退出文档时自动保存';
-
-  @override
-  String get saveOnExitDesc => '离开编辑器时自动保存当前文档';
 }
