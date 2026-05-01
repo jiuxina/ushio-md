@@ -113,11 +113,56 @@ class _EditorScreenState extends State<EditorScreen>
   String? _lastActionFeedback;
   Timer? _actionFeedbackTimer;
 
+  // Floating buttons auto-hide state
+  bool _floatingButtonsVisible = true;
+  Timer? _hideFloatingButtonsTimer;
+
   String? _error;
   List<TocItem> _tocItems = [];
   int? _currentTocIndex;
 
   static const _jumpTopOffset = 32.0;
+
+  /// Hide floating buttons temporarily
+  void _hideFloatingButtons() {
+    final settings = context.read<SettingsProvider>();
+    // Skip if mode is 'always' or 'never'
+    if (settings.floatingButtonsMode != 'auto') return;
+    
+    _hideFloatingButtonsTimer?.cancel();
+    if (_floatingButtonsVisible && mounted) {
+      setState(() => _floatingButtonsVisible = false);
+    }
+  }
+
+  /// Show floating buttons after delay
+  void _showFloatingButtonsAfterDelay() {
+    final settings = context.read<SettingsProvider>();
+    // Skip if mode is 'always' or 'never'
+    if (settings.floatingButtonsMode != 'auto') return;
+    
+    _hideFloatingButtonsTimer?.cancel();
+    _hideFloatingButtonsTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && !_floatingButtonsVisible) {
+        setState(() => _floatingButtonsVisible = true);
+      }
+    });
+  }
+
+  /// Handle user interaction - hide buttons and schedule show
+  void _onUserInteraction() {
+    _hideFloatingButtons();
+    _showFloatingButtonsAfterDelay();
+  }
+
+  void _onEditFocusChanged() {
+    if (!mounted) return;
+    // Hide floating buttons when edit field gains focus
+    if (_editFocusNode.hasFocus && _mode == EditorMode.edit) {
+      _hideFloatingButtons();
+      _showFloatingButtonsAfterDelay();
+    }
+  }
 
   String get fileName => widget.filePath.split(Platform.pathSeparator).last;
 
@@ -145,6 +190,7 @@ class _EditorScreenState extends State<EditorScreen>
     _undoController = UndoHistoryController();
     _searchFocusNode = FocusNode();
     _editFocusNode = FocusNode();
+    _editFocusNode.addListener(_onEditFocusChanged);
     _inlineEditController = TextEditingController();
     _inlineEditFocusNode = FocusNode();
     _inlineEditFocusNode.addListener(_onInlineEditFocusChanged);
@@ -278,6 +324,8 @@ class _EditorScreenState extends State<EditorScreen>
     _editScrollTimer = Timer(const Duration(milliseconds: 50), () {
       _scrollEditToCursor();
     });
+    // Hide floating buttons on scroll
+    _onUserInteraction();
   }
 
   void _scrollEditToCursor() {
@@ -599,6 +647,7 @@ class _EditorScreenState extends State<EditorScreen>
     _searchDebounceTimer?.cancel();
     _actionFeedbackTimer?.cancel();
     _wordCountDebounce?.cancel();
+    _hideFloatingButtonsTimer?.cancel();
 
     // 移除所有 listener，使用标志位防止重复移除
     if (_textListenerAttached) {
@@ -616,7 +665,9 @@ class _EditorScreenState extends State<EditorScreen>
     _searchFocusNode
       ..removeListener(_onSearchFocusChanged)
       ..dispose();
-    _editFocusNode.dispose();
+    _editFocusNode
+      ..removeListener(_onEditFocusChanged)
+      ..dispose();
     _inlineEditFocusNode.removeListener(_onInlineEditFocusChanged);
     _inlineEditController.dispose();
     _inlineEditFocusNode.dispose();
@@ -1381,6 +1432,12 @@ class _EditorScreenState extends State<EditorScreen>
     final focused = payload['focused'] == true;
     if (!mounted || focused == _isMilkdownEditorFocused) return;
     setState(() => _isMilkdownEditorFocused = focused);
+    
+    // Hide floating buttons when Milkdown editor gains focus
+    if (focused) {
+      _hideFloatingButtons();
+      _showFloatingButtonsAfterDelay();
+    }
   }
 
   // ==================== 内联编辑 ====================
@@ -1723,19 +1780,25 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Widget _buildEditorWithGesture() {
-    return GestureDetector(
-      onDoubleTap: () {
-        final settings = context.read<SettingsProvider>();
-        settings.setFocusMode(!settings.focusMode);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(settings.focusMode ? '专注模式已开启' : '专注模式已关闭'),
-            duration: const Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      },
-      child: _buildEditor(),
+    return Listener(
+      onPointerDown: (_) => _onUserInteraction(),
+      onPointerMove: (_) => _onUserInteraction(),
+      onPointerUp: (_) => _showFloatingButtonsAfterDelay(),
+      child: GestureDetector(
+        onDoubleTap: () {
+          final settings = context.read<SettingsProvider>();
+          settings.setFocusMode(!settings.focusMode);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(settings.focusMode ? '专注模式已开启' : '专注模式已关闭'),
+              duration: const Duration(seconds: 1),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
+        behavior: HitTestBehavior.translucent,
+        child: _buildEditor(),
+      ),
     );
   }
 
@@ -1835,7 +1898,25 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Widget _buildFixedFloatingButtons() {
+    final settings = context.watch<SettingsProvider>();
     final safeBottom = MediaQuery.of(context).padding.bottom;
+    
+    // Check floating buttons mode
+    final mode = settings.floatingButtonsMode;
+    final bool showButtons;
+    
+    switch (mode) {
+      case 'always':
+        showButtons = true;
+        break;
+      case 'never':
+        showButtons = false;
+        break;
+      case 'auto':
+      default:
+        showButtons = _floatingButtonsVisible;
+        break;
+    }
 
     switch (_mode) {
       case EditorMode.edit:
@@ -1843,13 +1924,26 @@ class _EditorScreenState extends State<EditorScreen>
         return Positioned(
           right: 24,
           bottom: editBottom,
-          child: AnimatedFab(
-            icon: Icons.visibility,
-            color: Theme.of(context).colorScheme.primary,
-            onTap: () => setState(() {
-              _mode = EditorMode.preview;
-              _isMilkdownEditorFocused = false;
-            }),
+          child: AnimatedOpacity(
+            opacity: showButtons ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: AnimatedScale(
+              scale: showButtons ? 1.0 : 0.8,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              child: IgnorePointer(
+                ignoring: !showButtons,
+                child: AnimatedFab(
+                  icon: Icons.visibility,
+                  color: Theme.of(context).colorScheme.primary,
+                  onTap: () => setState(() {
+                    _mode = EditorMode.preview;
+                    _isMilkdownEditorFocused = false;
+                  }),
+                ),
+              ),
+            ),
           ),
         );
       case EditorMode.preview:
@@ -1858,30 +1952,43 @@ class _EditorScreenState extends State<EditorScreen>
         return Positioned(
           right: 24,
           bottom: previewBottom,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedFab(
-                icon: Icons.edit,
-                color: Theme.of(context).colorScheme.tertiary,
-                onTap: () => setState(() {
-                  _mode = EditorMode.edit;
-                  _isMilkdownEditorFocused = false;
-                }),
+          child: AnimatedOpacity(
+            opacity: showButtons ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: AnimatedScale(
+              scale: showButtons ? 1.0 : 0.8,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              child: IgnorePointer(
+                ignoring: !showButtons,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedFab(
+                      icon: Icons.edit,
+                      color: Theme.of(context).colorScheme.tertiary,
+                      onTap: () => setState(() {
+                        _mode = EditorMode.edit;
+                        _isMilkdownEditorFocused = false;
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    AnimatedFab(
+                      icon: Icons.list,
+                      color: Theme.of(context).colorScheme.primary,
+                      onTap: () {
+                        if (_showToc) {
+                          _tocOverlayController.close();
+                          return;
+                        }
+                        setState(() => _showToc = true);
+                      },
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              AnimatedFab(
-                icon: Icons.list,
-                color: Theme.of(context).colorScheme.primary,
-                onTap: () {
-                  if (_showToc) {
-                    _tocOverlayController.close();
-                    return;
-                  }
-                  setState(() => _showToc = true);
-                },
-              ),
-            ],
+            ),
           ),
         );
     }
@@ -1926,6 +2033,7 @@ class _EditorScreenState extends State<EditorScreen>
               ).colorScheme.outline.withValues(alpha: 0.5),
             ),
           ),
+          onTap: _onUserInteraction,
         ),
         if (_highlightedLine != null && _mode == EditorMode.edit)
           AnimatedBuilder(

@@ -21,6 +21,8 @@ import 'package:path_provider/path_provider.dart';
 import '../utils/app_style.dart';
 import '../utils/platform_adapter.dart';
 import '../utils/debug_log.dart';
+import '../models/monet_config.dart';
+import 'dart:convert';
 
 /// 设置状态提供者
 ///
@@ -159,7 +161,7 @@ class SettingsProvider extends ChangeNotifier {
   double _paragraphSpacing = 8.0;
 
   /// 启动行为：blank（空白页）/ restore（恢复上次文件）
-  String _startupBehavior = 'restore';
+  String _startupBehavior = 'blank';
 
   /// 上次打开的文件路径
   String? _lastOpenedFilePath;
@@ -285,6 +287,22 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 专注模式（隐藏非必要 UI 元素）
   bool _focusMode = false;
+
+  /// 浮动按钮显示模式：auto（智能隐藏）、always（永久显示）、never（永久隐藏）
+  String _floatingButtonsMode = 'auto';
+
+  // ==================== 莫奈取色设置 ====================
+
+  /// 是否启用莫奈取色
+  bool _monetEnabled = false;
+
+  /// 当前激活的莫奈配置ID
+  String? _activeMonetConfigId;
+
+  /// 保存的莫奈配色方案列表
+  List<MonetConfig> _savedMonetConfigs = [];
+
+  // ==================== 云同步凭据 ====================
 
   /// WebDAV 服务器地址
   String _webdavUrl = '';
@@ -452,6 +470,7 @@ class SettingsProvider extends ChangeNotifier {
   // 云同步 Getters
   String get syncType => _syncType;
   bool get focusMode => _focusMode;
+  String get floatingButtonsMode => _floatingButtonsMode;
   String get webdavUrl => _webdavUrl;
   String get webdavUsername => _webdavUsername;
   // 密码不通过公共 getter 暴露，仅在内部使用
@@ -523,6 +542,42 @@ class SettingsProvider extends ChangeNotifier {
       _ftpUrl.isNotEmpty && _ftpUsername.isNotEmpty && _ftpPassword.isNotEmpty;
   bool get isSyncConfigured =>
       _syncType == 'webdav' ? isWebdavConfigured : isFtpConfigured;
+
+  // ==================== 莫奈取色 Getters ====================
+
+  /// 是否启用莫奈取色
+  bool get monetEnabled => _monetEnabled;
+
+  /// 当前激活的莫奈配置
+  MonetConfig? get activeMonetConfig {
+    if (_activeMonetConfigId == null) return null;
+    try {
+      return _savedMonetConfigs.firstWhere(
+        (config) => config.id == _activeMonetConfigId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 保存的莫奈配色方案列表
+  List<MonetConfig> get savedMonetConfigs => List.unmodifiable(_savedMonetConfigs);
+
+  /// 获取当前应使用的莫奈配色方案（根据主题模式）
+  MonetColorScheme? get currentMonetScheme {
+    if (!_monetEnabled) return null;
+    final config = activeMonetConfig;
+    if (config == null) return null;
+    
+    final isDark = _themeMode == ThemeMode.dark ||
+        (_themeMode == ThemeMode.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark);
+    
+    return isDark ? config.scheme.darkScheme : config.scheme.lightScheme;
+  }
+
+  // ==================== 云同步凭据 Getters ====================
 
   /// 安全地获取 WebDAV 凭据（仅用于创建服务实例）
   /// 不要在 UI 层调用此方法
@@ -692,6 +747,7 @@ class SettingsProvider extends ChangeNotifier {
     // 云同步设置
     _syncType = prefs.getString('sync_type') ?? 'webdav';
     _focusMode = prefs.getBool('focusMode') ?? false;
+    _floatingButtonsMode = prefs.getString('floating_buttons_mode') ?? 'auto';
     _webdavUrl = prefs.getString('webdav_url') ?? '';
     _webdavUsername = prefs.getString('webdav_username') ?? '';
 
@@ -732,6 +788,24 @@ class SettingsProvider extends ChangeNotifier {
         _webdavPassword = oldPassword;
         await _secureStorage.write(key: 'webdav_password', value: oldPassword);
         await prefs.remove('webdav_password'); // 删除明文密码
+      }
+    }
+
+    // 莫奈取色设置
+    _monetEnabled = prefs.getBool('monet_enabled') ?? false;
+    _activeMonetConfigId = prefs.getString('active_monet_config_id');
+    
+    // 加载保存的莫奈配置
+    final savedConfigsJson = prefs.getString('saved_monet_configs');
+    if (savedConfigsJson != null && savedConfigsJson.isNotEmpty) {
+      try {
+        final List<dynamic> configList = json.decode(savedConfigsJson);
+        _savedMonetConfigs = configList
+            .map((json) => MonetConfig.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        // 解析失败时清空
+        _savedMonetConfigs = [];
       }
     }
 
@@ -776,7 +850,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await _getPrefs();
     if (color != null) {
-      await prefs.setInt('custom_theme_color', color.value);
+      await prefs.setInt('custom_theme_color', color.toARGB32());
       await prefs.setBool('use_custom_theme_color', true);
     } else {
       await prefs.remove('custom_theme_color');
@@ -817,7 +891,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await _getPrefs();
     if (color != null) {
-      await prefs.setInt('custom_ui_font_color', color.value);
+      await prefs.setInt('custom_ui_font_color', color.toARGB32());
       await prefs.setBool('use_custom_ui_font_color', true);
     } else {
       await prefs.remove('custom_ui_font_color');
@@ -858,7 +932,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await _getPrefs();
     if (color != null) {
-      await prefs.setInt('custom_editor_font_color', color.value);
+      await prefs.setInt('custom_editor_font_color', color.toARGB32());
       await prefs.setBool('use_custom_editor_font_color', true);
     } else {
       await prefs.remove('custom_editor_font_color');
@@ -1296,7 +1370,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await _getPrefs();
     if (color != null) {
-      await prefs.setInt('custom_card_color', color.value);
+      await prefs.setInt('custom_card_color', color.toARGB32());
     } else {
       await prefs.remove('custom_card_color');
     }
@@ -1501,6 +1575,14 @@ class SettingsProvider extends ChangeNotifier {
     _schedulePersist('focusMode', value);
   }
 
+  /// 设置浮动按钮显示模式
+  Future<void> setFloatingButtonsMode(String mode) async {
+    if (_floatingButtonsMode == mode) return;
+    _floatingButtonsMode = mode;
+    notifyListeners();
+    _schedulePersist('floating_buttons_mode', mode);
+  }
+
   /// 更新上次同步时间
   Future<void> updateLastSyncTime() async {
     _lastSyncTime = DateTime.now();
@@ -1526,5 +1608,87 @@ class SettingsProvider extends ChangeNotifier {
     // 密码使用安全存储
     await _secureStorage.write(key: 'webdav_password', value: password);
     notifyListeners();
+  }
+
+  // ==================== 莫奈取色设置方法 ====================
+
+  /// 设置是否启用莫奈取色
+  Future<void> setMonetEnabled(bool enabled) async {
+    _monetEnabled = enabled;
+    notifyListeners();
+    _schedulePersist('monet_enabled', enabled);
+  }
+
+  /// 设置激活的莫奈配置
+  Future<void> setActiveMonetConfig(String? configId) async {
+    _activeMonetConfigId = configId;
+    notifyListeners();
+    final prefs = await _getPrefs();
+    if (configId != null) {
+      await prefs.setString('active_monet_config_id', configId);
+    } else {
+      await prefs.remove('active_monet_config_id');
+    }
+  }
+
+  /// 添加新的莫奈配置
+  Future<void> addMonetConfig(MonetConfig config) async {
+    _savedMonetConfigs.add(config);
+    await _persistMonetConfigs();
+    notifyListeners();
+  }
+
+  /// 更新莫奈配置
+  Future<void> updateMonetConfig(MonetConfig config) async {
+    final index = _savedMonetConfigs.indexWhere((c) => c.id == config.id);
+    if (index != -1) {
+      _savedMonetConfigs[index] = config;
+      await _persistMonetConfigs();
+      notifyListeners();
+    }
+  }
+
+  /// 删除莫奈配置
+  Future<void> removeMonetConfig(String configId) async {
+    _savedMonetConfigs.removeWhere((c) => c.id == configId);
+    if (_activeMonetConfigId == configId) {
+      _activeMonetConfigId = _savedMonetConfigs.isNotEmpty
+          ? _savedMonetConfigs.first.id
+          : null;
+    }
+    await _persistMonetConfigs();
+    notifyListeners();
+  }
+
+  /// 持久化莫奈配置列表
+  Future<void> _persistMonetConfigs() async {
+    final prefs = await _getPrefs();
+    final configList = _savedMonetConfigs.map((c) => c.toJson()).toList();
+    await prefs.setString('saved_monet_configs', json.encode(configList));
+  }
+
+  /// 导入莫奈配置（从JSON字符串）
+  Future<bool> importMonetConfig(String jsonString) async {
+    try {
+      final config = MonetConfig.fromJsonString(jsonString);
+      // 生成新的ID避免冲突
+      final newConfig = config.copyWith(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+      );
+      await addMonetConfig(newConfig);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 导出莫奈配置（到JSON字符串）
+  String? exportMonetConfig(String configId) {
+    try {
+      final config = _savedMonetConfigs.firstWhere((c) => c.id == configId);
+      return config.toJsonString();
+    } catch (_) {
+      return null;
+    }
   }
 }

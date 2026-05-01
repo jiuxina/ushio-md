@@ -74,6 +74,12 @@ class EditorSettingsScreen extends StatelessWidget {
                     _buildAutoSaveIntervalSelector(context, settings, l10n),
                   ],
                 ]),
+
+                const SizedBox(height: 16),
+
+                _buildSection(context, l10n.permanentFloatingButtons, Icons.smart_button, [
+                  _buildPermanentFloatingButtonsToggle(context, settings, l10n),
+                ]),
               ],
             );
           },
@@ -272,6 +278,66 @@ class EditorSettingsScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Widget _buildPermanentFloatingButtonsToggle(
+    BuildContext context,
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(l10n.permanentFloatingButtons),
+            DropdownButton<String>(
+              value: settings.floatingButtonsMode,
+              underline: const SizedBox(),
+              borderRadius: BorderRadius.circular(12),
+              items: [
+                DropdownMenuItem(
+                  value: 'auto',
+                  child: Text(l10n.floatingButtonsAuto),
+                ),
+                DropdownMenuItem(
+                  value: 'always',
+                  child: Text(l10n.floatingButtonsAlways),
+                ),
+                DropdownMenuItem(
+                  value: 'never',
+                  child: Text(l10n.floatingButtonsNever),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) settings.setFloatingButtonsMode(value);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _getFloatingButtonsModeDesc(settings.floatingButtonsMode, l10n),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getFloatingButtonsModeDesc(String mode, AppLocalizations l10n) {
+    switch (mode) {
+      case 'auto':
+        return l10n.floatingButtonsAutoDesc;
+      case 'always':
+        return l10n.floatingButtonsAlwaysDesc;
+      case 'never':
+        return l10n.floatingButtonsNeverDesc;
+      default:
+        return l10n.floatingButtonsAutoDesc;
+    }
   }
 
   Widget _buildAutoSaveIntervalSelector(

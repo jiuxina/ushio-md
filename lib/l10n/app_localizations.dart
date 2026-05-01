@@ -1064,6 +1064,48 @@ abstract class AppLocalizations {
   /// **'保存间隔'**
   String get saveInterval;
 
+  /// 浮动按钮显示方式设置标签
+  ///
+  /// In zh, this message translates to:
+  /// **'浮动按钮显示方式'**
+  String get permanentFloatingButtons;
+
+  /// 智能隐藏选项
+  ///
+  /// In zh, this message translates to:
+  /// **'智能隐藏'**
+  String get floatingButtonsAuto;
+
+  /// 智能隐藏选项描述
+  ///
+  /// In zh, this message translates to:
+  /// **'滚动或点击时自动隐藏，静止后显示'**
+  String get floatingButtonsAutoDesc;
+
+  /// 始终显示选项
+  ///
+  /// In zh, this message translates to:
+  /// **'始终显示'**
+  String get floatingButtonsAlways;
+
+  /// 始终显示选项描述
+  ///
+  /// In zh, this message translates to:
+  /// **'浮动按钮始终显示在右下角'**
+  String get floatingButtonsAlwaysDesc;
+
+  /// 始终隐藏选项
+  ///
+  /// In zh, this message translates to:
+  /// **'始终隐藏'**
+  String get floatingButtonsNever;
+
+  /// 始终隐藏选项描述
+  ///
+  /// In zh, this message translates to:
+  /// **'隐藏浮动按钮，可通过工具栏或快捷键操作'**
+  String get floatingButtonsNeverDesc;
+
   /// 分钟
   ///
   /// In zh, this message translates to:
@@ -2395,6 +2437,126 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'应用图标、首页头像、首页标题、底部导航栏'**
   String get otherAppearanceSettingsDesc;
+
+  /// 莫奈取色设置标题
+  ///
+  /// In zh, this message translates to:
+  /// **'莫奈取色'**
+  String get monetSettings;
+
+  /// 启用莫奈取色开关
+  ///
+  /// In zh, this message translates to:
+  /// **'启用莫奈取色'**
+  String get monetEnabled;
+
+  /// 启用莫奈取色描述
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 Material You 动态配色系统'**
+  String get monetEnabledDesc;
+
+  /// 从图片提取颜色
+  ///
+  /// In zh, this message translates to:
+  /// **'从图片提取'**
+  String get monetFromImage;
+
+  /// 从颜色选择
+  ///
+  /// In zh, this message translates to:
+  /// **'从颜色选择'**
+  String get monetFromColor;
+
+  /// 选择图片提示
+  ///
+  /// In zh, this message translates to:
+  /// **'点击选择图片'**
+  String get monetSelectImage;
+
+  /// 源色选择标题
+  ///
+  /// In zh, this message translates to:
+  /// **'源色选择'**
+  String get monetSourceColor;
+
+  /// 配色风格标题
+  ///
+  /// In zh, this message translates to:
+  /// **'配色风格'**
+  String get monetStyle;
+
+  /// 高级选项标题
+  ///
+  /// In zh, this message translates to:
+  /// **'高级选项'**
+  String get monetAdvanced;
+
+  /// 对比度设置
+  ///
+  /// In zh, this message translates to:
+  /// **'对比度'**
+  String get monetContrast;
+
+  /// 方案名称标题
+  ///
+  /// In zh, this message translates to:
+  /// **'方案名称'**
+  String get monetSchemeName;
+
+  /// 方案名称提示
+  ///
+  /// In zh, this message translates to:
+  /// **'为配色方案命名'**
+  String get monetSchemeNameHint;
+
+  /// 配色预览标题
+  ///
+  /// In zh, this message translates to:
+  /// **'配色预览'**
+  String get monetPreview;
+
+  /// 浅色方案标题
+  ///
+  /// In zh, this message translates to:
+  /// **'浅色方案'**
+  String get monetLightScheme;
+
+  /// 深色方案标题
+  ///
+  /// In zh, this message translates to:
+  /// **'深色方案'**
+  String get monetDarkScheme;
+
+  /// 已保存方案标题
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存方案'**
+  String get monetSavedSchemes;
+
+  /// 使用中标签
+  ///
+  /// In zh, this message translates to:
+  /// **'使用中'**
+  String get monetActive;
+
+  /// 应用按钮
+  ///
+  /// In zh, this message translates to:
+  /// **'应用'**
+  String get monetApply;
+
+  /// 方案名称必填提示
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入方案名称'**
+  String get monetNameRequired;
+
+  /// 保存成功提示
+  ///
+  /// In zh, this message translates to:
+  /// **'配色方案已保存'**
+  String get monetSaved;
 }
 
 class _AppLocalizationsDelegate

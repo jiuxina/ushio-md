@@ -27,6 +27,7 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'l10n/app_localizations.dart';
+import 'models/monet_config.dart';
 import 'providers/file_provider.dart';
 import 'providers/settings_provider.dart';
 import 'screens/main_screen.dart';
@@ -105,6 +106,12 @@ class MyApp extends StatelessWidget {
           // 获取用户选择的主题色
           Color primaryColor = settings.primaryColor;
 
+          // 检查是否启用莫奈配色
+          MonetScheme? monetScheme;
+          if (settings.monetEnabled) {
+            monetScheme = settings.activeMonetConfig?.scheme;
+          }
+
           // 获取界面字体颜色
           Color uiFontColor = settings.uiFontColor;
 
@@ -154,6 +161,7 @@ class MyApp extends StatelessWidget {
               settings.cardOpacity,
               settings.customCardColor,
               settings.useCustomCardColor,
+              monetScheme?.lightScheme,
             ), // 浅色主题
             darkTheme: _buildDarkTheme(
               primaryColor,
@@ -164,6 +172,7 @@ class MyApp extends StatelessWidget {
               settings.cardOpacity,
               settings.customCardColor,
               settings.useCustomCardColor,
+              monetScheme?.darkScheme ?? monetScheme?.lightScheme,
             ), // 深色主题
             themeMode: settings.themeMode, // 主题模式（跟随系统/浅色/深色）
             builder: (context, child) {
@@ -183,6 +192,7 @@ class MyApp extends StatelessWidget {
   /// [primaryColor] 用户选择的主题色
   /// [uiFontColor] 用户选择的界面字体颜色
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
+  /// [monetColorScheme] 莫奈配色方案（可选）
   ThemeData _buildLightTheme(
     Color primaryColor,
     Color uiFontColor,
@@ -192,22 +202,25 @@ class MyApp extends StatelessWidget {
     double cardOpacity,
     Color? customCardColor,
     bool useCustomCardColor,
+    MonetColorScheme? monetColorScheme,
   ) {
     final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
 
-    final colorScheme = ColorScheme.light(
-      primary: primaryColor,
-      secondary: AppConstants.accentColor,
-      surface: scheme.surface,
-      error: AppConstants.errorColor,
-    );
+    // 如果启用莫奈配色，使用莫奈配色方案
+    final colorScheme = monetColorScheme?.toFlutterColorScheme(brightness: Brightness.light) ??
+        ColorScheme.light(
+          primary: primaryColor,
+          secondary: AppConstants.accentColor,
+          surface: scheme.surface,
+          error: AppConstants.errorColor,
+        );
 
     return _buildTheme(
       brightness: Brightness.light,
       colorScheme: colorScheme,
-      backgroundColor: scheme.background,
+      backgroundColor: monetColorScheme?.background ?? scheme.background,
       textColor: uiFontColor,
-      textSecondaryColor: scheme.textSecondary,
+      textSecondaryColor: monetColorScheme?.onSurfaceVariant ?? scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,
@@ -222,6 +235,7 @@ class MyApp extends StatelessWidget {
   /// [uiFontColor] 用户选择的界面字体颜色
   /// [darkThemeIndex] 夜间主题配色方案索引
   /// [fontFamily] 用户选择的字体（null 表示系统默认）
+  /// [monetColorScheme] 莫奈配色方案（可选）
   ThemeData _buildDarkTheme(
     Color primaryColor,
     Color uiFontColor,
@@ -231,22 +245,25 @@ class MyApp extends StatelessWidget {
     double cardOpacity,
     Color? customCardColor,
     bool useCustomCardColor,
+    MonetColorScheme? monetColorScheme,
   ) {
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
 
-    final colorScheme = ColorScheme.dark(
-      primary: primaryColor,
-      secondary: AppConstants.accentColor,
-      surface: scheme.surface,
-      error: AppConstants.errorColor,
-    );
+    // 如果启用莫奈配色，使用莫奈配色方案
+    final colorScheme = monetColorScheme?.toFlutterColorScheme(brightness: Brightness.dark) ??
+        ColorScheme.dark(
+          primary: primaryColor,
+          secondary: AppConstants.accentColor,
+          surface: scheme.surface,
+          error: AppConstants.errorColor,
+        );
 
     return _buildTheme(
       brightness: Brightness.dark,
       colorScheme: colorScheme,
-      backgroundColor: scheme.background,
+      backgroundColor: monetColorScheme?.background ?? scheme.background,
       textColor: uiFontColor,
-      textSecondaryColor: scheme.textSecondary,
+      textSecondaryColor: monetColorScheme?.onSurfaceVariant ?? scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,

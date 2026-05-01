@@ -497,6 +497,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get saveInterval => '保存间隔';
 
   @override
+  String get permanentFloatingButtons => '浮动按钮显示方式';
+
+  @override
+  String get floatingButtonsAuto => '智能隐藏';
+
+  @override
+  String get floatingButtonsAutoDesc => '滚动或点击时自动隐藏，静止后显示';
+
+  @override
+  String get floatingButtonsAlways => '始终显示';
+
+  @override
+  String get floatingButtonsAlwaysDesc => '浮动按钮始终显示在右下角';
+
+  @override
+  String get floatingButtonsNever => '始终隐藏';
+
+  @override
+  String get floatingButtonsNeverDesc => '隐藏浮动按钮，可通过工具栏或快捷键操作';
+
+  @override
   String get minutes => '分钟';
 
   @override
@@ -1198,4 +1219,64 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get otherAppearanceSettingsDesc => '应用图标、首页头像、首页标题、底部导航栏';
+
+  @override
+  String get monetSettings => '莫奈取色';
+
+  @override
+  String get monetEnabled => '启用莫奈取色';
+
+  @override
+  String get monetEnabledDesc => '使用 Material You 动态配色系统';
+
+  @override
+  String get monetFromImage => '从图片提取';
+
+  @override
+  String get monetFromColor => '从颜色选择';
+
+  @override
+  String get monetSelectImage => '点击选择图片';
+
+  @override
+  String get monetSourceColor => '源色选择';
+
+  @override
+  String get monetStyle => '配色风格';
+
+  @override
+  String get monetAdvanced => '高级选项';
+
+  @override
+  String get monetContrast => '对比度';
+
+  @override
+  String get monetSchemeName => '方案名称';
+
+  @override
+  String get monetSchemeNameHint => '为配色方案命名';
+
+  @override
+  String get monetPreview => '配色预览';
+
+  @override
+  String get monetLightScheme => '浅色方案';
+
+  @override
+  String get monetDarkScheme => '深色方案';
+
+  @override
+  String get monetSavedSchemes => '已保存方案';
+
+  @override
+  String get monetActive => '使用中';
+
+  @override
+  String get monetApply => '应用';
+
+  @override
+  String get monetNameRequired => '请输入方案名称';
+
+  @override
+  String get monetSaved => '配色方案已保存';
 }

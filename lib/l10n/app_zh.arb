@@ -655,6 +655,34 @@
   "@saveInterval": {
     "description": "保存间隔设置标签"
   },
+  "permanentFloatingButtons": "浮动按钮显示方式",
+  "@permanentFloatingButtons": {
+    "description": "浮动按钮显示方式设置标签"
+  },
+  "floatingButtonsAuto": "智能隐藏",
+  "@floatingButtonsAuto": {
+    "description": "智能隐藏选项"
+  },
+  "floatingButtonsAutoDesc": "滚动或点击时自动隐藏，静止后显示",
+  "@floatingButtonsAutoDesc": {
+    "description": "智能隐藏选项描述"
+  },
+  "floatingButtonsAlways": "始终显示",
+  "@floatingButtonsAlways": {
+    "description": "始终显示选项"
+  },
+  "floatingButtonsAlwaysDesc": "浮动按钮始终显示在右下角",
+  "@floatingButtonsAlwaysDesc": {
+    "description": "始终显示选项描述"
+  },
+  "floatingButtonsNever": "始终隐藏",
+  "@floatingButtonsNever": {
+    "description": "始终隐藏选项"
+  },
+  "floatingButtonsNeverDesc": "隐藏浮动按钮，可通过工具栏或快捷键操作",
+  "@floatingButtonsNeverDesc": {
+    "description": "始终隐藏选项描述"
+  },
   "minutes": "分钟",
   "@minutes": {
     "description": "分钟"
@@ -1397,5 +1425,45 @@
   "otherAppearanceSettings": "其他外观",
   "@otherAppearanceSettings": { "description": "其他外观设置标题" },
   "otherAppearanceSettingsDesc": "应用图标、首页头像、首页标题、底部导航栏",
-  "@otherAppearanceSettingsDesc": { "description": "其他外观设置描述" }
+  "@otherAppearanceSettingsDesc": { "description": "其他外观设置描述" },
+  "monetSettings": "莫奈取色",
+  "@monetSettings": { "description": "莫奈取色设置标题" },
+  "monetEnabled": "启用莫奈取色",
+  "@monetEnabled": { "description": "启用莫奈取色开关" },
+  "monetEnabledDesc": "使用 Material You 动态配色系统",
+  "@monetEnabledDesc": { "description": "启用莫奈取色描述" },
+  "monetFromImage": "从图片提取",
+  "@monetFromImage": { "description": "从图片提取颜色" },
+  "monetFromColor": "从颜色选择",
+  "@monetFromColor": { "description": "从颜色选择" },
+  "monetSelectImage": "点击选择图片",
+  "@monetSelectImage": { "description": "选择图片提示" },
+  "monetSourceColor": "源色选择",
+  "@monetSourceColor": { "description": "源色选择标题" },
+  "monetStyle": "配色风格",
+  "@monetStyle": { "description": "配色风格标题" },
+  "monetAdvanced": "高级选项",
+  "@monetAdvanced": { "description": "高级选项标题" },
+  "monetContrast": "对比度",
+  "@monetContrast": { "description": "对比度设置" },
+  "monetSchemeName": "方案名称",
+  "@monetSchemeName": { "description": "方案名称标题" },
+  "monetSchemeNameHint": "为配色方案命名",
+  "@monetSchemeNameHint": { "description": "方案名称提示" },
+  "monetPreview": "配色预览",
+  "@monetPreview": { "description": "配色预览标题" },
+  "monetLightScheme": "浅色方案",
+  "@monetLightScheme": { "description": "浅色方案标题" },
+  "monetDarkScheme": "深色方案",
+  "@monetDarkScheme": { "description": "深色方案标题" },
+  "monetSavedSchemes": "已保存方案",
+  "@monetSavedSchemes": { "description": "已保存方案标题" },
+  "monetActive": "使用中",
+  "@monetActive": { "description": "使用中标签" },
+  "monetApply": "应用",
+  "@monetApply": { "description": "应用按钮" },
+  "monetNameRequired": "请输入方案名称",
+  "@monetNameRequired": { "description": "方案名称必填提示" },
+  "monetSaved": "配色方案已保存",
+  "@monetSaved": { "description": "保存成功提示" }
 }
