@@ -330,6 +330,14 @@
   "@storagePermissionRequired": {
     "description": "存储权限说明"
   },
+  "protectedDirectory": "无法访问该目录",
+  "@protectedDirectory": {
+    "description": "受保护目录访问失败提示"
+  },
+  "protectedDirectoryHint": "该目录受 Android 系统保护，请选择其他目录（如 Documents 或应用工作区）",
+  "@protectedDirectoryHint": {
+    "description": "受保护目录访问失败详细说明"
+  },
   "grantPermission": "授予权限",
   "@grantPermission": {
     "description": "授予权限按钮"

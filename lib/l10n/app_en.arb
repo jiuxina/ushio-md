@@ -119,6 +119,8 @@
   "errorSavingFile": "Failed to save file",
   "permissionRequired": "Permission Required",
   "storagePermissionRequired": "Storage permission is required to access files",
+  "protectedDirectory": "Cannot access this directory",
+  "protectedDirectoryHint": "This directory is protected by Android. Please select another directory (e.g., Documents or app workspace)",
   "grantPermission": "Grant Permission",
   "initializing": "Initializing...",
   "updateAvailable": "Update available",

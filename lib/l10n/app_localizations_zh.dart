@@ -255,6 +255,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get storagePermissionRequired => '需要存储权限才能访问文件';
 
   @override
+  String get protectedDirectory => '无法访问该目录';
+
+  @override
+  String get protectedDirectoryHint =>
+      '该目录受 Android 系统保护，请选择其他目录（如 Documents 或应用工作区）';
+
+  @override
   String get grantPermission => '授予权限';
 
   @override

@@ -584,6 +584,18 @@ abstract class AppLocalizations {
   /// **'需要存储权限才能访问文件'**
   String get storagePermissionRequired;
 
+  /// 受保护目录访问失败提示
+  ///
+  /// In zh, this message translates to:
+  /// **'无法访问该目录'**
+  String get protectedDirectory;
+
+  /// 受保护目录访问失败详细说明
+  ///
+  /// In zh, this message translates to:
+  /// **'该目录受 Android 系统保护，请选择其他目录（如 Documents 或应用工作区）'**
+  String get protectedDirectoryHint;
+
   /// 授予权限按钮
   ///
   /// In zh, this message translates to:

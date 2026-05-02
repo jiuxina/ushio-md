@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汐 - 专注写作体验的 Markdown 编辑器</title>
+<meta name="description" content="汐 (Ushio) — 面向移动端的 Markdown 编辑器，即点即改、目录导航、本地文件管理、个性化外观与云端同步。">
+<link rel="icon" href="app.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ========== Reset & Variables ========== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --indigo: #6366F1;
+  --indigo-light: #818CF8;
+  --indigo-dark: #4F46E5;
+  --violet: #8B5CF6;
+  --pink: #EC4899;
+  --pink-light: #F9A8D4;
+  --rose: #FDA4AF;
+  --lavender: #EEF2FF;
+  --lavender-deep: #E0E7FF;
+  --sky: #DBEAFE;
+  --surface: #F8FAFF;
+  --text: #1E293B;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+  --white: #FFFFFF;
+  --card-bg: rgba(255, 255, 255, 0.72);
+  --card-border: rgba(99, 102, 241, 0.08);
+  --phone-w: 280px;
+  --phone-h: 580px;
+  --font-body: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Noto Serif SC', 'Noto Sans SC', serif;
+}
+
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--surface);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ========== Sakura Particles ========== */
+.sakura-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ========== Navigation ========== */
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 0 2rem;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(248, 250, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.06);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nav.scrolled {
+  box-shadow: 0 4px 30px rgba(99, 102, 241, 0.08);
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+}
+.nav-logo img {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+.nav-logo span {
+  font-weight: 700;
+  font-size: 1.2rem;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.nav-links {
+  display: flex;
+  gap: 2rem;
+  list-style: none;
+}
+.nav-links a {
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.3s;
+  position: relative;
+}
+.nav-links a::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0; right: 0;
+  height: 2px;
+  background: var(--indigo);
+  border-radius: 1px;
+  transform: scaleX(0);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nav-links a:hover { color: var(--indigo); }
+.nav-links a:hover::after { transform: scaleX(1); }
+.nav-cta {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  color: white !important;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+  transition: all 0.3s;
+}
+.nav-cta::after { display: none !important; }
+.nav-cta:hover {
+  box-shadow: 0 6px 25px rgba(99, 102, 241, 0.45);
+  transform: translateY(-1px);
+}
+
+/* Mobile nav toggle */
+.nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+}
+.nav-toggle span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+/* ========== Sections ========== */
+section {
+  position: relative;
+  z-index: 1;
+}
+
+/* ========== Hero ========== */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 2rem 60px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: -15%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.hero-inner {
+  max-width: 1200px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+.hero-text { position: relative; z-index: 2; }
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: var(--lavender);
+  border: 1px solid var(--lavender-deep);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: var(--indigo);
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+  animation: fadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero-badge .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--indigo);
+  border-radius: 50%;
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.hero-title {
+  font-family: var(--font-display);
+  font-size: 3.8rem;
+  font-weight: 900;
+  line-height: 1.15;
+  margin-bottom: 1.2rem;
+  animation: fadeUp 0.8s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero-title .accent {
+  background: linear-gradient(135deg, var(--indigo) 0%, var(--pink) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  margin-bottom: 2rem;
+  max-width: 480px;
+  animation: fadeUp 0.8s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  animation: fadeUp 0.8s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.35);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.5);
+}
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-secondary:hover {
+  border-color: var(--indigo);
+  background: var(--lavender);
+  transform: translateY(-2px);
+}
+.hero-stats {
+  display: flex;
+  gap: 2.5rem;
+  margin-top: 2.5rem;
+  animation: fadeUp 0.8s 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stat-item { text-align: left; }
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Hero Phone */
+.hero-phone-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  animation: fadeUp 0.8s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero-phone-float {
+  animation: phone-float 6s ease-in-out infinite;
+}
+@keyframes phone-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+
+/* ========== Phone Mockup ========== */
+.phone-mockup {
+  width: var(--phone-w);
+  height: var(--phone-h);
+  background: #FFFFFF;
+  border-radius: 36px;
+  box-shadow:
+    0 0 0 2px rgba(0,0,0,0.08),
+    0 20px 60px rgba(99, 102, 241, 0.15),
+    0 8px 20px rgba(0,0,0,0.06),
+    inset 0 0 0 1px rgba(255,255,255,0.8);
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+.phone-mockup::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 22px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  z-index: 10;
+}
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #F5F7FF;
+  position: relative;
+}
+
+/* Status bar (inside phone) */
+.phone-status-bar {
+  height: 40px;
+  padding: 10px 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1a1a1a;
+  flex-shrink: 0;
+  background: transparent;
+}
+.phone-status-icons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.phone-status-icons svg { width: 12px; height: 12px; }
+
+/* ========== Screen: Home ========== */
+.screen-home .phone-body {
+  flex: 1;
+  padding: 8px 14px 0;
+  overflow: hidden;
+}
+.screen-home .home-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.screen-home .home-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fce7f3, #ede9fe);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  overflow: hidden;
+}
+.screen-home .home-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.screen-home .home-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E293B;
+}
+
+/* Quick Actions */
+.screen-home .quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.screen-home .quick-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+}
+.quick-btn.green { background: #D1FAE5; color: #059669; }
+.quick-btn.blue { background: #DBEAFE; color: #2563EB; }
+.quick-btn.orange { background: #FED7AA; color: #EA580C; }
+.quick-btn.purple { background: #EDE9FE; color: #7C3AED; }
+
+/* File list */
+.screen-home .section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.section-label svg { width: 12px; height: 12px; }
+.file-card {
+  background: rgba(255,255,255,0.85);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(99,102,241,0.06);
+}
+.file-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.file-icon.md { background: #EDE9FE; color: #7C3AED; }
+.file-icon.folder { background: #FEF3C7; color: #D97706; }
+.file-icon.img { background: #DBEAFE; color: #2563EB; }
+.file-info { flex: 1; min-width: 0; }
+.file-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-meta {
+  font-size: 8.5px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+.file-drag {
+  color: #CBD5E1;
+  font-size: 14px;
+  cursor: grab;
+}
+
+/* Bottom Nav */
+.phone-bottom-nav {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 8px;
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(99,102,241,0.06);
+  flex-shrink: 0;
+}
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+.nav-item.active {
+  color: var(--indigo);
+}
+.nav-item.active svg { color: var(--indigo); }
+.nav-item svg { width: 18px; height: 18px; }
+
+/* ========== Screen: Editor ========== */
+.screen-editor .phone-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.screen-editor .editor-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  background: rgba(255,255,255,0.8);
+  flex-shrink: 0;
+}
+.screen-editor .editor-back {
+  font-size: 16px;
+  color: #64748B;
+  cursor: pointer;
+}
+.screen-editor .editor-file-info {
+  flex: 1;
+}
+.screen-editor .editor-file-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1E293B;
+}
+.screen-editor .editor-file-stats {
+  font-size: 8px;
+  color: var(--text-muted);
+}
+.screen-editor .editor-actions {
+  display: flex;
+  gap: 8px;
+}
+.screen-editor .editor-actions svg {
+  width: 16px;
+  height: 16px;
+  color: #64748B;
+}
+.screen-editor .editor-content {
+  flex: 1;
+  padding: 14px;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+.screen-editor .md-h1 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0F172A;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+.screen-editor .md-h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1E293B;
+  margin-bottom: 8px;
+  margin-top: 12px;
+  line-height: 1.3;
+}
+.screen-editor .md-p {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+.screen-editor .md-bold { font-weight: 700; color: #1E293B; }
+.screen-editor .md-italic { font-style: italic; }
+.screen-editor .md-code {
+  font-family: 'JetBrains Mono', monospace;
+  background: #F1F5F9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: #7C3AED;
+}
+.screen-editor .md-blockquote {
+  border-left: 3px solid var(--indigo);
+  padding: 6px 10px;
+  margin: 8px 0;
+  background: #F8FAFF;
+  border-radius: 0 8px 8px 0;
+}
+.screen-editor .md-blockquote p {
+  font-size: 10.5px;
+  color: #64748B;
+  line-height: 1.6;
+  margin: 0;
+}
+.screen-editor .md-list {
+  padding-left: 16px;
+  margin: 6px 0;
+}
+.screen-editor .md-list li {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.7;
+  margin-bottom: 2px;
+}
+.screen-editor .md-hr {
+  border: none;
+  height: 1px;
+  background: #E2E8F0;
+  margin: 10px 0;
+}
+
+/* FABs */
+.screen-editor .editor-fabs {
+  position: absolute;
+  bottom: 16px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.screen-editor .fab {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+.fab.fab-edit { background: var(--indigo); color: white; }
+.fab.fab-toc { background: #06B6D4; color: white; }
+.fab svg { width: 16px; height: 16px; }
+
+/* ========== Screen: Settings ========== */
+.screen-settings .phone-body {
+  flex: 1;
+  padding: 8px 14px 0;
+  overflow: hidden;
+}
+.screen-settings .settings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.screen-settings .settings-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.screen-settings .settings-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E293B;
+}
+.settings-item {
+  background: rgba(255,255,255,0.85);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(99,102,241,0.04);
+}
+.settings-item-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.settings-item-icon svg { width: 15px; height: 15px; }
+.si-purple { background: #EDE9FE; color: #7C3AED; }
+.si-blue { background: #DBEAFE; color: #2563EB; }
+.si-green { background: #D1FAE5; color: #059669; }
+.si-orange { background: #FED7AA; color: #EA580C; }
+.si-red { background: #FEE2E2; color: #DC2626; }
+.si-pink { background: #FCE7F3; color: #DB2777; }
+.settings-item-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1E293B;
+}
+.settings-item-arrow {
+  color: #CBD5E1;
+  font-size: 14px;
+}
+
+/* ========== Features Section ========== */
+.features {
+  padding: 100px 2rem;
+  position: relative;
+}
+.features::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,0.15), transparent);
+}
+.section-header {
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto 4rem;
+}
+.section-tag {
+  display: inline-flex;
+  padding: 5px 14px;
+  background: var(--lavender);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: var(--indigo);
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+}
+.section-desc {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+.features-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+.feature-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 2rem;
+  backdrop-filter: blur(10px);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  overflow: hidden;
+}
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--indigo), var(--violet));
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 50px rgba(99,102,241,0.1);
+  border-color: rgba(99,102,241,0.15);
+}
+.feature-card:hover::before { opacity: 1; }
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.2rem;
+  font-size: 22px;
+}
+.fi-indigo { background: linear-gradient(135deg, #EEF2FF, #E0E7FF); color: var(--indigo); }
+.fi-pink { background: linear-gradient(135deg, #FDF2F8, #FCE7F3); color: var(--pink); }
+.fi-green { background: linear-gradient(135deg, #ECFDF5, #D1FAE5); color: #059669; }
+.fi-blue { background: linear-gradient(135deg, #EFF6FF, #DBEAFE); color: #2563EB; }
+.fi-amber { background: linear-gradient(135deg, #FFFBEB, #FEF3C7); color: #D97706; }
+.fi-violet { background: linear-gradient(135deg, #F5F3FF, #EDE9FE); color: var(--violet); }
+.feature-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.feature-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+/* ========== Showcase Section ========== */
+.showcase {
+  padding: 100px 2rem;
+  background: linear-gradient(180deg, var(--surface) 0%, #EEF2FF 50%, var(--surface) 100%);
+  position: relative;
+}
+.showcase-phones {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  flex-wrap: wrap;
+  perspective: 1000px;
+}
+.showcase-phone-wrapper {
+  text-align: center;
+}
+.showcase-phone-wrapper .phone-mockup {
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.showcase-phone-wrapper:hover .phone-mockup {
+  transform: scale(1.03) translateY(-8px);
+}
+.phone-label {
+  margin-top: 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.phone-label-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ========== Personalization Section ========== */
+.personalization {
+  padding: 100px 2rem;
+}
+.personalization-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+.personal-content { position: relative; z-index: 2; }
+.personal-features {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  margin-top: 2rem;
+}
+.personal-feature {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 1rem 1.2rem;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s;
+}
+.personal-feature:hover {
+  border-color: rgba(99,102,241,0.2);
+  transform: translateX(6px);
+}
+.pf-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.pf-text h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.pf-text p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Theme preview cards */
+.theme-preview-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+.theme-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  max-width: 360px;
+}
+.theme-card {
+  border-radius: 18px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  min-height: 160px;
+}
+.theme-card:hover { transform: scale(1.04) translateY(-4px); }
+.theme-card-light {
+  background: #FFFFFF;
+  border: 1px solid rgba(99,102,241,0.1);
+  box-shadow: 0 8px 30px rgba(99,102,241,0.08);
+}
+.theme-card-dark {
+  background: #1E293B;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+}
+.theme-card-sakura {
+  background: linear-gradient(135deg, #FDF2F8, #FECDD3);
+  border: 1px solid rgba(236,72,153,0.15);
+}
+.theme-card-ocean {
+  background: linear-gradient(135deg, #0F172A, #1E3A5F);
+  border: 1px solid rgba(59,130,246,0.2);
+}
+.tc-label {
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.theme-card-light .tc-label { color: #64748B; }
+.theme-card-dark .tc-label { color: #94A3B8; }
+.theme-card-sakura .tc-label { color: #BE185D; }
+.theme-card-ocean .tc-label { color: #60A5FA; }
+.tc-line {
+  height: 6px;
+  border-radius: 3px;
+  margin-bottom: 5px;
+}
+.tc-line-sm { width: 60%; }
+.tc-line-md { width: 80%; }
+.tc-line-lg { width: 45%; }
+.theme-card-light .tc-line { background: #E2E8F0; }
+.theme-card-dark .tc-line { background: #334155; }
+.theme-card-sakura .tc-line { background: rgba(219,39,119,0.15); }
+.theme-card-ocean .tc-line { background: rgba(59,130,246,0.2); }
+.tc-dots {
+  display: flex;
+  gap: 5px;
+  margin-top: 12px;
+}
+.tc-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+/* ========== Download CTA ========== */
+.download {
+  padding: 100px 2rem 80px;
+  position: relative;
+}
+.download-card {
+  max-width: 800px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, var(--indigo), var(--violet), var(--pink));
+  border-radius: 28px;
+  padding: 4rem;
+  text-align: center;
+  color: white;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 25px 80px rgba(99,102,241,0.3);
+}
+.download-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
+  border-radius: 50%;
+}
+.download-card::after {
+  content: '';
+  position: absolute;
+  bottom: -40%;
+  left: -20%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 60%);
+  border-radius: 50%;
+}
+.download-content { position: relative; z-index: 2; }
+.download-title {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 800;
+  margin-bottom: 0.8rem;
+}
+.download-desc {
+  font-size: 1.05rem;
+  opacity: 0.9;
+  margin-bottom: 2rem;
+  line-height: 1.7;
+}
+.download-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+.dl-btn-white {
+  background: white;
+  color: var(--indigo);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+.dl-btn-white:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(0,0,0,0.2);
+}
+.dl-btn-outline {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  backdrop-filter: blur(10px);
+}
+.dl-btn-outline:hover {
+  background: rgba(255,255,255,0.25);
+  transform: translateY(-2px);
+}
+.download-version {
+  margin-top: 1.5rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* ========== Footer ========== */
+.footer {
+  padding: 2.5rem 2rem;
+  text-align: center;
+  border-top: 1px solid rgba(99,102,241,0.06);
+  position: relative;
+  z-index: 1;
+}
+.footer-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.footer-left img {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.footer-left span {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+}
+.footer-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color 0.3s;
+}
+.footer-links a:hover { color: var(--indigo); }
+.footer-copy {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ========== Animations ========== */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1024px) {
+  .hero-inner {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: 3rem;
+  }
+  .hero-subtitle { margin-left: auto; margin-right: auto; }
+  .hero-actions { justify-content: center; }
+  .hero-stats { justify-content: center; }
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .personalization-inner {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    text-align: center;
+  }
+  .personal-features { max-width: 500px; margin-left: auto; margin-right: auto; }
+  .theme-cards { margin: 0 auto; }
+}
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .nav-toggle { display: flex; }
+  .nav-links.open {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 64px;
+    left: 0; right: 0;
+    background: rgba(248,250,255,0.96);
+    backdrop-filter: blur(20px);
+    padding: 1.5rem 2rem;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(99,102,241,0.08);
+  }
+  .hero { padding: 90px 1.5rem 40px; min-height: auto; }
+  .hero-title { font-size: 2.4rem; }
+  .hero-stats { gap: 1.5rem; }
+  .features { padding: 60px 1.5rem; }
+  .features-grid { grid-template-columns: 1fr; }
+  .section-title { font-size: 2rem; }
+  .showcase { padding: 60px 1rem; }
+  .showcase-phones { gap: 2rem; }
+  .phone-mockup {
+    --phone-w: 240px;
+    --phone-h: 500px;
+    width: var(--phone-w);
+    height: var(--phone-h);
+  }
+  .personalization { padding: 60px 1.5rem; }
+  .download { padding: 60px 1.5rem; }
+  .download-card { padding: 2.5rem 2rem; }
+  .download-title { font-size: 1.8rem; }
+  .footer-inner {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title { font-size: 2rem; }
+  .hero-actions { flex-direction: column; align-items: center; }
+  .hero-stats { flex-direction: column; gap: 1rem; }
+  .stat-item { text-align: center; }
+  .phone-mockup {
+    --phone-w: 220px;
+    --phone-h: 460px;
+    width: var(--phone-w);
+    height: var(--phone-h);
+  }
+  .theme-cards { grid-template-columns: 1fr; max-width: 200px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Sakura Canvas -->
+<canvas class="sakura-canvas" id="sakuraCanvas"></canvas>
+
+<!-- Navigation -->
+<nav class="nav" id="mainNav">
+  <a href="#" class="nav-logo">
+    <img src="app.png" alt="汐">
+    <span>汐</span>
+  </a>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="#features">核心功能</a></li>
+    <li><a href="#showcase">界面展示</a></li>
+    <li><a href="#personalization">个性化</a></li>
+    <li><a href="https://github.com/jiuxina/ushio-md" target="_blank" class="nav-cta">GitHub</a></li>
+  </ul>
+  <button class="nav-toggle" id="navToggle" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        v1.5.6 · 全新发布
+      </div>
+      <h1 class="hero-title">
+        写作，<br>应当如<span class="accent">潮汐</span>般自然
+      </h1>
+      <p class="hero-subtitle">
+        汐是一款面向移动端的 Markdown 编辑器，支持即点即改的渲染态编辑，配合目录导航、本地文件管理与个性化外观，让写作体验回归纯粹。
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/jiuxina/ushio-md/releases" target="_blank" class="btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载 APK
+        </a>
+        <a href="https://github.com/jiuxina/ushio-md" target="_blank" class="btn-secondary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          查看源码
+        </a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-item">
+          <div class="stat-value">MIT</div>
+          <div class="stat-label">开源协议</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">Android & Win</div>
+          <div class="stat-label">多端支持</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">Flutter</div>
+          <div class="stat-label">跨平台框架</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero Phone - Home Screen -->
+    <div class="hero-phone-area">
+      <div class="hero-phone-float">
+        <div class="phone-mockup screen-home">
+          <div class="phone-screen">
+            <div class="phone-status-bar">
+              <span>9:41</span>
+              <div class="phone-status-icons">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+              </div>
+            </div>
+            <div class="phone-body">
+              <div class="home-header">
+                <div class="home-avatar">
+<img src="app.png" alt="汐">
+                </div>
+                <div class="home-title">汐</div>
+              </div>
+              <div class="quick-actions">
+                <div class="quick-btn green">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </div>
+                <div class="quick-btn blue">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div class="quick-btn orange">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div class="quick-btn purple">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+              </div>
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                置顶文件
+              </div>
+              <div class="file-card">
+                <div class="file-icon md">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div class="file-info">
+                  <div class="file-name">项目开发笔记.md</div>
+                  <div class="file-meta">12.4 KB · 2026/05/01 20:30</div>
+                </div>
+                <div class="file-drag">≡</div>
+              </div>
+              <div class="file-card">
+                <div class="file-icon md">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <div class="file-info">
+                  <div class="file-name">读书摘录.md</div>
+                  <div class="file-meta">6.3 KB · 2026/04/28 14:12</div>
+                </div>
+                <div class="file-drag">≡</div>
+              </div>
+              <div class="section-label" style="margin-top: 10px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                置顶文件夹
+              </div>
+              <div class="file-card">
+                <div class="file-icon folder">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                </div>
+                <div class="file-info">
+                  <div class="file-name">日记</div>
+                  <div class="file-meta">/Documents/日记</div>
+                </div>
+                <div class="file-drag">≡</div>
+              </div>
+            </div>
+            <div class="phone-bottom-nav">
+              <div class="nav-item active">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+              </div>
+              <div class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </div>
+              <div class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+  <div class="section-header reveal">
+    <div class="section-tag">核心功能</div>
+    <h2 class="section-title">为移动端写作而生</h2>
+    <p class="section-desc">从编辑体验到文件管理，每个细节都为手机上的 Markdown 写作精心打磨。</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <div class="feature-icon fi-indigo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+      <h3 class="feature-title">即点即改</h3>
+      <p class="feature-desc">渲染态下直接点选段落即可编辑，无需在预览和编辑模式之间反复切换，所见即所得。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon fi-blue">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </div>
+      <h3 class="feature-title">目录导航</h3>
+      <p class="feature-desc">自动识别文档目录结构，支持快速章节跳转与定位高亮，长文档浏览不再迷路。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon fi-green">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <h3 class="feature-title">本地文件管理</h3>
+      <p class="feature-desc">自定义工作区路径，新建、重命名、搜索、排序一站完成。最近文件与文件夹快速访问。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon fi-pink">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+      </div>
+      <h3 class="feature-title">数学公式</h3>
+      <p class="feature-desc">完整支持 KaTeX 数学公式渲染，行内公式与块级公式均可流畅编辑和预览。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon fi-amber">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <h3 class="feature-title">导出与分享</h3>
+      <p class="feature-desc">支持将文档导出为 PDF、图片或 ZIP 压缩包，随时与他人分享你的写作成果。</p>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon fi-violet">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+      </div>
+      <h3 class="feature-title">云端同步</h3>
+      <p class="feature-desc">内置 WebDAV 和 FTP 同步支持，提供冲突提示与同步预览，多设备写作无缝衔接。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Showcase -->
+<section class="showcase" id="showcase">
+  <div class="section-header reveal">
+    <div class="section-tag">界面展示</div>
+    <h2 class="section-title">简洁而不简单</h2>
+    <p class="section-desc">每一个界面都经过精心设计，在移动端小屏幕上也能拥有舒适的写作与管理体验。</p>
+  </div>
+  <div class="showcase-phones">
+
+    <!-- Phone 1: Home -->
+    <div class="showcase-phone-wrapper reveal">
+      <div class="phone-mockup screen-home" style="--phone-w:250px;--phone-h:520px;width:250px;height:520px;">
+        <div class="phone-screen">
+          <div class="phone-status-bar"><span>9:41</span><div class="phone-status-icons"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg></div></div>
+          <div class="phone-body">
+            <div class="home-header">
+              <div class="home-avatar"><img src="app.png" alt="汐"></div>
+              <div class="home-title">汐</div>
+            </div>
+            <div class="quick-actions">
+              <div class="quick-btn green"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+              <div class="quick-btn blue"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+              <div class="quick-btn orange"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+              <div class="quick-btn purple"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+            </div>
+            <div class="section-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>置顶文件</div>
+            <div class="file-card"><div class="file-icon md"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="file-info"><div class="file-name">项目开发笔记.md</div><div class="file-meta">12.4 KB · 2026/05/01</div></div><div class="file-drag">≡</div></div>
+            <div class="file-card"><div class="file-icon md"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="file-info"><div class="file-name">读书摘录.md</div><div class="file-meta">6.3 KB · 2026/04/28</div></div><div class="file-drag">≡</div></div>
+            <div class="section-label" style="margin-top:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>置顶文件夹</div>
+            <div class="file-card"><div class="file-icon folder"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></div><div class="file-info"><div class="file-name">日记</div><div class="file-meta">/Documents/日记</div></div><div class="file-drag">≡</div></div>
+          </div>
+          <div class="phone-bottom-nav">
+            <div class="nav-item active"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></div>
+            <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+            <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-label">首页</div>
+      <div class="phone-label-desc">快速操作 · 置顶文件</div>
+    </div>
+
+    <!-- Phone 2: Editor -->
+    <div class="showcase-phone-wrapper reveal" style="animation-delay: 0.15s;">
+      <div class="phone-mockup screen-editor" style="--phone-w:250px;--phone-h:520px;width:250px;height:520px;">
+        <div class="phone-screen" style="background:#fff;">
+          <div class="phone-status-bar"><span>9:41</span><div class="phone-status-icons"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg></div></div>
+          <div class="phone-body">
+            <div class="editor-toolbar">
+              <div class="editor-back">&larr;</div>
+              <div class="editor-file-info">
+                <div class="editor-file-name">项目开发笔记</div>
+                <div class="editor-file-stats">1024 字符 · 820 文字 · 142 单词</div>
+              </div>
+              <div class="editor-actions">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+              </div>
+            </div>
+            <div class="editor-content">
+              <div class="md-h1">项目开发笔记</div>
+              <div class="md-h2">技术栈选型</div>
+              <p class="md-p">本项目基于 <span class="md-code">Flutter</span> 框架开发，采用 <span class="md-bold">Provider</span> 进行状态管理，编辑器核心使用 <span class="md-code">Milkdown</span> 实现。</p>
+              <hr class="md-hr">
+              <div class="md-h2">开发进度</div>
+              <div class="md-blockquote">
+                <p>当前版本已完成渲染态编辑、目录导航、主题系统等核心功能。</p>
+              </div>
+              <p class="md-p">接下来的重点是优化<span class="md-bold">云同步</span>模块的稳定性，以及完善 <span class="md-italic">导出功能</span>的排版质量。</p>
+              <ul class="md-list">
+                <li>渲染态即点即改</li>
+                <li>多层级目录导航</li>
+                <li>粒子特效系统</li>
+              </ul>
+            </div>
+            <div class="editor-fabs">
+              <button class="fab fab-edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="fab fab-toc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-label">编辑器</div>
+      <div class="phone-label-desc">渲染态编辑 · 目录导航</div>
+    </div>
+
+    <!-- Phone 3: Settings -->
+    <div class="showcase-phone-wrapper reveal" style="animation-delay: 0.3s;">
+      <div class="phone-mockup screen-settings" style="--phone-w:250px;--phone-h:520px;width:250px;height:520px;">
+        <div class="phone-screen">
+          <div class="phone-status-bar"><span>9:41</span><div class="phone-status-icons"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg></div></div>
+          <div class="phone-body">
+            <div class="settings-header">
+              <div class="settings-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+              <div class="settings-title">设置</div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-item-icon si-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="0.5"/><circle cx="17.5" cy="10.5" r="0.5"/><circle cx="8.5" cy="7.5" r="0.5"/><circle cx="6.5" cy="12" r="0.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></div>
+              <div class="settings-item-label">外观</div>
+              <div class="settings-item-arrow">&rsaquo;</div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-item-icon si-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+              <div class="settings-item-label">编辑器</div>
+              <div class="settings-item-arrow">&rsaquo;</div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-item-icon si-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div>
+              <div class="settings-item-label">云同步</div>
+              <div class="settings-item-arrow">&rsaquo;</div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-item-icon si-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+              <div class="settings-item-label">存储</div>
+              <div class="settings-item-arrow">&rsaquo;</div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-item-icon si-pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
+              <div class="settings-item-label">关于</div>
+              <div class="settings-item-arrow">&rsaquo;</div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-item-icon si-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+              <div class="settings-item-label">调试</div>
+              <div class="settings-item-arrow">&rsaquo;</div>
+            </div>
+          </div>
+          <div class="phone-bottom-nav">
+            <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+            <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+            <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="nav-item active"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-label">设置</div>
+      <div class="phone-label-desc">个性化配置 · 精细调整</div>
+    </div>
+  </div>
+</section>
+
+<!-- Personalization -->
+<section class="personalization" id="personalization">
+  <div class="personalization-inner">
+    <div class="personal-content reveal">
+      <div class="section-tag">个性化外观</div>
+      <h2 class="section-title" style="margin-top:1rem;">你的编辑器，你来定义</h2>
+      <p class="section-desc" style="margin-top:0.8rem;">从配色到粒子特效，从字体到背景，每一寸界面都可以按你的喜好调整。</p>
+      <div class="personal-features">
+        <div class="personal-feature">
+          <div class="pf-icon fi-indigo">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+          </div>
+          <div class="pf-text">
+            <h4>12 种主题色 + 莫奈取色</h4>
+            <p>内置多套配色方案，支持从壁纸提取 Material You 动态色彩。</p>
+          </div>
+        </div>
+        <div class="personal-feature">
+          <div class="pf-icon fi-pink">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 3z"/></svg>
+          </div>
+          <div class="pf-text">
+            <h4>浅色 / 深色 / 跟随系统</h4>
+            <p>三种主题模式随心切换，深色模式下还有多种暗色方案可选。</p>
+          </div>
+        </div>
+        <div class="personal-feature">
+          <div class="pf-icon fi-amber">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          </div>
+          <div class="pf-text">
+            <h4>粒子特效</h4>
+            <p>樱花、雨滴、萤火虫、雪花——为写作时光增添一份氛围感。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme Preview Cards -->
+    <div class="theme-preview-area reveal">
+      <div class="theme-cards">
+        <div class="theme-card theme-card-light">
+          <div class="tc-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            浅色模式
+          </div>
+          <div class="tc-line tc-line-md" style="background:#6366F1;opacity:0.6;height:8px;border-radius:4px;"></div>
+          <div class="tc-line tc-line-sm"></div>
+          <div class="tc-line tc-line-md"></div>
+          <div class="tc-line tc-line-lg"></div>
+          <div class="tc-dots">
+            <div class="tc-dot" style="background:#6366F1;"></div>
+            <div class="tc-dot" style="background:#3B82F6;"></div>
+            <div class="tc-dot" style="background:#10B981;"></div>
+            <div class="tc-dot" style="background:#F59E0B;"></div>
+          </div>
+        </div>
+        <div class="theme-card theme-card-dark">
+          <div class="tc-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            深色模式
+          </div>
+          <div class="tc-line tc-line-md" style="background:#818CF8;opacity:0.7;height:8px;border-radius:4px;"></div>
+          <div class="tc-line tc-line-sm"></div>
+          <div class="tc-line tc-line-md"></div>
+          <div class="tc-line tc-line-lg"></div>
+          <div class="tc-dots">
+            <div class="tc-dot" style="background:#818CF8;"></div>
+            <div class="tc-dot" style="background:#60A5FA;"></div>
+            <div class="tc-dot" style="background:#34D399;"></div>
+            <div class="tc-dot" style="background:#FBBF24;"></div>
+          </div>
+        </div>
+        <div class="theme-card theme-card-sakura">
+          <div class="tc-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C7.03 2 3 6.03 3 11c0 2.1.72 4.03 1.93 5.56L12 22l7.07-5.44A8.937 8.937 0 0 0 21 11c0-4.97-4.03-9-9-9z"/></svg>
+            樱花
+          </div>
+          <div class="tc-line tc-line-md" style="background:rgba(219,39,119,0.35);height:8px;border-radius:4px;"></div>
+          <div class="tc-line tc-line-sm"></div>
+          <div class="tc-line tc-line-md"></div>
+          <div class="tc-line tc-line-lg"></div>
+          <div class="tc-dots">
+            <div class="tc-dot" style="background:#EC4899;"></div>
+            <div class="tc-dot" style="background:#F9A8D4;"></div>
+            <div class="tc-dot" style="background:#FDE68A;"></div>
+            <div class="tc-dot" style="background:#FCA5A5;"></div>
+          </div>
+        </div>
+        <div class="theme-card theme-card-ocean">
+          <div class="tc-label">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2a2 2 0 0 1 2-2h2a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2a2 2 0 0 1-2-2V2"/></svg>
+            深海
+          </div>
+          <div class="tc-line tc-line-md" style="background:rgba(59,130,246,0.5);height:8px;border-radius:4px;"></div>
+          <div class="tc-line tc-line-sm"></div>
+          <div class="tc-line tc-line-md"></div>
+          <div class="tc-line tc-line-lg"></div>
+          <div class="tc-dots">
+            <div class="tc-dot" style="background:#3B82F6;"></div>
+            <div class="tc-dot" style="background:#06B6D4;"></div>
+            <div class="tc-dot" style="background:#8B5CF6;"></div>
+            <div class="tc-dot" style="background:#14B8A6;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Download CTA -->
+<section class="download" id="download">
+  <div class="download-card reveal">
+    <div class="download-content">
+      <h2 class="download-title">开始你的写作旅程</h2>
+      <p class="download-desc">汐是完全免费且开源的 Markdown 编辑器。<br>立即下载，感受指尖上的写作自由。</p>
+      <div class="download-buttons">
+        <a href="https://github.com/jiuxina/ushio-md/releases" target="_blank" class="dl-btn dl-btn-white">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          Android 下载
+        </a>
+        <a href="https://github.com/jiuxina/ushio-md/releases" target="_blank" class="dl-btn dl-btn-outline">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Windows 下载
+        </a>
+        <a href="https://github.com/jiuxina/ushio-md" target="_blank" class="dl-btn dl-btn-outline">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <div class="download-version">当前版本 v1.5.6 · MIT License · 支持 Android 5.0+ / Windows 10+</div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <img src="app.png" alt="汐">
+      <span>汐 Markdown Editor</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/jiuxina/ushio-md" target="_blank">GitHub</a>
+      <a href="https://github.com/jiuxina/ushio-md/releases" target="_blank">Releases</a>
+      <a href="https://github.com/jiuxina/ushio-md/issues" target="_blank">反馈</a>
+    </div>
+    <div class="footer-copy">MIT License &copy; 2026</div>
+  </div>
+</footer>
+
+<script>
+// ========== Sakura Particle Effect ==========
+(function() {
+  const canvas = document.getElementById('sakuraCanvas');
+  const ctx = canvas.getContext('2d');
+  let petals = [];
+  const PETAL_COUNT = 35;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  class Petal {
+    constructor() { this.reset(true); }
+    reset(init) {
+      this.x = Math.random() * canvas.width;
+      this.y = init ? Math.random() * canvas.height : -20;
+      this.size = 8 + Math.random() * 12;
+      this.speedY = 0.3 + Math.random() * 0.8;
+      this.speedX = -0.2 + Math.random() * 0.6;
+      this.rotation = Math.random() * Math.PI * 2;
+      this.rotSpeed = (Math.random() - 0.5) * 0.02;
+      this.opacity = 0.15 + Math.random() * 0.25;
+      this.wobble = Math.random() * Math.PI * 2;
+      this.wobbleSpeed = 0.01 + Math.random() * 0.02;
+    }
+    update() {
+      this.y += this.speedY;
+      this.wobble += this.wobbleSpeed;
+      this.x += this.speedX + Math.sin(this.wobble) * 0.3;
+      this.rotation += this.rotSpeed;
+      if (this.y > canvas.height + 20) this.reset(false);
+      if (this.x < -20 || this.x > canvas.width + 20) this.reset(false);
+    }
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rotation);
+      ctx.globalAlpha = this.opacity;
+      ctx.beginPath();
+      const s = this.size;
+      // Petal shape
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(s * 0.4, -s * 0.3, s * 0.8, -s * 0.1, s * 0.5, s * 0.3);
+      ctx.bezierCurveTo(s * 0.3, s * 0.5, s * 0.1, s * 0.4, 0, 0);
+      ctx.fillStyle = `hsl(${340 + Math.random() * 10}, 80%, ${82 + Math.random() * 8}%)`;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  for (let i = 0; i < PETAL_COUNT; i++) {
+    petals.push(new Petal());
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    petals.forEach(p => { p.update(); p.draw(); });
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+// ========== Nav Scroll Effect ==========
+window.addEventListener('scroll', () => {
+  document.getElementById('mainNav').classList.toggle('scrolled', window.scrollY > 20);
+});
+
+// ========== Mobile Nav Toggle ==========
+document.getElementById('navToggle').addEventListener('click', () => {
+  document.getElementById('navLinks').classList.toggle('open');
+});
+
+// ========== Scroll Reveal ==========
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+</script>
+</body>
+</html>

@@ -14,7 +14,6 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/markdown_file.dart';
 import '../utils/debug_log.dart';
@@ -185,8 +184,30 @@ class FileService {
   ///
   /// 打开系统目录选择器
   /// 返回选中目录的路径，取消则返回 null
+  ///
+  /// Android 11+ 注意事项：
+  /// - 某些受保护目录（如 Downloads）会返回 "/" 而非实际路径
+  /// - 这是 Android Scoped Storage 的限制，而非插件 bug
+  /// - 需要确保 MANAGE_EXTERNAL_STORAGE 权限已授权
   Future<String?> pickDirectory() async {
+    // 在 Android 上先确保有存储权限
+    if (Platform.isAndroid) {
+      final hasPermission = await requestPermissions();
+      if (!hasPermission) {
+        appDebugLog('FileService: 存储权限未授权，无法选择目录');
+        return null;
+      }
+    }
+
     final result = await FilePicker.platform.getDirectoryPath();
+
+    // 检查是否返回了无效的根路径（Android Scoped Storage 限制）
+    if (result == '/') {
+      appDebugLog('FileService: 选择的目录返回了根路径 "/"，可能是受保护的系统目录');
+      // 返回 null 表示无法访问该目录
+      return null;
+    }
+
     return result;
   }
 

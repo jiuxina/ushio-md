@@ -257,6 +257,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Storage permission is required to access files';
 
   @override
+  String get protectedDirectory => 'Cannot access this directory';
+
+  @override
+  String get protectedDirectoryHint =>
+      'This directory is protected by Android. Please select another directory (e.g., Documents or app workspace)';
+
+  @override
   String get grantPermission => 'Grant Permission';
 
   @override

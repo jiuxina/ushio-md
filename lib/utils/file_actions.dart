@@ -12,6 +12,7 @@ import '../services/file_service.dart';
 import '../screens/folder_browser_screen.dart';
 import '../utils/constants.dart';
 import '../widgets/milkdown_webview_editor.dart';
+import '../l10n/app_localizations.dart';
 import 'editor_navigation_helper.dart';
 
 enum FileSource { myFiles, pinned, history }
@@ -1231,50 +1232,69 @@ class FileActions {
                     color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
-                const SizedBox(height: 8),
-                InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () async {
-                    final path = await fileProvider.fileService.pickDirectory();
-                    if (path != null) {
-                      setDialogState(() => selectedPath = path);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outline.withValues(alpha: 0.5),
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.folder, color: Colors.amber),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            selectedPath ?? '点击选择文件夹',
-                            style: TextStyle(
-                              color: selectedPath != null
-                                  ? null
-                                  : Theme.of(context).colorScheme.outline,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                 const SizedBox(height: 8),
+                 InkWell(
+                   borderRadius: BorderRadius.circular(12),
+                   onTap: () async {
+                     final path = await fileProvider.fileService.pickDirectory();
+                     if (path != null) {
+                       setDialogState(() => selectedPath = path);
+                     } else if (context.mounted) {
+                       // 显示提示：可能是受保护的目录或权限未授权
+                       final l10n = AppLocalizations.of(context)!;
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         SnackBar(
+                           content: Column(
+                             mainAxisSize: MainAxisSize.min,
+                             crossAxisAlignment: CrossAxisAlignment.start,
+                             children: [
+                               Text(l10n.protectedDirectory),
+                               Text(
+                                 l10n.protectedDirectoryHint,
+                                 style: Theme.of(context).textTheme.bodySmall,
+                               ),
+                             ],
+                           ),
+                           duration: const Duration(seconds: 4),
+                         ),
+                       );
+                     }
+                   },
+                   child: Container(
+                     padding: const EdgeInsets.all(12),
+                     decoration: BoxDecoration(
+                       border: Border.all(
+                         color: Theme.of(
+                           context,
+                         ).colorScheme.outline.withValues(alpha: 0.5),
+                       ),
+                       borderRadius: BorderRadius.circular(12),
+                     ),
+                     child: Row(
+                       children: [
+                         const Icon(Icons.folder, color: Colors.amber),
+                         const SizedBox(width: 12),
+                         Expanded(
+                           child: Text(
+                             selectedPath ?? '点击选择文件夹',
+                             style: TextStyle(
+                               color: selectedPath != null
+                                   ? null
+                                   : Theme.of(context).colorScheme.outline,
+                             ),
+                             maxLines: 2,
+                             overflow: TextOverflow.ellipsis,
+                           ),
+                         ),
+                         Icon(
+                           Icons.chevron_right,
+                           color: Theme.of(context).colorScheme.outline,
+                         ),
+                       ],
+                     ),
+                   ),
+                 ),
+               ],
             ),
           ),
           actions: [
@@ -1382,45 +1402,64 @@ class FileActions {
                     color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
-                const SizedBox(height: 8),
-                InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () async {
-                    final path = await fileProvider.fileService.pickDirectory();
-                    if (path != null) {
-                      setDialogState(() => selectedPath = path);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outline.withValues(alpha: 0.5),
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.folder, color: Colors.amber),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            selectedPath ?? '点击选择位置',
-                            style: TextStyle(
-                              color: selectedPath != null
-                                  ? null
-                                  : Theme.of(context).colorScheme.outline,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                 const SizedBox(height: 8),
+                 InkWell(
+                   borderRadius: BorderRadius.circular(12),
+                   onTap: () async {
+                     final path = await fileProvider.fileService.pickDirectory();
+                     if (path != null) {
+                       setDialogState(() => selectedPath = path);
+                     } else if (context.mounted) {
+                       // 显示提示：可能是受保护的目录或权限未授权
+                       final l10n = AppLocalizations.of(context)!;
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         SnackBar(
+                           content: Column(
+                             mainAxisSize: MainAxisSize.min,
+                             crossAxisAlignment: CrossAxisAlignment.start,
+                             children: [
+                               Text(l10n.protectedDirectory),
+                               Text(
+                                 l10n.protectedDirectoryHint,
+                                 style: Theme.of(context).textTheme.bodySmall,
+                               ),
+                             ],
+                           ),
+                           duration: const Duration(seconds: 4),
+                         ),
+                       );
+                     }
+                   },
+                   child: Container(
+                     padding: const EdgeInsets.all(12),
+                     decoration: BoxDecoration(
+                       border: Border.all(
+                         color: Theme.of(
+                           context,
+                         ).colorScheme.outline.withValues(alpha: 0.5),
+                       ),
+                       borderRadius: BorderRadius.circular(12),
+                     ),
+                     child: Row(
+                       children: [
+                         const Icon(Icons.folder, color: Colors.amber),
+                         const SizedBox(width: 12),
+                         Expanded(
+                           child: Text(
+                             selectedPath ?? '点击选择位置',
+                             style: TextStyle(
+                               color: selectedPath != null
+                                   ? null
+                                   : Theme.of(context).colorScheme.outline,
+                             ),
+                             maxLines: 2,
+                             overflow: TextOverflow.ellipsis,
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
+                 ),
               ],
             ),
           ),
