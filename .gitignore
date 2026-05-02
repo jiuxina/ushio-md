@@ -127,6 +127,9 @@ coverage/
 web/milkdown/node_modules/
 web/milkdown/dist/
 
+# Deployment scripts (local tools)
+website/deploy.js
+
 # Symbols
 app.*.symbols
 
