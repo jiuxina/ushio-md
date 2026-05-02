@@ -128,6 +128,7 @@ web/milkdown/node_modules/
 web/milkdown/dist/
 
 # Deployment scripts (local tools)
+deploy.cmd
 website/deploy.js
 
 # Symbols
