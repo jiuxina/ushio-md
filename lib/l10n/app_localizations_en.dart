@@ -1320,4 +1320,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get monetSaved => 'Color scheme saved';
+
+  @override
+  String get downloadFont => 'Download Font';
+
+  @override
+  String downloadFontConfirm(String fontName) {
+    return 'Download \"$fontName\" font?';
+  }
+
+  @override
+  String get downloadFontNote =>
+      'Font will be downloaded from the internet. Network connection required for first use.';
+
+  @override
+  String get download => 'Download';
+
+  @override
+  String downloadingFont(String fontName) {
+    return 'Downloading \"$fontName\"...';
+  }
+
+  @override
+  String fontDownloadSuccess(String fontName) {
+    return '\"$fontName\" downloaded successfully';
+  }
+
+  @override
+  String fontDownloadFailed(String fontName) {
+    return 'Failed to download \"$fontName\". Please check your network.';
+  }
 }

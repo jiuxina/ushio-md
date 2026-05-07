@@ -2563,6 +2563,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'配色方案已保存'**
   String get monetSaved;
+
+  /// 下载字体对话框标题
+  ///
+  /// In zh, this message translates to:
+  /// **'下载字体'**
+  String get downloadFont;
+
+  /// 下载字体确认消息
+  ///
+  /// In zh, this message translates to:
+  /// **'是否下载「{fontName}」字体？'**
+  String downloadFontConfirm(String fontName);
+
+  /// 下载字体提示
+  ///
+  /// In zh, this message translates to:
+  /// **'字体将从网络下载，首次使用需要网络连接。'**
+  String get downloadFontNote;
+
+  /// 下载按钮
+  ///
+  /// In zh, this message translates to:
+  /// **'下载'**
+  String get download;
+
+  /// 下载字体进度消息
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载「{fontName}」...'**
+  String downloadingFont(String fontName);
+
+  /// 字体下载成功消息
+  ///
+  /// In zh, this message translates to:
+  /// **'「{fontName}」下载完成'**
+  String fontDownloadSuccess(String fontName);
+
+  /// 字体下载失败消息
+  ///
+  /// In zh, this message translates to:
+  /// **'「{fontName}」下载失败，请检查网络'**
+  String fontDownloadFailed(String fontName);
 }
 
 class _AppLocalizationsDelegate

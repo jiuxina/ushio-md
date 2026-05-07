@@ -1471,5 +1471,51 @@
   "monetNameRequired": "请输入方案名称",
   "@monetNameRequired": { "description": "方案名称必填提示" },
   "monetSaved": "配色方案已保存",
-  "@monetSaved": { "description": "保存成功提示" }
+  "@monetSaved": { "description": "保存成功提示" },
+  "downloadFont": "下载字体",
+  "@downloadFont": { "description": "下载字体对话框标题" },
+  "downloadFontConfirm": "是否下载「{fontName}」字体？",
+  "@downloadFontConfirm": {
+    "description": "下载字体确认消息",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "思源黑体"
+      }
+    }
+  },
+  "downloadFontNote": "字体将从网络下载，首次使用需要网络连接。",
+  "@downloadFontNote": { "description": "下载字体提示" },
+  "download": "下载",
+  "@download": { "description": "下载按钮" },
+  "downloadingFont": "正在下载「{fontName}」...",
+  "@downloadingFont": {
+    "description": "下载字体进度消息",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "思源黑体"
+      }
+    }
+  },
+  "fontDownloadSuccess": "「{fontName}」下载完成",
+  "@fontDownloadSuccess": {
+    "description": "字体下载成功消息",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "思源黑体"
+      }
+    }
+  },
+  "fontDownloadFailed": "「{fontName}」下载失败，请检查网络",
+  "@fontDownloadFailed": {
+    "description": "字体下载失败消息",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "思源黑体"
+      }
+    }
+  }
 }

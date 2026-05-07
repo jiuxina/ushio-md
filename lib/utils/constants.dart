@@ -54,8 +54,15 @@ class LightThemeScheme {
 class FontOption {
   final String name; // 显示名称（中文）
   final String fontFamily; // 字体族名称
+  final bool needDownload; // 是否需要下载
+  final String? downloadDesc; // 下载描述
 
-  const FontOption({required this.name, required this.fontFamily});
+  const FontOption({
+    required this.name,
+    required this.fontFamily,
+    this.needDownload = false,
+    this.downloadDesc,
+  });
 }
 
 /// 代码块主题选项
@@ -78,7 +85,7 @@ class AppConstants {
   static const String appName = '汐';
 
   /// 版本号
-  static const String appVersion = '1.5.6';
+  static const String appVersion = '1.5.7';
 
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';
@@ -248,11 +255,21 @@ class AppConstants {
 
   /// 可选字体列表
   ///
-  /// 第一个为系统默认，其余使用 Google Fonts
+  /// 第一个为系统默认，其余使用 Google Fonts（需要下载）
   static const List<FontOption> availableFonts = [
     FontOption(name: '系统默认', fontFamily: 'System'),
-    FontOption(name: '思源黑体', fontFamily: 'Noto Sans SC'),
-    FontOption(name: 'JetBrains Mono', fontFamily: 'JetBrains Mono'),
+    FontOption(
+      name: '思源黑体',
+      fontFamily: 'Noto Sans SC',
+      needDownload: true,
+      downloadDesc: 'Google 出品的中文字体，适合正文阅读（约 10MB）',
+    ),
+    FontOption(
+      name: 'JetBrains Mono',
+      fontFamily: 'JetBrains Mono',
+      needDownload: true,
+      downloadDesc: 'JetBrains 出品的编程字体，适合代码块（约 0.2MB）',
+    ),
   ];
 
   // ==================== 代码块主题 ====================

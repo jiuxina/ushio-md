@@ -1510,7 +1510,23 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     for (var font in AppConstants.availableFonts) {
       if (seenFamilies.add(font.fontFamily)) {
         fontItems.add(
-          DropdownMenuItem(value: font.fontFamily, child: Text(font.name)),
+          DropdownMenuItem(
+            value: font.fontFamily,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(font.name),
+                if (font.needDownload) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.cloud_download,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ],
+              ],
+            ),
+          ),
         );
       }
     }
@@ -1530,6 +1546,127 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
       return seenFamilies.contains(current) ? current : 'System';
     }
 
+    // 处理字体选择变更
+    Future<void> handleFontChange(
+      String? fontFamily,
+      Future<void> Function(String) setter,
+    ) async {
+      if (fontFamily == null) return;
+      
+      // 检查是否是需要下载的内置字体
+      final fontOption = AppConstants.availableFonts.firstWhere(
+        (f) => f.fontFamily == fontFamily,
+        orElse: () => const FontOption(name: '', fontFamily: ''),
+      );
+      
+      if (fontOption.needDownload) {
+        // 检查是否已下载
+        final isDownloaded = await FontService.isBuiltinFontDownloaded(fontFamily);
+        
+        if (!isDownloaded && mounted) {
+          // 显示下载确认对话框
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text(l10n.downloadFont),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.downloadFontConfirm(fontOption.name)),
+                  const SizedBox(height: 8),
+                  Text(
+                    fontOption.downloadDesc ?? '',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.downloadFontNote,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  icon: const Icon(Icons.download, size: 18),
+                  label: Text(l10n.download),
+                ),
+              ],
+            ),
+          );
+          
+          if (confirmed != true) return;
+          
+          // 开始下载
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(l10n.downloadingFont(fontOption.name)),
+                  ],
+                ),
+                duration: const Duration(minutes: 5),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+          
+          final result = await FontService.downloadBuiltinFont(fontFamily);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            
+            if (result != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.fontDownloadSuccess(fontOption.name)),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+              // 重新加载自定义字体列表
+              await _loadCustomFonts();
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.fontDownloadFailed(fontOption.name)),
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+              return;
+            }
+          }
+        }
+      }
+      
+      await setter(fontFamily);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1543,9 +1680,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               underline: const SizedBox(),
               borderRadius: BorderRadius.circular(12),
               items: fontItems,
-              onChanged: (value) {
-                if (value != null) settings.setUiFontFamily(value);
-              },
+              onChanged: (value) => handleFontChange(
+                value,
+                settings.setUiFontFamily,
+              ),
             ),
           ],
         ),
@@ -1560,9 +1698,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               underline: const SizedBox(),
               borderRadius: BorderRadius.circular(12),
               items: fontItems,
-              onChanged: (value) {
-                if (value != null) settings.setEditorFontFamily(value);
-              },
+              onChanged: (value) => handleFontChange(
+                value,
+                settings.setEditorFontFamily,
+              ),
             ),
           ],
         ),
@@ -1577,9 +1716,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               underline: const SizedBox(),
               borderRadius: BorderRadius.circular(12),
               items: fontItems,
-              onChanged: (value) {
-                if (value != null) settings.setCodeFontFamily(value);
-              },
+              onChanged: (value) => handleFontChange(
+                value,
+                settings.setCodeFontFamily,
+              ),
             ),
           ],
         ),

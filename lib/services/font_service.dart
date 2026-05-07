@@ -3,16 +3,36 @@
 // 
 // 管理应用字体的加载和安装：
 // - 支持从本地文件安装自定义字体
+// - 支持远程下载内置字体
 // - 管理已安装的自定义字体列表
 // ============================================================================
 
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/debug_log.dart';
+
+/// 内置字体下载源配置
+class BuiltinFontConfig {
+  final String name;
+  final String fontFamily;
+  final String downloadUrl;
+  final String fileName;
+  final String description;
+
+  const BuiltinFontConfig({
+    required this.name,
+    required this.fontFamily,
+    required this.downloadUrl,
+    required this.fileName,
+    required this.description,
+  });
+}
 
 /// 字体服务
 class FontService {
@@ -22,6 +42,32 @@ class FontService {
   /// 已安装的自定义字体列表键
   static const String _customFontsKey = 'custom_fonts_list';
   
+  /// 内置字体下载配置
+  static const List<BuiltinFontConfig> builtinFonts = [
+    BuiltinFontConfig(
+      name: '思源黑体',
+      fontFamily: 'Noto Sans SC',
+      downloadUrl: 'https://github.com/google/fonts/raw/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf',
+      fileName: 'NotoSansSC.ttf',
+      description: 'Google 出品的中文字体，适合正文阅读',
+    ),
+    BuiltinFontConfig(
+      name: 'JetBrains Mono',
+      fontFamily: 'JetBrains Mono',
+      downloadUrl: 'https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip',
+      fileName: 'JetBrainsMono.ttf',
+      description: 'JetBrains 出品的编程字体，适合代码块',
+    ),
+  ];
+  
+  /// 下载进度回调
+  static void Function(double progress)? _onDownloadProgress;
+  
+  /// 设置下载进度回调
+  static void setDownloadProgressCallback(void Function(double)? callback) {
+    _onDownloadProgress = callback;
+  }
+  
   /// 获取自定义字体存储目录
   static Future<Directory> _getCustomFontDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
@@ -30,6 +76,65 @@ class FontService {
       await fontDir.create(recursive: true);
     }
     return fontDir;
+  }
+  
+  /// 检查内置字体是否已下载
+  static Future<bool> isBuiltinFontDownloaded(String fontFamily) async {
+    try {
+      final fontDir = await _getCustomFontDirectory();
+      final config = builtinFonts.firstWhere(
+        (f) => f.fontFamily == fontFamily,
+        orElse: () => throw Exception('Font not found: $fontFamily'),
+      );
+      final fontFile = File('${fontDir.path}/${config.fileName}');
+      return await fontFile.exists();
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  /// 下载内置字体
+  /// 
+  /// 返回下载成功后的字体路径，失败返回 null
+  static Future<String?> downloadBuiltinFont(
+    String fontFamily, {
+    void Function(double progress)? onProgress,
+  }) async {
+    try {
+      final config = builtinFonts.firstWhere(
+        (f) => f.fontFamily == fontFamily,
+        orElse: () => throw Exception('Font not found: $fontFamily'),
+      );
+      
+      final fontDir = await _getCustomFontDirectory();
+      final fontPath = '${fontDir.path}/${config.fileName}';
+      
+      appDebugLog('开始下载字体: ${config.name} from ${config.downloadUrl}');
+      
+      // 下载字体文件
+      final response = await http.get(Uri.parse(config.downloadUrl));
+      
+      if (response.statusCode != 200) {
+        appDebugLog('下载字体失败: HTTP ${response.statusCode}');
+        return null;
+      }
+      
+      // 保存字体文件
+      final fontFile = File(fontPath);
+      await fontFile.writeAsBytes(response.bodyBytes);
+      
+      // 加载字体
+      await _loadCustomFont(config.fontFamily, fontPath);
+      
+      // 保存到已安装列表
+      await _saveCustomFontInfo(config.fontFamily, fontPath);
+      
+      appDebugLog('字体下载成功: ${config.name}');
+      return fontPath;
+    } catch (e, stackTrace) {
+      appDebugLog('下载字体失败: $e\n$stackTrace');
+      return null;
+    }
   }
   
   /// 从文件管理器选择并安装字体

@@ -72,7 +72,7 @@ void main() async {
   final myFilesService = MyFilesService();
   await myFilesService.initWorkspace();
 
-  // 加载已安装的自定义字体（包括手动下载的 Google 字体）
+  // 加载已安装的自定义字体（包括远程下载的内置字体）
   await FontService.loadAllCustomFonts();
 
   runApp(const MyApp());

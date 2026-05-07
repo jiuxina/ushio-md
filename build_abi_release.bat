@@ -36,7 +36,7 @@ if errorlevel 1 (
 )
 
 echo [3/5] Building ABI split release APKs...
-call flutter build apk --release --split-per-abi
+call flutter build apk --release --split-per-abi --split-debug-info=build/debug-info --obfuscate --tree-shake-icons
 if errorlevel 1 (
   echo [ERROR] flutter build apk failed
   pause

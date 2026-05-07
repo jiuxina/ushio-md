@@ -954,5 +954,51 @@
   "monetNameRequired": "Please enter a scheme name",
   "@monetNameRequired": { "description": "Scheme name required hint" },
   "monetSaved": "Color scheme saved",
-  "@monetSaved": { "description": "Save success message" }
+  "@monetSaved": { "description": "Save success message" },
+  "downloadFont": "Download Font",
+  "@downloadFont": { "description": "Download font dialog title" },
+  "downloadFontConfirm": "Download \"{fontName}\" font?",
+  "@downloadFontConfirm": {
+    "description": "Download font confirmation message",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "Noto Sans SC"
+      }
+    }
+  },
+  "downloadFontNote": "Font will be downloaded from the internet. Network connection required for first use.",
+  "@downloadFontNote": { "description": "Download font note" },
+  "download": "Download",
+  "@download": { "description": "Download button" },
+  "downloadingFont": "Downloading \"{fontName}\"...",
+  "@downloadingFont": {
+    "description": "Downloading font progress message",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "Noto Sans SC"
+      }
+    }
+  },
+  "fontDownloadSuccess": "\"{fontName}\" downloaded successfully",
+  "@fontDownloadSuccess": {
+    "description": "Font download success message",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "Noto Sans SC"
+      }
+    }
+  },
+  "fontDownloadFailed": "Failed to download \"{fontName}\". Please check your network.",
+  "@fontDownloadFailed": {
+    "description": "Font download failed message",
+    "placeholders": {
+      "fontName": {
+        "type": "String",
+        "example": "Noto Sans SC"
+      }
+    }
+  }
 }

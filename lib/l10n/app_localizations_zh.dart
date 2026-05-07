@@ -1283,4 +1283,33 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get monetSaved => '配色方案已保存';
+
+  @override
+  String get downloadFont => '下载字体';
+
+  @override
+  String downloadFontConfirm(String fontName) {
+    return '是否下载「$fontName」字体？';
+  }
+
+  @override
+  String get downloadFontNote => '字体将从网络下载，首次使用需要网络连接。';
+
+  @override
+  String get download => '下载';
+
+  @override
+  String downloadingFont(String fontName) {
+    return '正在下载「$fontName」...';
+  }
+
+  @override
+  String fontDownloadSuccess(String fontName) {
+    return '「$fontName」下载完成';
+  }
+
+  @override
+  String fontDownloadFailed(String fontName) {
+    return '「$fontName」下载失败，请检查网络';
+  }
 }

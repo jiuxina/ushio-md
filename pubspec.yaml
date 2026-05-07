@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.5.6+4056
+version: 1.5.7+4057
 
 environment:
   sdk: ^3.9.2
@@ -77,7 +77,8 @@ dependencies:
   # Native sharing
   share_plus: ^10.0.0
   receive_sharing_intent: ^1.8.1
-  google_fonts: ^6.3.3
+  # google_fonts 已移除 - 未使用且字体改为远程下载模式
+  # google_fonts: ^6.3.3
   archive: ^4.0.7
   pdf: ^3.11.3
   printing: ^5.14.2
@@ -159,13 +160,15 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://dart.dev/to/font-from-package
   
-  fonts:
-    - family: Noto Sans SC
-      fonts:
-        - asset: assets/fonts/NotoSansSC-Regular.ttf
-    - family: JetBrains Mono
-      fonts:
-        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+  # 字体已改为远程下载模式，不再打包进安装包
+  # 首次选择内置字体时会弹出确认对话框，确认后自动下载
+  # fonts:
+  #   - family: Noto Sans SC
+  #     fonts:
+  #       - asset: assets/fonts/NotoSansSC-Regular.ttf
+  #   - family: JetBrains Mono
+  #     fonts:
+  #       - asset: assets/fonts/JetBrainsMono-Regular.ttf
 
   # Localization configuration
   generate: true
