@@ -9,6 +9,9 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/jiuxina/ushio-md/releases">
+    <img src="https://img.shields.io/github/downloads/jiuxina/ushio-md/total?style=social" alt="GitHub Downloads">
+  </a>
   <a href="https://github.com/jiuxina/ushio-md/stargazers">
     <img src="https://img.shields.io/github/stars/jiuxina/ushio-md?style=social" alt="GitHub stars">
   </a>
