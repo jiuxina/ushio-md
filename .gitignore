@@ -141,3 +141,9 @@ app.*.symbols
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
+
+# 项目构造文件
+build_abi_release.bat
+build_debug.bat
+build_windows_release.bat
+deploy.cmd
