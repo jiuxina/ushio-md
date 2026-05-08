@@ -147,3 +147,6 @@ build_abi_release.bat
 build_debug.bat
 build_windows_release.bat
 deploy.cmd
+
+# AI 工作文件（仅本地保留）
+.sisyphus/
