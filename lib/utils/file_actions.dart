@@ -1139,13 +1139,13 @@ class FileActions {
     if (result != null && result.isNotEmpty) {
       final file = await fileProvider.createFile(folderPath, result);
       if (file != null && context.mounted) {
+        // Trigger refresh immediately after file creation
+        onRefresh?.call();
         await EditorNavigationHelper.openEditor(
           context,
           file.path,
           initialContent: file.content,
         );
-        // Trigger refresh after returning from editor
-        onRefresh?.call();
       }
     }
   }
@@ -1325,13 +1325,13 @@ class FileActions {
         result['name']!,
       );
       if (file != null && context.mounted) {
+        // Trigger refresh immediately after file creation
+        onRefresh?.call();
         await EditorNavigationHelper.openEditor(
           context,
           file.path,
           initialContent: file.content,
         );
-        // Trigger refresh after returning from editor
-        onRefresh?.call();
       }
     }
   }

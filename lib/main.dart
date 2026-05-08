@@ -262,7 +262,7 @@ class MyApp extends StatelessWidget {
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       backgroundColor: monetColorScheme?.background ?? scheme.background,
-      textColor: uiFontColor,
+      textColor: scheme.text,
       textSecondaryColor: monetColorScheme?.onSurfaceVariant ?? scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,

@@ -507,7 +507,22 @@ class FileService {
         maxFileSize,
       );
     }
-    await file.writeAsString(content);
+    // Atomic write: write to temp file first, then rename
+    final tempFile = File('$path.tmp');
+    try {
+      await tempFile.writeAsString(content, flush: true);
+      // On Windows, rename fails if target exists; delete first
+      if (Platform.isWindows && await file.exists()) {
+        await file.delete();
+      }
+      await tempFile.rename(path);
+    } catch (e) {
+      // Clean up temp file on failure
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+      rethrow;
+    }
     final stat = await file.stat();
     _storeInCache(path, content, lastModified: stat.modified, size: stat.size);
   }

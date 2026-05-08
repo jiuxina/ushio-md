@@ -147,26 +147,25 @@ class FolderBrowserHeader extends StatelessWidget {
                         ).dividerColor.withValues(alpha: 0.5),
                       ),
               ),
-              child: Center(
-                child: TextField(
-                  controller: searchController,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: l10n.searchFiles,
-                    border: InputBorder.none,
-                    isCollapsed: true,
-                    prefixIcon: Icon(
-                      Icons.search,
-                      size: 20,
-                      color: colorScheme.outline,
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
+              child: TextField(
+                controller: searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: l10n.searchFiles,
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    size: 20,
+                    color: colorScheme.outline,
                   ),
-                  onChanged: onSearchChanged,
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
                 ),
+                onChanged: onSearchChanged,
               ),
             ),
           ),

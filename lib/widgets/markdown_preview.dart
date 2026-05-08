@@ -214,6 +214,31 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
     );
   }
 
+  /// Convert HTML <img> tags to markdown image syntax
+  /// flutter_markdown_plus doesn't support inline HTML, so we preprocess
+  static String _convertHtmlImagesToMarkdown(String data) {
+    // Match <img ... src="..." ...> with any attribute order
+    // Handles: src before alt, alt before src, missing alt, self-closing
+    final imgTagRegex = RegExp(
+      r'<img\s[^>]*?>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    return data.replaceAllMapped(imgTagRegex, (match) {
+      final tag = match.group(0) ?? '';
+      // Extract src attribute
+      final srcMatch = RegExp(r'src\s*=\s*["\']([^"\']*)["\']', caseSensitive: false).firstMatch(tag);
+      if (srcMatch == null) return tag; // No src, leave as-is
+      final src = srcMatch.group(1) ?? '';
+      // Extract alt attribute (optional)
+      final altMatch = RegExp(r'alt\s*=\s*["\']([^"\']*)["\']', caseSensitive: false).firstMatch(tag);
+      final alt = altMatch?.group(1) ?? '';
+      // Escape brackets in alt text for valid markdown
+      final escapedAlt = alt.replaceAll('[', '\\[').replaceAll(']', '\\]');
+      return '![$escapedAlt]($src)';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -222,6 +247,9 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
     // Ensure stylesheet is available
     _updateStyleSheetIfNeeded();
     final styleSheet = _cachedStyleSheet!;
+
+    // Preprocess: convert HTML <img> tags to markdown syntax
+    final processedData = _convertHtmlImagesToMarkdown(widget.data);
 
     final builders = <String, MarkdownElementBuilder>{
       'code': CodeBlockBuilder(
@@ -260,7 +288,7 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
 
     if (widget.shrinkWrap) {
       return MarkdownBody(
-        data: widget.data,
+        data: processedData,
         onTapLink: widget.onTapLink,
         selectable: true,
         styleSheet: styleSheet,
@@ -272,7 +300,7 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
 
     return Markdown(
       controller: widget.controller,
-      data: widget.data,
+      data: processedData,
       onTapLink: widget.onTapLink,
       selectable: true,
       padding: const EdgeInsets.all(16),

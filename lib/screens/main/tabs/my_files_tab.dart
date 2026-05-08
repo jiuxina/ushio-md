@@ -26,13 +26,22 @@ class _MyFilesTabState extends State<MyFilesTab> with AutomaticKeepAliveClientMi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.fileProvider.addListener(_onFileProviderChanged);
     _initWorkspace();
   }
 
   @override
   void dispose() {
+    widget.fileProvider.removeListener(_onFileProviderChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Refresh the browser when FileProvider notifies (e.g. after file creation/deletion)
+  void _onFileProviderChanged() {
+    if (mounted) {
+      _refreshBrowser();
+    }
   }
 
   @override

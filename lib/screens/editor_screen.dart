@@ -319,6 +319,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (!_editFocusNode.hasFocus) return;
     final selection = _textController.selection;
     if (!selection.isValid) return;
+    // Skip scroll adjustment during IME composition to prevent cursor jumping
+    if (_textController.value.composing != TextRange.empty) return;
     _scheduleEditScrollToCursor();
   }
 

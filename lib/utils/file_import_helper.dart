@@ -9,6 +9,8 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/my_files_service.dart';
 import 'editor_navigation_helper.dart';
 
@@ -50,6 +52,14 @@ class FileImportHelper {
     VoidCallback? onFileOpened,
     VoidCallback? onImportComplete,
   }) async {
+    // Ensure MyFilesService has SettingsProvider for correct path resolution
+    try {
+      final settings = Provider.of<SettingsProvider>(context, listen: false);
+      _myFilesService.setSettingsProvider(settings);
+    } catch (e) {
+      debugPrint('FileImportHelper: SettingsProvider not available, using defaults: $e');
+    }
+
     // 检查文件是否在工作区内
     final isInWorkspace = await _myFilesService.isInWorkspace(filePath);
 
