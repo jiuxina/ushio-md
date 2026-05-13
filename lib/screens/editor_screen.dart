@@ -33,6 +33,10 @@ import '../services/webdav_service.dart';
 import '../services/ftp_service.dart';
 import '../services/my_files_service.dart';
 import '../services/sync_service_interface.dart';
+import '../services/version_service.dart';
+import '../models/document_version.dart';
+import 'editor/components/version_history_sheet.dart';
+import 'editor/components/diff_view_overlay.dart';
 
 enum EditorMode { edit, preview }
 
@@ -125,6 +129,15 @@ class _EditorScreenState extends State<EditorScreen>
   String? _error;
   List<TocItem> _tocItems = [];
   int? _currentTocIndex;
+
+  // ==================== 版本历史 ====================
+  final _versionService = VersionService();
+  final _versionHistoryController = VersionHistoryController();
+  bool _showVersionHistoryOverlay = false;
+  List<DocumentVersion> _versions = [];
+  bool _isLoadingVersions = false;
+  String? _versionErrorMessage;
+  OverlayEntry? _diffOverlayEntry;
 
   static const _jumpTopOffset = 32.0;
 
@@ -595,6 +608,9 @@ class _EditorScreenState extends State<EditorScreen>
         });
       }
 
+      // 创建版本快照（失败不影响保存成功状态）
+      _createVersionSnapshot();
+
       if (showSnackbar && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -711,6 +727,276 @@ class _EditorScreenState extends State<EditorScreen>
       cloudSyncService.dispose();
     } catch (e) {
       appDebugLog('[AutoSync] 同步失败: $e');
+    }
+  }
+
+  // ==================== 版本历史 ====================
+
+  /// 创建版本快照（后台执行，失败不影响保存状态）
+  void _createVersionSnapshot() {
+    unawaited(
+      _versionService
+          .createVersion(widget.filePath, _textController.text)
+          .then((version) {
+        appDebugLog('[Version] 版本快照创建成功: v${version.versionNumber}');
+      }).catchError((e) {
+        appDebugLog('[Version] 版本快照创建失败（不影响保存）: $e');
+      }),
+    );
+  }
+
+  /// 显示版本历史覆盖层
+  Future<void> _showVersionHistory() async {
+    setState(() {
+      _showVersionHistoryOverlay = true;
+      _isLoadingVersions = true;
+      _versionErrorMessage = null;
+    });
+
+    try {
+      final versions = await _versionService.getVersionHistory(widget.filePath);
+      if (mounted) {
+        setState(() {
+          _versions = versions;
+          _isLoadingVersions = false;
+        });
+      }
+    } catch (e) {
+      appDebugLog('[Version] 加载版本历史失败: $e');
+      if (mounted) {
+        setState(() {
+          _versionErrorMessage = '加载版本历史失败';
+          _isLoadingVersions = false;
+        });
+      }
+    }
+  }
+
+  /// 关闭版本历史覆盖层
+  void _closeVersionHistory() {
+    if (mounted) {
+      setState(() => _showVersionHistoryOverlay = false);
+    }
+  }
+
+  /// 更新版本备注
+  Future<void> _updateVersionNote(
+    DocumentVersion version,
+    String note,
+  ) async {
+    await _versionService.updateVersionNote(
+      widget.filePath,
+      version.versionNumber,
+      note,
+    );
+    // 刷新版本列表
+    final versions = await _versionService.getVersionHistory(widget.filePath);
+    if (mounted) {
+      setState(() {
+        _versions = versions;
+      });
+    }
+  }
+
+  /// 显示 Diff 对比视图
+  Future<void> _showDiffView(DocumentVersion version) async {
+    try {
+      // 获取版本内容
+      final versionContent = await _versionService.getVersionContent(
+        widget.filePath,
+        version.versionNumber,
+      );
+      final currentContent = _textController.text;
+
+      if (!mounted) return;
+
+      // 创建当前文档的临时版本对象用于 DiffViewOverlay
+      final currentVersion = DocumentVersion(
+        versionId: 'current',
+        versionNumber: 0,
+        timestamp: DateTime.now(),
+        note: '当前版本',
+        filePath: widget.filePath,
+        versionPath: widget.filePath,
+        fileSize: currentContent.length,
+      );
+
+      _diffOverlayEntry = showDiffViewOverlay(
+        context: context,
+        oldVersion: version,
+        newVersion: currentVersion,
+        oldContent: versionContent,
+        newContent: currentContent,
+        onRestore: _restoreVersion,
+        // onCreateNewDoc 回调接收的是 newVersion（当前版本），
+        // 但我们希望从选中的历史版本创建新文档，因此用闭包捕获 version
+        onCreateNewDoc: (_) => _createNewDocFromVersion(version),
+      );
+    } catch (e) {
+      appDebugLog('[Version] 加载版本内容失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('加载版本内容失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 回退到指定版本
+  Future<void> _restoreVersion(DocumentVersion version) async {
+    // 显示确认对话框
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.restore, color: Colors.orange),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('确认回退版本', overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        content: Text('将回退到版本 v${version.versionNumber}，当前内容会自动备份。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.restore, size: 18),
+            label: const Text('回退'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // 调用 VersionService 执行回退（内部会自动创建备份）
+      final restoredVersion = await _versionService.restoreVersion(
+        widget.filePath,
+        version.versionNumber,
+      );
+
+      // 读取恢复后的内容并更新编辑器
+      final restoredContent = await _versionService.getVersionContent(
+        widget.filePath,
+        version.versionNumber,
+      );
+
+      if (!mounted) return;
+
+      // 更新编辑器内容和增量合并基准
+      _textController.removeListener(_onTextChanged);
+      _textController.text = restoredContent;
+      _originalMarkdown = restoredContent;
+      _textController.addListener(_onTextChanged);
+
+      // 重置编辑历史
+      _recordHistorySnapshot(reset: true);
+
+      setState(() {
+        _isModified = false;
+        _lastSaveTime = DateTime.now();
+      });
+
+      // 关闭所有覆盖层
+      _diffOverlayEntry?.remove();
+      _diffOverlayEntry = null;
+      _closeVersionHistory();
+
+      // 显示成功提示（包含备份版本信息）
+      final backupVersionNumber = restoredVersion.versionNumber - 1;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.check, color: Colors.green, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '已回退到 v${version.versionNumber}，备份为 v$backupVersionNumber',
+                ),
+              ),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      appDebugLog('[Version] 版本回退失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('版本回退失败: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  /// 从版本创建新文档
+  Future<void> _createNewDocFromVersion(DocumentVersion version) async {
+    try {
+      final newFilePath = await _versionService.createNewDocFromVersion(
+        widget.filePath,
+        version.versionNumber,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('已创建新文档: ${newFilePath.split(Platform.pathSeparator).last}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      appDebugLog('[Version] 创建新文档失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('创建新文档失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -1634,6 +1920,16 @@ class _EditorScreenState extends State<EditorScreen>
                         currentHeadingIndex: _currentTocIndex,
                         keepOpenOnJump: false,
                       ),
+                    if (_showVersionHistoryOverlay)
+                      VersionHistorySheet(
+                        versions: _versions,
+                        onClose: _closeVersionHistory,
+                        onVersionSelected: _showDiffView,
+                        onVersionNoteUpdated: _updateVersionNote,
+                        controller: _versionHistoryController,
+                        isLoading: _isLoadingVersions,
+                        errorMessage: _versionErrorMessage,
+                      ),
                     if (!_isLoading && _error == null)
                       _buildFixedFloatingButtons(),
                   ],
@@ -2286,6 +2582,15 @@ class _EditorScreenState extends State<EditorScreen>
                       .last
                       .replaceAll('.md', ''),
                 );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('查看历史'),
+              subtitle: const Text('查看版本历史与对比'),
+              onTap: () {
+                Navigator.pop(context);
+                _showVersionHistory();
               },
             ),
             const SizedBox(height: 16),
