@@ -1,15 +1,15 @@
 # 汐 Markdown 编辑器 - MSIX 打包配置
-# 版本: 1.5.8
+# 版本: 1.5.9
 
 msix_config:
   display_name: 汐
   publisher_display_name: 汐 Markdown Editor
   identity_name: Ushio.Markdown.Editor
-  msix_version: 1.5.8.0
+  msix_version: 1.5.9.0
   logo_path: app.png
   trim_logo: true
   capabilities: internetClient, documentsLibrary, picturesLibrary
   languages: zh-cn, en-us
   install_certificate: false
-  output_name: 汐-1.5.8
+  output_name: 汐-1.5.9
   output_path: build\msix
