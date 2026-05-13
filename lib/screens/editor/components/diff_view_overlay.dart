@@ -875,8 +875,6 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
               icon: const Icon(Icons.restore, size: 18),
               label: const Text('回退'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: colors.error,
-                side: BorderSide(color: colors.error),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -887,11 +885,11 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
           const SizedBox(width: 12),
           // 创建新文档按钮
           Expanded(
-            child: FilledButton.icon(
+            child: OutlinedButton.icon(
               onPressed: widget.onCreateNewDoc,
               icon: const Icon(Icons.note_add, size: 18),
               label: const Text('新文档'),
-              style: FilledButton.styleFrom(
+              style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
