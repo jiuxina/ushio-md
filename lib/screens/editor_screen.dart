@@ -112,7 +112,6 @@ class _EditorScreenState extends State<EditorScreen>
   SearchOptions _searchOptions = const SearchOptions();
   List<String> _searchHistory = [];
   final _searchHistoryService = SearchHistoryService();
-  bool _suppressNextMilkdownReload = false;
 
   // Original Markdown for incremental merge (preserves original formatting)
   String _originalMarkdown = '';
@@ -1708,9 +1707,6 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== Milkdown WebView ====================
 
   void _handleMilkdownContentChange(String markdown) {
-    final suppressReload = _suppressNextMilkdownReload;
-    _suppressNextMilkdownReload = false;
-
     // Apply incremental merge to preserve original formatting
     String finalMarkdown = markdown;
     if (_enableIncrementalMerge && _originalMarkdown.isNotEmpty) {
@@ -1730,9 +1726,11 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     if (finalMarkdown == _textController.text) return;
-    if (suppressReload) {
-      _previewWebViewController.suppressNextReload();
-    }
+    // This change originated from the live Milkdown editor. Updating the
+    // Flutter controller rebuilds this screen with a new initialMarkdown value,
+    // but echoing that value back through init_doc would replace the ProseMirror
+    // document and move the caret to the end while the user is typing.
+    _previewWebViewController.suppressNextReload();
     _textController.removeListener(_onTextChanged);
     _textController.text = finalMarkdown;
     _textController.addListener(_onTextChanged);
@@ -1769,15 +1767,6 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _handleMilkdownBridgeMessage(Map<String, dynamic> map) {
     final type = map['type']?.toString();
-    if (type == 'on_content_change') {
-      final payload = map['payload'];
-      if (payload is Map) {
-        _suppressNextMilkdownReload =
-            payload['mode']?.toString() == 'code_sanitized';
-      } else {
-        _suppressNextMilkdownReload = false;
-      }
-    }
     final settings = context.read<SettingsProvider>();
     if (settings.debugEnabled) {
       settings.appendDebugLog('bridge<$type>: $map');
