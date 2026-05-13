@@ -54,6 +54,12 @@ class VersionHistorySheet extends StatefulWidget {
   /// 错误信息（为 null 时无错误）
   final String? errorMessage;
 
+  /// 是否有未保存的修改
+  final bool isModified;
+
+  /// 点击"当前未保存修改"的回调
+  final VoidCallback? onUnsavedChangesSelected;
+
   const VersionHistorySheet({
     super.key,
     required this.versions,
@@ -64,6 +70,8 @@ class VersionHistorySheet extends StatefulWidget {
     this.controller,
     this.isLoading = false,
     this.errorMessage,
+    this.isModified = false,
+    this.onUnsavedChangesSelected,
   });
 
   @override
@@ -515,11 +523,92 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
       child: ListView.builder(
         shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        itemCount: widget.versions.length,
+        // 如果有未保存修改，额外增加一个条目
+        itemCount: widget.versions.length + (widget.isModified ? 1 : 0),
         itemBuilder: (context, index) {
-          final version = widget.versions[index];
+          // 第一个条目：未保存修改
+          if (widget.isModified && index == 0) {
+            return _buildUnsavedChangesItem(context);
+          }
+          // 其他条目：版本历史
+          final versionIndex = widget.isModified ? index - 1 : index;
+          final version = widget.versions[versionIndex];
           return _buildVersionItem(context, version);
         },
+      ),
+    );
+  }
+
+  /// 构建"当前未保存修改"条目
+  Widget _buildUnsavedChangesItem(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            widget.onUnsavedChangesSelected?.call();
+            _startClose();
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.tertiary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colorScheme.tertiary.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: colorScheme.tertiary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.edit_note,
+                    color: colorScheme.tertiary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '当前未保存修改',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.tertiary,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '与最新版本对比',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colorScheme.outline,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.compare_arrows,
+                  size: 20,
+                  color: colorScheme.tertiary,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

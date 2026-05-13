@@ -137,6 +137,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isLoadingVersions = false;
   String? _versionErrorMessage;
   OverlayEntry? _diffOverlayEntry;
+  bool _isRestoringVersion = false;
 
   static const _jumpTopOffset = 32.0;
 
@@ -576,6 +577,8 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _autoSave() async {
+    // 如果正在回退版本，跳过自动保存
+    if (_isRestoringVersion) return;
     if (_isModified && !_isSaving) {
       setState(() => _isAutoSaving = true);
       await _saveFile(showSnackbar: false, isAutoSave: true);
@@ -797,38 +800,150 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  /// 显示 Diff 对比视图
-  Future<void> _showDiffView(DocumentVersion version) async {
+  /// 显示未保存修改的 Diff 对比视图
+  ///
+  /// 对比 _originalMarkdown（上次保存的内容）与 _textController.text（当前内容）
+  Future<void> _showUnsavedChangesDiff() async {
     try {
-      // 获取版本内容
-      final versionContent = await _versionService.getVersionContent(
-        widget.filePath,
-        version.versionNumber,
-      );
-      final currentContent = _textController.text;
+      // 获取最新版本信息用于显示
+      final versions = await _versionService.getVersionHistory(widget.filePath);
+      final latestVersion = versions.isNotEmpty ? versions.first : null;
 
       if (!mounted) return;
 
-      // 创建当前文档的临时版本对象用于 DiffViewOverlay
-      final currentVersion = DocumentVersion(
-        versionId: 'current',
-        versionNumber: 0,
+      // 创建"当前编辑中"的临时版本对象
+      final currentEditingVersion = DocumentVersion(
+        versionId: 'unsaved',
+        versionNumber: latestVersion != null
+            ? latestVersion.versionNumber + 1
+            : 1,
         timestamp: DateTime.now(),
-        note: '当前版本',
+        note: '编辑中（未保存）',
         filePath: widget.filePath,
         versionPath: widget.filePath,
-        fileSize: currentContent.length,
+        fileSize: _textController.text.length,
       );
 
       _diffOverlayEntry = showDiffViewOverlay(
         context: context,
-        oldVersion: version,
-        newVersion: currentVersion,
-        oldContent: versionContent,
-        newContent: currentContent,
+        oldVersion: latestVersion ?? currentEditingVersion,
+        newVersion: currentEditingVersion,
+        oldContent: _originalMarkdown,
+        newContent: _textController.text,
+        // 未保存修改视图中，回退按钮变为"丢弃修改"
+        onRestore: (_) => _discardUnsavedChanges(),
+        onCreateNewDoc: (_) {}, // 未保存修改不支持创建新文档
+      );
+    } catch (e) {
+      appDebugLog('[Version] 加载未保存修改对比失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('加载对比失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 丢弃未保存的修改，恢复到上次保存的内容
+  Future<void> _discardUnsavedChanges() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('丢弃修改'),
+        content: const Text('确定要丢弃所有未保存的修改吗？\n此操作无法撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('丢弃'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // 恢复到上次保存的内容
+    _textController.removeListener(_onTextChanged);
+    _textController.text = _originalMarkdown;
+    _textController.addListener(_onTextChanged);
+    _recordHistorySnapshot(reset: true);
+
+    setState(() {
+      _isModified = false;
+    });
+
+    // 关闭 diff 视图
+    _diffOverlayEntry?.remove();
+    _diffOverlayEntry = null;
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('已丢弃未保存的修改'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  /// 显示 Diff 对比视图
+  ///
+  /// Git 风格版本对比：
+  /// - v1 是初始版本，无历史对比
+  /// - vk (k>1) 显示 vk-1 与 vk 的差异
+  Future<void> _showDiffView(DocumentVersion version) async {
+    try {
+      // v1 是初始版本，无历史对比
+      if (version.versionNumber <= 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('v1 是初始版本，无历史对比'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 获取 vk-1 的内容（旧版本）
+      final oldVersionContent = await _versionService.getVersionContent(
+        widget.filePath,
+        version.versionNumber - 1,
+      );
+      // 获取 vk 的内容（新版本）
+      final newVersionContent = await _versionService.getVersionContent(
+        widget.filePath,
+        version.versionNumber,
+      );
+
+      if (!mounted) return;
+
+      // 获取 vk-1 的版本信息
+      final versions = await _versionService.getVersionHistory(widget.filePath);
+      final oldVersion = versions.firstWhere(
+        (v) => v.versionNumber == version.versionNumber - 1,
+        orElse: () => version, // fallback，不应该发生
+      );
+
+      _diffOverlayEntry = showDiffViewOverlay(
+        context: context,
+        oldVersion: oldVersion,  // vk-1
+        newVersion: version,     // vk
+        oldContent: oldVersionContent,
+        newContent: newVersionContent,
         onRestore: _restoreVersion,
-        // onCreateNewDoc 回调接收的是 newVersion（当前版本），
-        // 但我们希望从选中的历史版本创建新文档，因此用闭包捕获 version
         onCreateNewDoc: (_) => _createNewDocFromVersion(version),
       );
     } catch (e) {
@@ -846,6 +961,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   /// 回退到指定版本
   Future<void> _restoreVersion(DocumentVersion version) async {
+    // 移除 diff 覆盖层，避免遮挡确认对话框
+    _diffOverlayEntry?.remove();
+
     // 显示确认对话框
     final confirmed = await showDialog<bool>(
       context: context,
@@ -882,7 +1000,23 @@ class _EditorScreenState extends State<EditorScreen>
       ),
     );
 
-    if (confirmed != true) return;
+    // 用户取消，重新显示 diff 覆盖层
+    if (confirmed != true) {
+      _diffOverlayEntry = showDiffViewOverlay(
+        context: context,
+        oldVersion: version,
+        newVersion: version,
+        oldContent: '',
+        newContent: '',
+        onRestore: _restoreVersion,
+        onCreateNewDoc: (_) => _createNewDocFromVersion(version),
+      );
+      return;
+    }
+
+    // 暂停自动保存，避免文件冲突
+    _autoSaveTimer?.cancel();
+    _isRestoringVersion = true;
 
     try {
       // 调用 VersionService 执行回退（内部会自动创建备份）
@@ -967,6 +1101,10 @@ class _EditorScreenState extends State<EditorScreen>
           ),
         );
       }
+    } finally {
+      // 恢复自动保存
+      _isRestoringVersion = false;
+      _configureAutoSave();
     }
   }
 
@@ -980,12 +1118,13 @@ class _EditorScreenState extends State<EditorScreen>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('已创建新文档: ${newFilePath.split(Platform.pathSeparator).last}'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // 关闭所有覆盖层
+      _diffOverlayEntry?.remove();
+      _diffOverlayEntry = null;
+      _closeVersionHistory();
+
+      // 跳转到新文档
+      await EditorNavigationHelper.openEditor(context, newFilePath);
     } catch (e) {
       appDebugLog('[Version] 创建新文档失败: $e');
       if (mounted) {
@@ -1900,6 +2039,8 @@ class _EditorScreenState extends State<EditorScreen>
                 child: Stack(
                   children: [
                     _buildBody(),
+                    if (!_isLoading && _error == null)
+                      _buildFixedFloatingButtons(),
                     if (_showToc)
                       TocOverlay(
                         items: _tocItems,
@@ -1909,6 +2050,7 @@ class _EditorScreenState extends State<EditorScreen>
                         currentHeadingIndex: _currentTocIndex,
                         keepOpenOnJump: false,
                       ),
+                    // 版本历史和 Diff 视图在浮动按钮之上
                     if (_showVersionHistoryOverlay)
                       VersionHistorySheet(
                         versions: _versions,
@@ -1918,9 +2060,9 @@ class _EditorScreenState extends State<EditorScreen>
                         controller: _versionHistoryController,
                         isLoading: _isLoadingVersions,
                         errorMessage: _versionErrorMessage,
+                        isModified: _isModified,
+                        onUnsavedChangesSelected: _showUnsavedChangesDiff,
                       ),
-                    if (!_isLoading && _error == null)
-                      _buildFixedFloatingButtons(),
                   ],
                 ),
               ),

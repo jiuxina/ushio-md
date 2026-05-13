@@ -40,7 +40,8 @@ OverlayEntry showDiffViewOverlay({
       newVersion: newVersion,
       oldContent: oldContent,
       newContent: newContent,
-      onRestore: () => onRestore(oldVersion),
+      // 回退到新版本 vk（不是旧版本 vk-1）
+      onRestore: () => onRestore(newVersion),
       onCreateNewDoc: () => onCreateNewDoc(newVersion),
       onClose: () => entry.remove(),
     ),
