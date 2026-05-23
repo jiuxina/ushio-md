@@ -8,6 +8,8 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
+import '../../../utils/responsive_layout.dart';
+import '../../../widgets/responsive_page_frame.dart';
 import '../../settings/appearance_categories_screen.dart';
 import '../../settings/editor_settings_screen.dart';
 import '../../settings/cloud_sync_screen.dart';
@@ -24,82 +26,99 @@ class SettingsTab extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.zero,
         children: [
-          _buildSettingsHeader(context, l10n),
-          const SizedBox(height: 16),
+          ResponsivePageFrame(
+            maxWidth: ResponsiveLayout.isDesktopWidth(context) ? 760 : null,
+            padding: ResponsiveLayout.isDesktopWidth(context)
+                ? const EdgeInsets.fromLTRB(32, 24, 32, 28)
+                : const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSettingsHeader(context, l10n),
+                const SizedBox(height: 16),
 
-          _buildSettingsItem(
-            context,
-            l10n: l10n,
-            icon: Icons.palette,
-            iconColor: Colors.purple,
-            title: l10n.appearance,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const AppearanceCategoriesScreen(),
-              ),
-            ),
-          ),
+                _buildSettingsItem(
+                  context,
+                  l10n: l10n,
+                  icon: Icons.palette,
+                  iconColor: Colors.purple,
+                  title: l10n.appearance,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AppearanceCategoriesScreen(),
+                    ),
+                  ),
+                ),
 
-          _buildSettingsItem(
-            context,
-            l10n: l10n,
-            icon: Icons.edit,
-            iconColor: Colors.blue,
-            title: l10n.editor,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const EditorSettingsScreen()),
-            ),
-          ),
+                _buildSettingsItem(
+                  context,
+                  l10n: l10n,
+                  icon: Icons.edit,
+                  iconColor: Colors.blue,
+                  title: l10n.editor,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EditorSettingsScreen(),
+                    ),
+                  ),
+                ),
 
-          _buildSettingsItem(
-            context,
-            l10n: l10n,
-            icon: Icons.cloud_sync,
-            iconColor: Colors.teal,
-            title: l10n.cloudSync,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const CloudSyncScreen()),
-            ),
-          ),
+                _buildSettingsItem(
+                  context,
+                  l10n: l10n,
+                  icon: Icons.cloud_sync,
+                  iconColor: Colors.teal,
+                  title: l10n.cloudSync,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CloudSyncScreen()),
+                  ),
+                ),
 
-          _buildSettingsItem(
-            context,
-            l10n: l10n,
-            icon: Icons.folder,
-            iconColor: Colors.amber,
-            title: l10n.storage,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const StorageSettingsScreen()),
-            ),
-          ),
+                _buildSettingsItem(
+                  context,
+                  l10n: l10n,
+                  icon: Icons.folder,
+                  iconColor: Colors.amber,
+                  title: l10n.storage,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StorageSettingsScreen(),
+                    ),
+                  ),
+                ),
 
-          _buildSettingsItem(
-            context,
-            l10n: l10n,
-            icon: Icons.info,
-            iconColor: Colors.cyan,
-            title: l10n.about,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AboutScreen()),
-            ),
-          ),
+                _buildSettingsItem(
+                  context,
+                  l10n: l10n,
+                  icon: Icons.info,
+                  iconColor: Colors.cyan,
+                  title: l10n.about,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AboutScreen()),
+                  ),
+                ),
 
-          _buildSettingsItem(
-            context,
-            l10n: l10n,
-            icon: Icons.bug_report,
-            iconColor: Colors.deepOrange,
-            title: l10n.debugMode,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const DebugSettingsScreen()),
+                _buildSettingsItem(
+                  context,
+                  l10n: l10n,
+                  icon: Icons.bug_report,
+                  iconColor: Colors.deepOrange,
+                  title: l10n.debugMode,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DebugSettingsScreen(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -151,6 +170,7 @@ class SettingsTab extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: appStyle.surfaceDecoration(
@@ -171,7 +191,10 @@ class SettingsTab extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: isDesktop ? 9 : 10,
+            ),
             child: Row(
               children: [
                 Container(

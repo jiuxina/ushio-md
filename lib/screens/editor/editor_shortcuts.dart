@@ -262,6 +262,9 @@ Map<ShortcutActivator, VoidCallback> buildShortcutBindings({
   required VoidCallback onRedo,
   required VoidCallback onSearch,
   required void Function(MarkdownToolbarAction) onApplyAction,
+  VoidCallback? onEscape,
+  VoidCallback? onNextSearchMatch,
+  VoidCallback? onPrevSearchMatch,
 }) {
   return EditorShortcuts.buildBindings(
     onSave: onSave,
@@ -279,6 +282,9 @@ Map<ShortcutActivator, VoidCallback> buildShortcutBindings({
     onBlockquote: () => onApplyAction(MarkdownToolbarAction.blockquote),
     onCodeBlock: () => onApplyAction(MarkdownToolbarAction.codeBlock),
     onLink: () => onApplyAction(MarkdownToolbarAction.link),
+    onEscape: onEscape,
+    onNextSearchMatch: onNextSearchMatch,
+    onPrevSearchMatch: onPrevSearchMatch,
   );
 }
 

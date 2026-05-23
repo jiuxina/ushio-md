@@ -28,6 +28,7 @@ import 'editor/editor_shortcuts.dart';
 import '../services/export_service.dart';
 import '../utils/debug_log.dart';
 import '../utils/markdown_incremental_merge.dart';
+import '../utils/responsive_layout.dart';
 import '../services/cloud_sync_service.dart';
 import '../services/webdav_service.dart';
 import '../services/ftp_service.dart';
@@ -58,9 +59,9 @@ class _EditorScreenState extends State<EditorScreen>
   /// 根据文件大小动态限制历史步数
   int get _effectiveMaxHistory {
     final textLength = _textController.text.length;
-    if (textLength > 100000) return 20;   // > 100KB: 20 步
-    if (textLength > 50000) return 50;    // > 50KB: 50 步
-    return _maxEditHistory;               // 默认 100 步
+    if (textLength > 100000) return 20; // > 100KB: 20 步
+    if (textLength > 50000) return 50; // > 50KB: 50 步
+    return _maxEditHistory; // 默认 100 步
   }
 
   final List<EditHistoryEntry> _editHistory = [];
@@ -146,7 +147,7 @@ class _EditorScreenState extends State<EditorScreen>
     final settings = context.read<SettingsProvider>();
     // Skip if mode is 'always' or 'never'
     if (settings.floatingButtonsMode != 'auto') return;
-    
+
     _hideFloatingButtonsTimer?.cancel();
     if (_floatingButtonsVisible && mounted) {
       setState(() => _floatingButtonsVisible = false);
@@ -158,7 +159,7 @@ class _EditorScreenState extends State<EditorScreen>
     final settings = context.read<SettingsProvider>();
     // Skip if mode is 'always' or 'never'
     if (settings.floatingButtonsMode != 'auto') return;
-    
+
     _hideFloatingButtonsTimer?.cancel();
     _hideFloatingButtonsTimer = Timer(const Duration(seconds: 2), () {
       if (mounted && !_floatingButtonsVisible) {
@@ -195,13 +196,13 @@ class _EditorScreenState extends State<EditorScreen>
     final initStopwatch = Stopwatch()..start();
 
     WidgetsBinding.instance.addObserver(this);
-    
+
     // Save last opened file path for startup restore
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<SettingsProvider>();
       settings.setLastOpenedFilePath(widget.filePath);
     });
-    
+
     _textController = TextEditingController();
     _searchController = TextEditingController();
     _editScrollController = ScrollController();
@@ -299,7 +300,10 @@ class _EditorScreenState extends State<EditorScreen>
       final value = String.fromCharCode(char);
       return value.trim().isNotEmpty;
     }).length;
-    _cachedWordCount = content.split(wordSplitRegex).where((w) => w.isNotEmpty).length;
+    _cachedWordCount = content
+        .split(wordSplitRegex)
+        .where((w) => w.isNotEmpty)
+        .length;
     _recordHistorySnapshot(
       text: content,
       selection: const TextSelection.collapsed(offset: 0),
@@ -429,7 +433,10 @@ class _EditorScreenState extends State<EditorScreen>
       final value = String.fromCharCode(char);
       return value.trim().isNotEmpty;
     }).length;
-    _cachedWordCount = text.split(wordSplitRegex).where((w) => w.isNotEmpty).length;
+    _cachedWordCount = text
+        .split(wordSplitRegex)
+        .where((w) => w.isNotEmpty)
+        .length;
     if (mounted) setState(() {});
   }
 
@@ -740,10 +747,11 @@ class _EditorScreenState extends State<EditorScreen>
       _versionService
           .createVersion(widget.filePath, _textController.text)
           .then((version) {
-        appDebugLog('[Version] 版本快照创建成功: v${version.versionNumber}');
-      }).catchError((e) {
-        appDebugLog('[Version] 版本快照创建失败（不影响保存）: $e');
-      }),
+            appDebugLog('[Version] 版本快照创建成功: v${version.versionNumber}');
+          })
+          .catchError((e) {
+            appDebugLog('[Version] 版本快照创建失败（不影响保存）: $e');
+          }),
     );
   }
 
@@ -782,10 +790,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   /// 更新版本备注
-  Future<void> _updateVersionNote(
-    DocumentVersion version,
-    String note,
-  ) async {
+  Future<void> _updateVersionNote(DocumentVersion version, String note) async {
     await _versionService.updateVersionNote(
       widget.filePath,
       version.versionNumber,
@@ -838,10 +843,7 @@ class _EditorScreenState extends State<EditorScreen>
       appDebugLog('[Version] 加载未保存修改对比失败: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('加载对比失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('加载对比失败: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -939,8 +941,8 @@ class _EditorScreenState extends State<EditorScreen>
 
       _diffOverlayEntry = showDiffViewOverlay(
         context: context,
-        oldVersion: oldVersion,  // vk-1
-        newVersion: version,     // vk
+        oldVersion: oldVersion, // vk-1
+        newVersion: version, // vk
         oldContent: oldVersionContent,
         newContent: newVersionContent,
         onRestore: _restoreVersion,
@@ -950,10 +952,7 @@ class _EditorScreenState extends State<EditorScreen>
       appDebugLog('[Version] 加载版本内容失败: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('加载版本内容失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('加载版本内容失败: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1129,10 +1128,7 @@ class _EditorScreenState extends State<EditorScreen>
       appDebugLog('[Version] 创建新文档失败: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('创建新文档失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('创建新文档失败: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1539,7 +1535,9 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== 复选框和链接处理 ====================
 
   void _toggleCheckbox(int index, bool newValue) {
-    appDebugLog('[CHECKBOX] Flutter _toggleCheckbox called: index=$index, newValue=$newValue');
+    appDebugLog(
+      '[CHECKBOX] Flutter _toggleCheckbox called: index=$index, newValue=$newValue',
+    );
     final newText = toggleCheckboxInText(_textController.text, index, newValue);
     if (newText != null) {
       _previewWebViewController.suppressNextReload();
@@ -1549,7 +1547,9 @@ class _EditorScreenState extends State<EditorScreen>
       setState(() => _isModified = true);
       appDebugLog('[CHECKBOX] Checkbox toggled successfully');
     } else {
-      appDebugLog('[CHECKBOX] toggleCheckboxInText returned null - checkbox not found');
+      appDebugLog(
+        '[CHECKBOX] toggleCheckboxInText returned null - checkbox not found',
+      );
     }
   }
 
@@ -1576,7 +1576,9 @@ class _EditorScreenState extends State<EditorScreen>
         appDebugLog('[LINK] TOC items count: ${_tocItems.length}');
         for (var i = 0; i < _tocItems.length; i++) {
           final item = _tocItems[i];
-          appDebugLog('[LINK] TOC[$i]: title="${item.title}" slug="${slugifyHeading(item.title)}" line=${item.lineNumber}');
+          appDebugLog(
+            '[LINK] TOC[$i]: title="${item.title}" slug="${slugifyHeading(item.title)}" line=${item.lineNumber}',
+          );
         }
 
         // Try multiple matching strategies
@@ -1900,7 +1902,8 @@ class _EditorScreenState extends State<EditorScreen>
       onCheckboxToggle: _toggleCheckbox,
       onBridgeMessage: _handleMilkdownBridgeMessage,
       controller: _previewWebViewController,
-      codeBlockTheme: AppConstants.codeBlockThemes[settings.codeBlockThemeIndex].themeId,
+      codeBlockTheme:
+          AppConstants.codeBlockThemes[settings.codeBlockThemeIndex].themeId,
     );
   }
 
@@ -1928,7 +1931,7 @@ class _EditorScreenState extends State<EditorScreen>
     final focused = payload['focused'] == true;
     if (!mounted || focused == _isMilkdownEditorFocused) return;
     setState(() => _isMilkdownEditorFocused = focused);
-    
+
     // Hide floating buttons when Milkdown editor gains focus
     if (focused) {
       _hideFloatingButtons();
@@ -2035,6 +2038,9 @@ class _EditorScreenState extends State<EditorScreen>
                   onRedo: _redoEditHistory,
                   onSearch: _showInlineSearch,
                   onApplyAction: _applyToolbarAction,
+                  onEscape: _closeSearch,
+                  onNextSearchMatch: _jumpToNextSearchMatch,
+                  onPrevSearchMatch: _jumpToPrevSearchMatch,
                 ),
                 child: Stack(
                   children: [
@@ -2069,6 +2075,21 @@ class _EditorScreenState extends State<EditorScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopEditorFrame({required Widget child}) {
+    if (!ResponsiveLayout.isDesktopWidth(context)) {
+      return child;
+    }
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: ResponsiveLayout.editorMaxWidth(context),
+        ),
+        child: child,
       ),
     );
   }
@@ -2125,27 +2146,37 @@ class _EditorScreenState extends State<EditorScreen>
                 Expanded(
                   child: Stack(
                     children: [
-                      Positioned.fill(child: _buildEditorWithGesture()),
+                      Positioned.fill(
+                        child: _buildDesktopEditorFrame(
+                          child: _buildEditorWithGesture(),
+                        ),
+                      ),
                       if (_showSearchBar)
                         Positioned(
                           top: 10,
-                          left: 12,
-                          right: 12,
-                          child: EditorSearchBar(
-                            controller: _searchController,
-                            focusNode: _searchFocusNode,
-                            matches: _searchMatches,
-                            activeMatchIndex: _activeSearchMatchIndex,
-                            onSearch: _performInlineSearch,
-                            onJumpToMatch: _jumpToSearchMatch,
-                            onJumpToNext: _jumpToNextSearchMatch,
-                            onJumpToPrevious: _jumpToPrevSearchMatch,
-                            onClose: _closeSearch,
-                            showCandidates: _showSearchCandidates,
-                            searchOptions: _searchOptions,
-                            onOptionsChanged: _updateSearchOptions,
-                            searchHistory: _searchHistory,
-                            onHistorySelected: _onHistorySelected,
+                          left: ResponsiveLayout.isDesktopWidth(context)
+                              ? 0
+                              : 12,
+                          right: ResponsiveLayout.isDesktopWidth(context)
+                              ? 0
+                              : 12,
+                          child: _buildDesktopEditorFrame(
+                            child: EditorSearchBar(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              matches: _searchMatches,
+                              activeMatchIndex: _activeSearchMatchIndex,
+                              onSearch: _performInlineSearch,
+                              onJumpToMatch: _jumpToSearchMatch,
+                              onJumpToNext: _jumpToNextSearchMatch,
+                              onJumpToPrevious: _jumpToPrevSearchMatch,
+                              onClose: _closeSearch,
+                              showCandidates: _showSearchCandidates,
+                              searchOptions: _searchOptions,
+                              onOptionsChanged: _updateSearchOptions,
+                              searchHistory: _searchHistory,
+                              onHistorySelected: _onHistorySelected,
+                            ),
                           ),
                         ),
                       // Toolbar with smooth slide-up animation
@@ -2154,57 +2185,61 @@ class _EditorScreenState extends State<EditorScreen>
                           bottom: keyboardInset,
                           left: 0,
                           right: 0,
-                          child: AnimatedSlide(
-                            offset: Offset(
-                              0,
-                              (_mode != EditorMode.preview ||
-                                      _editingBlockIndex != null ||
-                                      _isMilkdownEditorFocused)
-                                  ? 0
-                                  : 1,
-                            ),
-                            duration: const Duration(milliseconds: 150),
-                            curve: Curves.easeOutCubic,
-                            child: AnimatedOpacity(
-                              opacity:
-                                  (_mode != EditorMode.preview ||
+                          child: _buildDesktopEditorFrame(
+                            child: AnimatedSlide(
+                              offset: Offset(
+                                0,
+                                (_mode != EditorMode.preview ||
+                                        _editingBlockIndex != null ||
+                                        _isMilkdownEditorFocused)
+                                    ? 0
+                                    : 1,
+                              ),
+                              duration: const Duration(milliseconds: 150),
+                              curve: Curves.easeOutCubic,
+                              child: AnimatedOpacity(
+                                opacity:
+                                    (_mode != EditorMode.preview ||
+                                        _editingBlockIndex != null ||
+                                        _isMilkdownEditorFocused)
+                                    ? 1.0
+                                    : 0.0,
+                                duration: const Duration(milliseconds: 100),
+                                curve: Curves.easeOut,
+                                child: IgnorePointer(
+                                  ignoring:
+                                      !(_mode != EditorMode.preview ||
                                           _editingBlockIndex != null ||
-                                          _isMilkdownEditorFocused)
-                                      ? 1.0
-                                      : 0.0,
-                              duration: const Duration(milliseconds: 100),
-                              curve: Curves.easeOut,
-                              child: IgnorePointer(
-                                ignoring: !(_mode != EditorMode.preview ||
-                                    _editingBlockIndex != null ||
-                                    _isMilkdownEditorFocused),
-                                child: MarkdownToolbar(
-                                  controller: _editingBlockIndex != null
-                                      ? _inlineEditController
-                                      : _textController,
-                                  undoController: _editingBlockIndex != null
-                                      ? null
-                                      : _undoController,
-                                  canUndo: _editingBlockIndex != null
-                                      ? _historyIndex > 0
-                                      : null,
-                                  canRedo: _editingBlockIndex != null
-                                      ? (_historyIndex >= 0 &&
-                                            _historyIndex < _editHistory.length - 1)
-                                      : null,
-                                  onUndo: _editingBlockIndex != null
-                                      ? _undoEditHistory
-                                      : null,
-                                  onRedo: _editingBlockIndex != null
-                                      ? _redoEditHistory
-                                      : null,
-                                  filePath: widget.filePath,
-                                  onSearchPressed: _showInlineSearch,
-                                  onAction:
-                                      _mode == EditorMode.preview &&
-                                          _editingBlockIndex == null
-                                      ? _handlePreviewToolbarAction
-                                      : null,
+                                          _isMilkdownEditorFocused),
+                                  child: MarkdownToolbar(
+                                    controller: _editingBlockIndex != null
+                                        ? _inlineEditController
+                                        : _textController,
+                                    undoController: _editingBlockIndex != null
+                                        ? null
+                                        : _undoController,
+                                    canUndo: _editingBlockIndex != null
+                                        ? _historyIndex > 0
+                                        : null,
+                                    canRedo: _editingBlockIndex != null
+                                        ? (_historyIndex >= 0 &&
+                                              _historyIndex <
+                                                  _editHistory.length - 1)
+                                        : null,
+                                    onUndo: _editingBlockIndex != null
+                                        ? _undoEditHistory
+                                        : null,
+                                    onRedo: _editingBlockIndex != null
+                                        ? _redoEditHistory
+                                        : null,
+                                    filePath: widget.filePath,
+                                    onSearchPressed: _showInlineSearch,
+                                    onAction:
+                                        _mode == EditorMode.preview &&
+                                            _editingBlockIndex == null
+                                        ? _handlePreviewToolbarAction
+                                        : null,
+                                  ),
                                 ),
                               ),
                             ),
@@ -2285,7 +2320,11 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _getWordCount() {
     final l10n = AppLocalizations.of(context)!;
-    return l10n.wordCount(_cachedCharCount, _cachedGlyphCount, _cachedWordCount);
+    return l10n.wordCount(
+      _cachedCharCount,
+      _cachedGlyphCount,
+      _cachedWordCount,
+    );
   }
 
   Widget _buildEditorWithGesture() {
@@ -2314,11 +2353,14 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildEditor() {
     final settings = context.watch<SettingsProvider>();
     final editorBackground = _buildEditorBackgroundLayer(settings);
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
 
     switch (_mode) {
       case EditorMode.edit:
         return ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(isDesktop ? 12 : 20),
+          ),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -2334,7 +2376,9 @@ class _EditorScreenState extends State<EditorScreen>
         );
       case EditorMode.preview:
         return ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(isDesktop ? 12 : 20),
+          ),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -2409,11 +2453,17 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildFixedFloatingButtons() {
     final settings = context.watch<SettingsProvider>();
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final editorMaxWidth = ResponsiveLayout.editorMaxWidth(context);
+    final desktopRightInset = isDesktop
+        ? ((screenWidth - editorMaxWidth) / 2 + 24).clamp(24.0, double.infinity)
+        : 24.0;
+
     // Check floating buttons mode
     final mode = settings.floatingButtonsMode;
     final bool showButtons;
-    
+
     switch (mode) {
       case 'always':
         showButtons = true;
@@ -2431,7 +2481,7 @@ class _EditorScreenState extends State<EditorScreen>
       case EditorMode.edit:
         final editBottom = safeBottom + 56.0 + 16.0;
         return Positioned(
-          right: 24,
+          right: desktopRightInset,
           bottom: editBottom,
           child: AnimatedOpacity(
             opacity: showButtons ? 1.0 : 0.0,
@@ -2459,7 +2509,7 @@ class _EditorScreenState extends State<EditorScreen>
         if (_editingBlockIndex != null) return const SizedBox.shrink();
         final previewBottom = safeBottom + 24.0;
         return Positioned(
-          right: 24,
+          right: desktopRightInset,
           bottom: previewBottom,
           child: AnimatedOpacity(
             opacity: showButtons ? 1.0 : 0.0,
@@ -2508,6 +2558,8 @@ class _EditorScreenState extends State<EditorScreen>
     double toolbarPadding = 0,
   }) {
     final l10n = AppLocalizations.of(context)!;
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    final hPad = isDesktop ? 24.0 : 16.0;
     return Stack(
       children: [
         TextField(
@@ -2530,9 +2582,9 @@ class _EditorScreenState extends State<EditorScreen>
           decoration: InputDecoration(
             border: InputBorder.none,
             contentPadding: EdgeInsets.fromLTRB(
+              hPad,
               16,
-              16,
-              16,
+              hPad,
               16 + toolbarPadding,
             ),
             hintText: l10n.startWriting,

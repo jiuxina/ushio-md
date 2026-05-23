@@ -14,6 +14,8 @@ import '../../../widgets/empty_state.dart';
 import '../../../utils/app_style.dart';
 
 import '../../../utils/file_actions.dart';
+import '../../../utils/responsive_layout.dart';
+import '../../../widgets/responsive_page_frame.dart';
 import '../../folder/components/file_tile.dart';
 
 /// 历史记录视图模式
@@ -46,8 +48,14 @@ class _HistoryTabState extends State<HistoryTab> {
 
   Widget _buildHeader() {
     final l10n = AppLocalizations.of(context)!;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    return ResponsivePageFrame(
+      padding: EdgeInsets.fromLTRB(
+        isDesktop ? 32 : 20,
+        isDesktop ? 22 : 16,
+        isDesktop ? 32 : 20,
+        isDesktop ? 12 : 20,
+      ),
       child: Row(
         children: [
           Container(
@@ -231,18 +239,22 @@ class _HistoryTabState extends State<HistoryTab> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: processedFiles.length,
-      itemBuilder: (context, index) {
-        // Use FileTile with history source
-        final path = processedFiles[index];
-        return FileTile(
-          key: ValueKey(path),
-          entity: File(path),
-          source: FileSource.history,
-        );
-      },
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        ResponsivePageFrame(
+          child: Column(
+            children: [
+              for (final path in processedFiles)
+                FileTile(
+                  key: ValueKey(path),
+                  entity: File(path),
+                  source: FileSource.history,
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -255,18 +267,22 @@ class _HistoryTabState extends State<HistoryTab> {
       return EmptyState(message: l10n.noRecentFolders, icon: Icons.folder_open);
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: processedFolders.length,
-      itemBuilder: (context, index) {
-        // Use FileTile with history source
-        final path = processedFolders[index];
-        return FileTile(
-          key: ValueKey(path),
-          entity: Directory(path),
-          source: FileSource.history,
-        );
-      },
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        ResponsivePageFrame(
+          child: Column(
+            children: [
+              for (final path in processedFolders)
+                FileTile(
+                  key: ValueKey(path),
+                  entity: Directory(path),
+                  source: FileSource.history,
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 } // End of HistoryTab State

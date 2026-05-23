@@ -1,10 +1,12 @@
 // ============================================================================
 // 统一UI组件
-// 
+//
 // 提供应用内一致的对话框、底部弹窗、Snackbar等组件
 // ============================================================================
 
 import 'package:flutter/material.dart';
+
+import '../utils/responsive_layout.dart';
 
 /// 统一的UI组件工具类
 class UnifiedUI {
@@ -90,9 +92,7 @@ class UnifiedUI {
           autofocus: true,
           decoration: InputDecoration(
             hintText: hintText,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         actions: [
@@ -125,33 +125,38 @@ class UnifiedUI {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 拖动指示器
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) {
+        final sheet = SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 拖动指示器
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            // 标题
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+              // 标题
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
-            const Divider(),
-            // 菜单项
-            ...items.map((item) => ListTile(
+              const Divider(),
+              // 菜单项
+              ...items.map(
+                (item) => ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -163,19 +168,26 @@ class UnifiedUI {
                   title: Text(item.title),
                   subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
                   onTap: () => Navigator.pop(context, item.value),
-                )),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+        if (!ResponsiveLayout.isDesktopWidth(context)) return sheet;
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: sheet,
+          ),
+        );
+      },
     );
   }
 
   /// 显示统一样式的成功Snackbar
-  static void showSuccessSnackbar(
-    BuildContext context,
-    String message,
-  ) {
+  static void showSuccessSnackbar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -193,10 +205,7 @@ class UnifiedUI {
   }
 
   /// 显示统一样式的错误Snackbar
-  static void showErrorSnackbar(
-    BuildContext context,
-    String message,
-  ) {
+  static void showErrorSnackbar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -215,10 +224,7 @@ class UnifiedUI {
   }
 
   /// 显示统一样式的信息Snackbar
-  static void showInfoSnackbar(
-    BuildContext context,
-    String message,
-  ) {
+  static void showInfoSnackbar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(

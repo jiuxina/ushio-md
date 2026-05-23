@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +21,8 @@ import 'main/tabs/settings_tab.dart';
 import 'main/components/permission_screen.dart';
 import '../services/update_service.dart';
 import '../utils/debug_log.dart';
+import '../utils/responsive_layout.dart';
+import '../widgets/desktop_navigation_shell.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -222,24 +225,109 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         final useCustomTitleBar =
             Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
+        final isDesktopLayout = ResponsiveLayout.isDesktopWidth(context);
+
         return AppBackground(
           wrapWithSafeArea: false,
           child: Scaffold(
             backgroundColor: Colors.transparent,
             body: Column(
               children: [
-                // 自定义标题栏（仅桌面端）
                 if (useCustomTitleBar)
                   const CustomTitleBar(isEditorMode: false),
-                // 主内容
-                Expanded(child: _buildBody(fileProvider)),
+                Expanded(
+                  child: isDesktopLayout
+                      ? _buildDesktopKeyboardScope(
+                          child: _buildDesktopShell(l10n, fileProvider),
+                        )
+                      : _buildBody(fileProvider),
+                ),
               ],
             ),
-            bottomNavigationBar: _buildBottomNav(l10n),
-            drawer: _buildDrawer(l10n),
+            bottomNavigationBar: isDesktopLayout ? null : _buildBottomNav(l10n),
+            drawer: isDesktopLayout ? null : _buildDrawer(l10n),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDesktopKeyboardScope({required Widget child}) {
+    final isMac = Platform.isMacOS;
+    return Focus(
+      autofocus: true,
+      child: CallbackShortcuts(
+        bindings: {
+          SingleActivator(
+            LogicalKeyboardKey.digit1,
+            control: !isMac,
+            meta: isMac,
+          ): () =>
+              _selectDesktopTab(0),
+          SingleActivator(
+            LogicalKeyboardKey.digit2,
+            control: !isMac,
+            meta: isMac,
+          ): () =>
+              _selectDesktopTab(1),
+          SingleActivator(
+            LogicalKeyboardKey.digit3,
+            control: !isMac,
+            meta: isMac,
+          ): () =>
+              _selectDesktopTab(2),
+          SingleActivator(
+            LogicalKeyboardKey.digit4,
+            control: !isMac,
+            meta: isMac,
+          ): () =>
+              _selectDesktopTab(3),
+        },
+        child: child,
+      ),
+    );
+  }
+
+  void _selectDesktopTab(int index) {
+    if (index == _currentIndex) return;
+    setState(() => _currentIndex = index);
+  }
+
+  Widget _buildDesktopShell(AppLocalizations l10n, FileProvider fileProvider) {
+    return DesktopNavigationShell(
+      selectedIndex: _currentIndex,
+      onDestinationSelected: _selectDesktopTab,
+      destinations: [
+        DesktopNavigationDestination(
+          icon: Icons.home_outlined,
+          selectedIcon: Icons.home_rounded,
+          label: l10n.homeTab,
+        ),
+        DesktopNavigationDestination(
+          icon: Icons.folder_special_outlined,
+          selectedIcon: Icons.folder_special_rounded,
+          label: l10n.myFiles,
+        ),
+        DesktopNavigationDestination(
+          icon: Icons.history_outlined,
+          selectedIcon: Icons.history_rounded,
+          label: l10n.historyTab,
+        ),
+        DesktopNavigationDestination(
+          icon: Icons.settings_outlined,
+          selectedIcon: Icons.settings_rounded,
+          label: l10n.settings,
+        ),
+      ],
+      child: IndexedStack(
+        index: _currentIndex,
+        children: [
+          HomeTab(fileProvider: fileProvider),
+          MyFilesTab(fileProvider: fileProvider),
+          HistoryTab(fileProvider: fileProvider),
+          const SettingsTab(),
+        ],
+      ),
     );
   }
 
@@ -324,6 +412,18 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBody(FileProvider fileProvider) {
+    // Sync PageController when desktop navigation changes _currentIndex
+    if (_pageController.hasClients) {
+      final currentPage = _pageController.page?.round();
+      if (currentPage != _currentIndex) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _pageController.hasClients) {
+            _pageController.jumpToPage(_currentIndex);
+          }
+        });
+      }
+    }
+
     // 使用PageView实现跟手滑动切换，支持边滑动边松手、滑到一半再滑回来等自然手势
     return PageView(
       controller: _pageController,

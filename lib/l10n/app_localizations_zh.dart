@@ -72,8 +72,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get firstLaunchInitializing => '首次启动初始化中';
 
   @override
-  String get firstLaunchWarmingUp =>
-      '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。';
+  String get firstLaunchWarmingUp => '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。';
 
   @override
   String get firstLaunchComplete => '首次启动初始化完成，后续打开文档会更快。';
@@ -258,8 +257,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get protectedDirectory => '无法访问该目录';
 
   @override
-  String get protectedDirectoryHint =>
-      '该目录受 Android 系统保护，请选择其他目录（如 Documents 或应用工作区）';
+  String get protectedDirectoryHint => '该目录受 Android 系统保护，请选择其他目录（如 Documents 或应用工作区）';
 
   @override
   String get grantPermission => '授予权限';
@@ -854,8 +852,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get warningChangeBasePathAffectsWorkspace =>
-      '警告：更改基础路径将影响工作区位置，请确保路径存在且可访问';
+  String get warningChangeBasePathAffectsWorkspace => '警告：更改基础路径将影响工作区位置，请确保路径存在且可访问';
 
   @override
   String get resetToDefaultPath => '已重置为默认路径';

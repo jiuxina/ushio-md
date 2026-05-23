@@ -234,7 +234,7 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_NCCALCSIZE:
       if (wparam == TRUE) {
         // Remove the standard window frame by adjusting the client area
-        NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+        // NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
         
         // Get window style
         LONG style = GetWindowLong(hwnd, GWL_STYLE);

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/my_files_service.dart';
 import '../utils/app_style.dart';
+import '../utils/responsive_layout.dart';
 
 enum MarkdownToolbarAction {
   undo,
@@ -68,7 +69,9 @@ class MarkdownToolbar extends StatelessWidget {
     final showCustomUndoRedo =
         undoController == null && onUndo != null && onRedo != null;
     // Increase toolbar height on touch devices
-    final isTouchDevice = MediaQuery.of(context).size.shortestSide < 600;
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    final isTouchDevice =
+        !isDesktop && MediaQuery.of(context).size.shortestSide < 600;
     final toolbarHeight = isTouchDevice ? 64.0 : 56.0;
 
     return Container(
@@ -78,7 +81,9 @@ class MarkdownToolbar extends StatelessWidget {
           Theme.of(context).colorScheme,
           alpha: 0.95,
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(isDesktop ? 12 : 20),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -1059,7 +1064,9 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.enabled;
-    final isTouchDevice = MediaQuery.of(context).size.shortestSide < 600;
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    final isTouchDevice =
+        !isDesktop && MediaQuery.of(context).size.shortestSide < 600;
 
     return Tooltip(
       message: widget.tooltip,
@@ -1071,8 +1078,8 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             // Increase touch target size on touch devices (min 44px for accessibility)
-            width: isTouchDevice ? 44 : 36,
-            height: isTouchDevice ? 44 : 36,
+            width: isTouchDevice ? 44 : (isDesktop ? 34 : 36),
+            height: isTouchDevice ? 44 : (isDesktop ? 34 : 36),
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
               gradient: (_isHovered && isEnabled)

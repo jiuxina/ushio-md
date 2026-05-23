@@ -5,6 +5,8 @@ import '../../../../providers/file_provider.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../utils/file_actions.dart';
 
+import '../../../utils/responsive_layout.dart';
+import '../../../widgets/responsive_page_frame.dart';
 import '../components/quick_actions.dart';
 import '../../folder/components/file_tile.dart';
 
@@ -20,6 +22,7 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
     return SafeArea(
       bottom: false,
       child: Column(
@@ -29,28 +32,31 @@ class _HomeTabState extends State<HomeTab> {
             child: RefreshIndicator(
               onRefresh: () => widget.fileProvider.refresh(),
               child: ListView(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.zero,
                 children: [
-                  QuickActions(
-                    fileProvider: widget.fileProvider,
-                    onRefresh: () => widget.fileProvider.refresh(),
+                  ResponsivePageFrame(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        QuickActions(
+                          fileProvider: widget.fileProvider,
+                          onRefresh: () => widget.fileProvider.refresh(),
+                        ),
+                        if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
+                          SizedBox(height: isDesktop ? 20 : 24),
+                          _buildSectionHeader('置顶文件', Icons.push_pin),
+                          const SizedBox(height: 12),
+                          _buildPinnedFilesList(),
+                        ],
+                        if (widget.fileProvider.pinnedFolders.isNotEmpty) ...[
+                          SizedBox(height: isDesktop ? 20 : 24),
+                          _buildSectionHeader('置顶文件夹', Icons.folder_special),
+                          const SizedBox(height: 12),
+                          _buildPinnedFoldersList(),
+                        ],
+                      ],
+                    ),
                   ),
-
-                  // Pinned files section
-                  if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _buildSectionHeader('置顶文件', Icons.push_pin),
-                    const SizedBox(height: 12),
-                    _buildPinnedFilesList(),
-                  ],
-
-                  // Pinned folders section
-                  if (widget.fileProvider.pinnedFolders.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _buildSectionHeader('置顶文件夹', Icons.folder_special),
-                    const SizedBox(height: 12),
-                    _buildPinnedFoldersList(),
-                  ],
                 ],
               ),
             ),
@@ -119,8 +125,14 @@ class _HomeTabState extends State<HomeTab> {
           );
         }
 
-        return Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+        return ResponsivePageFrame(
+          padding: EdgeInsets.fromLTRB(
+            isDesktop ? 32 : 20,
+            isDesktop ? 20 : 16,
+            isDesktop ? 32 : 20,
+            8,
+          ),
           child: Row(
             children: [
               if (iconWidget != null) ...[

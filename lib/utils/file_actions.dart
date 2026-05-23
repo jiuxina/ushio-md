@@ -14,6 +14,7 @@ import '../utils/constants.dart';
 import '../widgets/milkdown_webview_editor.dart';
 import '../l10n/app_localizations.dart';
 import 'editor_navigation_helper.dart';
+import 'responsive_layout.dart';
 
 enum FileSource { myFiles, pinned, history }
 
@@ -67,92 +68,54 @@ class FileActions {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outline.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => _buildDesktopAwareSheet(
+        context,
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              fileName,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 6),
-            _buildPathPreview(context, path),
-            const SizedBox(height: 20),
-
-            // 1. Share (With submenu for file share options)
-            _buildShareSubmenu(context, path, shareService),
-            const SizedBox(height: 8),
-
-            // 2. Rename (All sources)
-            _buildContextMenuItem(
-              context,
-              icon: Icons.edit,
-              label: '重命名',
-              color: Colors.orange,
-              onTap: () {
-                Navigator.pop(context);
-                showRenameDialog(
+              const SizedBox(height: 20),
+              Text(
+                fileName,
+                style: Theme.of(
                   context,
-                  path,
-                  fileProvider,
-                  onRefresh: onRefresh,
-                );
-              },
-            ),
-            const SizedBox(height: 8),
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              _buildPathPreview(context, path),
+              const SizedBox(height: 20),
 
-            // 3. Pin/Unpin (All sources - Logic varies slightly)
-            // Pinned: Cancel Top (Unpin)
-            // Others: Pin/Unpin Toggle
-            _buildContextMenuItem(
-              context,
-              icon: isCurrentlyPinned
-                  ? Icons.push_pin_outlined
-                  : Icons.push_pin,
-              label: isCurrentlyPinned ? '取消置顶' : '置顶',
-              color: Colors.purple,
-              onTap: () {
-                Navigator.pop(context);
-                // 防抖：避免快速点击
-                _Debouncer.run('pin_$path', () async {
-                  fileProvider.togglePinFile(path);
-                  return null;
-                });
-              },
-            ),
-            const SizedBox(height: 8),
+              // 1. Share (With submenu for file share options)
+              _buildShareSubmenu(context, path, shareService),
+              const SizedBox(height: 8),
 
-            // 4. Delete / Remove (Source dependent)
-            if (effectiveSource == FileSource.myFiles)
+              // 2. Rename (All sources)
               _buildContextMenuItem(
                 context,
-                icon: Icons.delete,
-                label: '删除文件',
-                color: Colors.red,
+                icon: Icons.edit,
+                label: '重命名',
+                color: Colors.orange,
                 onTap: () {
                   Navigator.pop(context);
-                  confirmDelete(
+                  showRenameDialog(
                     context,
                     path,
                     fileProvider,
@@ -160,24 +123,65 @@ class FileActions {
                   );
                 },
               ),
+              const SizedBox(height: 8),
 
-            if (effectiveSource == FileSource.history)
+              // 3. Pin/Unpin (All sources - Logic varies slightly)
+              // Pinned: Cancel Top (Unpin)
+              // Others: Pin/Unpin Toggle
               _buildContextMenuItem(
                 context,
-                icon: Icons.history, // Icon for remove from history
-                label: '移除记录',
-                color: Colors
-                    .red, // Or orange/grey? Red implies destructive usually.
+                icon: isCurrentlyPinned
+                    ? Icons.push_pin_outlined
+                    : Icons.push_pin,
+                label: isCurrentlyPinned ? '取消置顶' : '置顶',
+                color: Colors.purple,
                 onTap: () {
                   Navigator.pop(context);
-                  fileProvider.removeFromRecentFiles(path);
+                  // 防抖：避免快速点击
+                  _Debouncer.run('pin_$path', () async {
+                    fileProvider.togglePinFile(path);
+                    return null;
+                  });
                 },
               ),
+              const SizedBox(height: 8),
 
-            // Pinned: No delete/remove option requested
-            // So we add nothing else for pinned.
-            const SizedBox(height: 16),
-          ],
+              // 4. Delete / Remove (Source dependent)
+              if (effectiveSource == FileSource.myFiles)
+                _buildContextMenuItem(
+                  context,
+                  icon: Icons.delete,
+                  label: '删除文件',
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.pop(context);
+                    confirmDelete(
+                      context,
+                      path,
+                      fileProvider,
+                      onRefresh: onRefresh,
+                    );
+                  },
+                ),
+
+              if (effectiveSource == FileSource.history)
+                _buildContextMenuItem(
+                  context,
+                  icon: Icons.history, // Icon for remove from history
+                  label: '移除记录',
+                  color: Colors
+                      .red, // Or orange/grey? Red implies destructive usually.
+                  onTap: () {
+                    Navigator.pop(context);
+                    fileProvider.removeFromRecentFiles(path);
+                  },
+                ),
+
+              // Pinned: No delete/remove option requested
+              // So we add nothing else for pinned.
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -205,111 +209,79 @@ class FileActions {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outline.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => _buildDesktopAwareSheet(
+        context,
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              folderName,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            _buildPathPreview(context, path),
-            const SizedBox(height: 20),
-
-            // 1. Share folder as ZIP
-            _buildContextMenuItem(
-              context,
-              icon: Icons.folder_zip,
-              label: '分享文件夹 (ZIP)',
-              color: Colors.blue,
-              onTap: () async {
-                Navigator.pop(context);
-                final success = await shareService.shareFolder(path);
-                if (!success && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Row(
-                        children: [
-                          Icon(Icons.error, color: Colors.white),
-                          SizedBox(width: 12),
-                          Text('压缩分享失败'),
-                        ],
-                      ),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-
-            // 2. Rename (All sources)
-            _buildContextMenuItem(
-              context,
-              icon: Icons.edit,
-              label: '重命名',
-              color: Colors.orange,
-              onTap: () {
-                Navigator.pop(context);
-                showRenameFolderDialog(
+              const SizedBox(height: 20),
+              Text(
+                folderName,
+                style: Theme.of(
                   context,
-                  path,
-                  fileProvider,
-                  onRefresh: onRefresh,
-                );
-              },
-            ),
-            const SizedBox(height: 8),
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              _buildPathPreview(context, path),
+              const SizedBox(height: 20),
 
-            // 3. Pin/Unpin (All sources)
-            _buildContextMenuItem(
-              context,
-              icon: isCurrentlyPinned
-                  ? Icons.push_pin_outlined
-                  : Icons.push_pin,
-              label: isCurrentlyPinned ? '取消置顶' : '置顶',
-              color: Colors.purple,
-              onTap: () {
-                Navigator.pop(context);
-                fileProvider.togglePinFolder(path);
-              },
-            ),
-            const SizedBox(height: 8),
-
-            // 4. Delete / Remove (Source dependent)
-            if (effectiveSource == FileSource.myFiles)
+              // 1. Share folder as ZIP
               _buildContextMenuItem(
                 context,
-                icon: Icons.delete,
-                label: '删除文件夹',
-                color: Colors.red,
+                icon: Icons.folder_zip,
+                label: '分享文件夹 (ZIP)',
+                color: Colors.blue,
+                onTap: () async {
+                  Navigator.pop(context);
+                  final success = await shareService.shareFolder(path);
+                  if (!success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Row(
+                          children: [
+                            Icon(Icons.error, color: Colors.white),
+                            SizedBox(width: 12),
+                            Text('压缩分享失败'),
+                          ],
+                        ),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+
+              // 2. Rename (All sources)
+              _buildContextMenuItem(
+                context,
+                icon: Icons.edit,
+                label: '重命名',
+                color: Colors.orange,
                 onTap: () {
                   Navigator.pop(context);
-                  confirmDeleteFolder(
+                  showRenameFolderDialog(
                     context,
                     path,
                     fileProvider,
@@ -317,22 +289,73 @@ class FileActions {
                   );
                 },
               ),
+              const SizedBox(height: 8),
 
-            if (effectiveSource == FileSource.history)
+              // 3. Pin/Unpin (All sources)
               _buildContextMenuItem(
                 context,
-                icon: Icons.history,
-                label: '移除记录',
-                color: Colors.red,
+                icon: isCurrentlyPinned
+                    ? Icons.push_pin_outlined
+                    : Icons.push_pin,
+                label: isCurrentlyPinned ? '取消置顶' : '置顶',
+                color: Colors.purple,
                 onTap: () {
                   Navigator.pop(context);
-                  fileProvider.removeFromRecentFolders(path);
+                  fileProvider.togglePinFolder(path);
                 },
               ),
+              const SizedBox(height: 8),
 
-            // Pinned folders: No delete option requested.
-            const SizedBox(height: 16),
-          ],
+              // 4. Delete / Remove (Source dependent)
+              if (effectiveSource == FileSource.myFiles)
+                _buildContextMenuItem(
+                  context,
+                  icon: Icons.delete,
+                  label: '删除文件夹',
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.pop(context);
+                    confirmDeleteFolder(
+                      context,
+                      path,
+                      fileProvider,
+                      onRefresh: onRefresh,
+                    );
+                  },
+                ),
+
+              if (effectiveSource == FileSource.history)
+                _buildContextMenuItem(
+                  context,
+                  icon: Icons.history,
+                  label: '移除记录',
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.pop(context);
+                    fileProvider.removeFromRecentFolders(path);
+                  },
+                ),
+
+              // Pinned folders: No delete option requested.
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildDesktopAwareSheet(BuildContext context, Widget child) {
+    if (!ResponsiveLayout.isDesktopWidth(context)) {
+      return child;
+    }
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: child,
         ),
       ),
     );
@@ -347,24 +370,27 @@ class FileActions {
   }) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(color: color, fontWeight: FontWeight.w600),
-              ),
-            ],
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(color: color, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -769,7 +795,9 @@ class FileActions {
                         },
                         controller: controller,
                         baseDirectory: File(path).parent.path,
-                        codeBlockTheme: AppConstants.codeBlockThemes[settings.codeBlockThemeIndex].themeId,
+                        codeBlockTheme: AppConstants
+                            .codeBlockThemes[settings.codeBlockThemeIndex]
+                            .themeId,
                       ),
                     ),
                   ],
@@ -1232,69 +1260,69 @@ class FileActions {
                     color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
-                 const SizedBox(height: 8),
-                 InkWell(
-                   borderRadius: BorderRadius.circular(12),
-                   onTap: () async {
-                     final path = await fileProvider.fileService.pickDirectory();
-                     if (path != null) {
-                       setDialogState(() => selectedPath = path);
-                     } else if (context.mounted) {
-                       // 显示提示：可能是受保护的目录或权限未授权
-                       final l10n = AppLocalizations.of(context)!;
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         SnackBar(
-                           content: Column(
-                             mainAxisSize: MainAxisSize.min,
-                             crossAxisAlignment: CrossAxisAlignment.start,
-                             children: [
-                               Text(l10n.protectedDirectory),
-                               Text(
-                                 l10n.protectedDirectoryHint,
-                                 style: Theme.of(context).textTheme.bodySmall,
-                               ),
-                             ],
-                           ),
-                           duration: const Duration(seconds: 4),
-                         ),
-                       );
-                     }
-                   },
-                   child: Container(
-                     padding: const EdgeInsets.all(12),
-                     decoration: BoxDecoration(
-                       border: Border.all(
-                         color: Theme.of(
-                           context,
-                         ).colorScheme.outline.withValues(alpha: 0.5),
-                       ),
-                       borderRadius: BorderRadius.circular(12),
-                     ),
-                     child: Row(
-                       children: [
-                         const Icon(Icons.folder, color: Colors.amber),
-                         const SizedBox(width: 12),
-                         Expanded(
-                           child: Text(
-                             selectedPath ?? '点击选择文件夹',
-                             style: TextStyle(
-                               color: selectedPath != null
-                                   ? null
-                                   : Theme.of(context).colorScheme.outline,
-                             ),
-                             maxLines: 2,
-                             overflow: TextOverflow.ellipsis,
-                           ),
-                         ),
-                         Icon(
-                           Icons.chevron_right,
-                           color: Theme.of(context).colorScheme.outline,
-                         ),
-                       ],
-                     ),
-                   ),
-                 ),
-               ],
+                const SizedBox(height: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () async {
+                    final path = await fileProvider.fileService.pickDirectory();
+                    if (path != null) {
+                      setDialogState(() => selectedPath = path);
+                    } else if (context.mounted) {
+                      // 显示提示：可能是受保护的目录或权限未授权
+                      final l10n = AppLocalizations.of(context)!;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(l10n.protectedDirectory),
+                              Text(
+                                l10n.protectedDirectoryHint,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.5),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.folder, color: Colors.amber),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            selectedPath ?? '点击选择文件夹',
+                            style: TextStyle(
+                              color: selectedPath != null
+                                  ? null
+                                  : Theme.of(context).colorScheme.outline,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           actions: [
@@ -1402,64 +1430,64 @@ class FileActions {
                     color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
-                 const SizedBox(height: 8),
-                 InkWell(
-                   borderRadius: BorderRadius.circular(12),
-                   onTap: () async {
-                     final path = await fileProvider.fileService.pickDirectory();
-                     if (path != null) {
-                       setDialogState(() => selectedPath = path);
-                     } else if (context.mounted) {
-                       // 显示提示：可能是受保护的目录或权限未授权
-                       final l10n = AppLocalizations.of(context)!;
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         SnackBar(
-                           content: Column(
-                             mainAxisSize: MainAxisSize.min,
-                             crossAxisAlignment: CrossAxisAlignment.start,
-                             children: [
-                               Text(l10n.protectedDirectory),
-                               Text(
-                                 l10n.protectedDirectoryHint,
-                                 style: Theme.of(context).textTheme.bodySmall,
-                               ),
-                             ],
-                           ),
-                           duration: const Duration(seconds: 4),
-                         ),
-                       );
-                     }
-                   },
-                   child: Container(
-                     padding: const EdgeInsets.all(12),
-                     decoration: BoxDecoration(
-                       border: Border.all(
-                         color: Theme.of(
-                           context,
-                         ).colorScheme.outline.withValues(alpha: 0.5),
-                       ),
-                       borderRadius: BorderRadius.circular(12),
-                     ),
-                     child: Row(
-                       children: [
-                         const Icon(Icons.folder, color: Colors.amber),
-                         const SizedBox(width: 12),
-                         Expanded(
-                           child: Text(
-                             selectedPath ?? '点击选择位置',
-                             style: TextStyle(
-                               color: selectedPath != null
-                                   ? null
-                                   : Theme.of(context).colorScheme.outline,
-                             ),
-                             maxLines: 2,
-                             overflow: TextOverflow.ellipsis,
-                           ),
-                         ),
-                       ],
-                     ),
-                   ),
-                 ),
+                const SizedBox(height: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () async {
+                    final path = await fileProvider.fileService.pickDirectory();
+                    if (path != null) {
+                      setDialogState(() => selectedPath = path);
+                    } else if (context.mounted) {
+                      // 显示提示：可能是受保护的目录或权限未授权
+                      final l10n = AppLocalizations.of(context)!;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(l10n.protectedDirectory),
+                              Text(
+                                l10n.protectedDirectoryHint,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.5),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.folder, color: Colors.amber),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            selectedPath ?? '点击选择位置',
+                            style: TextStyle(
+                              color: selectedPath != null
+                                  ? null
+                                  : Theme.of(context).colorScheme.outline,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

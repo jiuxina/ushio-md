@@ -9,6 +9,8 @@ import '../services/folder_sort_service.dart';
 import '../utils/file_actions.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/app_background.dart';
+import '../utils/responsive_layout.dart';
+import '../widgets/responsive_page_frame.dart';
 import 'folder/components/folder_browser_header.dart';
 import 'folder/components/file_tile.dart';
 
@@ -265,7 +267,9 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
         content: TextField(
           controller: nameController,
           autofocus: true,
-          decoration: InputDecoration(labelText: l10n?.folderName ?? 'Folder Name'),
+          decoration: InputDecoration(
+            labelText: l10n?.folderName ?? 'Folder Name',
+          ),
         ),
         actions: [
           TextButton(
@@ -284,7 +288,11 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
                 } catch (e) {
                   if (mounted)
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${l10n?.createFailed ?? 'Create failed'}: $e')),
+                      SnackBar(
+                        content: Text(
+                          '${l10n?.createFailed ?? 'Create failed'}: $e',
+                        ),
+                      ),
                     );
                 }
               }
@@ -365,6 +373,16 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
     );
   }
 
+  Widget _wrapFileList(Widget child) {
+    if (!ResponsiveLayout.isDesktopWidth(context)) {
+      return child;
+    }
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: ResponsivePageFrame(child: child),
+    );
+  }
+
   Widget _buildContent() {
     final l10n = AppLocalizations.of(context);
     if (_isLoading) {
@@ -394,62 +412,71 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
     if (_isSearching && _searchController.text.isNotEmpty) {
       return RefreshIndicator(
         onRefresh: _loadFiles,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: filtered.length,
-          itemBuilder: (context, index) {
-            return FileTile(
-              entity: filtered[index],
-              onRefresh: _loadFiles,
-              isDraggable: false,
-              source: FileSource.myFiles,
-            );
-          },
+        child: _wrapFileList(
+          Column(
+            children: [
+              for (final entity in filtered)
+                FileTile(
+                  entity: entity,
+                  onRefresh: _loadFiles,
+                  isDraggable: false,
+                  source: FileSource.myFiles,
+                ),
+            ],
+          ),
         ),
       );
     }
 
     return RefreshIndicator(
       onRefresh: _loadFiles,
-      child: ReorderableListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: filtered.length,
-        buildDefaultDragHandles: false, // 禁用默认的长按拖拽，使用 FileTile 内部的 Handle
-        onReorder: _handleReorder,
-        proxyDecorator: (child, index, animation) {
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (BuildContext context, Widget? child) {
-              final double animValue = Curves.easeInOut.transform(
-                animation.value,
-              );
-              final double scale = lerpDouble(1.0, 1.05, animValue)!;
-              return Transform.scale(
-                scale: scale,
-                child: Material(
-                  elevation: 8,
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(16),
-                  child: child,
-                ),
-              );
-            },
-            child: child,
-          );
-        },
-        itemBuilder: (context, index) {
-          final entity = filtered[index];
-          return Container(
-            key: ValueKey(entity.path),
-            child: FileTile(
-              entity: entity,
-              onRefresh: _loadFiles,
-              isDraggable: true, // 总是显示拖拽手柄
-              index: index, // 传递 index 给 ReorderableDragStartListener
-              source: FileSource.myFiles,
-            ),
-          );
-        },
+      child: _wrapFileList(
+        ReorderableListView.builder(
+          shrinkWrap: ResponsiveLayout.isDesktopWidth(context),
+          physics: ResponsiveLayout.isDesktopWidth(context)
+              ? const NeverScrollableScrollPhysics()
+              : const AlwaysScrollableScrollPhysics(),
+          padding: ResponsiveLayout.isDesktopWidth(context)
+              ? EdgeInsets.zero
+              : const EdgeInsets.all(20),
+          itemCount: filtered.length,
+          buildDefaultDragHandles: false, // 禁用默认的长按拖拽，使用 FileTile 内部的 Handle
+          onReorder: _handleReorder,
+          proxyDecorator: (child, index, animation) {
+            return AnimatedBuilder(
+              animation: animation,
+              builder: (BuildContext context, Widget? child) {
+                final double animValue = Curves.easeInOut.transform(
+                  animation.value,
+                );
+                final double scale = lerpDouble(1.0, 1.05, animValue)!;
+                return Transform.scale(
+                  scale: scale,
+                  child: Material(
+                    elevation: 8,
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    child: child,
+                  ),
+                );
+              },
+              child: child,
+            );
+          },
+          itemBuilder: (context, index) {
+            final entity = filtered[index];
+            return Container(
+              key: ValueKey(entity.path),
+              child: FileTile(
+                entity: entity,
+                onRefresh: _loadFiles,
+                isDraggable: true, // 总是显示拖拽手柄
+                index: index, // 传递 index 给 ReorderableDragStartListener
+                source: FileSource.myFiles,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
