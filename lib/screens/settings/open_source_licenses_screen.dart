@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../utils/app_style.dart';
+import '../../widgets/app_surface.dart';
 import '../../widgets/app_background.dart';
 
 class OpenSourceLicensesScreen extends StatelessWidget {
@@ -110,15 +111,12 @@ class OpenSourceLicensesScreen extends StatelessWidget {
     String title,
     List<_LicenseItem> items,
   ) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.scaledSurfaceColor(Theme.of(context).colorScheme, alpha: 0.7),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
-      ),
+      color: appStyle.scaledSurfaceColor(Theme.of(context).colorScheme, alpha: 0.7),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

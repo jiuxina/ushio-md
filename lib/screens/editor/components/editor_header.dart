@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../utils/app_style.dart';
+import '../../../widgets/app_surface.dart';
 
 class EditorHeader extends StatelessWidget {
   final String fileName;
@@ -94,16 +95,14 @@ class EditorHeader extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onPressed,
-      child: Container(
+      child: AppSurface(
+        borderRadius: BorderRadius.circular(12),
         padding: const EdgeInsets.all(10),
-        decoration: appStyle.surfaceDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: appStyle.scaledSurfaceColor(
-            Theme.of(context).colorScheme,
-            alpha: 0.82,
-          ),
-          prominent: appStyle.useBorderlessButtons,
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.82,
         ),
+        prominent: appStyle.useBorderlessButtons,
         child: Icon(
           icon,
           size: 20,
@@ -130,13 +129,11 @@ class EditorHeader extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: isSaving ? null : onSave,
-          child: Container(
+          child: AppSurface(
+            borderRadius: BorderRadius.circular(12),
             padding: const EdgeInsets.all(12),
-            decoration: appStyle.surfaceDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.82),
-              prominent: appStyle.useBorderlessButtons,
-            ),
+            color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.82),
+            prominent: appStyle.useBorderlessButtons,
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
               child: isSaving

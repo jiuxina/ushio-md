@@ -151,3 +151,4 @@ deploy.cmd
 # AI 工作文件（仅本地保留）
 .sisyphus/
 /.sisyphus
+/.omo

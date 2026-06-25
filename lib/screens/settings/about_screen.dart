@@ -14,6 +14,7 @@ import '../../widgets/app_background.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/app_style.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/app_surface.dart';
 import 'open_source_licenses_screen.dart';
 
 class AboutScreen extends StatefulWidget {
@@ -156,20 +157,17 @@ class _AboutScreenState extends State<AboutScreen> {
 
   Widget _buildSection(String title, IconData icon, List<Widget> children) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.7,
-        ),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.7,
       ),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

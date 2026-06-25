@@ -12,6 +12,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../providers/file_provider.dart';
 import '../../../widgets/empty_state.dart';
 import '../../../utils/app_style.dart';
+import '../../../widgets/app_surface.dart';
 
 import '../../../utils/file_actions.dart';
 import '../../../utils/responsive_layout.dart';
@@ -132,19 +133,17 @@ class _HistoryTabState extends State<HistoryTab> {
   Widget _buildToggleButton() {
     final l10n = AppLocalizations.of(context)!;
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return Container(
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.8,
-        ),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
+    return AppSurface(
+      borderRadius: BorderRadius.circular(12),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.8,
       ),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

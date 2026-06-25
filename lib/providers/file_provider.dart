@@ -111,28 +111,42 @@ class FileProvider extends ChangeNotifier {
 
   /// 异步验证所有路径是否存在，更新缓存
   Future<void> _validateAllPaths() async {
-    final validatedRecent = <String>[];
-    for (final path in _recentFiles) {
-      if (await File(path).exists()) validatedRecent.add(path);
-    }
+    // 并行验证所有路径，避免串行 I/O 阻塞启动
+    final recentFileResults = await Future.wait(
+      _recentFiles.map((path) async => MapEntry(path, await File(path).exists())),
+    );
+    final validatedRecent = recentFileResults
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    final recentFolderResults = await Future.wait(
+      _recentFolders.map((path) async => MapEntry(path, await Directory(path).exists())),
+    );
+    final validatedRecentFolders = recentFolderResults
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    final pinnedFileResults = await Future.wait(
+      _pinnedFiles.map((path) async => MapEntry(path, await File(path).exists())),
+    );
+    final validatedPinned = pinnedFileResults
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
+    final pinnedFolderResults = await Future.wait(
+      _pinnedFolders.map((path) async => MapEntry(path, await Directory(path).exists())),
+    );
+    final validatedPinnedFolders = pinnedFolderResults
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+
     _validatedRecentFiles = validatedRecent;
-
-    final validatedRecentFolders = <String>[];
-    for (final path in _recentFolders) {
-      if (await Directory(path).exists()) validatedRecentFolders.add(path);
-    }
     _validatedRecentFolders = validatedRecentFolders;
-
-    final validatedPinned = <String>[];
-    for (final path in _pinnedFiles) {
-      if (await File(path).exists()) validatedPinned.add(path);
-    }
     _validatedPinnedFiles = validatedPinned;
-
-    final validatedPinnedFolders = <String>[];
-    for (final path in _pinnedFolders) {
-      if (await Directory(path).exists()) validatedPinnedFolders.add(path);
-    }
     _validatedPinnedFolders = validatedPinnedFolders;
 
     // 移除不存在的路径

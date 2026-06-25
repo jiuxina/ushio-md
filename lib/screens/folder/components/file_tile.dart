@@ -6,6 +6,7 @@ import '../../../utils/file_actions.dart';
 import '../../../utils/editor_navigation_helper.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/responsive_layout.dart';
+import '../../../widgets/app_surface.dart';
 import '../../folder_browser_screen.dart';
 
 class FileTile extends StatelessWidget {
@@ -73,26 +74,24 @@ class FileTile extends StatelessWidget {
       }
     }
 
-    return Container(
+    return AppSurface(
+      borderRadius: BorderRadius.circular(tileRadius),
       margin: EdgeInsets.only(bottom: isDesktop ? 6 : 8),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(tileRadius),
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.7,
-        ),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(
-                color: isPinned
-                    ? (isFile
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.3)
-                          : Colors.amber.withValues(alpha: 0.3))
-                    : Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.7,
       ),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: isPinned
+                  ? (isFile
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.3)
+                        : Colors.amber.withValues(alpha: 0.3))
+                  : Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Material(
@@ -100,6 +99,7 @@ class FileTile extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(tileRadius),
             onTap: () async {
+              debugPrint('[FileTile] onTap: isFile=$isFile, type=${entity.runtimeType}, path=${entity.path}');
               if (isFile) {
                 if (isMarkdownFile) {
                   final fileProvider = context.read<FileProvider>();

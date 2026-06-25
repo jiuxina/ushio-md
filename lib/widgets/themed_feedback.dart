@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
+import 'app_surface.dart';
 
 const double _kFallbackCardOpacity = 0.72;
 
@@ -44,17 +45,15 @@ class ThemedProgressDialog extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: Container(
-          decoration: appStyle.surfaceDecoration(
-            borderRadius: BorderRadius.circular(28),
-            color: surface,
-            prominent: appStyle.useBorderlessButtons,
-            border: appStyle.useBorderlessButtons
-                ? null
-                : Border.all(
-                    color: accent.withValues(alpha: 0.14),
-                  ),
-          ),
+        child: AppSurface(
+          borderRadius: BorderRadius.circular(28),
+          color: surface,
+          prominent: appStyle.useBorderlessButtons,
+          border: appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: accent.withValues(alpha: 0.14),
+                ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
             child: Column(
@@ -166,18 +165,16 @@ void showThemedSnackBar(
           20 + MediaQuery.of(context).padding.bottom,
         ),
         padding: EdgeInsets.zero,
-        content: Container(
-          decoration: appStyle.surfaceDecoration(
-            borderRadius: BorderRadius.circular(18),
-            color: Color.alphaBlend(
-              accent.withValues(alpha: appStyle.useBorderlessButtons ? 0.10 : 0.06),
-              colorScheme.surface,
-            ),
-            prominent: appStyle.useBorderlessButtons,
-            border: appStyle.useBorderlessButtons
-                ? null
-                : Border.all(color: accent.withValues(alpha: 0.14)),
+        content: AppSurface(
+          borderRadius: BorderRadius.circular(18),
+          color: Color.alphaBlend(
+            accent.withValues(alpha: appStyle.useBorderlessButtons ? 0.10 : 0.06),
+            colorScheme.surface,
           ),
+          prominent: appStyle.useBorderlessButtons,
+          border: appStyle.useBorderlessButtons
+              ? null
+              : Border.all(color: accent.withValues(alpha: 0.14)),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [

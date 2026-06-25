@@ -4,6 +4,7 @@ import '../../../utils/file_actions.dart';
 import '../../../utils/file_import_helper.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/responsive_layout.dart';
+import '../../../widgets/app_surface.dart';
 
 import '../../../screens/folder_browser_screen.dart';
 
@@ -270,14 +271,11 @@ class QuickActions extends StatelessWidget {
     bool compact = false,
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.5,
-        ),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.5,
       ),
       child: Row(
         children: [
@@ -368,18 +366,16 @@ class QuickActions extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
-          child: Container(
+          child: AppSurface(
+            borderRadius: BorderRadius.circular(12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: appStyle.surfaceDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: appStyle.scaledSurfaceColor(
-                Theme.of(context).colorScheme,
-                alpha: 0.8,
-              ),
-              border: appStyle.useBorderlessButtons
-                  ? null
-                  : Border.all(color: color.withValues(alpha: 0.3)),
+            color: appStyle.scaledSurfaceColor(
+              Theme.of(context).colorScheme,
+              alpha: 0.8,
             ),
+            border: appStyle.useBorderlessButtons
+                ? null
+                : Border.all(color: color.withValues(alpha: 0.3)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -419,18 +415,16 @@ class QuickActions extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Container(
+        child: AppSurface(
+          borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(12),
-          decoration: appStyle.surfaceDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: appStyle.scaledSurfaceColor(
-              Theme.of(context).colorScheme,
-              alpha: 0.8,
-            ),
-            border: appStyle.useBorderlessButtons
-                ? null
-                : Border.all(color: color.withValues(alpha: 0.3)),
+          color: appStyle.scaledSurfaceColor(
+            Theme.of(context).colorScheme,
+            alpha: 0.8,
           ),
+          border: appStyle.useBorderlessButtons
+              ? null
+              : Border.all(color: color.withValues(alpha: 0.3)),
           child: Column(
             children: [
               Container(

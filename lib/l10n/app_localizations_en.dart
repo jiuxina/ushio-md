@@ -384,6 +384,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeColor => 'Theme Color';
 
   @override
+  String get uiStyleOpacityHint =>
+      'If opacity is too low, the liquid glass effect becomes subtle; increase card opacity.';
+
+  @override
+  String get uiStyle => 'UI Style';
+
+  @override
+  String get uiStyleClassic => 'Classic';
+
+  @override
+  String get uiStyleClassicDesc => 'Keep current solid border button style';
+
+  @override
+  String get uiStyleSoftShadow => 'Modern';
+
+  @override
+  String get uiStyleSoftShadowDesc => 'Elevated buttons with soft shadows';
+
+  @override
+  String get uiStyleLiquidGlass => 'Liquid Glass';
+
+  @override
+  String get uiStyleLiquidGlassDesc =>
+      'Wavy glass refraction, synced with card opacity';
+
+  @override
   String get buttonStyle => 'Button Style';
 
   @override
@@ -1350,4 +1376,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String fontDownloadFailed(String fontName) {
     return 'Failed to download \"$fontName\". Please check your network.';
   }
+
+  @override
+  String get liquidGlassEffect => 'Liquid Glass Effect';
 }

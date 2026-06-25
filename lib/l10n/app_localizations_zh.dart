@@ -72,7 +72,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get firstLaunchInitializing => '首次启动初始化中';
 
   @override
-  String get firstLaunchWarmingUp => '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。';
+  String get firstLaunchWarmingUp =>
+      '正在预热文档预览与缓存组件。首次完成后，再打开大型 Markdown 文档会更稳定、更快。';
 
   @override
   String get firstLaunchComplete => '首次启动初始化完成，后续打开文档会更快。';
@@ -257,7 +258,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get protectedDirectory => '无法访问该目录';
 
   @override
-  String get protectedDirectoryHint => '该目录受 Android 系统保护，请选择其他目录（如 Documents 或应用工作区）';
+  String get protectedDirectoryHint =>
+      '该目录受 Android 系统保护，请选择其他目录（如 Documents 或应用工作区）';
 
   @override
   String get grantPermission => '授予权限';
@@ -378,6 +380,30 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get themeColor => '主题色';
+
+  @override
+  String get uiStyleOpacityHint => '透明度过低时液态玻璃会变得不明显，可适当提高卡片透明度';
+
+  @override
+  String get uiStyle => 'UI风格';
+
+  @override
+  String get uiStyleClassic => '经典描边';
+
+  @override
+  String get uiStyleClassicDesc => '保留当前的实线边框按钮样式';
+
+  @override
+  String get uiStyleSoftShadow => '简洁立体';
+
+  @override
+  String get uiStyleSoftShadowDesc => '柔和阴影的立体按钮效果';
+
+  @override
+  String get uiStyleLiquidGlass => '液态玻璃';
+
+  @override
+  String get uiStyleLiquidGlassDesc => '波动折射的玻璃质感，自动适配卡片透明度';
 
   @override
   String get buttonStyle => '按钮风格';
@@ -852,7 +878,8 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get warningChangeBasePathAffectsWorkspace => '警告：更改基础路径将影响工作区位置，请确保路径存在且可访问';
+  String get warningChangeBasePathAffectsWorkspace =>
+      '警告：更改基础路径将影响工作区位置，请确保路径存在且可访问';
 
   @override
   String get resetToDefaultPath => '已重置为默认路径';
@@ -1309,4 +1336,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String fontDownloadFailed(String fontName) {
     return '「$fontName」下载失败，请检查网络';
   }
+
+  @override
+  String get liquidGlassEffect => '液态玻璃效果';
 }

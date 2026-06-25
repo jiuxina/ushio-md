@@ -306,6 +306,10 @@ class MyApp extends StatelessWidget {
     final buttonBackground = appStyle.useBorderlessButtons
         ? appStyle.strongSurface
         : effectiveColorScheme.primary.withValues(alpha: appStyle.cardOpacity);
+    final liquidGlassBackground = appStyle.cardSurfaceColor(effectiveColorScheme);
+    final liquidGlassOverlay = appStyle.useLiquidGlass
+        ? WidgetStatePropertyAll(colorScheme.primary.withValues(alpha: 0.06))
+        : null;
 
     ThemeData theme = ThemeData(
       useMaterial3: true,
@@ -338,52 +342,15 @@ class MyApp extends StatelessWidget {
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style:
-            FilledButton.styleFrom(
-              foregroundColor: buttonForeground,
-              backgroundColor: buttonBackground,
-              disabledBackgroundColor: buttonBackground.withValues(alpha: 0.45),
-              disabledForegroundColor: buttonForeground.withValues(alpha: 0.55),
-              elevation: appStyle.useBorderlessButtons ? 4 : 0,
-              shadowColor: Colors.black.withValues(alpha: 0.18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: appStyle.useBorderlessButtons
-                      ? Colors.transparent
-                      : colorScheme.primary,
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            ).copyWith(
-              overlayColor: WidgetStatePropertyAll(
-                colorScheme.primary.withValues(alpha: 0.08),
-              ),
-            ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: appStyle.useBorderlessButtons
-              ? textColor
-              : colorScheme.primary,
-          backgroundColor: appStyle.useBorderlessButtons
-              ? appStyle.strongSurface
-              : Colors.transparent,
-          side: BorderSide(
-            color: appStyle.useBorderlessButtons
-                ? Colors.transparent
-                : appStyle.outlineColor,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
+        style: FilledButton.styleFrom(
           foregroundColor: buttonForeground,
-          backgroundColor: buttonBackground,
+          backgroundColor: appStyle.useLiquidGlass
+              ? liquidGlassBackground
+              : buttonBackground,
+          disabledBackgroundColor: appStyle.useLiquidGlass
+              ? liquidGlassBackground.withValues(alpha: 0.45)
+              : buttonBackground.withValues(alpha: 0.45),
+          disabledForegroundColor: buttonForeground.withValues(alpha: 0.55),
           elevation: appStyle.useBorderlessButtons ? 4 : 0,
           shadowColor: Colors.black.withValues(alpha: 0.18),
           shape: RoundedRectangleBorder(
@@ -395,6 +362,55 @@ class MyApp extends StatelessWidget {
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ).copyWith(
+          overlayColor: liquidGlassOverlay ??
+              WidgetStatePropertyAll(
+                colorScheme.primary.withValues(alpha: 0.08),
+              ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: appStyle.useBorderlessButtons
+              ? textColor
+              : colorScheme.primary,
+          backgroundColor: appStyle.useLiquidGlass
+              ? liquidGlassBackground
+              : (appStyle.useBorderlessButtons
+                  ? appStyle.strongSurface
+                  : Colors.transparent),
+          side: BorderSide(
+            color: appStyle.useBorderlessButtons
+                ? Colors.transparent
+                : appStyle.outlineColor,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ).copyWith(
+          overlayColor: liquidGlassOverlay,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          foregroundColor: buttonForeground,
+          backgroundColor: appStyle.useLiquidGlass
+              ? liquidGlassBackground
+              : buttonBackground,
+          elevation: appStyle.useBorderlessButtons ? 4 : 0,
+          shadowColor: Colors.black.withValues(alpha: 0.18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: appStyle.useBorderlessButtons
+                  ? Colors.transparent
+                  : colorScheme.primary,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ).copyWith(
+          overlayColor: liquidGlassOverlay,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -402,25 +418,36 @@ class MyApp extends StatelessWidget {
           foregroundColor: appStyle.useBorderlessButtons
               ? textColor
               : colorScheme.primary,
+          backgroundColor: appStyle.useLiquidGlass
+              ? liquidGlassBackground
+              : null,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ).copyWith(
+          overlayColor: liquidGlassOverlay,
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: textColor,
-          backgroundColor: appStyle.useBorderlessButtons
-              ? appStyle.strongSurface
-              : null,
+          backgroundColor: appStyle.useLiquidGlass
+              ? liquidGlassBackground
+              : (appStyle.useBorderlessButtons
+                  ? appStyle.strongSurface
+                  : null),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
+        ).copyWith(
+          overlayColor: liquidGlassOverlay,
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: buttonBackground,
+        backgroundColor: appStyle.useLiquidGlass
+            ? liquidGlassBackground
+            : buttonBackground,
         foregroundColor: buttonForeground,
       ),
       inputDecorationTheme: InputDecorationTheme(

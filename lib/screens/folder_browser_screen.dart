@@ -85,6 +85,10 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
       }
 
       final entities = await dir.list().toList();
+      debugPrint('[FolderBrowser] _loadFiles: dir=${widget.folderPath}, entityCount=${entities.length}');
+      for (final e in entities) {
+        debugPrint('[FolderBrowser]   entity: type=${e.runtimeType}, isDir=${e is Directory}, isFile=${e is File}, path=${e.path}');
+      }
       _entities = entities.where((e) {
         final name = e.path.split(Platform.pathSeparator).last;
         if (name.startsWith('.')) return false; // 隐藏隐藏文件

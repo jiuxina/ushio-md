@@ -836,6 +836,54 @@ abstract class AppLocalizations {
   /// **'主题色'**
   String get themeColor;
 
+  /// UI风格-透明度提示
+  ///
+  /// In zh, this message translates to:
+  /// **'透明度过低时液态玻璃会变得不明显，可适当提高卡片透明度'**
+  String get uiStyleOpacityHint;
+
+  /// UI风格设置项标题
+  ///
+  /// In zh, this message translates to:
+  /// **'UI风格'**
+  String get uiStyle;
+
+  /// UI风格-经典描边
+  ///
+  /// In zh, this message translates to:
+  /// **'经典描边'**
+  String get uiStyleClassic;
+
+  /// UI风格-经典描边说明
+  ///
+  /// In zh, this message translates to:
+  /// **'保留当前的实线边框按钮样式'**
+  String get uiStyleClassicDesc;
+
+  /// UI风格-简洁立体
+  ///
+  /// In zh, this message translates to:
+  /// **'简洁立体'**
+  String get uiStyleSoftShadow;
+
+  /// UI风格-简洁立体说明
+  ///
+  /// In zh, this message translates to:
+  /// **'柔和阴影的立体按钮效果'**
+  String get uiStyleSoftShadowDesc;
+
+  /// UI风格-液态玻璃
+  ///
+  /// In zh, this message translates to:
+  /// **'液态玻璃'**
+  String get uiStyleLiquidGlass;
+
+  /// UI风格-液态玻璃说明
+  ///
+  /// In zh, this message translates to:
+  /// **'波动折射的玻璃质感，自动适配卡片透明度'**
+  String get uiStyleLiquidGlassDesc;
+
   /// 按钮风格设置
   ///
   /// In zh, this message translates to:
@@ -2605,6 +2653,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'「{fontName}」下载失败，请检查网络'**
   String fontDownloadFailed(String fontName);
+
+  /// No description provided for @liquidGlassEffect.
+  ///
+  /// In zh, this message translates to:
+  /// **'液态玻璃效果'**
+  String get liquidGlassEffect;
 }
 
 class _AppLocalizationsDelegate

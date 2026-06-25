@@ -20,6 +20,7 @@ import '../../services/my_files_service.dart';
 import '../../services/cloud_sync_service.dart';
 import '../../widgets/app_background.dart';
 import '../../utils/app_style.dart';
+import '../../widgets/app_surface.dart';
 
 class CloudSyncScreen extends StatefulWidget {
   const CloudSyncScreen({super.key});
@@ -620,19 +621,16 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        Container(
+        AppSurface(
           padding: const EdgeInsets.all(16),
-          decoration: appStyle.surfaceDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: Theme.of(context).colorScheme.surface,
-            border: appStyle.useBorderlessButtons
-                ? null
-                : Border.all(
-                    color: Theme.of(
-                      context,
-                    ).dividerColor.withValues(alpha: 0.5),
-                  ),
-          ),
+          color: Theme.of(context).colorScheme.surface,
+          border: appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: Theme.of(
+                    context,
+                  ).dividerColor.withValues(alpha: 0.5),
+                ),
           child: Column(
             children: [
               Row(
@@ -845,19 +843,16 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        Container(
+        AppSurface(
           padding: const EdgeInsets.all(16),
-          decoration: appStyle.surfaceDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: Theme.of(context).colorScheme.surface,
-            border: appStyle.useBorderlessButtons
-                ? null
-                : Border.all(
-                    color: Theme.of(
-                      context,
-                    ).dividerColor.withValues(alpha: 0.5),
-                  ),
-          ),
+          color: Theme.of(context).colorScheme.surface,
+          border: appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: Theme.of(
+                    context,
+                  ).dividerColor.withValues(alpha: 0.5),
+                ),
           child: Column(
             children: [
               _buildStatusRow(

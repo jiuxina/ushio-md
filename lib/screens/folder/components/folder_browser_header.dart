@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/file_sort_option.dart';
 import '../../../utils/app_style.dart';
+import '../../../widgets/app_surface.dart';
 
 class FolderBrowserHeader extends StatelessWidget {
   final String folderName;
@@ -51,19 +52,15 @@ class FolderBrowserHeader extends StatelessWidget {
         children: [
           if (onBack != null)
             IconButton(
-              icon: Container(
+              icon: AppSurface(
+                borderRadius: BorderRadius.circular(12),
                 padding: const EdgeInsets.all(8),
-                decoration: Theme.of(context)
-                    .extension<AppStyleTheme>()!
-                    .surfaceDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
-                      prominent: Theme.of(
-                        context,
-                      ).extension<AppStyleTheme>()!.useBorderlessButtons,
-                    ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
+                prominent: Theme.of(
+                  context,
+                ).extension<AppStyleTheme>()!.useBorderlessButtons,
                 child: Icon(
                   Icons.arrow_back,
                   color: Theme.of(context).colorScheme.primary,
@@ -132,21 +129,20 @@ class FolderBrowserHeader extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Container(
+            child: AppSurface(
+              borderRadius: BorderRadius.circular(12),
               height: 44,
+              alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: appStyle.surfaceDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
-                prominent: appStyle.useBorderlessButtons,
-                border: appStyle.useBorderlessButtons
-                    ? null
-                    : Border.all(
-                        color: Theme.of(
-                          context,
-                        ).dividerColor.withValues(alpha: 0.5),
-                      ),
-              ),
+              color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
+              prominent: appStyle.useBorderlessButtons,
+              border: appStyle.useBorderlessButtons
+                  ? null
+                  : Border.all(
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.5),
+                    ),
               child: TextField(
                 controller: searchController,
                 autofocus: true,
@@ -190,24 +186,22 @@ class FolderBrowserHeader extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onPressed,
-          child: Container(
+          child: AppSurface(
+            borderRadius: BorderRadius.circular(12),
             alignment: Alignment.center,
-            decoration: appStyle.surfaceDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: isActive
-                  ? colorScheme.primary.withValues(alpha: 0.1)
-                  : appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
-              prominent: isActive && appStyle.useBorderlessButtons,
-              border: appStyle.useBorderlessButtons
-                  ? null
-                  : Border.all(
-                      color: isActive
-                          ? colorScheme.primary
-                          : Theme.of(
-                              context,
-                            ).dividerColor.withValues(alpha: 0.5),
-                    ),
-            ),
+            color: isActive
+                ? colorScheme.primary.withValues(alpha: 0.1)
+                : appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
+            prominent: isActive && appStyle.useBorderlessButtons,
+            border: appStyle.useBorderlessButtons
+                ? null
+                : Border.all(
+                    color: isActive
+                        ? colorScheme.primary
+                        : Theme.of(
+                            context,
+                          ).dividerColor.withValues(alpha: 0.5),
+                  ),
             child: Icon(
               icon,
               size: 20,
@@ -229,16 +223,14 @@ class FolderBrowserHeader extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () => _showSortMenu(context),
-          child: Container(
+          child: AppSurface(
+            borderRadius: BorderRadius.circular(12),
             alignment: Alignment.center,
-            decoration: appStyle.surfaceDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: appStyle.scaledSurfaceColor(
-                Theme.of(context).colorScheme,
-                alpha: 0.5,
-              ),
-              prominent: appStyle.useBorderlessButtons,
+            color: appStyle.scaledSurfaceColor(
+              Theme.of(context).colorScheme,
+              alpha: 0.5,
             ),
+            prominent: appStyle.useBorderlessButtons,
             child: const Icon(Icons.sort, size: 20),
           ),
         ),

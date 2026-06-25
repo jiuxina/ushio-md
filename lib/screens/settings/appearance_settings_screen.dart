@@ -13,6 +13,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/app_style.dart';
 import '../../utils/constants.dart';
+import '../../widgets/app_surface.dart';
 import '../../services/font_service.dart';
 import '../../widgets/app_background.dart';
 import '../../l10n/app_localizations.dart';
@@ -679,12 +680,8 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   }
 
   Widget _buildSection(String title, IconData icon, List<Widget> children) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: _appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: _appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2021,21 +2018,19 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           child: InkWell(
             onTap: () => settings.setLightThemeIndex(index),
             borderRadius: BorderRadius.circular(12),
-            child: Container(
+            child: AppSurface(
+              borderRadius: BorderRadius.circular(12),
               padding: const EdgeInsets.all(12),
-              decoration: _appStyle.surfaceDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: scheme.background,
-                prominent: isSelected && _appStyle.useBorderlessButtons,
-                border: _appStyle.useBorderlessButtons
-                    ? null
-                    : Border.all(
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-              ),
+              color: scheme.background,
+              prominent: isSelected && _appStyle.useBorderlessButtons,
+              border: _appStyle.useBorderlessButtons
+                  ? null
+                  : Border.all(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.transparent,
+                      width: 2,
+                    ),
               child: Row(
                 children: [
                   Container(
@@ -2087,21 +2082,19 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           child: InkWell(
             onTap: () => settings.setDarkThemeIndex(index),
             borderRadius: BorderRadius.circular(12),
-            child: Container(
+            child: AppSurface(
+              borderRadius: BorderRadius.circular(12),
               padding: const EdgeInsets.all(12),
-              decoration: _appStyle.surfaceDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: scheme.background,
-                prominent: isSelected && _appStyle.useBorderlessButtons,
-                border: _appStyle.useBorderlessButtons
-                    ? null
-                    : Border.all(
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-              ),
+              color: scheme.background,
+              prominent: isSelected && _appStyle.useBorderlessButtons,
+              border: _appStyle.useBorderlessButtons
+                  ? null
+                  : Border.all(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.transparent,
+                      width: 2,
+                    ),
               child: Row(
                 children: [
                   Container(

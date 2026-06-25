@@ -77,6 +77,7 @@ class _OtherAppearanceSettingsScreenState
                 buildSection(l10n.bottomNavBar, Icons.tab_rounded, [
                   buildTabBarOpacitySlider(settings, l10n),
                 ]),
+
               ],
             );
           },

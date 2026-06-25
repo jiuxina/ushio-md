@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/app_style.dart';
 import '../../widgets/app_background.dart';
+import '../../widgets/app_surface.dart';
 import 'appearance/theme_settings_screen.dart';
 import 'appearance/font_settings_screen.dart';
 import 'appearance/background_settings_screen.dart';
@@ -117,19 +118,17 @@ class AppearanceCategoriesScreen extends StatelessWidget {
     required String description,
     required VoidCallback onTap,
   }) {
-    return Container(
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.7,
-        ),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
+    return AppSurface(
+      borderRadius: BorderRadius.circular(14),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.7,
       ),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

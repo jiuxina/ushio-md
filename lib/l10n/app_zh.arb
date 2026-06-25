@@ -498,6 +498,38 @@
   "@themeColor": {
     "description": "主题色设置"
   },
+  "uiStyleOpacityHint": "透明度过低时液态玻璃会变得不明显，可适当提高卡片透明度",
+  "@uiStyleOpacityHint": {
+    "description": "UI风格-透明度提示"
+  },
+  "uiStyle": "UI风格",
+  "@uiStyle": {
+    "description": "UI风格设置项标题"
+  },
+  "uiStyleClassic": "经典描边",
+  "@uiStyleClassic": {
+    "description": "UI风格-经典描边"
+  },
+  "uiStyleClassicDesc": "保留当前的实线边框按钮样式",
+  "@uiStyleClassicDesc": {
+    "description": "UI风格-经典描边说明"
+  },
+  "uiStyleSoftShadow": "简洁立体",
+  "@uiStyleSoftShadow": {
+    "description": "UI风格-简洁立体"
+  },
+  "uiStyleSoftShadowDesc": "柔和阴影的立体按钮效果",
+  "@uiStyleSoftShadowDesc": {
+    "description": "UI风格-简洁立体说明"
+  },
+  "uiStyleLiquidGlass": "液态玻璃",
+  "@uiStyleLiquidGlass": {
+    "description": "UI风格-液态玻璃"
+  },
+  "uiStyleLiquidGlassDesc": "波动折射的玻璃质感，自动适配卡片透明度",
+  "@uiStyleLiquidGlassDesc": {
+    "description": "UI风格-液态玻璃说明"
+  },
   "buttonStyle": "按钮风格",
   "@buttonStyle": {
     "description": "按钮风格设置"
@@ -1517,5 +1549,6 @@
         "example": "思源黑体"
       }
     }
-  }
+  },
+  "liquidGlassEffect": "液态玻璃效果"
 }

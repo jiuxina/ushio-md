@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../widgets/app_background.dart';
+import '../../../widgets/app_surface.dart';
 import 'appearance_settings_mixin.dart';
 import 'monet_settings_screen.dart';
 
@@ -94,15 +95,15 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen>
 
                 const SizedBox(height: 16),
 
-                // 按钮样式
-                buildSection(l10n.buttonStyle, Icons.smart_button_outlined, [
+                // UI 风格
+                buildSection(l10n.uiStyle, Icons.auto_awesome_rounded, [
                   buildButtonStyleSelector(settings, l10n),
                 ]),
 
                 const SizedBox(height: 16),
 
-                // 卡片透明度
-                buildSection(l10n.cardOpacity, Icons.opacity_rounded, [
+                // 卡片外观（独立于 UI 风格）
+                buildSection('卡片外观', Icons.style, [
                   buildCardOpacitySlider(settings, l10n),
                   const SizedBox(height: 12),
                   buildCardColorSelector(settings, l10n),
@@ -144,12 +145,8 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen>
           ),
         );
       },
-      child: Container(
+      child: AppSurface(
         padding: const EdgeInsets.all(16),
-        decoration: appStyle.surfaceDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-        ),
         child: Row(
           children: [
             Container(

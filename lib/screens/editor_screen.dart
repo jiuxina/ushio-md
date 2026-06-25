@@ -100,12 +100,15 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isSaving = false;
   bool _isAutoSaving = false;
   DateTime? _lastSaveTime;
+  DateTime? _lastTapDownTime;
+  Timer? _blurFallbackTimer;
   bool _isMilkdownEditorFocused = false;
   bool _showToc = false;
   bool _showSearchBar = false;
   bool _showSearchCandidates = false;
   final TocOverlayController _tocOverlayController = TocOverlayController();
   bool _hidePlatformViews = false;
+  bool _isAppInBackground = false;
   Timer? _autoSaveTimer;
   int? _highlightedLine;
   List<SearchMatch> _searchMatches = const [];
@@ -169,7 +172,18 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   /// Handle user interaction - hide buttons and schedule show
+  ///
+  /// 带节流：连续指针事件（如滚动时的 onPointerMove）在 100ms 内只处理一次，
+  /// 避免高频 Timer 创建/取消。
+  DateTime? _lastInteractionTime;
+
   void _onUserInteraction() {
+    final now = DateTime.now();
+    final last = _lastInteractionTime;
+    if (last != null && now.difference(last).inMilliseconds < 100) {
+      return; // 节流中，跳过
+    }
+    _lastInteractionTime = now;
     _hideFloatingButtons();
     _showFloatingButtonsAfterDelay();
   }
@@ -486,6 +500,14 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _undoEditHistory() {
+    // In preview mode, route undo to ProseMirror instead of manipulating
+    // the Flutter text controller. This avoids sending init_doc which would
+    // replace the ProseMirror document and destroy cursor position and history.
+    if (_mode == EditorMode.preview && _editingBlockIndex == null) {
+      _previewWebViewController.execCmd('undo');
+      _showActionFeedback('已撤销');
+      return;
+    }
     if (_historyIndex <= 0) return;
     _historyIndex--;
     final entry = _editHistory[_historyIndex];
@@ -500,6 +522,12 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _redoEditHistory() {
+    // In preview mode, route redo to ProseMirror (same rationale as undo).
+    if (_mode == EditorMode.preview && _editingBlockIndex == null) {
+      _previewWebViewController.execCmd('redo');
+      _showActionFeedback('已重做');
+      return;
+    }
     if (_historyIndex < 0 || _historyIndex >= _editHistory.length - 1) return;
     _historyIndex++;
     final entry = _editHistory[_historyIndex];
@@ -1143,6 +1171,7 @@ class _EditorScreenState extends State<EditorScreen>
     _actionFeedbackTimer?.cancel();
     _wordCountDebounce?.cancel();
     _hideFloatingButtonsTimer?.cancel();
+    _blurFallbackTimer?.cancel();
 
     // 移除所有 listener，使用标志位防止重复移除
     if (_textListenerAttached) {
@@ -1187,6 +1216,24 @@ class _EditorScreenState extends State<EditorScreen>
       }
       _lastKeyboardInset = keyboardInset;
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isAppInBackground = state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive;
+
+    // 应用从后台恢复时，检查 inline edit 是否还需要收尾
+    if (state == AppLifecycleState.resumed && _editingBlockIndex != null) {
+      // 给一个短暂窗口让 focus 恢复，如果仍然失焦则完成编辑
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted &&
+            _editingBlockIndex != null &&
+            !_inlineEditFocusNode.hasFocus) {
+          _finishInlineEdit();
+        }
+      });
+    }
   }
 
   Future<bool> _onWillPop() async {
@@ -1538,7 +1585,22 @@ class _EditorScreenState extends State<EditorScreen>
     appDebugLog(
       '[CHECKBOX] Flutter _toggleCheckbox called: index=$index, newValue=$newValue',
     );
-    final newText = toggleCheckboxInText(_textController.text, index, newValue);
+    // 防御性检查：索引必须非负
+    if (index < 0) {
+      appDebugLog('[CHECKBOX] 忽略无效的复选框索引: $index');
+      return;
+    }
+    final currentText = _textController.text;
+    // 防御性检查：确认文档中的复选框数量足够
+    final totalCheckboxes = _countCheckboxes(currentText);
+    if (index >= totalCheckboxes) {
+      appDebugLog(
+        '[CHECKBOX] 复选框索引越界: index=$index, total=$totalCheckboxes，'
+        '可能是 WebView 和 Flutter 侧文档状态不同步',
+      );
+      return;
+    }
+    final newText = toggleCheckboxInText(currentText, index, newValue);
     if (newText != null) {
       _previewWebViewController.suppressNextReload();
       _textController.removeListener(_onTextChanged);
@@ -1551,6 +1613,17 @@ class _EditorScreenState extends State<EditorScreen>
         '[CHECKBOX] toggleCheckboxInText returned null - checkbox not found',
       );
     }
+  }
+
+  /// 统计文档中的复选框总数（防御性辅助方法）
+  int _countCheckboxes(String text) {
+    int count = 0;
+    for (final line in text.split('\n')) {
+      if (uncheckedBoxRegex.hasMatch(line) || checkedBoxRegex.hasMatch(line)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   void _handleLinkTap(String text, String? href, String title) {
@@ -1875,7 +1948,12 @@ class _EditorScreenState extends State<EditorScreen>
     _textController.removeListener(_onTextChanged);
     _textController.text = finalMarkdown;
     _textController.addListener(_onTextChanged);
+    // Set _isApplyingHistory to prevent this Milkdown-originated change from
+    // being recorded as a new Flutter-side history snapshot. Without this,
+    // ProseMirror undos would pollute the Flutter undo stack.
+    _isApplyingHistory = true;
     _onTextChanged();
+    _isApplyingHistory = false;
   }
 
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
@@ -1931,6 +2009,8 @@ class _EditorScreenState extends State<EditorScreen>
     final focused = payload['focused'] == true;
     if (!mounted || focused == _isMilkdownEditorFocused) return;
     setState(() => _isMilkdownEditorFocused = focused);
+    // WebView 正常响应了 focus 变化，取消降级计时器
+    if (!focused) _blurFallbackTimer?.cancel();
 
     // Hide floating buttons when Milkdown editor gains focus
     if (focused) {
@@ -1988,6 +2068,9 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _onInlineEditFocusChanged() {
     if (!_inlineEditFocusNode.hasFocus && _editingBlockIndex != null) {
+      // 应用切到后台导致的失焦不应结束 inline edit，
+      // 等应用恢复后由 didChangeAppLifecycleState 处理
+      if (_isAppInBackground) return;
       _finishInlineEdit();
     }
   }
@@ -2014,6 +2097,15 @@ class _EditorScreenState extends State<EditorScreen>
         }
         if (shouldInterceptForMilkdownBlur) {
           await _previewWebViewController.execCmd('blur_editor');
+          // 超时降级：如果 WebView 在 800ms 内没有响应 blur_editor
+          // （即没有回传 on_editor_focus: false），强制取消焦点并返回，
+          // 防止用户被卡在无法退出的状态
+          _blurFallbackTimer?.cancel();
+          _blurFallbackTimer = Timer(const Duration(milliseconds: 800), () {
+            if (mounted && _isMilkdownEditorFocused) {
+              setState(() => _isMilkdownEditorFocused = false);
+            }
+          });
           return;
         }
         if (!didPop) {
@@ -2037,7 +2129,16 @@ class _EditorScreenState extends State<EditorScreen>
                   onUndo: _undoEditHistory,
                   onRedo: _redoEditHistory,
                   onSearch: _showInlineSearch,
-                  onApplyAction: _applyToolbarAction,
+                  onApplyAction: (action) {
+                    // 预览模式下，格式快捷键由 WebView 内的 ProseMirror
+                    // 自行处理（capture 阶段拦截），Flutter 侧不再转发，
+                    // 避免双重执行（execCmd + JS handleEditorShortcut）。
+                    if (_mode == EditorMode.preview &&
+                        _editingBlockIndex == null) {
+                      return;
+                    }
+                    _applyToolbarAction(action);
+                  },
                   onEscape: _closeSearch,
                   onNextSearchMatch: _jumpToNextSearchMatch,
                   onPrevSearchMatch: _jumpToPrevSearchMatch,
@@ -2147,8 +2248,19 @@ class _EditorScreenState extends State<EditorScreen>
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: _buildDesktopEditorFrame(
-                          child: _buildEditorWithGesture(),
+                        child: Padding(
+                          // 预览模式下键盘弹出时，收缩编辑器区域，
+                          // 让 WebView 内容区不被键盘遮挡
+                          padding: EdgeInsets.only(
+                            bottom: (_mode == EditorMode.preview &&
+                                    _editingBlockIndex == null &&
+                                    keyboardInset > 0)
+                                ? keyboardInset
+                                : 0,
+                          ),
+                          child: _buildDesktopEditorFrame(
+                            child: _buildEditorWithGesture(),
+                          ),
                         ),
                       ),
                       if (_showSearchBar)
@@ -2333,16 +2445,24 @@ class _EditorScreenState extends State<EditorScreen>
       onPointerMove: (_) => _onUserInteraction(),
       onPointerUp: (_) => _showFloatingButtonsAfterDelay(),
       child: GestureDetector(
-        onDoubleTap: () {
-          final settings = context.read<SettingsProvider>();
-          settings.setFocusMode(!settings.focusMode);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(settings.focusMode ? '专注模式已开启' : '专注模式已关闭'),
-              duration: const Duration(seconds: 1),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+        onTapDown: (_) {
+          final now = DateTime.now();
+          final lastTap = _lastTapDownTime;
+          _lastTapDownTime = now;
+          if (lastTap != null &&
+              now.difference(lastTap) < const Duration(milliseconds: 400)) {
+            // 双击检测：切换专注模式
+            _lastTapDownTime = null; // 重置，防止连续三击
+            final settings = context.read<SettingsProvider>();
+            settings.setFocusMode(!settings.focusMode);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(settings.focusMode ? '专注模式已开启' : '专注模式已关闭'),
+                duration: const Duration(seconds: 1),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         },
         behavior: HitTestBehavior.translucent,
         child: _buildEditor(),

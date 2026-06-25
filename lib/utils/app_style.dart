@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 enum AppButtonStyleMode {
   classic,
   softShadow,
+  liquidGlass,
 }
 
 /// 统一管理按钮与边框风格的主题扩展。
@@ -34,7 +35,11 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     this.useCustomCardColor = false,
   });
 
-  bool get useBorderlessButtons => buttonStyleMode == AppButtonStyleMode.softShadow;
+  bool get useBorderlessButtons =>
+      buttonStyleMode != AppButtonStyleMode.classic;
+
+  bool get useLiquidGlass =>
+      buttonStyleMode == AppButtonStyleMode.liquidGlass;
 
   static AppStyleTheme resolve({
     required Brightness brightness,
@@ -46,18 +51,30 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
     bool useCustomCardColor = false,
   }) {
     final isDark = brightness == Brightness.dark;
-    final mutedAlpha = (cardOpacity * (isDark ? 0.82 : 0.76)).clamp(0.0, 1.0);
-    final strongAlpha = (cardOpacity * (isDark ? 0.94 : 0.90)).clamp(0.0, 1.0);
+    final isLiquidGlass = buttonStyleMode == AppButtonStyleMode.liquidGlass;
+    final effectiveOpacity = isLiquidGlass
+        ? (cardOpacity * (isDark ? 0.78 : 0.82)).clamp(0.18, 1.0)
+        : cardOpacity;
+    final mutedAlpha = (effectiveOpacity * (isDark ? 0.78 : 0.72))
+        .clamp(0.0, 1.0);
+    final strongAlpha = (effectiveOpacity * (isDark ? 0.90 : 0.88))
+        .clamp(0.0, 1.0);
     final outlineColor = textSecondary.withValues(
-      alpha: buttonStyleMode == AppButtonStyleMode.softShadow ? (isDark ? 0.0 : 0.04) : (isDark ? 0.28 : 0.16),
+      alpha: buttonStyleMode == AppButtonStyleMode.classic
+          ? (isDark ? 0.28 : 0.16)
+          : (isDark ? 0.0 : 0.04),
     );
-    final shadowColor = Colors.black.withValues(alpha: isDark ? 0.24 : 0.10);
-    final prominentColor = colorScheme.primary.withValues(alpha: isDark ? 0.24 : 0.18);
+    final shadowColor = Colors.black.withValues(
+      alpha: isLiquidGlass ? (isDark ? 0.18 : 0.08) : (isDark ? 0.24 : 0.10),
+    );
+    final prominentColor = colorScheme.primary.withValues(
+      alpha: isLiquidGlass ? (isDark ? 0.18 : 0.14) : (isDark ? 0.24 : 0.18),
+    );
 
     // 计算卡片表面颜色：如果启用自定义颜色则使用自定义颜色，否则使用主题默认
     final effectiveCardSurface = useCustomCardColor && customCardColor != null
-        ? customCardColor.withValues(alpha: cardOpacity)
-        : colorScheme.surface.withValues(alpha: cardOpacity);
+        ? customCardColor.withValues(alpha: effectiveOpacity)
+        : colorScheme.surface.withValues(alpha: effectiveOpacity);
 
     // 计算muted和strong表面颜色：如果启用自定义颜色则基于自定义颜色
     final baseSurface = useCustomCardColor && customCardColor != null
@@ -70,8 +87,9 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       mutedSurface: baseSurface.withValues(alpha: mutedAlpha),
       strongSurface: baseSurface.withValues(alpha: strongAlpha),
       cardSurface: effectiveCardSurface,
-      surfaceShadow: buttonStyleMode == AppButtonStyleMode.softShadow
-          ? [
+      surfaceShadow: buttonStyleMode == AppButtonStyleMode.classic
+          ? const []
+          : [
               BoxShadow(
                 color: shadowColor,
                 blurRadius: isDark ? 20 : 24,
@@ -79,20 +97,23 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
                 spreadRadius: isDark ? -12 : -14,
               ),
               BoxShadow(
-                color: Colors.white.withValues(alpha: isDark ? 0.02 : 0.7),
+                color: Colors.white.withValues(
+                  alpha: isLiquidGlass
+                      ? (isDark ? 0.04 : 0.55)
+                      : (isDark ? 0.02 : 0.7),
+                ),
                 blurRadius: 12,
                 offset: const Offset(0, -1),
                 spreadRadius: -10,
               ),
-            ]
-          : const [],
+            ],
       cardOpacity: cardOpacity,
       prominentShadow: [
         BoxShadow(
           color: prominentColor,
-          blurRadius: buttonStyleMode == AppButtonStyleMode.softShadow ? 20 : 12,
+          blurRadius: buttonStyleMode == AppButtonStyleMode.classic ? 12 : 20,
           offset: const Offset(0, 8),
-          spreadRadius: buttonStyleMode == AppButtonStyleMode.softShadow ? -10 : -8,
+          spreadRadius: buttonStyleMode == AppButtonStyleMode.classic ? -8 : -10,
         ),
       ],
       customCardColor: customCardColor,

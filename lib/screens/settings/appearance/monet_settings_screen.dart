@@ -17,6 +17,7 @@ import '../../../utils/monet_palette.dart';
 import '../../../utils/app_style.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../widgets/app_background.dart';
+import '../../../widgets/app_surface.dart';
 
 /// 莫奈取色设置页面
 class MonetSettingsScreen extends StatefulWidget {
@@ -212,7 +213,7 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
                     const SizedBox(height: 16),
 
                     // 高级选项
-                    _buildAdvancedOptions(l10n),
+                    _buildAdvancedSection(l10n),
 
                     const SizedBox(height: 16),
 
@@ -240,12 +241,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
 
   /// 构建启用开关
   Widget _buildEnableSwitch(SettingsProvider settings, AppLocalizations l10n) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -278,12 +275,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
 
   /// 构建图片选择区域
   Widget _buildImagePickerSection(AppLocalizations l10n) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -352,12 +345,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
 
   /// 构建预设颜色区域
   Widget _buildPresetColorsSection(AppLocalizations l10n) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -413,12 +402,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
 
   /// 构建源色选择器
   Widget _buildSourceColorSelector(AppLocalizations l10n) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -493,12 +478,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
 
   /// 构建配色风格选择器
   Widget _buildStyleVariantSelector(AppLocalizations l10n) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -573,13 +554,9 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
   }
 
   /// 构建高级选项
-  Widget _buildAdvancedOptions(AppLocalizations l10n) {
-    return Container(
+  Widget _buildAdvancedSection(AppLocalizations l10n) {
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -634,12 +611,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
 
   /// 构建名称输入
   Widget _buildNameInput(AppLocalizations l10n) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -682,12 +655,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
     final lightScheme = _previewScheme!.lightScheme;
     final darkScheme = _previewScheme!.darkScheme;
 
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -789,12 +758,8 @@ class _MonetSettingsScreenState extends State<MonetSettingsScreen> {
 
   /// 构建已保存方案区域
   Widget _buildSavedSchemesSection(SettingsProvider settings, AppLocalizations l10n) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

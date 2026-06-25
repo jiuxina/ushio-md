@@ -51,6 +51,38 @@
   "theme": "Theme",
   "themeMode": "Theme Mode",
   "themeColor": "Theme Color",
+  "uiStyle": "UI Style",
+  "@uiStyle": {
+    "description": "UI style setting title"
+  },
+  "uiStyleClassic": "Classic",
+  "@uiStyleClassic": {
+    "description": "UI style classic"
+  },
+  "uiStyleClassicDesc": "Keep current solid border button style",
+  "@uiStyleClassicDesc": {
+    "description": "UI style classic description"
+  },
+  "uiStyleSoftShadow": "Modern",
+  "@uiStyleSoftShadow": {
+    "description": "UI style soft shadow"
+  },
+  "uiStyleSoftShadowDesc": "Elevated buttons with soft shadows",
+  "@uiStyleSoftShadowDesc": {
+    "description": "UI style soft shadow description"
+  },
+  "uiStyleLiquidGlass": "Liquid Glass",
+  "@uiStyleLiquidGlass": {
+    "description": "UI style liquid glass"
+  },
+  "uiStyleLiquidGlassDesc": "Wavy glass refraction, synced with card opacity",
+  "@uiStyleLiquidGlassDesc": {
+    "description": "UI style liquid glass description"
+  },
+  "uiStyleOpacityHint": "If opacity is too low, the liquid glass effect becomes subtle; increase card opacity.",
+  "@uiStyleOpacityHint": {
+    "description": "UI style opacity hint"
+  },
   "buttonStyle": "Button Style",
   "buttonStyleClassic": "Classic",
   "buttonStyleClassicDesc": "Keep current solid border button style",
@@ -1000,5 +1032,6 @@
         "example": "Noto Sans SC"
       }
     }
-  }
+  },
+  "liquidGlassEffect": "Liquid Glass Effect"
 }

@@ -13,8 +13,10 @@ import 'package:file_picker/file_picker.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/constants.dart';
+import '../../../widgets/app_surface.dart';
 import '../../../services/font_service.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../widgets/liquid_glass_card.dart';
 import 'appearance_utils.dart';
 
 /// 外观设置共用方法 Mixin
@@ -103,12 +105,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
 
   /// 构建设置区块
   Widget buildSection(String title, IconData icon, List<Widget> children) {
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: appStyle.cardSurfaceColor(Theme.of(context).colorScheme),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1158,32 +1156,115 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     );
   }
 
-  /// 构建按钮样式选择器
+  /// 构建 UI 风格选择器
   Widget buildButtonStyleSelector(SettingsProvider settings, AppLocalizations l10n) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: buildButtonStyleOption(
-            settings,
-            AppButtonStyleMode.classic,
-            Icons.crop_square_rounded,
-            l10n.buttonStyleClassic,
-            l10n.buttonStyleClassicDesc,
-            l10n,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: buildButtonStyleOption(
+                settings,
+                AppButtonStyleMode.classic,
+                Icons.crop_square_rounded,
+                l10n.uiStyleClassic,
+                l10n.uiStyleClassicDesc,
+                l10n,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: buildButtonStyleOption(
+                settings,
+                AppButtonStyleMode.softShadow,
+                Icons.auto_awesome_rounded,
+                l10n.uiStyleSoftShadow,
+                l10n.uiStyleSoftShadowDesc,
+                l10n,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: buildButtonStyleOption(
-            settings,
-            AppButtonStyleMode.softShadow,
-            Icons.auto_awesome_rounded,
-            l10n.buttonStyleModern,
-            l10n.buttonStyleModernDesc,
-            l10n,
+        const SizedBox(height: 12),
+        if (settings.buttonStyleMode == AppButtonStyleMode.liquidGlass &&
+            settings.cardOpacity < 0.55)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              l10n.uiStyleOpacityHint,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
           ),
+        buildLiquidGlassStyleOption(
+          settings,
+          l10n,
         ),
       ],
+    );
+  }
+
+  Widget buildLiquidGlassStyleOption(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    final isSelected = settings.buttonStyleMode == AppButtonStyleMode.liquidGlass;
+    final previewPrimary = Theme.of(context).colorScheme.primary;
+    final previewSurface = appStyle.cardSurfaceColor(Theme.of(context).colorScheme);
+
+    return GestureDetector(
+      onTap: () => settings.setButtonStyleMode(AppButtonStyleMode.liquidGlass),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: buildOptionDecoration(isSelected: isSelected),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.water_drop_outlined,
+                  color: isSelected
+                      ? previewPrimary
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
+                const Spacer(),
+                if (isSelected)
+                  Icon(Icons.check_circle, color: previewPrimary, size: 20),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.uiStyleLiquidGlass,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? previewPrimary : null,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(l10n.uiStyleLiquidGlassDesc,
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 14),
+            LiquidGlassCard(
+              borderRadius: BorderRadius.circular(14),
+              child: AppSurface(
+                borderRadius: BorderRadius.circular(14),
+                height: 40,
+                alignment: Alignment.center,
+                color: previewSurface,
+                child: Text(
+                  l10n.buttonPreview,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1197,10 +1278,13 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   ) {
     final isSelected = settings.buttonStyleMode == mode;
     final previewPrimary = Theme.of(context).colorScheme.primary;
-    final previewSurface = appStyle.useBorderlessButtons &&
-            mode == AppButtonStyleMode.softShadow
-        ? appStyle.strongSurface
-        : Theme.of(context).colorScheme.surface;
+    final isLiquidGlass = mode == AppButtonStyleMode.liquidGlass;
+    final previewSurface = isLiquidGlass
+        ? appStyle.cardSurfaceColor(Theme.of(context).colorScheme)
+        : (appStyle.useBorderlessButtons &&
+                mode == AppButtonStyleMode.softShadow
+            ? appStyle.strongSurface
+            : Theme.of(context).colorScheme.surface);
 
     return GestureDetector(
       onTap: () => settings.setButtonStyleMode(mode),
@@ -1239,22 +1323,30 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                 Expanded(
                   child: Container(
                     height: 40,
-                    decoration: mode == AppButtonStyleMode.softShadow
+                    decoration: isLiquidGlass
                         ? BoxDecoration(
                             color: previewSurface,
                             borderRadius: BorderRadius.circular(14),
+                            border: appStyle.surfaceBorder(),
                             boxShadow: appStyle.prominentShadow,
                           )
-                        : BoxDecoration(
-                            color: previewPrimary,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: previewPrimary),
-                          ),
+                        : (mode == AppButtonStyleMode.softShadow
+                            ? BoxDecoration(
+                                color: previewSurface,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: appStyle.prominentShadow,
+                              )
+                            : BoxDecoration(
+                                color: previewPrimary,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: previewPrimary),
+                              )),
                     alignment: Alignment.center,
                     child: Text(
                       l10n.buttonPreview,
                       style: TextStyle(
-                        color: mode == AppButtonStyleMode.softShadow
+                        color: (mode == AppButtonStyleMode.softShadow ||
+                                isLiquidGlass)
                             ? Theme.of(context).colorScheme.onSurface
                             : Colors.white,
                         fontWeight: FontWeight.w600,

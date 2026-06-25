@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/responsive_layout.dart';
+import '../../../widgets/app_surface.dart';
 import '../../../widgets/responsive_page_frame.dart';
 import '../../settings/appearance_categories_screen.dart';
 import '../../settings/editor_settings_screen.dart';
@@ -171,20 +172,18 @@ class SettingsTab extends StatelessWidget {
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final isDesktop = ResponsiveLayout.isDesktopWidth(context);
-    return Container(
+    return AppSurface(
+      borderRadius: BorderRadius.circular(14),
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.7,
-        ),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.7,
       ),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
