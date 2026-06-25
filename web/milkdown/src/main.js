@@ -1184,12 +1184,11 @@ const injectHtmlBlockHideStyle = () => {
   if (htmlBlockHideStyleInjected) return;
   const style = document.createElement('style');
   style.id = 'ushio-html-block-hide';
-  // Hide ALL code blocks by default using visibility (not display:none) so that
-  // getBoundingClientRect() still returns valid width/position for overlay positioning.
-  // Non-html-block code blocks are explicitly shown via inline style in syncRenderedDom.
-  // html-block code blocks remain invisible with zero height.
+  // Only hide html-block code blocks (marked with ushio-html-block-target class).
+  // Regular code blocks are never hidden, avoiding the need for inline style overrides
+  // that ProseMirror strips on re-render.
   style.textContent = `
-    .milkdown .milkdown-code-block {
+    .milkdown .milkdown-code-block.ushio-html-block-target {
       visibility: hidden !important;
       max-height: 0 !important;
       overflow: hidden !important;
@@ -1952,15 +1951,11 @@ const syncRenderedDom = () => {
     const blockLanguage = (blockLangButton?.textContent || '').trim().toLowerCase();
     if (blockLanguage === 'html-block') return;
 
-    // Explicitly show non-html-block code blocks (CSS hides ALL code blocks by default)
+    // Style non-html-block code blocks for custom UI (tools positioning, etc.)
     block.style.setProperty('display', 'block', 'important');
     block.style.setProperty('position', 'relative', 'important');
     block.style.setProperty('overflow', 'visible', 'important');
     block.style.setProperty('padding-top', '8px', 'important');
-    block.style.setProperty('visibility', 'visible', 'important');
-    block.style.setProperty('max-height', 'none', 'important');
-    block.style.setProperty('opacity', '1', 'important');
-    block.style.setProperty('pointer-events', 'auto', 'important');
 
     const tools = block.querySelector(':scope > .tools, .tools');
     if (!(tools instanceof HTMLElement)) return;
