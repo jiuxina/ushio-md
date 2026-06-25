@@ -55,16 +55,23 @@ body {
   line-height: var(--milkdown-line-height) !important;
 }
 
-/* Fix: Emoji (twemoji) size should match font size */
+/* Fix: Emoji (twemoji) alignment with CJK text */
 .milkdown [data-type="emoji"],
+.milkdown .emoji {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: -0.15em !important;
+  line-height: 1 !important;
+  margin: 0 0.1em !important;
+}
 .milkdown [data-type="emoji"] img,
-.milkdown .emoji,
 .milkdown img.emoji {
-  display: inline-block !important;
+  display: block !important;
   width: 1em !important;
   height: 1em !important;
-  vertical-align: text-bottom !important;
-  margin: 0 0.1em !important;
+  margin: 0 !important;
+  vertical-align: baseline !important;
 }
 
 .milkdown .editor {
