@@ -49,11 +49,14 @@ class EditorNavigationHelper {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
+        barrierColor: Colors.black38,
         builder: (currentDialogContext) {
           dialogContext = currentDialogContext;
-          return const ThemedProgressDialog(
-            title: '正在初始化文档',
-            icon: Icons.menu_book_rounded,
+          return PopScope(
+            canPop: false,
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
           );
         },
       );
