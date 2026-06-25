@@ -1180,17 +1180,47 @@ let htmlBlockHideStyleInjected = false;
 let htmlOverlayContainer = null;
 const htmlOverlayContentCache = new Map(); // blockIndex -> contentHash
 
+const getHtmlBlockLanguage = (block) => {
+  if (!(block instanceof HTMLElement)) return '';
+  const candidates = [
+    block.querySelector('.tools .language-button')?.dataset?.language,
+    block.querySelector('.tools .language-button')?.textContent,
+    block.querySelector('.tools [data-language]')?.dataset?.language,
+    block.querySelector('pre')?.getAttribute('data-language'),
+    block.querySelector('code')?.getAttribute('data-language'),
+  ];
+  return candidates
+    .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+    .find((value) => value) || '';
+};
+
+const isHtmlBlockCodeNode = (block) => getHtmlBlockLanguage(block) === 'html-block';
+
+const setImportantStyleIfNeeded = (element, property, value) => {
+  if (!(element instanceof HTMLElement)) return;
+  if (
+    element.style.getPropertyValue(property) === value
+    && element.style.getPropertyPriority(property) === 'important'
+  ) {
+    return;
+  }
+  element.style.setProperty(property, value, 'important');
+};
+
 const injectHtmlBlockHideStyle = () => {
   if (htmlBlockHideStyleInjected) return;
   const style = document.createElement('style');
   style.id = 'ushio-html-block-hide';
-  // Only hide html-block code blocks (marked with ushio-html-block-target class).
-  // Regular code blocks are never hidden, avoiding the need for inline style overrides
-  // that ProseMirror strips on re-render.
+  // Keep raw html-block code nodes invisible while preserving layout space for
+  // the rendered overlay. Attribute and :has() selectors survive NodeView churn
+  // better than relying on a single class.
   style.textContent = `
-    .milkdown .milkdown-code-block.ushio-html-block-target {
+    .milkdown .milkdown-code-block[data-ushio-html-block="1"],
+    .milkdown .milkdown-code-block.ushio-html-block-target,
+    .milkdown .milkdown-code-block:has(pre[data-language="html-block"]),
+    .milkdown .milkdown-code-block:has(code[data-language="html-block"]),
+    .milkdown .milkdown-code-block:has(.tools [data-language="html-block"]) {
       visibility: hidden !important;
-      max-height: 0 !important;
       overflow: hidden !important;
       opacity: 0 !important;
       pointer-events: none !important;
@@ -1222,17 +1252,20 @@ const ensureHtmlOverlay = () => {
  */
 const hideHtmlBlockCodeNode = (block) => {
   if (!(block instanceof HTMLElement)) return;
-  const langButton = block.querySelector('.tools .language-button');
-  const language = (langButton?.textContent || '').trim().toLowerCase();
-  if (language !== 'html-block') return;
-  if (block.dataset.ushioHtmlBlockHidden === '1') return; // already hidden
-  block.dataset.ushioHtmlBlockHidden = '1';
-  block.classList.add('ushio-html-block-target');
-  block.style.setProperty('visibility', 'hidden', 'important');
-  block.style.setProperty('max-height', '0', 'important');
-  block.style.setProperty('overflow', 'hidden', 'important');
-  block.style.setProperty('opacity', '0', 'important');
-  block.style.setProperty('pointer-events', 'none', 'important');
+  if (!isHtmlBlockCodeNode(block)) return;
+  if (block.dataset.ushioHtmlBlockHidden !== '1') {
+    block.dataset.ushioHtmlBlockHidden = '1';
+  }
+  if (block.dataset.ushioHtmlBlock !== '1') {
+    block.dataset.ushioHtmlBlock = '1';
+  }
+  if (!block.classList.contains('ushio-html-block-target')) {
+    block.classList.add('ushio-html-block-target');
+  }
+  setImportantStyleIfNeeded(block, 'visibility', 'hidden');
+  setImportantStyleIfNeeded(block, 'overflow', 'hidden');
+  setImportantStyleIfNeeded(block, 'opacity', '0');
+  setImportantStyleIfNeeded(block, 'pointer-events', 'none');
 };
 
 /**
@@ -1245,8 +1278,29 @@ const startHtmlBlockObserver = () => {
   if (htmlBlockObserver) return;
   const milkdownEl = app.querySelector('.milkdown');
   if (!milkdownEl) return;
+
+  // Initial pass: hide any existing html-block code blocks already in the DOM
+  milkdownEl.querySelectorAll('.milkdown-code-block').forEach(hideHtmlBlockCodeNode);
+
+  let rafId = null;
+  const scheduleHidePass = () => {
+    if (rafId != null) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      milkdownEl.querySelectorAll('.milkdown-code-block').forEach(hideHtmlBlockCodeNode);
+    });
+  };
+
   htmlBlockObserver = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
+      if (mutation.type === 'attributes') {
+        const targetBlock = mutation.target instanceof HTMLElement
+          ? mutation.target.closest('.milkdown-code-block')
+          : null;
+        hideHtmlBlockCodeNode(targetBlock);
+        scheduleHidePass();
+        continue;
+      }
       for (const node of mutation.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
         if (node.classList?.contains('milkdown-code-block')) {
@@ -1256,7 +1310,12 @@ const startHtmlBlockObserver = () => {
       }
     }
   });
-  htmlBlockObserver.observe(milkdownEl, { childList: true, subtree: true });
+  htmlBlockObserver.observe(milkdownEl, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'data-language', 'data-ushio-html-block'],
+  });
 };
 
 const renderHtmlBlockCodeNodes = (root) => {
@@ -1275,13 +1334,9 @@ const renderHtmlBlockCodeNodes = (root) => {
   allBlocks.forEach((block) => {
     if (!(block instanceof HTMLElement)) return;
 
-    const langButton = block.querySelector('.tools .language-button');
-    const language = (langButton?.textContent || '').trim().toLowerCase();
-    if (language !== 'html-block') return;
+    if (!isHtmlBlockCodeNode(block)) return;
 
-    // Mark with class and hide flag
-    block.classList.add('ushio-html-block-target');
-    block.dataset.ushioHtmlBlockHidden = '1';
+    hideHtmlBlockCodeNode(block);
 
     // Read content
     const cmLines = block.querySelectorAll('.cm-line');
@@ -1299,13 +1354,8 @@ const renderHtmlBlockCodeNodes = (root) => {
     const idx = htmlBlockIndex;
     htmlBlockIndex++;
 
-    // Temporarily make the block visible to get accurate position/size measurements
-    block.style.setProperty('visibility', 'visible', 'important');
-    block.style.setProperty('max-height', 'none', 'important');
-    block.style.setProperty('overflow', 'visible', 'important');
-    block.style.setProperty('opacity', '1', 'important');
-
-    // Calculate position relative to .milkdown container
+    // Calculate position relative to .milkdown container. getBoundingClientRect
+    // remains accurate with visibility:hidden, so the raw code never flashes.
     const blockRect = block.getBoundingClientRect();
     const top = blockRect.top - milkdownRect.top + milkdownEl.scrollTop;
     const left = blockRect.left - milkdownRect.left + milkdownEl.scrollLeft;
@@ -1337,18 +1387,19 @@ const renderHtmlBlockCodeNodes = (root) => {
     }
 
     // Measure the overlay's rendered height, then hide the code block with inline !important.
-    // Use the overlay height as max-height so the block reserves proper space in the document flow.
+    // Use the overlay height so the block reserves proper space in the document flow.
     const overlayHeight = overlayItem.offsetHeight;
-    block.style.setProperty('visibility', 'hidden', 'important');
-    block.style.setProperty('opacity', '0', 'important');
-    block.style.setProperty('pointer-events', 'none', 'important');
+    hideHtmlBlockCodeNode(block);
     if (overlayHeight > 0) {
+      block.style.setProperty('height', `${overlayHeight}px`, 'important');
+      block.style.setProperty('min-height', `${overlayHeight}px`, 'important');
       block.style.setProperty('max-height', `${overlayHeight}px`, 'important');
-      block.style.setProperty('overflow', 'hidden', 'important');
     } else {
+      block.style.removeProperty('height');
+      block.style.removeProperty('min-height');
       block.style.setProperty('max-height', '0', 'important');
-      block.style.setProperty('overflow', 'hidden', 'important');
     }
+    block.style.setProperty('overflow', 'hidden', 'important');
   });
 
   // Remove overlay items for blocks that no longer exist
@@ -1356,9 +1407,7 @@ const renderHtmlBlockCodeNodes = (root) => {
   let idx2 = 0;
   allBlocks.forEach((block) => {
     if (!(block instanceof HTMLElement)) return;
-    const langButton = block.querySelector('.tools .language-button');
-    const language = (langButton?.textContent || '').trim().toLowerCase();
-    if (language !== 'html-block') return;
+    if (!isHtmlBlockCodeNode(block)) return;
     activeIndices.add(String(idx2));
     idx2++;
   });
@@ -1378,6 +1427,17 @@ const renderHtmlBlockCodeNodes = (root) => {
 const renderBlockHtmlGroups = (root) => {
   const htmlSpans = root.querySelectorAll('span[data-type="html"]');
   if (htmlSpans.length === 0) return;
+
+  // First pass: hide orphan block-level close tags (e.g., </table>)
+  // These are leftovers from Milkdown parsing raw HTML and should never be visible
+  htmlSpans.forEach((span) => {
+    if (!(span instanceof HTMLElement)) return;
+    const rawValue = (span.dataset.value || '').trim();
+    if (HTML_BLOCK_CLOSE_TAG_PATTERN.test(rawValue) && !span.dataset.ushioBlockHtmlHidden) {
+      span.style.display = 'none';
+      span.dataset.ushioBlockHtmlHidden = 'orphan-close';
+    }
+  });
 
   // Group consecutive HTML spans that belong to the same parent paragraph
   let i = 0;
@@ -2012,9 +2072,10 @@ const syncRenderedDom = () => {
     if (!(block instanceof HTMLElement)) return;
 
     // Skip html-block code blocks — they are rendered as HTML and hidden by injected CSS
-    const blockLangButton = block.querySelector('.tools .language-button');
-    const blockLanguage = (blockLangButton?.textContent || '').trim().toLowerCase();
-    if (blockLanguage === 'html-block') return;
+    if (isHtmlBlockCodeNode(block)) {
+      hideHtmlBlockCodeNode(block);
+      return;
+    }
 
     // Style non-html-block code blocks for custom UI (tools positioning, etc.)
     block.style.setProperty('display', 'block', 'important');
