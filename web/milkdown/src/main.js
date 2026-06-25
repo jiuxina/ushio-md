@@ -133,6 +133,13 @@ let isComposing = false;
 let codeLanguageUiDebugSeq = 0;
 const codeLanguageDisplayCache = new Map();
 const highlightParser = createRefractorParser(refractor);
+// Register 'html-block' as an alias of 'html' for prosemirror-highlight
+// This prevents "Unknown language: html-block" errors
+try {
+  if (refractor.languages.html) {
+    refractor.languages['html-block'] = refractor.languages.html;
+  }
+} catch (_) { /* ignore */ }
 const KNOWN_CODE_LANGUAGES = Object.keys(refractor.languages)
   .filter((name) => typeof name === 'string' && /^[a-z0-9_+-]+$/i.test(name))
   .sort((a, b) => a.localeCompare(b));
@@ -1045,6 +1052,324 @@ const renderRawHtmlNodes = (root) => {
   });
 };
 
+/**
+ * Pre-process markdown to wrap block-level HTML elements as fenced code blocks
+ * with language "html-block". This allows Crepe to parse them (as code blocks)
+ * while enabling DOM post-processing to render them as real HTML.
+ */
+const HTML_BLOCK_TAG_PATTERN = /^\s*<(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)(\s|>|$)/i;
+const HTML_BLOCK_CLOSE_TAG_PATTERN = /^\s*<\/(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)>/i;
+
+const wrapHtmlBlocksInCodeFence = (markdown) => {
+  if (typeof markdown !== 'string' || !/<[a-z]/i.test(markdown)) return markdown;
+  const lines = markdown.split('\n');
+  const result = [];
+  let activeFence = null;
+  let inHtmlBlock = false;
+  let htmlDepth = 0;
+  let htmlBuffer = [];
+  let lastContentLineIdx = -1;
+
+  const flushHtmlBlock = () => {
+    if (!inHtmlBlock || htmlBuffer.length === 0) {
+      inHtmlBlock = false;
+      htmlDepth = 0;
+      htmlBuffer = [];
+      return;
+    }
+    // Remove trailing blank lines from the buffer
+    while (htmlBuffer.length > 0 && htmlBuffer[htmlBuffer.length - 1].trim() === '') {
+      htmlBuffer.pop();
+    }
+    if (htmlBuffer.length === 0) {
+      inHtmlBlock = false;
+      htmlDepth = 0;
+      return;
+    }
+    // Check if this is a single self-contained HTML snippet (e.g., <hr>, <br>, single-line element)
+    const joined = htmlBuffer.join('\n');
+    const trimmedJoined = joined.trim();
+    // Only wrap if there's meaningful block-level HTML content
+    if (!/<(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)/i.test(trimmedJoined)) {
+      htmlBuffer.forEach((line) => result.push(line));
+    } else {
+      result.push('```html-block');
+      htmlBuffer.forEach((line) => result.push(line));
+      result.push('```');
+    }
+    inHtmlBlock = false;
+    htmlDepth = 0;
+    htmlBuffer = [];
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] || '';
+    const trimmed = line.trim();
+
+    // Track existing code fences — don't process HTML inside them
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      if (inHtmlBlock) flushHtmlBlock();
+      const marker = fenceMatch[1] || '';
+      const markerChar = marker[0] || '';
+      const markerLength = marker.length;
+      if (!activeFence) {
+        activeFence = { markerChar, markerLength };
+      } else if (activeFence.markerChar === markerChar && markerLength >= activeFence.markerLength) {
+        activeFence = null;
+      }
+      result.push(line);
+      continue;
+    }
+    if (activeFence) {
+      result.push(line);
+      continue;
+    }
+
+    if (!inHtmlBlock) {
+      // Check if this line starts a block-level HTML element
+      if (HTML_BLOCK_TAG_PATTERN.test(trimmed)) {
+        // Skip if already inside an html-block code fence (idempotent guard)
+        if (i > 0 && result.length > 0 && result[result.length - 1].trim() === '```html-block') {
+          result.push(line);
+          continue;
+        }
+        inHtmlBlock = true;
+        htmlDepth = 1;
+        htmlBuffer = [line];
+        lastContentLineIdx = i;
+        // Check if the block opens and closes on the same line (e.g., <hr>, <br>, self-closing)
+        const openTags = (trimmed.match(/<(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)(\s|>|$)/gi) || []).length;
+        const closeTags = (trimmed.match(/<\/(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)>/gi) || []).length;
+        htmlDepth = Math.max(1, htmlDepth + openTags - closeTags);
+        if (htmlDepth <= 0 && closeTags > 0) {
+          flushHtmlBlock();
+        }
+      } else {
+        result.push(line);
+      }
+    } else {
+      // We're inside an HTML block — track nesting depth
+      const openTags = (trimmed.match(/<(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)(\s|>|$)/gi) || []).length;
+      const closeTags = (trimmed.match(/<\/(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)>/gi) || []).length;
+      htmlDepth += openTags - closeTags;
+      htmlBuffer.push(line);
+      if (trimmed !== '') lastContentLineIdx = i;
+
+      if (htmlDepth <= 0) {
+        flushHtmlBlock();
+      } else if (trimmed === '' && i > lastContentLineIdx + 1) {
+        // Two consecutive blank lines terminate the HTML block
+        flushHtmlBlock();
+      }
+    }
+  }
+  // Flush any remaining HTML block at end of document
+  if (inHtmlBlock) flushHtmlBlock();
+  return result.join('\n');
+};
+
+/**
+ * CSS injection + overlay approach for rendering HTML blocks.
+ * ProseMirror detects DOM mutations and re-renders, wiping inline styles
+ * and inserted siblings. To avoid this:
+ * 1. A persistent CSS <style> rule hides html-block code blocks (survives re-renders)
+ * 2. Rendered HTML is placed in an overlay OUTSIDE ProseMirror's DOM tree
+ * 3. Overlay items are positioned absolutely over the hidden code blocks
+ */
+let htmlBlockHideStyleInjected = false;
+let htmlOverlayContainer = null;
+const htmlOverlayContentCache = new Map(); // blockIndex -> contentHash
+
+const injectHtmlBlockHideStyle = () => {
+  if (htmlBlockHideStyleInjected) return;
+  const style = document.createElement('style');
+  style.id = 'ushio-html-block-hide';
+  // Hide ALL code blocks by default. Non-html-block code blocks are explicitly
+  // shown via inline style in syncRenderedDom's code block loop.
+  // html-block code blocks remain hidden since they are skipped by that loop.
+  style.textContent = `
+    .milkdown .milkdown-code-block {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  htmlBlockHideStyleInjected = true;
+};
+
+const ensureHtmlOverlay = () => {
+  if (htmlOverlayContainer && htmlOverlayContainer.parentNode) return htmlOverlayContainer;
+  const milkdownEl = app.querySelector('.milkdown');
+  if (!milkdownEl) return null;
+  // Make .milkdown a positioning context
+  milkdownEl.style.position = 'relative';
+  // Create overlay as a CHILD of .milkdown but OUTSIDE .ProseMirror
+  htmlOverlayContainer = document.createElement('div');
+  htmlOverlayContainer.id = 'ushio-html-overlay';
+  htmlOverlayContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:10;';
+  milkdownEl.appendChild(htmlOverlayContainer);
+  return htmlOverlayContainer;
+};
+
+const renderHtmlBlockCodeNodes = (root) => {
+  injectHtmlBlockHideStyle();
+  const overlay = ensureHtmlOverlay();
+  if (!overlay) return;
+
+  const milkdownEl = root.closest('.milkdown') || app.querySelector('.milkdown');
+  if (!milkdownEl) return;
+  const milkdownRect = milkdownEl.getBoundingClientRect();
+
+  const allBlocks = root.querySelectorAll('.milkdown-code-block');
+  let htmlBlockIndex = 0;
+
+  allBlocks.forEach((block) => {
+    if (!(block instanceof HTMLElement)) return;
+
+    const langButton = block.querySelector('.tools .language-button');
+    const language = (langButton?.textContent || '').trim().toLowerCase();
+    if (language !== 'html-block') return;
+
+    // Mark for CSS hiding (class persists in stylesheet even if ProseMirror strips it from element,
+    // the :has() selector approach below handles re-created elements)
+    // Use a more robust CSS approach: inject style targeting by structure
+    block.classList.add('ushio-html-block-target');
+
+    // Read content
+    const cmLines = block.querySelectorAll('.cm-line');
+    let rawHtml;
+    if (cmLines.length > 0) {
+      rawHtml = Array.from(cmLines).map((line) => line.textContent || '').join('\n');
+    } else {
+      const cmContent = block.querySelector('.cm-content');
+      rawHtml = cmContent?.textContent || '';
+    }
+    if (!rawHtml.trim()) { htmlBlockIndex++; return; }
+
+    // Content hash to avoid unnecessary re-renders
+    const contentHash = rawHtml.length + ':' + rawHtml.substring(0, 200);
+    const idx = htmlBlockIndex;
+    htmlBlockIndex++;
+
+    // Calculate position relative to .milkdown container
+    const blockRect = block.getBoundingClientRect();
+    const top = blockRect.top - milkdownRect.top + milkdownEl.scrollTop;
+    const left = blockRect.left - milkdownRect.left + milkdownEl.scrollLeft;
+    const width = blockRect.width;
+
+    // Check if overlay item already exists for this index
+    let overlayItem = overlay.querySelector(`[data-html-block-index="${idx}"]`);
+    const needsUpdate = !overlayItem || htmlOverlayContentCache.get(idx) !== contentHash;
+
+    if (needsUpdate) {
+      if (overlayItem) overlayItem.remove();
+
+      const template = document.createElement('template');
+      template.innerHTML = rawHtml;
+      sanitizeHtmlFragment(template.content);
+
+      overlayItem = document.createElement('div');
+      overlayItem.className = 'ushio-html-block';
+      overlayItem.setAttribute('data-html-block-index', String(idx));
+      overlayItem.style.cssText = `position:absolute;top:${top}px;left:${left}px;width:${width}px;pointer-events:auto;`;
+      overlayItem.append(template.content.cloneNode(true));
+      overlay.appendChild(overlayItem);
+      htmlOverlayContentCache.set(idx, contentHash);
+    } else {
+      // Just update position
+      overlayItem.style.top = `${top}px`;
+      overlayItem.style.left = `${left}px`;
+      overlayItem.style.width = `${width}px`;
+    }
+  });
+
+  // Remove overlay items for blocks that no longer exist
+  const activeIndices = new Set();
+  let idx2 = 0;
+  allBlocks.forEach((block) => {
+    if (!(block instanceof HTMLElement)) return;
+    const langButton = block.querySelector('.tools .language-button');
+    const language = (langButton?.textContent || '').trim().toLowerCase();
+    if (language !== 'html-block') return;
+    activeIndices.add(String(idx2));
+    idx2++;
+  });
+  overlay.querySelectorAll('[data-html-block-index]').forEach((item) => {
+    if (!activeIndices.has(item.getAttribute('data-html-block-index'))) {
+      item.remove();
+      htmlOverlayContentCache.delete(Number(item.getAttribute('data-html-block-index')));
+    }
+  });
+};
+
+/**
+ * Post-process DOM to find consecutive block-level HTML spans and render
+ * them as a single HTML block. This handles multi-tag HTML like <table>
+ * which Milkdown splits into individual span[data-type="html"] nodes.
+ */
+const renderBlockHtmlGroups = (root) => {
+  const htmlSpans = root.querySelectorAll('span[data-type="html"]');
+  if (htmlSpans.length === 0) return;
+
+  // Group consecutive HTML spans that belong to the same parent paragraph
+  let i = 0;
+  while (i < htmlSpans.length) {
+    const span = htmlSpans[i];
+    if (!(span instanceof HTMLElement)) { i++; continue; }
+    const rawValue = (span.dataset.value || '').trim();
+
+    // Check if this span starts a block-level HTML tag
+    if (!HTML_BLOCK_TAG_PATTERN.test(rawValue) || !rawValue.startsWith('<')) {
+      i++;
+      continue;
+    }
+
+    // Collect consecutive HTML spans in the same parent
+    const parent = span.parentElement;
+    const group = [span];
+    let j = i + 1;
+    while (j < htmlSpans.length) {
+      const next = htmlSpans[j];
+      if (!(next instanceof HTMLElement) || next.parentElement !== parent) break;
+      group.push(next);
+      j++;
+    }
+
+    // Combine all data-values in the group
+    const combinedHtml = group.map((s) => s.dataset.value || '').join('\n');
+
+    // Check if the combined HTML contains a complete block-level element
+    if (!/<(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)(\s|>)/i.test(combinedHtml)) {
+      i = j;
+      continue;
+    }
+
+    // Skip if already rendered with same content
+    if (span.dataset.ushioBlockHtmlRenderedValue === combinedHtml) {
+      i = j;
+      continue;
+    }
+
+    const template = document.createElement('template');
+    template.innerHTML = combinedHtml;
+    sanitizeHtmlFragment(template.content);
+
+    // Render the combined HTML into the first span
+    span.textContent = '';
+    span.append(template.content.cloneNode(true));
+    span.classList.add('ushio-html-block');
+    span.dataset.ushioBlockHtmlRenderedValue = combinedHtml;
+
+    // Hide the remaining spans in the group
+    for (let k = 1; k < group.length; k++) {
+      group[k].style.display = 'none';
+      group[k].dataset.ushioBlockHtmlHidden = 'true';
+    }
+
+    i = j;
+  }
+};
+
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onerror = () => reject(reader.error ?? new Error('file_read_failed'));
@@ -1411,6 +1736,8 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
 const syncRenderedDom = () => {
   const root = app.querySelector('.milkdown') || app;
   renderRawHtmlNodes(root);
+  renderBlockHtmlGroups(root);
+  renderHtmlBlockCodeNodes(root);
   const markdownImageSources = collectMarkdownImageSources(currentMarkdown);
 
   // Debug: Log image matching info for troubleshooting
@@ -1615,6 +1942,14 @@ const syncRenderedDom = () => {
 
   root.querySelectorAll('.milkdown-code-block').forEach((block, codeBlockIndex) => {
     if (!(block instanceof HTMLElement)) return;
+
+    // Skip html-block code blocks — they are rendered as HTML and hidden by injected CSS
+    const blockLangButton = block.querySelector('.tools .language-button');
+    const blockLanguage = (blockLangButton?.textContent || '').trim().toLowerCase();
+    if (blockLanguage === 'html-block') return;
+
+    // Explicitly show non-html-block code blocks (CSS hides ALL code blocks by default)
+    block.style.setProperty('display', 'block', 'important');
     block.style.setProperty('position', 'relative', 'important');
     block.style.setProperty('overflow', 'visible', 'important');
     block.style.setProperty('padding-top', '8px', 'important');
@@ -1753,8 +2088,10 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
     return;
   }
   isApplyingFromFlutter = !emitContent;
-  // Pre-process image URLs in markdown before passing to Milkdown
-  const preprocessedMarkdown = preprocessImageUrlsInMarkdown(nextMarkdown);
+  // Pre-process: wrap HTML blocks as code fences, then resolve image URLs
+  const htmlWrappedMarkdown = wrapHtmlBlocksInCodeFence(nextMarkdown);
+  const preprocessedMarkdown = preprocessImageUrlsInMarkdown(htmlWrappedMarkdown);
+  currentMarkdown = preprocessedMarkdown;
   emitDebug('[JS] setMarkdown: calling editorInstance.action(replaceAll)');
   editorInstance.action(replaceAll(preprocessedMarkdown));
   emitDebug('[JS] setMarkdown: calling notifyRenderComplete');
@@ -2254,9 +2591,9 @@ const blurEditorFocus = () => {
 };
 
 const createEditor = async () => {
-  // Pre-process image URLs in the initial markdown before passing to Crepe
-  // This ensures relative image URLs are converted to custom scheme URLs
-  const preprocessedInitialMarkdown = preprocessImageUrlsInMarkdown(currentMarkdown);
+  // Pre-process: wrap HTML blocks as code fences, then resolve image URLs
+  const htmlWrappedMarkdown = wrapHtmlBlocksInCodeFence(currentMarkdown);
+  const preprocessedInitialMarkdown = preprocessImageUrlsInMarkdown(htmlWrappedMarkdown);
   
   // Get the effective CodeMirror theme
   const codeBlockTheme = getEffectiveCodeBlockTheme();
@@ -2282,16 +2619,21 @@ const createEditor = async () => {
           neutralizeSetextHeadingSyntax(markdown),
         );
         if (sanitizedMarkdown !== markdown) {
-          currentMarkdown = sanitizedMarkdown;
+          const renderReadyMarkdown = preprocessImageUrlsInMarkdown(
+            wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
+          );
+          currentMarkdown = renderReadyMarkdown;
           if (!currentReadOnly) {
             scheduleContentChange(sanitizedMarkdown, { mode: 'code_sanitized' });
           }
           isApplyingFromFlutter = true;
-          editorInstance?.action(replaceAll(sanitizedMarkdown));
+          editorInstance?.action(replaceAll(renderReadyMarkdown));
           notifyRenderComplete();
           return;
         }
-        currentMarkdown = sanitizedMarkdown;
+        currentMarkdown = preprocessImageUrlsInMarkdown(
+          wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
+        );
         if (!isApplyingFromFlutter) {
           scheduleContentChange(sanitizedMarkdown);
         }

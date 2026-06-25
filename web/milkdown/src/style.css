@@ -233,6 +233,30 @@ body {
   display: block;
 }
 
+/* Rendered HTML block overlay styling */
+#ushio-html-overlay .ushio-html-block table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+#ushio-html-overlay .ushio-html-block table th,
+#ushio-html-overlay .ushio-html-block table td {
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+#ushio-html-overlay .ushio-html-block table th {
+  background-color: #f3f4f6;
+  font-weight: 600;
+}
+
+#ushio-html-overlay .ushio-html-block table tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
 /* Allow interactive elements inside HTML blocks to receive pointer events */
 .milkdown .ushio-html-block details,
 .milkdown .ushio-html-block summary,

@@ -186,7 +186,7 @@ class MilkdownWebViewController {
   }
 
   void suppressNextReload() {
-    _state?._suppressNextReload = true;
+    _state?._suppressReloadToken = DateTime.now();
   }
 
   Future<void> setMarkdown(String markdown) async {
@@ -416,7 +416,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   String? _lastSyncedMarkdown;
   bool _isServerStarting = false;
   bool _didFinishFirstRender = false;
-  bool _suppressNextReload = false;
+  // 使用带时间戳的 token 机制，避免布尔标志因时序问题被错误消费
+  static const _suppressTtlMs = 2000; // 2 秒有效期
+  DateTime? _suppressReloadToken;
   bool _isDisposed = false;
 
   /// Log errors only (minimal logging for production)
@@ -547,6 +549,14 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     try {
       final stopwatch = Stopwatch()..start();
 
+      // If warmup is in progress, wait for it to complete instead of
+      // creating a competing server on the same port.
+      if (_isWarmingUp && _warmupCompleter != null) {
+        appDebugLog('[WEBVIEW] Warmup in progress, waiting for completion...');
+        await _warmupCompleter!.future;
+        appDebugLog('[WEBVIEW] Warmup completed, checking server availability');
+      }
+
       // Check if warmup server is available and reuse it
       if (_warmServer != null) {
         appDebugLog('[WEBVIEW] Reusing existing warmup server');
@@ -662,13 +672,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     );
     var markdown = markdownOverride ?? widget.initialMarkdown;
     appDebugLog('[WEBVIEW] _sendInitDoc: markdown length = ${markdown.length}');
-
-    // 内容安全检查：清理潜在的 XSS 向量
-    // 注意：Milkdown WebView 已有沙箱隔离，这是额外的防护层
-    if (_ContentSanitizer.containsDangerousContent(markdown)) {
-      appDebugLog('警告: 检测到潜在危险内容，已自动清理');
-      markdown = _ContentSanitizer.sanitizeMarkdown(markdown);
-    }
 
     _lastSyncedMarkdown = markdown;
     final msg = BridgeEnvelope<InitDocPayload>(
@@ -1182,11 +1185,15 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final baseChanged = oldWidget.baseDirectory != widget.baseDirectory;
     final readOnlyChanged = oldWidget.readOnly != widget.readOnly;
     if (markdownChanged || baseChanged || readOnlyChanged) {
-      if (_suppressNextReload && markdownChanged) {
+      // 检查 suppress token 是否有效（未过期）
+      final token = _suppressReloadToken;
+      final tokenValid = token != null &&
+          DateTime.now().difference(token).inMilliseconds < _suppressTtlMs;
+      if (tokenValid && markdownChanged) {
         // Suppress reload for code_sanitized mode - just update the synced markdown
         // without reinitializing the WebView, preserving focus and input method state
         _lastSyncedMarkdown = widget.initialMarkdown;
-        _suppressNextReload = false;
+        _suppressReloadToken = null;
       } else if (_lastSyncedMarkdown != widget.initialMarkdown ||
           baseChanged ||
           readOnlyChanged) {
