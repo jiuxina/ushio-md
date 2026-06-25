@@ -130,6 +130,7 @@ web/milkdown/dist/
 # Deployment scripts (local tools)
 deploy.cmd
 website/deploy.js
+website/.wrangler/
 
 # Symbols
 app.*.symbols
