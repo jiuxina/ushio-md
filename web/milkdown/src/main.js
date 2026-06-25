@@ -1135,13 +1135,12 @@ const wrapHtmlBlocksInCodeFence = (markdown) => {
           continue;
         }
         inHtmlBlock = true;
-        htmlDepth = 1;
         htmlBuffer = [line];
         lastContentLineIdx = i;
-        // Check if the block opens and closes on the same line (e.g., <hr>, <br>, self-closing)
+        // Calculate depth from actual tags on this line (openTags includes the opening tag)
         const openTags = (trimmed.match(/<(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)(\s|>|$)/gi) || []).length;
         const closeTags = (trimmed.match(/<\/(table|thead|tbody|tfoot|tr|th|td|div|section|article|aside|header|footer|nav|figure|figcaption|details|summary|main|form|fieldset|dl|address)>/gi) || []).length;
-        htmlDepth = Math.max(1, htmlDepth + openTags - closeTags);
+        htmlDepth = openTags - closeTags;
         if (htmlDepth <= 0 && closeTags > 0) {
           flushHtmlBlock();
         }
@@ -1185,12 +1184,17 @@ const injectHtmlBlockHideStyle = () => {
   if (htmlBlockHideStyleInjected) return;
   const style = document.createElement('style');
   style.id = 'ushio-html-block-hide';
-  // Hide ALL code blocks by default. Non-html-block code blocks are explicitly
-  // shown via inline style in syncRenderedDom's code block loop.
-  // html-block code blocks remain hidden since they are skipped by that loop.
+  // Hide ALL code blocks by default using visibility (not display:none) so that
+  // getBoundingClientRect() still returns valid width/position for overlay positioning.
+  // Non-html-block code blocks are explicitly shown via inline style in syncRenderedDom.
+  // html-block code blocks remain invisible with zero height.
   style.textContent = `
     .milkdown .milkdown-code-block {
-      display: none !important;
+      visibility: hidden !important;
+      max-height: 0 !important;
+      overflow: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
   `;
   document.head.appendChild(style);
@@ -1953,6 +1957,10 @@ const syncRenderedDom = () => {
     block.style.setProperty('position', 'relative', 'important');
     block.style.setProperty('overflow', 'visible', 'important');
     block.style.setProperty('padding-top', '8px', 'important');
+    block.style.setProperty('visibility', 'visible', 'important');
+    block.style.setProperty('max-height', 'none', 'important');
+    block.style.setProperty('opacity', '1', 'important');
+    block.style.setProperty('pointer-events', 'auto', 'important');
 
     const tools = block.querySelector(':scope > .tools, .tools');
     if (!(tools instanceof HTMLElement)) return;
