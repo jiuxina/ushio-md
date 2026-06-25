@@ -1,0 +1,128 @@
+name: ci
+
+on:
+  merge_group:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+jobs:
+  install-deps:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: install-deps
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+
+      - name: Run lint
+        run: pnpm test:lint --format github
+
+  unit:
+    runs-on: ubuntu-latest
+    needs: install-deps
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+
+      - name: Run unit tests
+        run: pnpm test:unit
+
+  build:
+    runs-on: ubuntu-latest
+    needs: install-deps
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Publish snapshot
+        if: ${{ github.event_name == 'pull_request' }}
+        run: >
+          ./node_modules/.bin/pkg-pr-new publish --pnpm
+          ./packages/plugins/*
+          ./packages/integrations/*
+          ./packages/core
+          ./packages/ctx
+          ./packages/exception
+          ./packages/components
+          ./packages/transformer
+          ./packages/prose
+          ./packages/utils
+          ./packages/kit
+          ./packages/crepe
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: install-deps
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup
+
+      - name: Build e2e
+        run: |
+          pnpm --filter=@milkdown/prose run build
+          pnpm --filter=@milkdown/e2e run build
+
+      - name: Install browsers
+        run: pnpm --filter=@milkdown/e2e test:install
+
+      - name: Run playwright
+        run: pnpm test:e2e --forbid-only --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+      - name: Upload test results
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-e2e-${{ matrix.shard }}
+          path: e2e/test-results/
+          retention-days: 7
+
+  summary:
+    if: ${{ always() }}
+    needs: [lint, unit, e2e, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: On error
+        if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+        run: exit 1

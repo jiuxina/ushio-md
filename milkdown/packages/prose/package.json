@@ -1,0 +1,191 @@
+{
+  "name": "@milkdown/prose",
+  "version": "7.20.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Milkdown/milkdown.git",
+    "directory": "packages/prose"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts"
+    },
+    "./commands": {
+      "import": "./src/commands.ts"
+    },
+    "./changeset": {
+      "import": "./src/changeset.ts"
+    },
+    "./dropcursor": {
+      "import": "./src/dropcursor.ts"
+    },
+    "./gapcursor": {
+      "import": "./src/gapcursor.ts"
+    },
+    "./history": {
+      "import": "./src/history.ts"
+    },
+    "./inputrules": {
+      "import": "./src/inputrules.ts"
+    },
+    "./keymap": {
+      "import": "./src/keymap.ts"
+    },
+    "./model": {
+      "import": "./src/model.ts"
+    },
+    "./schema-list": {
+      "import": "./src/schema-list.ts"
+    },
+    "./state": {
+      "import": "./src/state.ts"
+    },
+    "./transform": {
+      "import": "./src/transform.ts"
+    },
+    "./view": {
+      "import": "./src/view.ts"
+    },
+    "./tables": {
+      "import": "./src/tables.ts"
+    },
+    "./view/style/prosemirror.css": "./lib/style/prosemirror.css",
+    "./tables/style/tables.css": "./lib/style/tables.css",
+    "./gapcursor/style/gapcursor.css": "./lib/style/gapcursor.css"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./lib/index.d.ts",
+        "import": "./lib/index.js"
+      },
+      "./changeset": {
+        "types": "./lib/changeset.d.ts",
+        "import": "./lib/changeset.js"
+      },
+      "./commands": {
+        "types": "./lib/commands.d.ts",
+        "import": "./lib/commands.js"
+      },
+      "./dropcursor": {
+        "types": "./lib/dropcursor.d.ts",
+        "import": "./lib/dropcursor.js"
+      },
+      "./gapcursor": {
+        "types": "./lib/gapcursor.d.ts",
+        "import": "./lib/gapcursor.js"
+      },
+      "./history": {
+        "types": "./lib/history.d.ts",
+        "import": "./lib/history.js"
+      },
+      "./inputrules": {
+        "types": "./lib/inputrules.d.ts",
+        "import": "./lib/inputrules.js"
+      },
+      "./keymap": {
+        "types": "./lib/keymap.d.ts",
+        "import": "./lib/keymap.js"
+      },
+      "./model": {
+        "types": "./lib/model.d.ts",
+        "import": "./lib/model.js"
+      },
+      "./schema-list": {
+        "types": "./lib/schema-list.d.ts",
+        "import": "./lib/schema-list.js"
+      },
+      "./state": {
+        "types": "./lib/state.d.ts",
+        "import": "./lib/state.js"
+      },
+      "./transform": {
+        "types": "./lib/transform.d.ts",
+        "import": "./lib/transform.js"
+      },
+      "./view": {
+        "types": "./lib/view.d.ts",
+        "import": "./lib/view.js"
+      },
+      "./tables": {
+        "types": "./lib/tables.d.ts",
+        "import": "./lib/tables.js"
+      },
+      "./view/style/prosemirror.css": "./lib/style/prosemirror.css",
+      "./tables/style/tables.css": "./lib/style/tables.css",
+      "./gapcursor/style/gapcursor.css": "./lib/style/gapcursor.css"
+    },
+    "main": "./lib/index.js",
+    "types": "./lib/index.d.ts",
+    "typesVersions": {
+      "*": {
+        "changeset": [
+          "lib/changeset.d.ts"
+        ],
+        "commands": [
+          "lib/commands.d.ts"
+        ],
+        "dropcursor": [
+          "lib/dropcursor.d.ts"
+        ],
+        "gapcursor": [
+          "lib/gapcursor.d.ts"
+        ],
+        "history": [
+          "lib/history.d.ts"
+        ],
+        "inputrules": [
+          "lib/inputrules.d.ts"
+        ],
+        "keymap": [
+          "lib/keymap.d.ts"
+        ],
+        "model": [
+          "lib/model.d.ts"
+        ],
+        "schema-list": [
+          "lib/schema-list.d.ts"
+        ],
+        "state": [
+          "lib/state.d.ts"
+        ],
+        "transform": [
+          "lib/transform.d.ts"
+        ],
+        "view": [
+          "lib/view.d.ts"
+        ],
+        "tables": [
+          "lib/tables.d.ts"
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "build": "rollup -c"
+  },
+  "dependencies": {
+    "@milkdown/exception": "workspace:*",
+    "prosemirror-changeset": "^2.3.1",
+    "prosemirror-commands": "^1.7.1",
+    "prosemirror-dropcursor": "^1.8.2",
+    "prosemirror-gapcursor": "^1.4.0",
+    "prosemirror-history": "^1.5.0",
+    "prosemirror-inputrules": "^1.5.1",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.4",
+    "prosemirror-schema-list": "^1.5.1",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-tables": "^1.8.1",
+    "prosemirror-transform": "^1.10.5",
+    "prosemirror-view": "^1.41.3"
+  }
+}

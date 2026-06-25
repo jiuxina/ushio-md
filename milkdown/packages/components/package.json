@@ -1,0 +1,147 @@
+{
+  "name": "@milkdown/components",
+  "version": "7.20.0",
+  "keywords": [
+    "milkdown",
+    "milkdown plugin"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Milkdown/milkdown.git",
+    "directory": "packages/components"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts"
+    },
+    "./image-block": {
+      "import": "./src/image-block/index.ts"
+    },
+    "./code-block": {
+      "import": "./src/code-block/index.ts"
+    },
+    "./list-item-block": {
+      "import": "./src/list-item-block/index.ts"
+    },
+    "./link-tooltip": {
+      "import": "./src/link-tooltip/index.ts"
+    },
+    "./image-inline": {
+      "import": "./src/image-inline/index.ts"
+    },
+    "./table-block": {
+      "import": "./src/table-block/index.ts"
+    },
+    "./diff": {
+      "import": "./src/diff/index.ts"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./lib/index.d.ts",
+        "import": "./lib/index.js"
+      },
+      "./image-block": {
+        "types": "./lib/image-block/index.d.ts",
+        "import": "./lib/image-block/index.js"
+      },
+      "./code-block": {
+        "types": "./lib/code-block/index.d.ts",
+        "import": "./lib/code-block/index.js"
+      },
+      "./list-item-block": {
+        "types": "./lib/list-item-block/index.d.ts",
+        "import": "./lib/list-item-block/index.js"
+      },
+      "./link-tooltip": {
+        "types": "./lib/link-tooltip/index.d.ts",
+        "import": "./lib/link-tooltip/index.js"
+      },
+      "./image-inline": {
+        "types": "./lib/image-inline/index.d.ts",
+        "import": "./lib/image-inline/index.js"
+      },
+      "./table-block": {
+        "types": "./lib/table-block/index.d.ts",
+        "import": "./lib/table-block/index.js"
+      },
+      "./diff": {
+        "types": "./lib/diff/index.d.ts",
+        "import": "./lib/diff/index.js"
+      }
+    },
+    "main": "./lib/index.js",
+    "types": "./lib/index.d.ts",
+    "typesVersions": {
+      "*": {
+        "image-block": [
+          "./lib/image-block/index.d.ts"
+        ],
+        "code-block": [
+          "./lib/code-block/index.d.ts"
+        ],
+        "list-item-block": [
+          "./lib/list-item-block/index.d.ts"
+        ],
+        "link-tooltip": [
+          "./lib/link-tooltip/index.d.ts"
+        ],
+        "image-inline": [
+          "./lib/image-inline/index.d.ts"
+        ],
+        "table-block": [
+          "./lib/table-block/index.d.ts"
+        ],
+        "diff": [
+          "./lib/diff/index.d.ts"
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.5.1",
+    "@milkdown/core": "workspace:*",
+    "@milkdown/ctx": "workspace:*",
+    "@milkdown/exception": "workspace:*",
+    "@milkdown/plugin-diff": "workspace:*",
+    "@milkdown/plugin-tooltip": "workspace:*",
+    "@milkdown/preset-commonmark": "workspace:*",
+    "@milkdown/preset-gfm": "workspace:*",
+    "@milkdown/prose": "workspace:*",
+    "@milkdown/transformer": "workspace:*",
+    "@milkdown/utils": "workspace:*",
+    "@types/lodash-es": "^4.17.12",
+    "clsx": "^2.0.0",
+    "dompurify": "^3.2.5",
+    "lodash-es": "^4.17.21",
+    "nanoid": "^5.0.9",
+    "unist-util-visit": "^5.0.0",
+    "vue": "^3.5.20"
+  },
+  "devDependencies": {
+    "@codemirror/language": "^6.10.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.26.0",
+    "@testing-library/vue": "^8.1.0",
+    "jsdom": "^29.0.0",
+    "vitest": "^4.0.0"
+  },
+  "peerDependencies": {
+    "@codemirror/language": "^6",
+    "@codemirror/state": "^6",
+    "@codemirror/view": "^6"
+  }
+}

@@ -1,0 +1,60 @@
+.milkdown {
+  &:has(.milkdown-link-preview[data-show='true']) .milkdown-toolbar,
+  &:has(.milkdown-link-edit[data-show='true']) .milkdown-toolbar {
+    display: none;
+  }
+  .milkdown-toolbar {
+    &[data-show='false'] {
+      display: none;
+    }
+    z-index: 10;
+    position: absolute;
+    display: flex;
+    background: var(--crepe-color-surface);
+    box-shadow: var(--crepe-shadow-1);
+    border-radius: 8px;
+    overflow: hidden;
+
+    .divider {
+      width: 1px;
+      background: color-mix(
+        in srgb,
+        var(--crepe-color-outline),
+        transparent 80%
+      );
+      height: 24px;
+      margin: 10px;
+    }
+
+    .toolbar-item {
+      width: 32px;
+      height: 32px;
+      margin: 6px;
+      padding: 4px;
+      cursor: pointer;
+      border-radius: 4px;
+
+      &:hover {
+        background: var(--crepe-color-hover);
+      }
+
+      &:active {
+        background: var(--crepe-color-selected);
+      }
+
+      svg {
+        height: 24px;
+        width: 24px;
+        color: var(--crepe-color-outline);
+        fill: var(--crepe-color-outline);
+      }
+
+      &.active {
+        svg {
+          color: var(--crepe-color-primary);
+          fill: var(--crepe-color-primary);
+        }
+      }
+    }
+  }
+}

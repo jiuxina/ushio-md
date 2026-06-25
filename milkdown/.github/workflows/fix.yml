@@ -1,0 +1,27 @@
+# https://autofix.ci/setup
+
+name: autofix.ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup
+
+      - run: pnpm build:tsc
+
+      - name: Fix
+        run: pnpm codegen && pnpm fix
+
+      - uses: autofix-ci/action@7a166d7532b277f34e16238930461bf77f9d7ed8

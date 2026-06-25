@@ -1,0 +1,77 @@
+{
+  "name": "@milkdown/plugin-highlight",
+  "version": "7.20.0",
+  "keywords": [
+    "milkdown",
+    "milkdown plugin"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Milkdown/milkdown.git",
+    "directory": "packages/plugins/plugin-highlight"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts"
+    },
+    "./lowlight": {
+      "import": "./src/lowlight.ts"
+    },
+    "./refractor": {
+      "import": "./src/refractor.ts"
+    },
+    "./shiki": {
+      "import": "./src/shiki.ts"
+    },
+    "./sugar-high": {
+      "import": "./src/sugar-high.ts"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "import": "./lib/index.js",
+        "types": "./lib/index.d.ts"
+      },
+      "./lowlight": {
+        "import": "./lib/lowlight.js",
+        "types": "./lib/lowlight.d.ts"
+      },
+      "./refractor": {
+        "import": "./lib/refractor.js",
+        "types": "./lib/refractor.d.ts"
+      },
+      "./shiki": {
+        "import": "./lib/shiki.js",
+        "types": "./lib/shiki.d.ts"
+      },
+      "./sugar-high": {
+        "import": "./lib/sugar-high.js",
+        "types": "./lib/sugar-high.d.ts"
+      }
+    },
+    "main": "./lib/index.js",
+    "types": "./lib/index.d.ts"
+  },
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@milkdown/core": "workspace:*",
+    "@milkdown/ctx": "workspace:*",
+    "@milkdown/utils": "workspace:*",
+    "prosemirror-highlight": "^0.15.0"
+  },
+  "devDependencies": {
+    "@milkdown/preset-commonmark": "workspace:*",
+    "sugar-high": "^1.0.0"
+  }
+}

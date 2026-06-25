@@ -1,0 +1,35 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "lib",
+    "jsx": "preserve",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
+    "jsxImportSource": "vue",
+    "sourceMap": false,
+    "tsBuildInfoFile": "./lib/tsconfig.tsbuildinfo"
+  },
+  "include": ["src", "tests", "shim.d.ts"],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "es2022",
+      "moduleResolution": "node"
+    }
+  },
+  "references": [
+    { "path": "../packages/components" },
+    { "path": "../packages/core" },
+    { "path": "../packages/crepe" },
+    { "path": "../packages/ctx" },
+    { "path": "../packages/plugins/plugin-automd" },
+    { "path": "../packages/plugins/plugin-clipboard" },
+    { "path": "../packages/plugins/plugin-history" },
+    { "path": "../packages/plugins/plugin-listener" },
+    { "path": "../packages/plugins/preset-commonmark" },
+    { "path": "../packages/plugins/preset-gfm" },
+    { "path": "../packages/prose" },
+    { "path": "../packages/plugins/theme-nord" },
+    { "path": "../packages/utils" }
+  ]
+}

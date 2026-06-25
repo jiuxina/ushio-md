@@ -1,0 +1,21 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./lib",
+    "sourceMap": false,
+    "tsBuildInfoFile": "./lib/tsconfig.tsbuildinfo"
+  },
+  "include": ["./stories", "./.storybook", "./shim.d.ts"],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "es2022",
+      "moduleResolution": "node"
+    }
+  },
+  "references": [
+    { "path": "../packages/crepe" },
+    { "path": "../packages/kit" },
+    { "path": "../packages/plugins/theme-nord" }
+  ]
+}

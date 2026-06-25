@@ -1,0 +1,38 @@
+{
+  "name": "@milkdown/dev",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./lib/index.js",
+      "types": "./lib/index.d.ts"
+    },
+    "./vite": {
+      "import": "./lib/vite.js",
+      "types": "./lib/vite.d.ts"
+    },
+    "./logger": {
+      "import": "./lib/logger.js",
+      "types": "./lib/logger.d.ts"
+    },
+    "./exec": {
+      "import": "./lib/exec.js",
+      "types": "./lib/exec.d.ts"
+    },
+    "./generate": {
+      "import": "./lib/generate.js",
+      "types": "./lib/generate.d.ts"
+    },
+    "./workspace": {
+      "import": "./lib/workspace.js",
+      "types": "./lib/workspace.d.ts"
+    }
+  },
+  "dependencies": {
+    "@types/lodash-es": "^4.17.12",
+    "chalk": "^5.4.1",
+    "jsonc-parser": "^3.3.1",
+    "lodash-es": "^4.17.21"
+  }
+}
