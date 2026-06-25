@@ -1214,10 +1214,56 @@ const ensureHtmlOverlay = () => {
   return htmlOverlayContainer;
 };
 
+/**
+ * Hide a .milkdown-code-block element that contains html-block content.
+ * Uses inline !important styles to override any CSS that ProseMirror may reset.
+ * The max-height is set to a large value initially; it will be corrected by
+ * renderHtmlBlockCodeNodes once the overlay height is known.
+ */
+const hideHtmlBlockCodeNode = (block) => {
+  if (!(block instanceof HTMLElement)) return;
+  const langButton = block.querySelector('.tools .language-button');
+  const language = (langButton?.textContent || '').trim().toLowerCase();
+  if (language !== 'html-block') return;
+  if (block.dataset.ushioHtmlBlockHidden === '1') return; // already hidden
+  block.dataset.ushioHtmlBlockHidden = '1';
+  block.classList.add('ushio-html-block-target');
+  block.style.setProperty('visibility', 'hidden', 'important');
+  block.style.setProperty('max-height', '0', 'important');
+  block.style.setProperty('overflow', 'hidden', 'important');
+  block.style.setProperty('opacity', '0', 'important');
+  block.style.setProperty('pointer-events', 'none', 'important');
+};
+
+/**
+ * Start a MutationObserver on .milkdown to continuously hide html-block code blocks.
+ * This is needed because ProseMirror re-renders NodeViews, which recreates the
+ * code block wrapper elements and strips previously applied inline styles/classes.
+ */
+let htmlBlockObserver = null;
+const startHtmlBlockObserver = () => {
+  if (htmlBlockObserver) return;
+  const milkdownEl = app.querySelector('.milkdown');
+  if (!milkdownEl) return;
+  htmlBlockObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.classList?.contains('milkdown-code-block')) {
+          hideHtmlBlockCodeNode(node);
+        }
+        node.querySelectorAll?.('.milkdown-code-block').forEach(hideHtmlBlockCodeNode);
+      }
+    }
+  });
+  htmlBlockObserver.observe(milkdownEl, { childList: true, subtree: true });
+};
+
 const renderHtmlBlockCodeNodes = (root) => {
   injectHtmlBlockHideStyle();
   const overlay = ensureHtmlOverlay();
   if (!overlay) return;
+  startHtmlBlockObserver();
 
   const milkdownEl = root.closest('.milkdown') || app.querySelector('.milkdown');
   if (!milkdownEl) return;
@@ -1233,10 +1279,9 @@ const renderHtmlBlockCodeNodes = (root) => {
     const language = (langButton?.textContent || '').trim().toLowerCase();
     if (language !== 'html-block') return;
 
-    // Mark for CSS hiding (class persists in stylesheet even if ProseMirror strips it from element,
-    // the :has() selector approach below handles re-created elements)
-    // Use a more robust CSS approach: inject style targeting by structure
+    // Mark with class and hide flag
     block.classList.add('ushio-html-block-target');
+    block.dataset.ushioHtmlBlockHidden = '1';
 
     // Read content
     const cmLines = block.querySelectorAll('.cm-line');
@@ -1253,6 +1298,12 @@ const renderHtmlBlockCodeNodes = (root) => {
     const contentHash = rawHtml.length + ':' + rawHtml.substring(0, 200);
     const idx = htmlBlockIndex;
     htmlBlockIndex++;
+
+    // Temporarily make the block visible to get accurate position/size measurements
+    block.style.setProperty('visibility', 'visible', 'important');
+    block.style.setProperty('max-height', 'none', 'important');
+    block.style.setProperty('overflow', 'visible', 'important');
+    block.style.setProperty('opacity', '1', 'important');
 
     // Calculate position relative to .milkdown container
     const blockRect = block.getBoundingClientRect();
@@ -1283,6 +1334,20 @@ const renderHtmlBlockCodeNodes = (root) => {
       overlayItem.style.top = `${top}px`;
       overlayItem.style.left = `${left}px`;
       overlayItem.style.width = `${width}px`;
+    }
+
+    // Measure the overlay's rendered height, then hide the code block with inline !important.
+    // Use the overlay height as max-height so the block reserves proper space in the document flow.
+    const overlayHeight = overlayItem.offsetHeight;
+    block.style.setProperty('visibility', 'hidden', 'important');
+    block.style.setProperty('opacity', '0', 'important');
+    block.style.setProperty('pointer-events', 'none', 'important');
+    if (overlayHeight > 0) {
+      block.style.setProperty('max-height', `${overlayHeight}px`, 'important');
+      block.style.setProperty('overflow', 'hidden', 'important');
+    } else {
+      block.style.setProperty('max-height', '0', 'important');
+      block.style.setProperty('overflow', 'hidden', 'important');
     }
   });
 
