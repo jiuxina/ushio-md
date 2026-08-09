@@ -13,12 +13,16 @@ class MarkdownPreview extends StatefulWidget {
   final SettingsProvider settings;
   final ScrollController? controller;
   final Function(int, bool) onCheckboxChanged;
+
   /// Base directory for resolving relative image paths
   final String? baseDirectory;
+
   /// Callback when a link is tapped
   final void Function(String text, String? href, String title)? onTapLink;
+
   /// If true, use MarkdownBody (non-scrollable) instead of Markdown (scrollable)
   final bool shrinkWrap;
+
   /// Anchor keys for headings: maps heading text to GlobalKey for scroll position measurement
   final Map<String, GlobalKey>? headingAnchorKeys;
 
@@ -67,7 +71,9 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
         ? null
         : widget.settings.editorFontFamily;
     final fontSize = widget.settings.fontSize;
-    final codeFontFamily = widget.settings.codeFontFamily == 'System' ? 'monospace' : widget.settings.codeFontFamily;
+    final codeFontFamily = widget.settings.codeFontFamily == 'System'
+        ? 'monospace'
+        : widget.settings.codeFontFamily;
     final primaryColor = theme.colorScheme.primary;
     final dividerColor = theme.dividerColor;
 
@@ -110,7 +116,7 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
 
     return MarkdownStyleSheet(
       p: TextStyle(
-        fontSize: fontSize, 
+        fontSize: fontSize,
         height: lineHeight,
         fontFamily: fontFamily,
       ),
@@ -148,22 +154,18 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
         fontFamily: fontFamily,
       ),
       code: TextStyle(
-        backgroundColor: isDark 
-            ? const Color(0xFF2d2d2d) 
+        backgroundColor: isDark
+            ? const Color(0xFF2d2d2d)
             : const Color(0xFFf5f5f5),
         fontFamily: codeFontFamily,
         fontSize: fontSize * 0.9,
         color: isDark ? const Color(0xFFe6e6e6) : const Color(0xFF333333),
       ),
       codeblockDecoration: BoxDecoration(
-        color: isDark 
-            ? const Color(0xFF1e1e1e) 
-            : const Color(0xFFf8f8f8),
+        color: isDark ? const Color(0xFF1e1e1e) : const Color(0xFFf8f8f8),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark 
-              ? const Color(0xFF3d3d3d) 
-              : const Color(0xFFe0e0e0),
+          color: isDark ? const Color(0xFF3d3d3d) : const Color(0xFFe0e0e0),
         ),
         boxShadow: [
           BoxShadow(
@@ -175,36 +177,20 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
       ),
       codeblockPadding: const EdgeInsets.all(16),
       blockquoteDecoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: primaryColor,
-            width: 4,
-          ),
-        ),
+        border: Border(left: BorderSide(color: primaryColor, width: 4)),
         color: primaryColor.withValues(alpha: 0.05),
       ),
-      blockquotePadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-      listBullet: TextStyle(
-        color: primaryColor,
-        fontFamily: fontFamily,
-      ),
+      blockquotePadding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+      listBullet: TextStyle(color: primaryColor, fontFamily: fontFamily),
       horizontalRuleDecoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: dividerColor,
-            width: 1,
-          ),
-        ),
+        border: Border(top: BorderSide(color: dividerColor, width: 1)),
       ),
       tableHead: TextStyle(
         fontWeight: FontWeight.bold,
         fontSize: fontSize,
         fontFamily: fontFamily,
       ),
-      tableBody: TextStyle(
-        fontSize: fontSize,
-        fontFamily: fontFamily,
-      ),
+      tableBody: TextStyle(fontSize: fontSize, fontFamily: fontFamily),
       tableBorder: TableBorder.all(
         color: dividerColor,
         borderRadius: BorderRadius.circular(8),
@@ -227,11 +213,17 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
     return data.replaceAllMapped(imgTagRegex, (match) {
       final tag = match.group(0) ?? '';
       // Extract src attribute
-      final srcMatch = RegExp(r'src\s*=\s*["\']([^"\']*)["\']', caseSensitive: false).firstMatch(tag);
+      final srcMatch = RegExp(
+        r'''src\s*=\s*["']([^"']*)["']''',
+        caseSensitive: false,
+      ).firstMatch(tag);
       if (srcMatch == null) return tag; // No src, leave as-is
       final src = srcMatch.group(1) ?? '';
       // Extract alt attribute (optional)
-      final altMatch = RegExp(r'alt\s*=\s*["\']([^"\']*)["\']', caseSensitive: false).firstMatch(tag);
+      final altMatch = RegExp(
+        r'''alt\s*=\s*["']([^"']*)["']''',
+        caseSensitive: false,
+      ).firstMatch(tag);
       final alt = altMatch?.group(1) ?? '';
       // Escape brackets in alt text for valid markdown
       final escapedAlt = alt.replaceAll('[', '\\[').replaceAll(']', '\\]');
@@ -255,13 +247,19 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
       'code': CodeBlockBuilder(
         isDark: isDark,
         fontSize: widget.settings.fontSize,
-        fontFamily: widget.settings.codeFontFamily == 'System' ? null : widget.settings.codeFontFamily,
+        fontFamily: widget.settings.codeFontFamily == 'System'
+            ? null
+            : widget.settings.codeFontFamily,
       ),
-      'blockquote': GitHubAlertBuilder(isDark: isDark, fontSize: widget.settings.fontSize),
+      'blockquote': GitHubAlertBuilder(
+        isDark: isDark,
+        fontSize: widget.settings.fontSize,
+      ),
     };
 
     // Add heading anchor builders when anchor keys are provided
-    if (widget.headingAnchorKeys != null && widget.headingAnchorKeys!.isNotEmpty) {
+    if (widget.headingAnchorKeys != null &&
+        widget.headingAnchorKeys!.isNotEmpty) {
       final anchorBuilder = HeadingAnchorBuilder(widget.headingAnchorKeys!);
       for (final tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']) {
         builders[tag] = anchorBuilder;
@@ -313,22 +311,30 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
 
   /// Build image widget with support for local and relative paths
   /// Tap on image to show fullscreen preview
-  Widget _buildImage(BuildContext context, Uri uri, String? title, String? alt) {
+  Widget _buildImage(
+    BuildContext context,
+    Uri uri,
+    String? title,
+    String? alt,
+  ) {
     String imagePath = uri.toString();
-    
+
     // Handle relative paths
-    if (widget.baseDirectory != null && !imagePath.startsWith('http') && !imagePath.startsWith('file://')) {
+    if (widget.baseDirectory != null &&
+        !imagePath.startsWith('http') &&
+        !imagePath.startsWith('file://')) {
       // Convert relative path to absolute
-      imagePath = '${widget.baseDirectory}${Platform.pathSeparator}${imagePath.replaceAll('/', Platform.pathSeparator)}';
+      imagePath =
+          '${widget.baseDirectory}${Platform.pathSeparator}${imagePath.replaceAll('/', Platform.pathSeparator)}';
     }
-    
+
     // Handle file:// URI
     if (imagePath.startsWith('file://')) {
       imagePath = imagePath.substring(7);
     }
-    
+
     Widget imageWidget;
-    
+
     // Check if it's a local file
     if (!imagePath.startsWith('http')) {
       final file = File(imagePath);
@@ -354,7 +360,10 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
             children: [
               const Icon(Icons.image_not_supported, color: Colors.orange),
               const SizedBox(width: 8),
-              Text(alt ?? '图片不存在', style: const TextStyle(color: Colors.orange)),
+              Text(
+                alt ?? '图片不存在',
+                style: const TextStyle(color: Colors.orange),
+              ),
             ],
           ),
         );
@@ -369,7 +378,7 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
         },
       );
     }
-    
+
     // Wrap in GestureDetector for fullscreen preview on tap
     return GestureDetector(
       onTap: () => _showFullscreenImage(context, imagePath, alt),
@@ -396,7 +405,11 @@ class _MarkdownPreviewState extends State<MarkdownPreview> {
   }
 
   /// Show fullscreen image preview dialog
-  void _showFullscreenImage(BuildContext context, String imagePath, String? alt) {
+  void _showFullscreenImage(
+    BuildContext context,
+    String imagePath,
+    String? alt,
+  ) {
     showDialog(
       context: context,
       barrierColor: Colors.black87,
@@ -443,7 +456,6 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
   final bool isDark;
   final double fontSize;
   final String? fontFamily;
-  
 
   static const _langMap = {
     'js': 'javascript',
@@ -460,27 +472,27 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
   };
 
   CodeBlockBuilder({
-    required this.isDark, 
+    required this.isDark,
     required this.fontSize,
     this.fontFamily,
   });
-  
+
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
     if (element.tag != 'code') return null;
-    
+
     final code = element.textContent;
-    
+
     String language = '';
     final className = element.attributes['class'];
     if (className != null && className.startsWith('language-')) {
       language = className.replaceFirst('language-', '');
     }
-    
+
     if (language.isEmpty || code.length < 20) {
       return null;
     }
-    
+
     try {
       return Container(
         width: double.infinity,
@@ -499,15 +511,18 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
               if (language.isNotEmpty)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark 
-                        ? const Color(0xFF21252b) 
+                    color: isDark
+                        ? const Color(0xFF21252b)
                         : const Color(0xFFf0f0f0),
                     border: Border(
                       bottom: BorderSide(
-                        color: isDark 
-                            ? const Color(0xFF3d3d3d) 
+                        color: isDark
+                            ? const Color(0xFF3d3d3d)
                             : const Color(0xFFe0e0e0),
                       ),
                     ),
@@ -517,8 +532,8 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: isDark 
-                          ? const Color(0xFF7f848e) 
+                      color: isDark
+                          ? const Color(0xFF7f848e)
                           : const Color(0xFF6a737d),
                       letterSpacing: 0.5,
                     ),
@@ -546,26 +561,26 @@ class CodeBlockBuilder extends MarkdownElementBuilder {
       return null;
     }
   }
-  
+
   String _mapLanguage(String lang) {
     return _langMap[lang.toLowerCase()] ?? lang.toLowerCase();
   }
 }
 
 /// GitHub 风格 Alert 渲染器
-/// 
+///
 /// 支持的 Alert 类型：
 /// - [!NOTE] - 信息提示（蓝色）
 /// - [!TIP] - 技巧提示（绿色）
 /// - [!IMPORTANT] - 重要信息（紫色）
 /// - [!WARNING] - 警告信息（橙色）
 /// - [!CAUTION] - 危险警告（红色）
-/// 
+///
 /// 插件开发者可以通过在 Markdown 中使用 `> [!NOTE]` 等语法来触发这些样式。
 class GitHubAlertBuilder extends MarkdownElementBuilder {
   final bool isDark;
   final double fontSize;
-  
+
   /// Alert 类型配置
   /// 键: Alert 类型名称
   /// 值: (颜色, 图标, 显示标题)
@@ -576,30 +591,33 @@ class GitHubAlertBuilder extends MarkdownElementBuilder {
     'WARNING': (Color(0xFFBF8700), Icons.warning_amber_rounded, 'Warning'),
     'CAUTION': (Color(0xFFCF222E), Icons.error_outline, 'Caution'),
   };
-  
+
   GitHubAlertBuilder({required this.isDark, required this.fontSize});
-  
+
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
     if (element.tag != 'blockquote') return null;
-    
+
     // 获取 blockquote 的文本内容
     final textContent = _extractTextContent(element);
-    
+
     // 检测 [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] 模式
-    final alertPattern = RegExp(r'^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n?', caseSensitive: false);
+    final alertPattern = RegExp(
+      r'^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n?',
+      caseSensitive: false,
+    );
     final match = alertPattern.firstMatch(textContent);
-    
+
     if (match == null) {
       return null; // 不是 GitHub Alert，使用默认渲染
     }
-    
+
     final alertType = match.group(1)!.toUpperCase();
     final content = textContent.substring(match.end).trim();
-    
+
     return _buildAlertWidget(alertType, content);
   }
-  
+
   /// 递归提取元素的文本内容
   String _extractTextContent(md.Node node) {
     if (node is md.Text) {
@@ -617,29 +635,27 @@ class GitHubAlertBuilder extends MarkdownElementBuilder {
     }
     return '';
   }
-  
+
   /// 构建 Alert Widget
   Widget _buildAlertWidget(String type, String content) {
     final config = _alertTypes[type];
     if (config == null) return Text(content);
-    
+
     final (color, icon, title) = config;
-    
+
     // 深色模式下调整颜色亮度
     final displayColor = isDark ? Color.lerp(color, Colors.white, 0.3)! : color;
-    final bgColor = isDark 
+    final bgColor = isDark
         ? color.withValues(alpha: 0.15)
         : color.withValues(alpha: 0.1);
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border(
-          left: BorderSide(color: displayColor, width: 4),
-        ),
+        border: Border(left: BorderSide(color: displayColor, width: 4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -697,10 +713,6 @@ class HeadingAnchorBuilder extends MarkdownElementBuilder {
 
     // Return heading text with anchor key for position measurement.
     // The key on this widget enables callers to find the heading's scroll position.
-    return Text(
-      headingText,
-      key: key,
-      style: preferredStyle,
-    );
+    return Text(headingText, key: key, style: preferredStyle);
   }
 }

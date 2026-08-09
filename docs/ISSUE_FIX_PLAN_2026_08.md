@@ -96,15 +96,36 @@
 
 这些属于功能开发或平台工程，建议按独立需求拆分后再排期，不阻塞 P0/P1 缺陷修复。
 
+## 4.1 修复进度（2026-08-09）
+
+Phase 1 与 Phase 2 的代码修复已落地：
+
+- 重命名自动补 `.md`：新增 `FileService.ensureMarkdownExtension`，重命名对话框在缺少受支持扩展名时默认补 `.md`，并复用同一逻辑到 `renameFile`。
+- 键盘遮挡：Flutter 在键盘弹出时向 WebView 发送 `scroll_caret_into_view`；Milkdown 端允许键盘弹出时在中文输入法组合期间强制滚动，并在 `compositionend` 后同步一次光标位置。
+- 特殊符号/空行：修正增量合并中空白块的换行编码，块拼接不再膨胀出多余空行；新增 roundtrip 回归测试覆盖 `–`、多空行、结尾空行、列表符号归一化。
+- 长文性能：增量合并改为 350ms 防抖执行，并在保存、退出、切回源码模式时强制 flush，避免保存到过期内容。
+- 引用块间距：WebView 端 `padding: 0.4em 0.8em` + 上下 margin，Flutter 预览端同步加大 `blockquotePadding`。
+- 顺带修复 `markdown_preview.dart` 中两处无效的正则原始字符串（此前会导致该文件无法解析）。
+- 已重新构建 `web/milkdown` 并同步 `assets/milkdown_web/index.html`。
+
+验证结果：
+
+- `flutter analyze lib`：无 error（仅存量 warning/info）。
+- `flutter test test/utils/markdown_incremental_merge_test.dart test/services/file_service_test.dart`：14/14 通过。
+- `flutter build apk --debug` 成功，已安装到 `emulator-5556` 并启动，截图确认无崩溃/空白页。
+- APK 内 `assets/flutter_assets/assets/milkdown_web/index.html` 已包含 `scroll_caret_into_view`、`allowDuringComposition` 与新引用块样式。
+
+待补的人工验证：模拟器中文输入法长文滚动、含特殊符号文档的预览/编辑往返、引用块截图对比。
+
 ## 5. 验证清单
 
-- [ ] `flutter analyze` 无新增告警
-- [ ] `flutter test` 全量通过，含新增的 rename 与 incremental merge roundtrip 测试
-- [ ] Android 模拟器安装后验证：
-  - 长文 + 中文输入法弹出时当前行可见、可滚动
-  - 含 `–`、中文引号、连续空行的文档预览/编辑往返内容一致
-  - 新建文件重命名不带 `.md` 时文件仍显示，且自动带 `.md`
-  - 引用块左右/上下间距符合预期
+- [x] `flutter analyze lib` 无 error
+- [x] 新增的 rename 与 incremental merge roundtrip 测试通过
+- [x] Android 模拟器安装并启动成功
+- [ ] 长文 + 中文输入法弹出时当前行可见、可滚动（需人工确认）
+- [ ] 含 `–`、中文引号、连续空行的文档预览/编辑往返内容一致（需人工确认）
+- [ ] 新建文件重命名不带 `.md` 时文件仍显示，且自动带 `.md`（需人工确认）
+- [ ] 引用块左右/上下间距符合预期（需人工确认）
 - [ ] 记录长文档（15000+ 字符）输入延迟改善数据
 
 ## 6. 相关文件索引

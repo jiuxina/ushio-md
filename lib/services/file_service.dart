@@ -121,6 +121,20 @@ class FileService {
     return sanitized;
   }
 
+  /// 确保文件名带有受支持的 Markdown 扩展名。
+  ///
+  /// 未显式指定 `.md`/`.markdown`/`.txt` 时默认补 `.md`，避免文件在
+  /// Markdown 文件列表中因缺少扩展名而“消失”。
+  static String ensureMarkdownExtension(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.md') ||
+        lower.endsWith('.markdown') ||
+        lower.endsWith('.txt')) {
+      return fileName;
+    }
+    return '$fileName.md';
+  }
+
   /// 检查文件是否过大
   static bool isFileTooLarge(int size) => size > maxFileSize;
 
@@ -587,9 +601,7 @@ class FileService {
     // 验证并清理文件名
     newName = sanitizeFileName(newName, defaultName: 'untitled');
 
-    if (!newName.endsWith('.md')) {
-      newName = '$newName.md';
-    }
+    newName = ensureMarkdownExtension(newName);
 
     final file = File(oldPath);
     final directory = file.parent.path;

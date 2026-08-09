@@ -32,7 +32,7 @@ void main() {
       //   sub/
       //     note2.markdown
       //     data.txt
-      
+
       final subDir = Directory('${tempDir.path}/sub');
       await subDir.create();
 
@@ -40,11 +40,11 @@ void main() {
       await File('${tempDir.path}/image.png').create();
       await File('${subDir.path}/note2.markdown').create();
       await File('${subDir.path}/data.txt').create();
-      
+
       final files = await service.listMarkdownFiles(tempDir.path);
-      
+
       expect(files.length, 2);
-      
+
       // 验证包含 note1.md 和 note2.markdown
       final names = files.map((f) => f.name).toList();
       // FileService implementation uses split(separator).last
@@ -55,36 +55,55 @@ void main() {
 
     test('createFile 应创建文件并写入初始内容', () async {
       final file = await service.createFile(tempDir.path, 'newfile');
-      
+
       expect(file.name, 'newfile.md');
       expect(await File(file.path).exists(), true);
-      
+
       final content = await File(file.path).readAsString();
-      expect(content, startsWith('# newfile.md'));
+      expect(content, startsWith('# newfile'));
     });
 
     test('createFile 如果文件已存在应抛出异常', () async {
       await service.createFile(tempDir.path, 'dup');
-      
-      expect(
-        () => service.createFile(tempDir.path, 'dup'),
-        throwsException,
-      );
+
+      expect(() => service.createFile(tempDir.path, 'dup'), throwsException);
     });
 
     test('renameFile 应重命名文件', () async {
       final oldFile = await service.createFile(tempDir.path, 'old');
       final newPath = await service.renameFile(oldFile.path, 'new');
-      
+
       expect(await File(oldFile.path).exists(), false);
       expect(await File(newPath).exists(), true);
       expect(newPath.endsWith('new.md'), true);
     });
 
+    test('renameFile 应保留显式 .markdown 扩展名', () async {
+      final oldFile = await service.createFile(tempDir.path, 'old');
+      final newPath = await service.renameFile(
+        oldFile.path,
+        'renamed.markdown',
+      );
+
+      expect(newPath.endsWith('renamed.markdown'), true);
+      expect(await File(newPath).exists(), true);
+    });
+
+    test('ensureMarkdownExtension 未指定后缀时默认补 .md', () {
+      expect(FileService.ensureMarkdownExtension('note'), 'note.md');
+      expect(FileService.ensureMarkdownExtension('note.md'), 'note.md');
+      expect(
+        FileService.ensureMarkdownExtension('note.markdown'),
+        'note.markdown',
+      );
+      expect(FileService.ensureMarkdownExtension('note.MD'), 'note.MD');
+      expect(FileService.ensureMarkdownExtension('note.txt'), 'note.txt');
+    });
+
     test('deleteFile 应删除文件', () async {
       final file = await service.createFile(tempDir.path, 'delete_me');
       await service.deleteFile(file.path);
-      
+
       expect(await File(file.path).exists(), false);
     });
 

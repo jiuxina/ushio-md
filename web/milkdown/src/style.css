@@ -103,8 +103,8 @@ body {
 
 .milkdown .ProseMirror blockquote {
   border-left: 4px solid var(--milkdown-color-primary);
-  padding-left: 0.2em;
-  margin-left: 0;
+  padding: 0.4em 0.8em;
+  margin: 0.8em 0;
 }
 
 .milkdown .ProseMirror ul,

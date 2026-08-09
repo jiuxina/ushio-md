@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
+import '../utils/debouncer.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../widgets/custom_title_bar.dart';
 import '../widgets/markdown_toolbar.dart';
@@ -68,6 +69,11 @@ class _EditorScreenState extends State<EditorScreen>
   int _historyIndex = -1;
   bool _isApplyingHistory = false;
   bool _textListenerAttached = false;
+  final Debouncer _mergeDebouncer = Debouncer(
+    duration: const Duration(milliseconds: 350),
+  );
+  String? _pendingMilkdownMarkdown;
+  int _milkdownChangeSeq = 0;
 
   // ==================== 字数统计缓存 ====================
   int _cachedCharCount = 0;
@@ -630,6 +636,9 @@ class _EditorScreenState extends State<EditorScreen>
     final l10n = AppLocalizations.of(context)!;
     if (_isSaving) return;
 
+    // 保存前先应用尚未执行的增量合并，避免保存到过期内容。
+    _flushPendingMilkdownMerge();
+
     setState(() => _isSaving = true);
 
     try {
@@ -1165,6 +1174,7 @@ class _EditorScreenState extends State<EditorScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _mergeDebouncer.dispose();
     _autoSaveTimer?.cancel();
     _editScrollTimer?.cancel();
     _searchDebounceTimer?.cancel();
@@ -1212,6 +1222,10 @@ class _EditorScreenState extends State<EditorScreen>
       if (keyboardInset > _lastKeyboardInset && keyboardInset > 0) {
         if (_mode == EditorMode.edit && _editFocusNode.hasFocus) {
           _scheduleEditScrollToCursor();
+        } else if (_mode == EditorMode.preview) {
+          // WebView 端在中文输入法组合期间会跳过常规光标同步，
+          // 这里在键盘弹出时显式通知 Milkdown 强制滚动到光标。
+          _previewWebViewController.forceCaretIntoView();
         }
       }
       _lastKeyboardInset = keyboardInset;
@@ -1220,7 +1234,8 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _isAppInBackground = state == AppLifecycleState.paused ||
+    _isAppInBackground =
+        state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive;
 
     // 应用从后台恢复时，检查 inline edit 是否还需要收尾
@@ -1238,6 +1253,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<bool> _onWillPop() async {
     final l10n = AppLocalizations.of(context)!;
+    _flushPendingMilkdownMerge();
     if (_editingBlockIndex != null) {
       _finishInlineEdit();
     }
@@ -1921,6 +1937,18 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== Milkdown WebView ====================
 
   void _handleMilkdownContentChange(String markdown) {
+    _pendingMilkdownMarkdown = markdown;
+    final seq = ++_milkdownChangeSeq;
+    _mergeDebouncer.run(() => _applyMilkdownContentChange(markdown, seq));
+  }
+
+  void _applyMilkdownContentChange(String markdown, int seq) {
+    if (!mounted || seq != _milkdownChangeSeq) return;
+    if (identical(_pendingMilkdownMarkdown, markdown) ||
+        _pendingMilkdownMarkdown == markdown) {
+      _pendingMilkdownMarkdown = null;
+    }
+
     // Apply incremental merge to preserve original formatting
     String finalMarkdown = markdown;
     if (_enableIncrementalMerge && _originalMarkdown.isNotEmpty) {
@@ -1954,6 +1982,16 @@ class _EditorScreenState extends State<EditorScreen>
     _isApplyingHistory = true;
     _onTextChanged();
     _isApplyingHistory = false;
+  }
+
+  /// 立即执行待处理的 Milkdown 增量合并，保证保存/退出时内容一致。
+  void _flushPendingMilkdownMerge() {
+    final pending = _pendingMilkdownMarkdown;
+    if (pending == null) return;
+    _pendingMilkdownMarkdown = null;
+    final seq = _milkdownChangeSeq;
+    _mergeDebouncer.cancel();
+    _applyMilkdownContentChange(pending, seq);
   }
 
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
@@ -2252,7 +2290,8 @@ class _EditorScreenState extends State<EditorScreen>
                           // 预览模式下键盘弹出时，收缩编辑器区域，
                           // 让 WebView 内容区不被键盘遮挡
                           padding: EdgeInsets.only(
-                            bottom: (_mode == EditorMode.preview &&
+                            bottom:
+                                (_mode == EditorMode.preview &&
                                     _editingBlockIndex == null &&
                                     keyboardInset > 0)
                                 ? keyboardInset
@@ -2647,10 +2686,13 @@ class _EditorScreenState extends State<EditorScreen>
                     AnimatedFab(
                       icon: Icons.edit,
                       color: Theme.of(context).colorScheme.tertiary,
-                      onTap: () => setState(() {
-                        _mode = EditorMode.edit;
-                        _isMilkdownEditorFocused = false;
-                      }),
+                      onTap: () {
+                        _flushPendingMilkdownMerge();
+                        setState(() {
+                          _mode = EditorMode.edit;
+                          _isMilkdownEditorFocused = false;
+                        });
+                      },
                     ),
                     const SizedBox(height: 12),
                     AnimatedFab(

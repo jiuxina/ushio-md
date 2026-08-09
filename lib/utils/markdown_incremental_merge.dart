@@ -114,12 +114,17 @@ MarkdownBlock _parseNextBlock(List<String> lines, int startIndex) {
 
   // Check for blank lines
   if (lines[i].trim().isEmpty) {
+    final blankStart = i;
     // Group consecutive blank lines
     while (i < lines.length && lines[i].trim().isEmpty) {
       i++;
     }
+    final blankCount = i - blankStart;
+    // 空白块的内容表示“除了块间分隔符之外需要保留的额外换行数”，
+    // 例如 1 个空行对应空字符串，2 个连续空行对应 1 个 '\n'。
+    // 这样结果块用 '\n' 拼接时能精确还原原文，不会膨胀出多余空行。
     return MarkdownBlock(
-      content: lines.sublist(startLine, i).join('\n') + (i < lines.length ? '\n' : ''),
+      content: '\n' * (blankCount - 1),
       startLine: startLine,
       endLine: i - 1,
       type: MarkdownBlockType.blank,
@@ -263,15 +268,68 @@ bool _isThematicBreak(String trimmed) {
 bool _isHtmlBlockStart(String trimmed) {
   // Common HTML block elements
   const htmlBlockTags = [
-    'address', 'article', 'aside', 'base', 'basefont', 'blockquote',
-    'body', 'caption', 'center', 'col', 'colgroup', 'dd', 'details',
-    'dialog', 'dir', 'div', 'dl', 'dt', 'fieldset', 'figcaption',
-    'figure', 'footer', 'form', 'frame', 'frameset', 'h1', 'h2',
-    'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hr', 'html', 'iframe',
-    'legend', 'li', 'link', 'main', 'menu', 'menuitem', 'nav',
-    'noframes', 'ol', 'optgroup', 'option', 'p', 'param', 'section',
-    'source', 'summary', 'table', 'tbody', 'td', 'tfoot', 'th',
-    'thead', 'title', 'tr', 'track', 'ul',
+    'address',
+    'article',
+    'aside',
+    'base',
+    'basefont',
+    'blockquote',
+    'body',
+    'caption',
+    'center',
+    'col',
+    'colgroup',
+    'dd',
+    'details',
+    'dialog',
+    'dir',
+    'div',
+    'dl',
+    'dt',
+    'fieldset',
+    'figcaption',
+    'figure',
+    'footer',
+    'form',
+    'frame',
+    'frameset',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'head',
+    'header',
+    'hr',
+    'html',
+    'iframe',
+    'legend',
+    'li',
+    'link',
+    'main',
+    'menu',
+    'menuitem',
+    'nav',
+    'noframes',
+    'ol',
+    'optgroup',
+    'option',
+    'p',
+    'param',
+    'section',
+    'source',
+    'summary',
+    'table',
+    'tbody',
+    'td',
+    'tfoot',
+    'th',
+    'thead',
+    'title',
+    'tr',
+    'track',
+    'ul',
   ];
 
   final lower = trimmed.toLowerCase();
@@ -334,7 +392,11 @@ bool _isTaskListItem(String trimmed) {
 }
 
 /// Parse a list block (handles nesting conservatively).
-MarkdownBlock _parseListBlock(List<String> lines, int startIndex, MarkdownBlockType type) {
+MarkdownBlock _parseListBlock(
+  List<String> lines,
+  int startIndex,
+  MarkdownBlockType type,
+) {
   int i = startIndex + 1;
   while (i < lines.length) {
     final trimmed = lines[i].trim();
@@ -443,16 +505,18 @@ String _normalizeForComparison(String content, MarkdownBlockType type) {
     case MarkdownBlockType.unorderedList:
     case MarkdownBlockType.taskList:
       // Normalize list markers: *, -, + all become -
-      return lines.map((line) {
-        final match = RegExp(r'^(\s*)([-*+])(\s+)').firstMatch(line);
-        if (match != null) {
-          return line.replaceFirst(
-            RegExp(r'^(\s*)([-*+])(\s+)'),
-            '${match.group(1)}-  ',
-          );
-        }
-        return line;
-      }).join('\n');
+      return lines
+          .map((line) {
+            final match = RegExp(r'^(\s*)([-*+])(\s+)').firstMatch(line);
+            if (match != null) {
+              return line.replaceFirst(
+                RegExp(r'^(\s*)([-*+])(\s+)'),
+                '${match.group(1)}-  ',
+              );
+            }
+            return line;
+          })
+          .join('\n');
 
     case MarkdownBlockType.blank:
       return 'BLANK';
@@ -486,14 +550,26 @@ bool _blocksAreSemanticallyEqual(
   // For lists, normalize markers before comparing
   if (original.type == MarkdownBlockType.unorderedList ||
       original.type == MarkdownBlockType.taskList) {
-    final origNormalized = _normalizeForComparison(original.content, original.type);
-    final newNormalized = _normalizeForComparison(newBlock.content, newBlock.type);
+    final origNormalized = _normalizeForComparison(
+      original.content,
+      original.type,
+    );
+    final newNormalized = _normalizeForComparison(
+      newBlock.content,
+      newBlock.type,
+    );
     return origNormalized == newNormalized;
   }
 
   // For other types, compare normalized content
-  final origNormalized = _normalizeForComparison(original.content, original.type);
-  final newNormalized = _normalizeForComparison(newBlock.content, newBlock.type);
+  final origNormalized = _normalizeForComparison(
+    original.content,
+    original.type,
+  );
+  final newNormalized = _normalizeForComparison(
+    newBlock.content,
+    newBlock.type,
+  );
   return origNormalized == newNormalized;
 }
 
@@ -599,8 +675,13 @@ IncrementalMergeResult incrementalMerge({
       for (var offset = 1; offset <= 3; offset++) {
         // Check before
         final beforeIdx = i - offset;
-        if (beforeIdx >= 0 && beforeIdx < originalBlocks.length && !usedOriginal[beforeIdx]) {
-          if (_blocksAreSemanticallyEqual(originalBlocks[beforeIdx], newBlock)) {
+        if (beforeIdx >= 0 &&
+            beforeIdx < originalBlocks.length &&
+            !usedOriginal[beforeIdx]) {
+          if (_blocksAreSemanticallyEqual(
+            originalBlocks[beforeIdx],
+            newBlock,
+          )) {
             resultBlocks.add(originalBlocks[beforeIdx].content);
             usedOriginal[beforeIdx] = true;
             preservedBlocks++;
@@ -611,7 +692,9 @@ IncrementalMergeResult incrementalMerge({
 
         // Check after
         final afterIdx = i + offset;
-        if (afterIdx >= 0 && afterIdx < originalBlocks.length && !usedOriginal[afterIdx]) {
+        if (afterIdx >= 0 &&
+            afterIdx < originalBlocks.length &&
+            !usedOriginal[afterIdx]) {
           if (_blocksAreSemanticallyEqual(originalBlocks[afterIdx], newBlock)) {
             resultBlocks.add(originalBlocks[afterIdx].content);
             usedOriginal[afterIdx] = true;

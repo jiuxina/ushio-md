@@ -153,7 +153,9 @@ Future<void> warmUpMilkdownWebAssets() async {
     appDebugLog('[WARMUP] InAppLocalhostServer created, calling start()...');
     await server.start();
     stopwatch.stop();
-    appDebugLog('[WARMUP] Server started in ${stopwatch.elapsedMilliseconds}ms');
+    appDebugLog(
+      '[WARMUP] Server started in ${stopwatch.elapsedMilliseconds}ms',
+    );
     _warmServer = server;
     appDebugLog('[WARMUP] Server assigned to _warmServer');
   } catch (e) {
@@ -203,6 +205,7 @@ class MilkdownWebViewController {
 
   Future<void> undo() => execCmd('undo');
   Future<void> redo() => execCmd('redo');
+  Future<void> forceCaretIntoView() => execCmd('scroll_caret_into_view');
   Future<void> toggleBold() => execCmd('toggle_bold');
   Future<void> toggleItalic() => execCmd('toggle_italic');
   Future<void> insertTable() => execCmd('insert_table');
@@ -1187,7 +1190,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     if (markdownChanged || baseChanged || readOnlyChanged) {
       // 检查 suppress token 是否有效（未过期）
       final token = _suppressReloadToken;
-      final tokenValid = token != null &&
+      final tokenValid =
+          token != null &&
           DateTime.now().difference(token).inMilliseconds < _suppressTtlMs;
       if (tokenValid && markdownChanged) {
         // Suppress reload for code_sanitized mode - just update the synced markdown

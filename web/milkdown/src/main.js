@@ -584,10 +584,10 @@ const scrollNodeToViewport = (node, topOffset = 32) => {
   return true;
 };
 
-const ensureCaretInUpperViewport = () => {
+const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => {
   if (currentReadOnly) return;
   // Skip viewport sync during IME composition to prevent janky animations
-  if (isComposing) return;
+  if (!allowDuringComposition && isComposing) return;
   if (Date.now() < editorTouchScrollSuppressUntil || Date.now() < viewportScrollSuppressUntil) return;
   const active = document.activeElement instanceof Element ? document.activeElement : null;
   if (!active?.closest('.ProseMirror')) return;
@@ -690,7 +690,7 @@ const forceCaretIntoUpperViewport = () => {
   viewportScrollSuppressUntil = 0;
   lastUserScrollAt = 0;
   // 直接执行，不使用RAF延迟
-  ensureCaretInUpperViewport();
+  ensureCaretInUpperViewport({ allowDuringComposition: true });
 };
 
 const suppressCaretViewportSync = (durationMs = 900) => {
@@ -3165,6 +3165,8 @@ document.addEventListener('compositionstart', () => {
 }, true);
 document.addEventListener('compositionend', () => {
   isComposing = false;
+  // 组合结束后立即同步一次光标位置，避免中文输入时光标被键盘遮挡
+  requestAnimationFrame(() => ensureCaretInUpperViewport());
 }, true);
 
 document.addEventListener('selectionchange', () => {
@@ -3392,7 +3394,7 @@ const executeCommand = (cmd, args = {}) => {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
-  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report') {
+  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report' && cmd !== 'scroll_caret_into_view') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
@@ -3405,6 +3407,11 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'blur_editor') {
       const ok = blurEditorFocus();
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
+      return;
+    }
+    if (cmd === 'scroll_caret_into_view') {
+      forceCaretIntoUpperViewport();
+      emitCmdResult(cmd, true, null, startedAt);
       return;
     }
     if (cmd === 'debug_codeblock_language_report') {

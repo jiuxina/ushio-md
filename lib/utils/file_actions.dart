@@ -1063,10 +1063,13 @@ class FileActions {
         result,
         defaultName: nameWithoutExt,
       );
+      // 对话框只展示 .md 后缀，用户未输入扩展名时自动补全，
+      // 避免重命名后文件从 Markdown 列表中消失。
+      final finalName = FileService.ensureMarkdownExtension(sanitizedName);
 
       try {
         final dir = path.substring(0, path.lastIndexOf(Platform.pathSeparator));
-        final newPath = '$dir${Platform.pathSeparator}$sanitizedName';
+        final newPath = '$dir${Platform.pathSeparator}$finalName';
 
         // 检查目标文件是否已存在
         if (File(newPath).existsSync() && newPath != path) {
