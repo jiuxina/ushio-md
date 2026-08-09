@@ -1,5 +1,8 @@
 # 已知问题修复计划
 
+> 最新 Open Issues 汇总与分阶段修复计划见
+> [docs/ISSUE_FIX_PLAN_2026_08.md](ISSUE_FIX_PLAN_2026_08.md)。
+
 ## 问题概述
 
 根据 V1.4.3 release notes,存在以下两个已知问题:
