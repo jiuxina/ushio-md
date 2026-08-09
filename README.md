@@ -37,6 +37,7 @@
 - [Markdown 支持](#markdown-支持)
 - [常见问题](#常见问题)
 - [反馈与支持](#反馈与支持)
+- [赞助支持](#赞助支持)
 - [开源协议](#开源协议)
 
 ## 为什么选择汐
@@ -203,4 +204,8 @@ build_abi_release.bat
 [![Star History Chart](https://api.star-history.com/svg?repos=jiuxina/ushio-md&type=Date)](https://star-history.com/#jiuxina/ushio-md&Date)
 
 </div>
+
+## 赞助支持
+
+如果这个项目对你有帮助，欢迎通过 [爱发电](https://ifdian.net/a/jiuxina) 赞助支持我。
 
