@@ -11,6 +11,7 @@ import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../utils/app_style.dart';
 import '../utils/editor_navigation_helper.dart';
+import '../utils/file_import_helper.dart';
 import '../widgets/app_background.dart';
 import '../widgets/custom_title_bar.dart';
 import '../widgets/milkdown_webview_editor.dart';
@@ -93,7 +94,11 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         final fileProvider = context.read<FileProvider>();
         fileProvider.addToRecentFiles(path);
 
-        EditorNavigationHelper.openEditor(context, path);
+        FileImportHelper.openFile(
+          context,
+          path,
+          onFileOpened: () => fileProvider.addToRecentFiles(path),
+        );
       });
     }
   }

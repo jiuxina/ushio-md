@@ -1,6 +1,7 @@
 import 'dart:math';
 
 const _bridgeRequestSaltLimit = 1 << 20;
+int _bridgeRequestCounter = 0;
 
 class BridgeEnvelope<T> {
   final int v;
@@ -395,7 +396,8 @@ class OnCmdFailureAggregatePayload {
 String createBridgeRequestId() {
   final now = DateTime.now();
   final salt = Random.secure().nextInt(_bridgeRequestSaltLimit);
-  return '${now.microsecondsSinceEpoch}-$salt';
+  _bridgeRequestCounter = (_bridgeRequestCounter + 1) & 0x7fffffff;
+  return '${now.microsecondsSinceEpoch}-$salt-$_bridgeRequestCounter';
 }
 
 /// Dispatch a bridge message from Web -> Flutter to typed callback handlers.

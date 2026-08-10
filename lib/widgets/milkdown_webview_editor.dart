@@ -126,6 +126,36 @@ class _ContentSanitizer {
 InAppLocalhostServer? _warmServer;
 bool _isWarmingUp = false;
 Completer<void>? _warmupCompleter;
+const _localhostPortStart = 8080;
+const _localhostPortAttempts = 8;
+const _serverStartTimeout = Duration(seconds: 3);
+
+/// Starts a local Milkdown asset server, falling back to adjacent ports.
+///
+/// `flutter_inappwebview` 的默认服务器在端口被占用时不会完成 `start()`
+/// Future（内部只把错误交给 zone handler），这里用超时 + 端口回退避免编辑器
+/// 永远停留在“正在初始化编辑器...”状态。
+Future<InAppLocalhostServer?> _startMilkdownServer({
+  String documentRoot = 'assets/milkdown_web',
+}) async {
+  for (var i = 0; i < _localhostPortAttempts; i++) {
+    final port = _localhostPortStart + i;
+    final server = InAppLocalhostServer(
+      port: port,
+      documentRoot: documentRoot,
+    );
+    try {
+      appDebugLog('[SERVER] Trying port $port...');
+      await server.start().timeout(_serverStartTimeout);
+      appDebugLog('[SERVER] Server started on port $port');
+      return server;
+    } catch (e) {
+      appDebugLog('[SERVER] Port $port unavailable: $e');
+    }
+  }
+  appDebugLog('[SERVER] All fallback ports failed');
+  return null;
+}
 
 Future<void> warmUpMilkdownWebAssets() async {
   appDebugLog('[WARMUP] warmUpMilkdownWebAssets() called');
@@ -139,32 +169,38 @@ Future<void> warmUpMilkdownWebAssets() async {
   // If warmup is in progress, wait for it to complete
   if (_isWarmingUp && _warmupCompleter != null) {
     appDebugLog('[WARMUP] Warmup in progress, waiting for completion');
-    await _warmupCompleter!.future;
-    appDebugLog('[WARMUP] Wait completed');
-    return;
+    try {
+      await _warmupCompleter!.future.timeout(const Duration(seconds: 3));
+      appDebugLog('[WARMUP] Wait completed');
+      if (_warmServer != null) return;
+    } on TimeoutException {
+      appDebugLog('[WARMUP] Existing warmup timed out, starting fallback');
+    }
   }
 
   _isWarmingUp = true;
-  _warmupCompleter = Completer<void>();
+  final completer = Completer<void>();
+  _warmupCompleter = completer;
   appDebugLog('[WARMUP] Starting server...');
 
   try {
     final stopwatch = Stopwatch()..start();
-    final server = InAppLocalhostServer(documentRoot: 'assets/milkdown_web');
-    appDebugLog('[WARMUP] InAppLocalhostServer created, calling start()...');
-    await server.start();
-    stopwatch.stop();
-    appDebugLog(
-      '[WARMUP] Server started in ${stopwatch.elapsedMilliseconds}ms',
-    );
-    _warmServer = server;
-    appDebugLog('[WARMUP] Server assigned to _warmServer');
+    _warmServer = await _startMilkdownServer();
+    if (_warmServer != null) {
+      stopwatch.stop();
+      appDebugLog(
+        '[WARMUP] Server started in ${stopwatch.elapsedMilliseconds}ms',
+      );
+      appDebugLog('[WARMUP] Server assigned to _warmServer');
+    }
   } catch (e) {
     appDebugLog('[WARMUP] FAILED: $e');
   } finally {
-    _isWarmingUp = false;
-    _warmupCompleter?.complete();
-    _warmupCompleter = null;
+    if (identical(_warmupCompleter, completer)) {
+      _isWarmingUp = false;
+      _warmupCompleter = null;
+    }
+    completer.complete();
     appDebugLog('[WARMUP] Cleanup done');
   }
 }
@@ -557,8 +593,18 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       // creating a competing server on the same port.
       if (_isWarmingUp && _warmupCompleter != null) {
         appDebugLog('[WEBVIEW] Warmup in progress, waiting for completion...');
-        await _warmupCompleter!.future;
-        appDebugLog('[WEBVIEW] Warmup completed, checking server availability');
+        try {
+          await _warmupCompleter!.future.timeout(
+            const Duration(seconds: 3),
+          );
+          appDebugLog(
+            '[WEBVIEW] Warmup completed, checking server availability',
+          );
+        } on TimeoutException {
+          appDebugLog(
+            '[WEBVIEW] Warmup wait timed out, starting own server',
+          );
+        }
       }
 
       // Check if warmup server is available and reuse it
@@ -582,9 +628,17 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       appDebugLog(
         '[WEBVIEW] No warmup server, creating new InAppLocalhostServer...',
       );
-      final server = InAppLocalhostServer(documentRoot: _documentRoot);
-      appDebugLog('[WEBVIEW] Server created, calling start()...');
-      await server.start();
+      final server = await _startMilkdownServer(
+        documentRoot: _documentRoot,
+      );
+      if (server == null) {
+        appDebugLog('[WEBVIEW] No server could be started');
+        if (!mounted || _isDisposed) return;
+        setState(() {
+          _initialUrl = '';
+        });
+        return;
+      }
       stopwatch.stop();
       appDebugLog(
         '[WEBVIEW] Server started in ${stopwatch.elapsedMilliseconds}ms',

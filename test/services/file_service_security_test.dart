@@ -3,7 +3,7 @@
 // ============================================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ushio_md/services/file_service.dart';
+import 'package:mdreader/services/file_service.dart';
 
 void main() {
   group('FileService.sanitizeFileName', () {

@@ -2920,13 +2920,25 @@ class _EditorScreenState extends State<EditorScreen>
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(SnackBar(content: Text(l10n.generatingPdf)));
-                await ExportService.exportAndShareAsPdf(
-                  _textController.text,
-                  widget.filePath
-                      .split(Platform.pathSeparator)
-                      .last
-                      .replaceAll('.md', ''),
-                );
+                try {
+                  await ExportService.exportAndShareAsPdf(
+                    _textController.text,
+                    widget.filePath
+                        .split(Platform.pathSeparator)
+                        .last
+                        .replaceAll('.md', ''),
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('PDF 导出失败: $e'),
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
               },
             ),
             ListTile(

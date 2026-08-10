@@ -70,7 +70,14 @@ void main() {
           'mono': 'JetBrains Mono',
           'sizePx': 18.0,
           'lineHeight': 1.6,
+          'letterSpacing': 0.0,
+          'paragraphSpacing': 8.0,
         },
+        'style': {
+          'borderRadius': 12.0,
+          'shadowOpacity': 0.08,
+        },
+        'codeBlockTheme': 'auto',
       });
     });
 
