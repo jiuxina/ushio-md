@@ -2396,6 +2396,30 @@ abstract class AppLocalizations {
   /// **'字体颜色'**
   String get uiFontColorLabel;
 
+  /// 全局图标颜色设置
+  ///
+  /// In zh, this message translates to:
+  /// **'全局图标颜色'**
+  String get globalIconColor;
+
+  /// 自定义全局图标颜色开关
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义全局图标颜色'**
+  String get customGlobalIconColor;
+
+  /// 图标颜色标签
+  ///
+  /// In zh, this message translates to:
+  /// **'图标颜色'**
+  String get globalIconColorLabel;
+
+  /// 全局图标颜色描述
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后，应用内所有图标统一使用所选颜色'**
+  String get globalIconColorDesc;
+
   /// 自适应渐变色开关
   ///
   /// In zh, this message translates to:

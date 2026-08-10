@@ -12,6 +12,7 @@ import 'package:mime/mime.dart';
 import '../models/milkdown_bridge.dart';
 import '../services/my_files_service.dart';
 import '../utils/debug_log.dart';
+import '../utils/app_style.dart';
 
 typedef MilkdownBridgeMessageHandler = void Function(Map<String, dynamic> msg);
 typedef MilkdownCheckboxToggleHandler = void Function(int index, bool value);
@@ -890,7 +891,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
           ),
           title: Row(
             children: [
-              Icon(Icons.link, color: Theme.of(context).colorScheme.onSurface),
+              Icon(Icons.link, color: context.appIconColor),
               const SizedBox(width: 12),
               const Text('插入图片链接'),
             ],

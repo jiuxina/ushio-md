@@ -50,10 +50,7 @@ class QuickActions extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.flash_on,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+              Icon(Icons.flash_on, color: context.appMutedIconColor),
               const SizedBox(width: 8),
               Text(
                 '快速操作',
@@ -234,11 +231,7 @@ class QuickActions extends StatelessWidget {
           onTap: onTap,
           child: Container(
             padding: const EdgeInsets.all(8),
-            child: Icon(
-              icon,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              size: 24,
-            ),
+            child: Icon(icon, color: context.appMutedIconColor, size: 24),
           ),
         ),
       ),
@@ -359,11 +352,7 @@ class QuickActions extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(2),
-                  child: Icon(
-                    icon,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    size: 20,
-                  ),
+                  child: Icon(icon, color: context.appMutedIconColor, size: 20),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -408,11 +397,7 @@ class QuickActions extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.all(2),
-                child: Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  size: 24,
-                ),
+                child: Icon(icon, color: context.appMutedIconColor, size: 24),
               ),
               const SizedBox(height: 8),
               Text(

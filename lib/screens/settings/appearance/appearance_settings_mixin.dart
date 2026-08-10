@@ -8,7 +8,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../utils/app_style.dart';
@@ -42,7 +41,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   TextEditingController get homeTitleController => _homeTitleController;
   double get pendingParticleSpeed => _pendingParticleSpeed;
   double get pendingBackgroundBrightness => _pendingBackgroundBrightness;
-  double get pendingEditorBackgroundBrightness => _pendingEditorBackgroundBrightness;
+  double get pendingEditorBackgroundBrightness =>
+      _pendingEditorBackgroundBrightness;
 
   AppStyleTheme get appStyle => Theme.of(context).extension<AppStyleTheme>()!;
 
@@ -83,8 +83,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
 
   /// 初始化粒子速率值
   void initParticleSpeedValue(SettingsProvider settings) {
-    if (_pendingParticleSpeed == 0.5 &&
-        settings.particleSpeed != 0.5) {
+    if (_pendingParticleSpeed == 0.5 && settings.particleSpeed != 0.5) {
       // 将实际值 0.01-0.5 转换为显示值 0.1-1.0
       _pendingParticleSpeed = settings.particleSpeed * 2;
     }
@@ -120,9 +119,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -150,7 +149,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建主题模式选择器
-  Widget buildThemeModeSelector(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildThemeModeSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -201,7 +203,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               icon,
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface,
+                  : context.appIconColor,
             ),
             const SizedBox(height: 4),
             Text(
@@ -221,7 +223,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建语言选择器
-  Widget buildLanguageSelector(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildLanguageSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     final currentLocale = settings.locale;
     return Row(
       children: [
@@ -263,7 +268,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               isSelected ? Icons.check_circle : Icons.circle_outlined,
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface,
+                  : context.appIconColor,
             ),
             const SizedBox(height: 4),
             Text(
@@ -296,7 +301,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             final index = entry.key;
             final color = entry.value;
             final isSelected =
-                !settings.useCustomThemeColor && settings.primaryColorIndex == index;
+                !settings.useCustomThemeColor &&
+                settings.primaryColorIndex == index;
             return GestureDetector(
               onTap: () => settings.setPrimaryColorIndex(index),
               child: Container(
@@ -349,7 +355,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: settings.customThemeColor ??
+                    color:
+                        settings.customThemeColor ??
                         Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
@@ -358,9 +365,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: (settings.customThemeColor ??
-                                Theme.of(context).colorScheme.primary)
-                            .withValues(alpha: 0.3),
+                        color:
+                            (settings.customThemeColor ??
+                                    Theme.of(context).colorScheme.primary)
+                                .withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -378,9 +386,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               if (settings.customThemeColor != null)
                 Text(
                   '#${settings.customThemeColor!.value.toRadixString(16).substring(2).toUpperCase()}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
                 ),
             ],
           ),
@@ -398,16 +406,16 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     Text(
                       l10n.adaptiveGradientDesc,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
               ),
               Switch(
                 value: settings.adaptiveGradientEnabled,
-                onChanged: (value) => settings.setAdaptiveGradientEnabled(value),
+                onChanged: (value) =>
+                    settings.setAdaptiveGradientEnabled(value),
               ),
             ],
           ),
@@ -431,6 +439,137 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     );
   }
 
+  /// 构建全局图标颜色选择器
+  Widget buildGlobalIconColorSelector(SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context)!;
+    final defaultIconColor = context.appIconColor;
+    final currentColor = settings.customIconColor ?? defaultIconColor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.globalIconColorDesc,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // 预设图标颜色
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: SettingsProvider.globalIconColors.asMap().entries.map((
+            entry,
+          ) {
+            final color = entry.value;
+            final isSelected = settings.customIconColor == color;
+            return GestureDetector(
+              onTap: () => settings.setCustomIconColor(color),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? Colors.white : Colors.transparent,
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: isSelected
+                    ? Icon(
+                        Icons.check,
+                        color: color.computeLuminance() > 0.5
+                            ? Colors.black
+                            : Colors.white,
+                        size: 20,
+                      )
+                    : null,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        // 自定义全局图标颜色开关
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: Text(l10n.customGlobalIconColor)),
+            Switch(
+              value: settings.useCustomIconColor,
+              onChanged: (value) => settings.setUseCustomIconColor(value),
+            ),
+          ],
+        ),
+        if (settings.useCustomIconColor) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(l10n.globalIconColorLabel),
+              const SizedBox(width: 16),
+              GestureDetector(
+                onTap: () => showGlobalIconColorPicker(settings),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: currentColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: currentColor.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.colorize,
+                    size: 20,
+                    color: currentColor.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (settings.customIconColor != null)
+                Text(
+                  '#${settings.customIconColor!.value.toRadixString(16).substring(2).toUpperCase()}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 显示全局图标颜色选择弹窗
+  void showGlobalIconColorPicker(SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context)!;
+    AppearanceUtils.showColorPicker(
+      context: context,
+      initialColor: settings.customIconColor ?? context.appIconColor,
+      title: l10n.customGlobalIconColor,
+      presetColors: SettingsProvider.globalIconColors,
+      onColorSelected: (color) => settings.setCustomIconColor(color),
+    );
+  }
+
   /// 构建界面字体颜色选择器
   Widget buildUiFontColorSelector(SettingsProvider settings) {
     final l10n = AppLocalizations.of(context)!;
@@ -445,7 +584,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             final index = entry.key;
             final color = entry.value;
             final isSelected =
-                !settings.useCustomUiFontColor && settings.uiFontColorIndex == index;
+                !settings.useCustomUiFontColor &&
+                settings.uiFontColorIndex == index;
             return GestureDetector(
               onTap: () => settings.setUiFontColorIndex(index),
               child: Container(
@@ -503,7 +643,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: settings.customUiFontColor ??
+                    color:
+                        settings.customUiFontColor ??
                         Theme.of(context).colorScheme.onSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
@@ -512,9 +653,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: (settings.customUiFontColor ??
-                                Theme.of(context).colorScheme.onSurface)
-                            .withValues(alpha: 0.3),
+                        color:
+                            (settings.customUiFontColor ??
+                                    Theme.of(context).colorScheme.onSurface)
+                                .withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -523,9 +665,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   child: Icon(
                     Icons.colorize,
                     size: 20,
-                    color: (settings.customUiFontColor ??
-                                Theme.of(context).colorScheme.onSurface)
-                            .computeLuminance() >
+                    color:
+                        (settings.customUiFontColor ??
+                                    Theme.of(context).colorScheme.onSurface)
+                                .computeLuminance() >
                             0.5
                         ? Colors.black
                         : Colors.white,
@@ -536,9 +679,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               if (settings.customUiFontColor != null)
                 Text(
                   '#${settings.customUiFontColor!.value.toRadixString(16).substring(2).toUpperCase()}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
                 ),
             ],
           ),
@@ -556,9 +699,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     Text(
                       l10n.uiFontAdaptiveGradientDesc,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -582,10 +724,12 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
       context: context,
       builder: (context) {
         Color selectedColor =
-            settings.customUiFontColor ?? Theme.of(context).colorScheme.onSurface;
+            settings.customUiFontColor ??
+            Theme.of(context).colorScheme.onSurface;
         bool useHslMode = true;
         final hexController = TextEditingController(
-          text: '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+          text:
+              '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
         );
 
         return StatefulBuilder(
@@ -628,48 +772,54 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children:
-                          SettingsProvider.uiFontColors.asMap().entries.map((entry) {
-                        final color = entry.value;
-                        final isSelected = selectedColor.value == color.value;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              selectedColor = color;
-                            });
-                          },
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.outline,
-                                width: isSelected ? 3 : 1,
+                      children: SettingsProvider.uiFontColors
+                          .asMap()
+                          .entries
+                          .map((entry) {
+                            final color = entry.value;
+                            final isSelected =
+                                selectedColor.value == color.value;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  selectedColor = color;
+                                });
+                              },
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).colorScheme.outline,
+                                    width: isSelected ? 3 : 1,
+                                  ),
+                                ),
+                                child: isSelected
+                                    ? Icon(
+                                        Icons.check,
+                                        size: 20,
+                                        color: color.computeLuminance() > 0.5
+                                            ? Colors.black
+                                            : Colors.white,
+                                      )
+                                    : null,
                               ),
-                            ),
-                            child: isSelected
-                                ? Icon(
-                                    Icons.check,
-                                    size: 20,
-                                    color: color.computeLuminance() > 0.5
-                                        ? Colors.black
-                                        : Colors.white,
-                                  )
-                                : null,
-                          ),
-                        );
-                      }).toList(),
+                            );
+                          })
+                          .toList(),
                     ),
                     const SizedBox(height: 16),
                     // 十六进制输入
                     Row(
                       children: [
-                        Text('HEX',
-                            style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          'HEX',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
@@ -678,13 +828,17 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                               hintText: '#RRGGBB',
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             onSubmitted: (value) {
-                              final color = AppearanceUtils.parseHexColor(value);
+                              final color = AppearanceUtils.parseHexColor(
+                                value,
+                              );
                               if (color != null) {
                                 setState(() {
                                   selectedColor = color;
@@ -759,13 +913,17 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     const SizedBox(height: 12),
                     // 滑块
                     if (useHslMode)
-                      ...AppearanceUtils.buildHslSliders(selectedColor, (color) {
+                      ...AppearanceUtils.buildHslSliders(selectedColor, (
+                        color,
+                      ) {
                         setState(() {
                           selectedColor = color;
                         });
                       })
                     else
-                      ...AppearanceUtils.buildRgbSliders(selectedColor, (color) {
+                      ...AppearanceUtils.buildRgbSliders(selectedColor, (
+                        color,
+                      ) {
                         setState(() {
                           selectedColor = color;
                         });
@@ -803,11 +961,13 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
         Wrap(
           spacing: 10,
           runSpacing: 10,
-          children:
-              SettingsProvider.editorFontColors.asMap().entries.map((entry) {
+          children: SettingsProvider.editorFontColors.asMap().entries.map((
+            entry,
+          ) {
             final index = entry.key;
             final color = entry.value;
-            final isSelected = !settings.useCustomEditorFontColor &&
+            final isSelected =
+                !settings.useCustomEditorFontColor &&
                 settings.editorFontColorIndex == index;
             return GestureDetector(
               onTap: () => settings.setEditorFontColorIndex(index),
@@ -866,7 +1026,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: settings.customEditorFontColor ??
+                    color:
+                        settings.customEditorFontColor ??
                         Theme.of(context).colorScheme.onSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
@@ -875,9 +1036,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: (settings.customEditorFontColor ??
-                                Theme.of(context).colorScheme.onSurface)
-                            .withValues(alpha: 0.3),
+                        color:
+                            (settings.customEditorFontColor ??
+                                    Theme.of(context).colorScheme.onSurface)
+                                .withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -886,9 +1048,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   child: Icon(
                     Icons.colorize,
                     size: 20,
-                    color: (settings.customEditorFontColor ??
-                                Theme.of(context).colorScheme.onSurface)
-                            .computeLuminance() >
+                    color:
+                        (settings.customEditorFontColor ??
+                                    Theme.of(context).colorScheme.onSurface)
+                                .computeLuminance() >
                             0.5
                         ? Colors.black
                         : Colors.white,
@@ -899,9 +1062,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               if (settings.customEditorFontColor != null)
                 Text(
                   '#${settings.customEditorFontColor!.value.toRadixString(16).substring(2).toUpperCase()}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
                 ),
             ],
           ),
@@ -919,9 +1082,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     Text(
                       l10n.editorFontAdaptiveGradientDesc,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -944,11 +1106,13 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     showDialog(
       context: context,
       builder: (context) {
-        Color selectedColor = settings.customEditorFontColor ??
+        Color selectedColor =
+            settings.customEditorFontColor ??
             Theme.of(context).colorScheme.onSurface;
         bool useHslMode = true;
         final hexController = TextEditingController(
-          text: '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+          text:
+              '#${selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
         );
 
         return StatefulBuilder(
@@ -991,48 +1155,54 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: SettingsProvider.editorFontColors.asMap().entries
+                      children: SettingsProvider.editorFontColors
+                          .asMap()
+                          .entries
                           .map((entry) {
-                        final color = entry.value;
-                        final isSelected = selectedColor.value == color.value;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              selectedColor = color;
-                            });
-                          },
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.outline,
-                                width: isSelected ? 3 : 1,
+                            final color = entry.value;
+                            final isSelected =
+                                selectedColor.value == color.value;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  selectedColor = color;
+                                });
+                              },
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).colorScheme.outline,
+                                    width: isSelected ? 3 : 1,
+                                  ),
+                                ),
+                                child: isSelected
+                                    ? Icon(
+                                        Icons.check,
+                                        size: 20,
+                                        color: color.computeLuminance() > 0.5
+                                            ? Colors.black
+                                            : Colors.white,
+                                      )
+                                    : null,
                               ),
-                            ),
-                            child: isSelected
-                                ? Icon(
-                                    Icons.check,
-                                    size: 20,
-                                    color: color.computeLuminance() > 0.5
-                                        ? Colors.black
-                                        : Colors.white,
-                                  )
-                                : null,
-                          ),
-                        );
-                      }).toList(),
+                            );
+                          })
+                          .toList(),
                     ),
                     const SizedBox(height: 16),
                     // 十六进制输入
                     Row(
                       children: [
-                        Text('HEX',
-                            style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          'HEX',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
@@ -1041,13 +1211,17 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                               hintText: '#RRGGBB',
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             onSubmitted: (value) {
-                              final color = AppearanceUtils.parseHexColor(value);
+                              final color = AppearanceUtils.parseHexColor(
+                                value,
+                              );
                               if (color != null) {
                                 setState(() {
                                   selectedColor = color;
@@ -1122,13 +1296,17 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     const SizedBox(height: 12),
                     // 滑块
                     if (useHslMode)
-                      ...AppearanceUtils.buildHslSliders(selectedColor, (color) {
+                      ...AppearanceUtils.buildHslSliders(selectedColor, (
+                        color,
+                      ) {
                         setState(() {
                           selectedColor = color;
                         });
                       })
                     else
-                      ...AppearanceUtils.buildRgbSliders(selectedColor, (color) {
+                      ...AppearanceUtils.buildRgbSliders(selectedColor, (
+                        color,
+                      ) {
                         setState(() {
                           selectedColor = color;
                         });
@@ -1157,7 +1335,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建 UI 风格选择器
-  Widget buildButtonStyleSelector(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildButtonStyleSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       children: [
         Row(
@@ -1193,14 +1374,11 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             child: Text(
               l10n.uiStyleOpacityHint,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ),
-        buildLiquidGlassStyleOption(
-          settings,
-          l10n,
-        ),
+        buildLiquidGlassStyleOption(settings, l10n),
       ],
     );
   }
@@ -1209,9 +1387,12 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    final isSelected = settings.buttonStyleMode == AppButtonStyleMode.liquidGlass;
+    final isSelected =
+        settings.buttonStyleMode == AppButtonStyleMode.liquidGlass;
     final previewPrimary = Theme.of(context).colorScheme.primary;
-    final previewSurface = appStyle.cardSurfaceColor(Theme.of(context).colorScheme);
+    final previewSurface = appStyle.cardSurfaceColor(
+      Theme.of(context).colorScheme,
+    );
 
     return GestureDetector(
       onTap: () => settings.setButtonStyleMode(AppButtonStyleMode.liquidGlass),
@@ -1225,9 +1406,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               children: [
                 Icon(
                   Icons.water_drop_outlined,
-                  color: isSelected
-                      ? previewPrimary
-                      : Theme.of(context).colorScheme.onSurface,
+                  color: isSelected ? previewPrimary : context.appIconColor,
                 ),
                 const Spacer(),
                 if (isSelected)
@@ -1238,13 +1417,15 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             Text(
               l10n.uiStyleLiquidGlass,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? previewPrimary : null,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: isSelected ? previewPrimary : null,
+              ),
             ),
             const SizedBox(height: 6),
-            Text(l10n.uiStyleLiquidGlassDesc,
-                style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              l10n.uiStyleLiquidGlassDesc,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 14),
             LiquidGlassCard(
               borderRadius: BorderRadius.circular(14),
@@ -1282,9 +1463,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     final previewSurface = isLiquidGlass
         ? appStyle.cardSurfaceColor(Theme.of(context).colorScheme)
         : (appStyle.useBorderlessButtons &&
-                mode == AppButtonStyleMode.softShadow
-            ? appStyle.strongSurface
-            : Theme.of(context).colorScheme.surface);
+                  mode == AppButtonStyleMode.softShadow
+              ? appStyle.strongSurface
+              : Theme.of(context).colorScheme.surface);
 
     return GestureDetector(
       onTap: () => settings.setButtonStyleMode(mode),
@@ -1298,9 +1479,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               children: [
                 Icon(
                   icon,
-                  color: isSelected
-                      ? previewPrimary
-                      : Theme.of(context).colorScheme.onSurface,
+                  color: isSelected ? previewPrimary : context.appIconColor,
                 ),
                 const Spacer(),
                 if (isSelected)
@@ -1311,9 +1490,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             Text(
               title,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? previewPrimary : null,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: isSelected ? previewPrimary : null,
+              ),
             ),
             const SizedBox(height: 6),
             Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
@@ -1331,21 +1510,22 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                             boxShadow: appStyle.prominentShadow,
                           )
                         : (mode == AppButtonStyleMode.softShadow
-                            ? BoxDecoration(
-                                color: previewSurface,
-                                borderRadius: BorderRadius.circular(14),
-                                boxShadow: appStyle.prominentShadow,
-                              )
-                            : BoxDecoration(
-                                color: previewPrimary,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: previewPrimary),
-                              )),
+                              ? BoxDecoration(
+                                  color: previewSurface,
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: appStyle.prominentShadow,
+                                )
+                              : BoxDecoration(
+                                  color: previewPrimary,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: previewPrimary),
+                                )),
                     alignment: Alignment.center,
                     child: Text(
                       l10n.buttonPreview,
                       style: TextStyle(
-                        color: (mode == AppButtonStyleMode.softShadow ||
+                        color:
+                            (mode == AppButtonStyleMode.softShadow ||
                                 isLiquidGlass)
                             ? Theme.of(context).colorScheme.onSurface
                             : Colors.white,
@@ -1363,7 +1543,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建卡片透明度滑块
-  Widget buildCardOpacitySlider(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildCardOpacitySlider(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Row(
       children: [
         Text(l10n.opacity),
@@ -1389,7 +1572,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建卡片颜色选择器
-  Widget buildCardColorSelector(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildCardColorSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1418,7 +1604,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: settings.customCardColor ??
+                    color:
+                        settings.customCardColor ??
                         Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
@@ -1427,9 +1614,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: (settings.customCardColor ??
-                                Theme.of(context).colorScheme.surface)
-                            .withValues(alpha: 0.3),
+                        color:
+                            (settings.customCardColor ??
+                                    Theme.of(context).colorScheme.surface)
+                                .withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -1478,8 +1666,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
 
     AppearanceUtils.showColorPicker(
       context: context,
-      initialColor: settings.customCardColor ??
-          Theme.of(context).colorScheme.surface,
+      initialColor:
+          settings.customCardColor ?? Theme.of(context).colorScheme.surface,
       title: l10n.cardColor,
       presetColors: presetColors,
       onColorSelected: (color) => settings.setCustomCardColor(color),
@@ -1528,7 +1716,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   style: TextStyle(
                     fontSize: 11,
                     color: scheme.text,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -1581,7 +1771,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   style: TextStyle(
                     fontSize: 11,
                     color: scheme.text,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -1644,17 +1836,19 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
       Future<void> Function(String) setter,
     ) async {
       if (fontFamily == null) return;
-      
+
       // 检查是否是需要下载的内置字体
       final fontOption = AppConstants.availableFonts.firstWhere(
         (f) => f.fontFamily == fontFamily,
         orElse: () => const FontOption(name: '', fontFamily: ''),
       );
-      
+
       if (fontOption.needDownload) {
         // 检查是否已下载
-        final isDownloaded = await FontService.isBuiltinFontDownloaded(fontFamily);
-        
+        final isDownloaded = await FontService.isBuiltinFontDownloaded(
+          fontFamily,
+        );
+
         if (!isDownloaded && mounted) {
           // 显示下载确认对话框
           final confirmed = await showDialog<bool>(
@@ -1695,9 +1889,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               ],
             ),
           );
-          
+
           if (confirmed != true) return;
-          
+
           // 开始下载
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1721,12 +1915,12 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               ),
             );
           }
-          
+
           final result = await FontService.downloadBuiltinFont(fontFamily);
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).clearSnackBars();
-            
+
             if (result != null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -1755,7 +1949,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
           }
         }
       }
-      
+
       await setter(fontFamily);
     }
 
@@ -1772,10 +1966,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               underline: const SizedBox(),
               borderRadius: BorderRadius.circular(12),
               items: fontItems,
-              onChanged: (value) => handleFontChange(
-                value,
-                settings.setUiFontFamily,
-              ),
+              onChanged: (value) =>
+                  handleFontChange(value, settings.setUiFontFamily),
             ),
           ],
         ),
@@ -1790,10 +1982,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               underline: const SizedBox(),
               borderRadius: BorderRadius.circular(12),
               items: fontItems,
-              onChanged: (value) => handleFontChange(
-                value,
-                settings.setEditorFontFamily,
-              ),
+              onChanged: (value) =>
+                  handleFontChange(value, settings.setEditorFontFamily),
             ),
           ],
         ),
@@ -1808,10 +1998,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               underline: const SizedBox(),
               borderRadius: BorderRadius.circular(12),
               items: fontItems,
-              onChanged: (value) => handleFontChange(
-                value,
-                settings.setCodeFontFamily,
-              ),
+              onChanged: (value) =>
+                  handleFontChange(value, settings.setCodeFontFamily),
             ),
           ],
         ),
@@ -1821,7 +2009,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
           onPressed: _loadingFonts
               ? null
               : () async {
-                  final fontName = await FontService.installFontFromFile(context);
+                  final fontName = await FontService.installFontFromFile(
+                    context,
+                  );
                   if (fontName != null) {
                     await _loadCustomFonts();
                     if (mounted) {
@@ -1845,7 +2035,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建代码块主题选择器
-  Widget buildCodeBlockThemeSelector(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildCodeBlockThemeSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1889,14 +2082,15 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             return GestureDetector(
               onTap: () => settings.setCodeBlockThemeIndex(index),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.1)
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.1)
                       : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
@@ -1914,15 +2108,16 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                       size: 18,
                       color: isSelected
                           ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurface,
+                          : context.appIconColor,
                     ),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
                         themeName,
                         style: TextStyle(
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           color: isSelected
                               ? Theme.of(context).colorScheme.primary
                               : Theme.of(context).colorScheme.onSurface,
@@ -1942,9 +2137,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
 
   /// 选择背景图片
   Future<void> pickBackgroundImage(SettingsProvider settings) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-    );
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
     if (result != null && result.files.single.path != null) {
       settings.setBackgroundImage(result.files.single.path);
     }
@@ -1952,9 +2145,7 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
 
   /// 选择编辑器背景图片
   Future<void> pickEditorBackgroundImage(SettingsProvider settings) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-    );
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
     if (result != null && result.files.single.path != null) {
       settings.setEditorBackgroundImage(result.files.single.path);
     }
@@ -2006,13 +2197,17 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             TextButton(
               onPressed: () {
                 final parsed = int.tryParse(controller.text);
-                if (parsed != null && parsed >= minValue && parsed <= maxValue) {
+                if (parsed != null &&
+                    parsed >= minValue &&
+                    parsed <= maxValue) {
                   onSaved(parsed);
                   Navigator.of(context).pop();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('${l10n.invalidRange} ($minValue-$maxValue)'),
+                      content: Text(
+                        '${l10n.invalidRange} ($minValue-$maxValue)',
+                      ),
                     ),
                   );
                 }
@@ -2026,7 +2221,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建背景设置
-  Widget buildBackgroundSettings(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildBackgroundSettings(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2056,8 +2254,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                 return Container(
                   height: 100,
                   decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(child: Text(l10n.clearImage)),
@@ -2127,9 +2326,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     '${_pendingBackgroundBrightness.round()}%',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          decoration: TextDecoration.underline,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                      decoration: TextDecoration.underline,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               ),
@@ -2171,7 +2370,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建编辑器背景设置
-  Widget buildEditorBackgroundSettings(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildEditorBackgroundSettings(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2199,8 +2401,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                 return Container(
                   height: 100,
                   decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(child: Text(l10n.clearImage)),
@@ -2236,7 +2439,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     setState(() {
                       _pendingEditorBackgroundBrightness = value;
                     });
-                    settings.updateEditorBackgroundBrightnessInMemory(value / 100);
+                    settings.updateEditorBackgroundBrightnessInMemory(
+                      value / 100,
+                    );
                     _editorBackgroundBrightnessDebounce?.cancel();
                     _editorBackgroundBrightnessDebounce = Timer(
                       const Duration(milliseconds: 300),
@@ -2258,7 +2463,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                       setState(() {
                         _pendingEditorBackgroundBrightness = value.toDouble();
                       });
-                      settings.updateEditorBackgroundBrightnessInMemory(value / 100);
+                      settings.updateEditorBackgroundBrightnessInMemory(
+                        value / 100,
+                      );
                       settings.setEditorBackgroundBrightness(value / 100);
                     },
                   );
@@ -2269,9 +2476,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     '${_pendingEditorBackgroundBrightness.round()}%',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          decoration: TextDecoration.underline,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                      decoration: TextDecoration.underline,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               ),
@@ -2312,7 +2519,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建粒子效果设置
-  Widget buildParticleSettings(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildParticleSettings(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     const particleTypeIds = ['sakura', 'rain', 'firefly', 'snow'];
 
     return Column(
@@ -2336,8 +2546,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
           Text(
             l10n.particleType,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
           const SizedBox(height: 8),
           GridView.count(
@@ -2375,14 +2585,15 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
               return GestureDetector(
                 onTap: () => settings.setParticleType(typeId),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.1)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1)
                         : Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
@@ -2467,8 +2678,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
           Text(
             l10n.advancedParticleSettings,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
           const SizedBox(height: 8),
           // 粒子数量
@@ -2550,8 +2761,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   label: settings.particleWind > 0
                       ? l10n.particleWindRight
                       : settings.particleWind < 0
-                          ? l10n.particleWindLeft
-                          : l10n.particleWindNone,
+                      ? l10n.particleWindLeft
+                      : l10n.particleWindNone,
                   onChanged: (value) => settings.setParticleWind(value),
                 ),
               ),
@@ -2563,7 +2774,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建应用图标选择器
-  Widget buildAppIconSelector(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildAppIconSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     final options = [
       {'index': 0, 'label': l10n.defaultIcon, 'asset': 'app.png'},
       {'index': 1, 'label': l10n.icon2, 'asset': 'assets/icons/icon2.png'},
@@ -2575,8 +2789,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
         Text(
           l10n.appIconSelectorHint,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-              ),
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
         const SizedBox(height: 12),
         Row(
@@ -2595,13 +2809,12 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                         ? appStyle.surfaceShadow
                         : null,
                     color: isSelected
-                        ? Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.1)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1)
                         : (appStyle.useBorderlessButtons
-                            ? appStyle.strongSurface
-                            : Colors.transparent),
+                              ? appStyle.strongSurface
+                              : Colors.transparent),
                     borderRadius: BorderRadius.circular(12),
                     border: appStyle.useBorderlessButtons
                         ? null
@@ -2625,10 +2838,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                             width: 56,
                             height: 56,
                             decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.2),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(Icons.image, size: 28),
@@ -2726,15 +2938,18 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建首页头像选择器
-  Widget buildHomeIconSelector(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildHomeIconSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           l10n.homeIconSelectorHint,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-              ),
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
         const SizedBox(height: 12),
         // 前三个选项（默认、icon2、隐藏）横排
@@ -2795,8 +3010,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
               : (appStyle.useBorderlessButtons
-                  ? appStyle.strongSurface
-                  : Colors.transparent),
+                    ? appStyle.strongSurface
+                    : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
           border: appStyle.useBorderlessButtons
               ? null
@@ -2865,8 +3080,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
               : (appStyle.useBorderlessButtons
-                  ? appStyle.strongSurface
-                  : Colors.transparent),
+                    ? appStyle.strongSurface
+                    : Colors.transparent),
           borderRadius: BorderRadius.circular(12),
           border: appStyle.useBorderlessButtons
               ? null
@@ -2896,10 +3111,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.1),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -2916,8 +3130,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                   Text(
                     l10n.customImage,
                     style: TextStyle(
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       color: isSelected
                           ? Theme.of(context).colorScheme.primary
                           : Theme.of(context).colorScheme.onSurface,
@@ -2928,8 +3143,8 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                         ? customPath.split('/').last.split('\\').last
                         : l10n.selectFromGallery,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -2964,7 +3179,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建首页标题输入框
-  Widget buildHomeTitleTextField(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildHomeTitleTextField(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     final homeTitleText = settings.homeTitleText;
     if (_homeTitleController.text != homeTitleText) {
       _homeTitleController.value = TextEditingValue(
@@ -2990,7 +3208,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建底部导航栏透明度滑块
-  Widget buildTabBarOpacitySlider(SettingsProvider settings, AppLocalizations l10n) {
+  Widget buildTabBarOpacitySlider(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
     return Row(
       children: [
         Text(l10n.opacity),

@@ -40,10 +40,7 @@ class GlassCard extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.all(2),
-                child: Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+                child: Icon(icon, color: context.appIconColor),
               ),
               const SizedBox(width: 16),
               Expanded(

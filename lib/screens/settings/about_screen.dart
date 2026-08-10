@@ -196,10 +196,7 @@ class _AboutScreenState extends State<AboutScreen> {
   }) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        icon,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      leading: Icon(icon, color: context.appMutedIconColor),
       title: Text(title),
       subtitle: Text(
         subtitle,
@@ -219,10 +216,7 @@ class _AboutScreenState extends State<AboutScreen> {
     final settings = context.watch<SettingsProvider>();
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      secondary: Icon(
-        Icons.update_outlined,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      secondary: Icon(Icons.update_outlined, color: context.appMutedIconColor),
       title: Text(l10n.autoCheckUpdate),
       subtitle: Text(l10n.autoCheckUpdateDesc),
       value: settings.autoCheckUpdate,
@@ -240,10 +234,7 @@ class _AboutScreenState extends State<AboutScreen> {
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Icon(
-              Icons.update,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          : Icon(Icons.update, color: context.appMutedIconColor),
       title: Text(l10n.checkForUpdates),
       subtitle: Text(l10n.checkForUpdatesDesc),
       trailing: TextButton(
@@ -308,7 +299,7 @@ class _AboutScreenState extends State<AboutScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.update, color: Theme.of(context).colorScheme.onSurface),
+            Icon(Icons.update, color: context.appIconColor),
             const SizedBox(width: 12),
             Flexible(child: Text(l10n.foundNewVersion)),
           ],

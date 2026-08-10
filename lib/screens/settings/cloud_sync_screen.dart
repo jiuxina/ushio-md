@@ -246,10 +246,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(2),
-            child: Icon(
-              Icons.cloud_sync,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            child: Icon(Icons.cloud_sync, color: context.appIconColor),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -336,7 +333,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
               children: [
                 Icon(
                   Icons.warning_amber,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: context.appMutedIconColor,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
@@ -631,7 +628,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                 children: [
                   Icon(
                     Icons.autorenew,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: context.appMutedIconColor,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -699,9 +696,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                                       ? Icons.upload
                                       : Icons.download,
                                   size: 16,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
+                                  color: context.appMutedIconColor,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -1112,10 +1107,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
               ),
               title: Row(
                 children: [
-                  Icon(
-                    Icons.sync,
-                    color: Theme.of(dialogContext).colorScheme.onSurface,
-                  ),
+                  Icon(Icons.sync, color: dialogContext.appIconColor),
                   const SizedBox(width: 12),
                   Text(l10n.syncPreview),
                 ],

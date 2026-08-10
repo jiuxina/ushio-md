@@ -11,6 +11,7 @@ import '../services/export_service.dart';
 import '../services/file_service.dart';
 import '../screens/folder_browser_screen.dart';
 import '../utils/constants.dart';
+import '../utils/app_style.dart';
 import '../widgets/milkdown_webview_editor.dart';
 import '../l10n/app_localizations.dart';
 import 'editor_navigation_helper.dart';
@@ -368,10 +369,7 @@ class FileActions {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                Icon(icon, color: context.appMutedIconColor),
                 const SizedBox(width: 12),
                 Text(
                   label,
@@ -420,156 +418,86 @@ class FileActions {
     String path,
     ShareService shareService,
   ) {
-    return Container(
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          leading: Icon(
-            Icons.share,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        leading: Icon(Icons.share, color: context.appMutedIconColor),
+        title: Text(
+          '分享',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+        children: [
+          // 以文件分享
+          _buildShareOption(
+            context,
+            icon: Icons.insert_drive_file,
+            label: '以文件分享',
+            subtitle: '分享 .md 原文件',
+            onTap: () {
+              Navigator.pop(context);
+              shareService.shareFile(path);
+            },
           ),
-          title: Text(
-            '分享',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          const SizedBox(height: 8),
+          // 以图片分享
+          _buildShareOption(
+            context,
+            icon: Icons.image,
+            label: '以图片分享',
+            subtitle: '后台渲染并合成长图分享',
+            onTap: () async {
+              Navigator.pop(context);
+              try {
+                await _shareAsImageDirectly(context, path);
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('图片分享失败: $e'),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
           ),
-          childrenPadding: const EdgeInsets.only(
-            left: 16,
-            right: 16,
-            bottom: 12,
-          ),
-          children: [
-            // 以文件分享
-            _buildShareOption(
-              context,
-              icon: Icons.insert_drive_file,
-              label: '以文件分享',
-              subtitle: '分享 .md 原文件',
-              onTap: () {
-                Navigator.pop(context);
-                shareService.shareFile(path);
-              },
-            ),
-            const SizedBox(height: 8),
-            // 以图片分享
-            _buildShareOption(
-              context,
-              icon: Icons.image,
-              label: '以图片分享',
-              subtitle: '后台渲染并合成长图分享',
-              onTap: () async {
-                Navigator.pop(context);
-                try {
-                  await _shareAsImageDirectly(context, path);
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('图片分享失败: $e'),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-            // 以 PDF 分享
-            _buildShareOption(
-              context,
-              icon: Icons.picture_as_pdf,
-              label: '以 PDF 分享',
-              subtitle: '转换为 PDF 后分享',
-              onTap: () async {
-                Navigator.pop(context);
+          const SizedBox(height: 8),
+          // 以 PDF 分享
+          _buildShareOption(
+            context,
+            icon: Icons.picture_as_pdf,
+            label: '以 PDF 分享',
+            subtitle: '转换为 PDF 后分享',
+            onTap: () async {
+              Navigator.pop(context);
 
-                // 防抖检查
-                final debounceKey = 'pdf_share_$path';
-                if (!_Debouncer.startOperation(debounceKey)) return;
+              // 防抖检查
+              final debounceKey = 'pdf_share_$path';
+              if (!_Debouncer.startOperation(debounceKey)) return;
 
-                // 读取文件内容
-                try {
-                  final file = File(path);
-                  final stat = await file.stat();
+              // 读取文件内容
+              try {
+                final file = File(path);
+                final stat = await file.stat();
 
-                  // 检查文件大小
-                  if (FileService.isFileTooLarge(stat.size)) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              const Icon(Icons.error, color: Colors.white),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  '文件过大 (${FileService.formatFileSize(stat.size)})，'
-                                  '最大支持 ${FileService.formatFileSize(FileService.maxFileSize)}',
-                                ),
-                              ),
-                            ],
-                          ),
-                          backgroundColor: Colors.red,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      );
-                    }
-                    _Debouncer.endOperation(debounceKey);
-                    return;
-                  }
-
-                  final content = await file.readAsString();
-                  final fileName = path
-                      .split(Platform.pathSeparator)
-                      .last
-                      .replaceAll('.md', '')
-                      .replaceAll('.markdown', '');
-
-                  // 显示加载提示
+                // 检查文件大小
+                if (FileService.isFileTooLarge(stat.size)) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: const Row(
+                        content: Row(
                           children: [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                            const Icon(Icons.error, color: Colors.white),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '文件过大 (${FileService.formatFileSize(stat.size)})，'
+                                '最大支持 ${FileService.formatFileSize(FileService.maxFileSize)}',
                               ),
                             ),
-                            SizedBox(width: 12),
-                            Text('正在生成 PDF...'),
-                          ],
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  }
-
-                  final success = await ExportService.exportAndShareAsPdf(
-                    content,
-                    fileName,
-                    title: fileName,
-                  );
-
-                  if (!success && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Row(
-                          children: [
-                            Icon(Icons.error, color: Colors.white),
-                            SizedBox(width: 12),
-                            Text('PDF 导出失败'),
                           ],
                         ),
                         backgroundColor: Colors.red,
@@ -580,13 +508,74 @@ class FileActions {
                       ),
                     );
                   }
-                } finally {
                   _Debouncer.endOperation(debounceKey);
+                  return;
                 }
-              },
-            ),
-          ],
-        ),
+
+                final content = await file.readAsString();
+                final fileName = path
+                    .split(Platform.pathSeparator)
+                    .last
+                    .replaceAll('.md', '')
+                    .replaceAll('.markdown', '');
+
+                // 显示加载提示
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('正在生成 PDF...'),
+                        ],
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+
+                final success = await ExportService.exportAndShareAsPdf(
+                  content,
+                  fileName,
+                  title: fileName,
+                );
+
+                if (!success && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Row(
+                        children: [
+                          Icon(Icons.error, color: Colors.white),
+                          SizedBox(width: 12),
+                          Text('PDF 导出失败'),
+                        ],
+                      ),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                }
+              } finally {
+                _Debouncer.endOperation(debounceKey);
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -925,11 +914,7 @@ class FileActions {
           ),
           child: Row(
             children: [
-              Icon(
-                icon,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
+              Icon(icon, color: context.appMutedIconColor, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1222,10 +1207,7 @@ class FileActions {
           ),
           title: Row(
             children: [
-              Icon(
-                Icons.add_circle,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+              Icon(Icons.add_circle, color: context.appIconColor),
               const SizedBox(width: 12),
               const Text('新建 Markdown'),
             ],
@@ -1295,10 +1277,7 @@ class FileActions {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.folder,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                        Icon(Icons.folder, color: context.appMutedIconColor),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -1389,10 +1368,7 @@ class FileActions {
           ),
           title: Row(
             children: [
-              Icon(
-                Icons.create_new_folder,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+              Icon(Icons.create_new_folder, color: context.appIconColor),
               const SizedBox(width: 12),
               const Text('新建文件夹'),
             ],
@@ -1461,10 +1437,7 @@ class FileActions {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.folder,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                        Icon(Icons.folder, color: context.appMutedIconColor),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(

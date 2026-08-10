@@ -1233,6 +1233,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uiFontColorLabel => 'Font Color';
 
   @override
+  String get globalIconColor => 'Global Icon Color';
+
+  @override
+  String get customGlobalIconColor => 'Custom Global Icon Color';
+
+  @override
+  String get globalIconColorLabel => 'Icon Color';
+
+  @override
+  String get globalIconColorDesc =>
+      'Use the selected color for all app icons when enabled';
+
+  @override
   String get adaptiveGradient => 'Adaptive Gradient';
 
   @override

@@ -10,6 +10,7 @@ import '../../../providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../widgets/app_background.dart';
 import '../../../widgets/app_surface.dart';
+import '../../../utils/app_style.dart';
 import 'appearance_settings_mixin.dart';
 import 'monet_settings_screen.dart';
 
@@ -95,6 +96,13 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen>
 
                 const SizedBox(height: 16),
 
+                // 全局图标颜色
+                buildSection(l10n.globalIconColor, Icons.format_paint, [
+                  buildGlobalIconColorSelector(settings),
+                ]),
+
+                const SizedBox(height: 16),
+
                 // UI 风格
                 buildSection(l10n.uiStyle, Icons.auto_awesome_rounded, [
                   buildButtonStyleSelector(settings, l10n),
@@ -136,13 +144,11 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen>
   Widget _buildMonetEntry(SettingsProvider settings, AppLocalizations l10n) {
     final monetEnabled = settings.monetEnabled;
     final activeConfig = settings.activeMonetConfig;
-    
+
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const MonetSettingsScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const MonetSettingsScreen()),
         );
       },
       child: AppSurface(
@@ -163,9 +169,15 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen>
                           activeConfig.scheme.lightScheme.tertiary,
                         ]
                       : [
-                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-                          Theme.of(context).colorScheme.secondary.withValues(alpha: 0.3),
-                          Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.3),
+                          Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.3),
+                          Theme.of(
+                            context,
+                          ).colorScheme.secondary.withValues(alpha: 0.3),
+                          Theme.of(
+                            context,
+                          ).colorScheme.tertiary.withValues(alpha: 0.3),
                         ],
                 ),
                 borderRadius: BorderRadius.circular(12),
@@ -186,13 +198,16 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen>
                       Text(
                         l10n.monetSettings,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       if (monetEnabled) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.primary,
                             borderRadius: BorderRadius.circular(8),
@@ -215,16 +230,13 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen>
                         ? activeConfig.name
                         : l10n.monetEnabledDesc,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            Icon(Icons.chevron_right, color: context.appMutedIconColor),
           ],
         ),
       ),

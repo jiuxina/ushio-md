@@ -59,11 +59,7 @@ class _HistoryTabState extends State<HistoryTab> {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.history_rounded,
-            color: Theme.of(context).colorScheme.onSurface,
-            size: 24,
-          ),
+          Icon(Icons.history_rounded, color: context.appIconColor, size: 24),
           const SizedBox(width: 12),
           Text(
             l10n.historyTab,
@@ -182,9 +178,7 @@ class _HistoryTabState extends State<HistoryTab> {
             Icon(
               icon,
               size: 16,
-              color: isSelected
-                  ? Colors.white
-                  : Theme.of(context).colorScheme.onSurface,
+              color: isSelected ? Colors.white : context.appIconColor,
             ),
             const SizedBox(width: 6),
             Text(

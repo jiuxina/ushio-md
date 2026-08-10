@@ -246,7 +246,7 @@ class FileTile extends StatelessWidget {
       padding: EdgeInsets.all(ResponsiveLayout.isDesktopWidth(context) ? 6 : 8),
       child: Icon(
         iconData,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        color: context.appMutedIconColor,
         size: ResponsiveLayout.isDesktopWidth(context) ? 18 : 20,
       ),
     );

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/my_files_service.dart';
+import 'app_style.dart';
 import 'editor_navigation_helper.dart';
 
 /// 文件导入结果
@@ -170,10 +171,7 @@ class _ImportDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
-          Icon(
-            Icons.folder_copy,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+          Icon(Icons.folder_copy, color: context.appIconColor),
           const SizedBox(width: 12),
           const Flexible(child: Text('导入到我的文件？')),
         ],
@@ -199,7 +197,7 @@ class _ImportDialog extends StatelessWidget {
               children: [
                 Icon(
                   Icons.info_outline,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: context.appMutedIconColor,
                   size: 20,
                 ),
                 const SizedBox(width: 8),

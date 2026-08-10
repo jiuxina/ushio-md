@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../providers/file_provider.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../utils/file_actions.dart';
+import '../../../../utils/app_style.dart';
 
 import '../../../utils/responsive_layout.dart';
 import '../../../widgets/responsive_page_frame.dart';
@@ -155,11 +156,7 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+        Icon(icon, size: 16, color: context.appMutedIconColor),
         const SizedBox(width: 8),
         Text(
           title,

@@ -161,6 +161,8 @@ class MyApp extends StatelessWidget {
               settings.cardOpacity,
               settings.customCardColor,
               settings.useCustomCardColor,
+              settings.customIconColor,
+              settings.useCustomIconColor,
               monetScheme?.lightScheme,
             ), // 浅色主题
             darkTheme: _buildDarkTheme(
@@ -172,6 +174,8 @@ class MyApp extends StatelessWidget {
               settings.cardOpacity,
               settings.customCardColor,
               settings.useCustomCardColor,
+              settings.customIconColor,
+              settings.useCustomIconColor,
               monetScheme?.darkScheme ?? monetScheme?.lightScheme,
             ), // 深色主题
             themeMode: settings.themeMode, // 主题模式（跟随系统/浅色/深色）
@@ -202,12 +206,15 @@ class MyApp extends StatelessWidget {
     double cardOpacity,
     Color? customCardColor,
     bool useCustomCardColor,
+    Color? customIconColor,
+    bool useCustomIconColor,
     MonetColorScheme? monetColorScheme,
   ) {
     final scheme = AppConstants.lightThemeSchemes[lightThemeIndex];
 
     // 如果启用莫奈配色，使用莫奈配色方案
-    final colorScheme = monetColorScheme?.toFlutterColorScheme(brightness: Brightness.light) ??
+    final colorScheme =
+        monetColorScheme?.toFlutterColorScheme(brightness: Brightness.light) ??
         ColorScheme.light(
           primary: primaryColor,
           secondary: AppConstants.accentColor,
@@ -220,12 +227,15 @@ class MyApp extends StatelessWidget {
       colorScheme: colorScheme,
       backgroundColor: monetColorScheme?.background ?? scheme.background,
       textColor: uiFontColor,
-      textSecondaryColor: monetColorScheme?.onSurfaceVariant ?? scheme.textSecondary,
+      textSecondaryColor:
+          monetColorScheme?.onSurfaceVariant ?? scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,
       customCardColor: customCardColor,
       useCustomCardColor: useCustomCardColor,
+      customIconColor: customIconColor,
+      useCustomIconColor: useCustomIconColor,
     );
   }
 
@@ -245,12 +255,15 @@ class MyApp extends StatelessWidget {
     double cardOpacity,
     Color? customCardColor,
     bool useCustomCardColor,
+    Color? customIconColor,
+    bool useCustomIconColor,
     MonetColorScheme? monetColorScheme,
   ) {
     final scheme = AppConstants.darkThemeSchemes[darkThemeIndex];
 
     // 如果启用莫奈配色，使用莫奈配色方案
-    final colorScheme = monetColorScheme?.toFlutterColorScheme(brightness: Brightness.dark) ??
+    final colorScheme =
+        monetColorScheme?.toFlutterColorScheme(brightness: Brightness.dark) ??
         ColorScheme.dark(
           primary: primaryColor,
           secondary: AppConstants.accentColor,
@@ -263,12 +276,15 @@ class MyApp extends StatelessWidget {
       colorScheme: colorScheme,
       backgroundColor: monetColorScheme?.background ?? scheme.background,
       textColor: scheme.text,
-      textSecondaryColor: monetColorScheme?.onSurfaceVariant ?? scheme.textSecondary,
+      textSecondaryColor:
+          monetColorScheme?.onSurfaceVariant ?? scheme.textSecondary,
       fontFamily: fontFamily,
       buttonStyleMode: buttonStyleMode,
       cardOpacity: cardOpacity,
       customCardColor: customCardColor,
       useCustomCardColor: useCustomCardColor,
+      customIconColor: customIconColor,
+      useCustomIconColor: useCustomIconColor,
     );
   }
 
@@ -283,6 +299,8 @@ class MyApp extends StatelessWidget {
     required double cardOpacity,
     Color? customCardColor,
     bool useCustomCardColor = false,
+    Color? customIconColor,
+    bool useCustomIconColor = false,
   }) {
     final effectiveColorScheme = _applyGlobalCardOpacity(
       colorScheme,
@@ -298,6 +316,8 @@ class MyApp extends StatelessWidget {
       cardOpacity: cardOpacity,
       customCardColor: customCardColor,
       useCustomCardColor: useCustomCardColor,
+      customIconColor: customIconColor,
+      useCustomIconColor: useCustomIconColor,
     );
 
     final buttonForeground = appStyle.useBorderlessButtons
@@ -306,7 +326,9 @@ class MyApp extends StatelessWidget {
     final buttonBackground = appStyle.useBorderlessButtons
         ? appStyle.strongSurface
         : effectiveColorScheme.primary.withValues(alpha: appStyle.cardOpacity);
-    final liquidGlassBackground = appStyle.cardSurfaceColor(effectiveColorScheme);
+    final liquidGlassBackground = appStyle.cardSurfaceColor(
+      effectiveColorScheme,
+    );
     final liquidGlassOverlay = appStyle.useLiquidGlass
         ? WidgetStatePropertyAll(colorScheme.primary.withValues(alpha: 0.06))
         : null;
@@ -315,6 +337,7 @@ class MyApp extends StatelessWidget {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: effectiveColorScheme,
+      iconTheme: IconThemeData(color: appStyle.iconColor),
       scaffoldBackgroundColor: backgroundColor,
       extensions: [appStyle],
       appBarTheme: AppBarTheme(
@@ -342,32 +365,34 @@ class MyApp extends StatelessWidget {
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          foregroundColor: buttonForeground,
-          backgroundColor: appStyle.useLiquidGlass
-              ? liquidGlassBackground
-              : buttonBackground,
-          disabledBackgroundColor: appStyle.useLiquidGlass
-              ? liquidGlassBackground.withValues(alpha: 0.45)
-              : buttonBackground.withValues(alpha: 0.45),
-          disabledForegroundColor: buttonForeground.withValues(alpha: 0.55),
-          elevation: appStyle.useBorderlessButtons ? 4 : 0,
-          shadowColor: Colors.black.withValues(alpha: 0.18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: appStyle.useBorderlessButtons
-                  ? Colors.transparent
-                  : colorScheme.primary,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        ).copyWith(
-          overlayColor: liquidGlassOverlay ??
-              WidgetStatePropertyAll(
-                colorScheme.primary.withValues(alpha: 0.08),
+        style:
+            FilledButton.styleFrom(
+              foregroundColor: buttonForeground,
+              backgroundColor: appStyle.useLiquidGlass
+                  ? liquidGlassBackground
+                  : buttonBackground,
+              disabledBackgroundColor: appStyle.useLiquidGlass
+                  ? liquidGlassBackground.withValues(alpha: 0.45)
+                  : buttonBackground.withValues(alpha: 0.45),
+              disabledForegroundColor: buttonForeground.withValues(alpha: 0.55),
+              elevation: appStyle.useBorderlessButtons ? 4 : 0,
+              shadowColor: Colors.black.withValues(alpha: 0.18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: appStyle.useBorderlessButtons
+                      ? Colors.transparent
+                      : colorScheme.primary,
+                ),
               ),
-        ),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            ).copyWith(
+              overlayColor:
+                  liquidGlassOverlay ??
+                  WidgetStatePropertyAll(
+                    colorScheme.primary.withValues(alpha: 0.08),
+                  ),
+            ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
@@ -377,8 +402,8 @@ class MyApp extends StatelessWidget {
           backgroundColor: appStyle.useLiquidGlass
               ? liquidGlassBackground
               : (appStyle.useBorderlessButtons
-                  ? appStyle.strongSurface
-                  : Colors.transparent),
+                    ? appStyle.strongSurface
+                    : Colors.transparent),
           side: BorderSide(
             color: appStyle.useBorderlessButtons
                 ? Colors.transparent
@@ -388,9 +413,7 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        ).copyWith(
-          overlayColor: liquidGlassOverlay,
-        ),
+        ).copyWith(overlayColor: liquidGlassOverlay),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -409,9 +432,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        ).copyWith(
-          overlayColor: liquidGlassOverlay,
-        ),
+        ).copyWith(overlayColor: liquidGlassOverlay),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
@@ -425,24 +446,18 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        ).copyWith(
-          overlayColor: liquidGlassOverlay,
-        ),
+        ).copyWith(overlayColor: liquidGlassOverlay),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: textColor,
           backgroundColor: appStyle.useLiquidGlass
               ? liquidGlassBackground
-              : (appStyle.useBorderlessButtons
-                  ? appStyle.strongSurface
-                  : null),
+              : (appStyle.useBorderlessButtons ? appStyle.strongSurface : null),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-        ).copyWith(
-          overlayColor: liquidGlassOverlay,
-        ),
+        ).copyWith(overlayColor: liquidGlassOverlay),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: appStyle.useLiquidGlass
@@ -563,9 +578,7 @@ class MyApp extends StatelessWidget {
       surfaceContainerLow: applyStyle(colorScheme.surfaceContainerLow),
       surfaceContainer: applyStyle(colorScheme.surfaceContainer),
       surfaceContainerHigh: applyStyle(colorScheme.surfaceContainerHigh),
-      surfaceContainerHighest: applyStyle(
-        colorScheme.surfaceContainerHighest,
-      ),
+      surfaceContainerHighest: applyStyle(colorScheme.surfaceContainerHighest),
     );
   }
 

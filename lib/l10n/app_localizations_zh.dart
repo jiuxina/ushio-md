@@ -1201,6 +1201,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get uiFontColorLabel => '字体颜色';
 
   @override
+  String get globalIconColor => '全局图标颜色';
+
+  @override
+  String get customGlobalIconColor => '自定义全局图标颜色';
+
+  @override
+  String get globalIconColorLabel => '图标颜色';
+
+  @override
+  String get globalIconColorDesc => '开启后，应用内所有图标统一使用所选颜色';
+
+  @override
   String get adaptiveGradient => '自适应渐变色';
 
   @override

@@ -103,11 +103,7 @@ class EditorHeader extends StatelessWidget {
           alpha: 0.82,
         ),
         prominent: appStyle.useBorderlessButtons,
-        child: Icon(
-          icon,
-          size: 20,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
+        child: Icon(icon, size: 20, color: context.appIconColor),
       ),
     );
   }
@@ -120,7 +116,7 @@ class EditorHeader extends StatelessWidget {
         ? colorScheme.primary
         : isModified
         ? colorScheme.secondary
-        : colorScheme.outline;
+        : context.appMutedIconColor;
 
     return Tooltip(
       message: isSaving ? '保存中' : '保存',

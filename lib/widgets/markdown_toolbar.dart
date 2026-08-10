@@ -504,10 +504,7 @@ class MarkdownToolbar extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.all(2),
-                child: Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                child: Icon(icon, color: context.appMutedIconColor),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -550,7 +547,7 @@ class MarkdownToolbar extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.link, color: Theme.of(context).colorScheme.onSurface),
+            Icon(Icons.link, color: context.appIconColor),
             const SizedBox(width: 12),
             const Text('插入图片链接'),
           ],
@@ -757,10 +754,7 @@ class MarkdownToolbar extends StatelessWidget {
               ),
               title: Row(
                 children: [
-                  Icon(
-                    Icons.table_chart,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+                  Icon(Icons.table_chart, color: context.appIconColor),
                   const SizedBox(width: 12),
                   const Text('插入表格'),
                 ],
@@ -1092,12 +1086,8 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
               color: isEnabled
                   ? (_isHovered
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.7))
-                  : Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.3), // 禁用时灰色
+                        : context.appIconColor.withValues(alpha: 0.7))
+                  : context.appIconColor.withValues(alpha: 0.3), // 禁用时灰色
             ),
           ),
         ),

@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/responsive_layout.dart';
+import '../utils/app_style.dart';
 
 /// 统一的UI组件工具类
 class UnifiedUI {
@@ -26,7 +27,7 @@ class UnifiedUI {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(icon, color: Theme.of(context).colorScheme.onSurface),
+            Icon(icon, color: context.appIconColor),
             const SizedBox(width: 12),
             Flexible(child: Text(title)),
           ],
@@ -66,7 +67,7 @@ class UnifiedUI {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(icon, color: Theme.of(context).colorScheme.onSurface),
+            Icon(icon, color: context.appIconColor),
             const SizedBox(width: 12),
             Flexible(child: Text(title)),
           ],
@@ -141,10 +142,7 @@ class UnifiedUI {
               // 菜单项
               ...items.map(
                 (item) => ListTile(
-                  leading: Icon(
-                    item.icon,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                  leading: Icon(item.icon, color: context.appMutedIconColor),
                   title: Text(item.title),
                   subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
                   onTap: () => Navigator.pop(context, item.value),

@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../providers/file_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
+import '../utils/app_style.dart';
 import '../utils/editor_navigation_helper.dart';
 import '../widgets/app_background.dart';
 import '../widgets/custom_title_bar.dart';
@@ -380,7 +381,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     final isSelected = _currentIndex == index;
     final color = isSelected
         ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.outline;
+        : context.appMutedIconColor;
 
     // 使用Expanded让每个tab均分底栏空间，增大点击区域
     // 只显示图标，不显示文字（无字Tab导航）

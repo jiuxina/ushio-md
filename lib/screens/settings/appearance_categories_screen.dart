@@ -131,11 +131,7 @@ class AppearanceCategoriesScreen extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(2),
-                  child: Icon(
-                    icon,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    size: 22,
-                  ),
+                  child: Icon(icon, color: context.appIconColor, size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

@@ -46,10 +46,14 @@ class SettingsProvider extends ChangeNotifier {
   /// 立即持久化单个键值
   Future<void> _persist(String key, dynamic value) async {
     final prefs = await _getPrefs();
-    if (value is double) await prefs.setDouble(key, value);
-    else if (value is int) await prefs.setInt(key, value);
-    else if (value is bool) await prefs.setBool(key, value);
-    else if (value is String) await prefs.setString(key, value);
+    if (value is double)
+      await prefs.setDouble(key, value);
+    else if (value is int)
+      await prefs.setInt(key, value);
+    else if (value is bool)
+      await prefs.setBool(key, value);
+    else if (value is String)
+      await prefs.setString(key, value);
   }
 
   /// 防抖持久化：500ms 内多次调用只执行一次写入
@@ -63,10 +67,14 @@ class SettingsProvider extends ChangeNotifier {
       for (final entry in entries.entries) {
         final k = entry.key;
         final v = entry.value;
-        if (v is double) await prefs.setDouble(k, v);
-        else if (v is int) await prefs.setInt(k, v);
-        else if (v is bool) await prefs.setBool(k, v);
-        else if (v is String) await prefs.setString(k, v);
+        if (v is double)
+          await prefs.setDouble(k, v);
+        else if (v is int)
+          await prefs.setInt(k, v);
+        else if (v is bool)
+          await prefs.setBool(k, v);
+        else if (v is String)
+          await prefs.setString(k, v);
       }
     });
   }
@@ -266,6 +274,12 @@ class SettingsProvider extends ChangeNotifier {
 
   // ==================== 图标设置 ====================
 
+  /// 是否启用自定义全局图标颜色
+  bool _useCustomIconColor = false;
+
+  /// 自定义全局图标颜色（null 表示使用主题默认颜色）
+  Color? _customIconColor;
+
   /// 桌面图标索引（0=默认 app.png, 1=icon2.png）
   int _appIconIndex = 0;
 
@@ -357,17 +371,8 @@ class SettingsProvider extends ChangeNotifier {
 
   // ==================== 预设界面字体颜色 ====================
 
-  /// 8种精选界面字体颜色（适合阅读的颜色）
-  static const List<Color> uiFontColors = [
-    Color(0xFF1F2937), // 深灰（默认）- 近黑色，适合阅读
-    Color(0xFF374151), // 灰色 - 中等深度
-    Color(0xFF1E3A5F), // 深蓝 - 沉稳
-    Color(0xFF1B4332), // 深绿 - 自然
-    Color(0xFF4A1D1D), // 深红 - 温暖
-    Color(0xFF3B2D5F), // 深紫 - 优雅
-    Color(0xFF3D3D3D), // 中灰 - 中性
-    Color(0xFF2D3748), // 蓝灰 - 柔和
-  ];
+  /// UI 文字颜色预设与主题色调色板保持一致
+  static const List<Color> uiFontColors = themeColors;
 
   // ==================== 预设编辑器文字颜色 ====================
 
@@ -382,6 +387,11 @@ class SettingsProvider extends ChangeNotifier {
     Color(0xFF374151), // 灰色 - 中等深度
     Color(0xFF0F172A), // 纯黑 - 高对比度
   ];
+
+  // ==================== 预设全局图标颜色 ====================
+
+  /// 全局图标颜色预设与主题色调色板保持一致
+  static const List<Color> globalIconColors = themeColors;
 
   // ==================== Getters ====================
 
@@ -407,7 +417,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get useCustomThemeColor => _useCustomThemeColor;
   Color? get customThemeColor => _customThemeColor;
   bool get adaptiveGradientEnabled => _adaptiveGradientEnabled;
-  
+
   // 界面字体颜色 Getters
   int get uiFontColorIndex => _uiFontColorIndex;
   Color get uiFontColor => _useCustomUiFontColor && _customUiFontColor != null
@@ -416,16 +426,18 @@ class SettingsProvider extends ChangeNotifier {
   bool get useCustomUiFontColor => _useCustomUiFontColor;
   Color? get customUiFontColor => _customUiFontColor;
   bool get uiFontAdaptiveGradientEnabled => _uiFontAdaptiveGradientEnabled;
-  
+
   // 编辑器文字颜色 Getters
   int get editorFontColorIndex => _editorFontColorIndex;
-  Color get editorFontColor => _useCustomEditorFontColor && _customEditorFontColor != null
+  Color get editorFontColor =>
+      _useCustomEditorFontColor && _customEditorFontColor != null
       ? _customEditorFontColor!
       : editorFontColors[_editorFontColorIndex];
   bool get useCustomEditorFontColor => _useCustomEditorFontColor;
   Color? get customEditorFontColor => _customEditorFontColor;
-  bool get editorFontAdaptiveGradientEnabled => _editorFontAdaptiveGradientEnabled;
-  
+  bool get editorFontAdaptiveGradientEnabled =>
+      _editorFontAdaptiveGradientEnabled;
+
   String? get backgroundImagePath => _backgroundImagePath;
   String? get editorBackgroundImagePath => _editorBackgroundImagePath;
   bool get editorBackgroundImageExists => _editorBackgroundImageExists;
@@ -444,6 +456,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get useCustomCardColor => _useCustomCardColor;
 
   // 图标设置 Getters
+  bool get useCustomIconColor => _useCustomIconColor;
+  Color? get customIconColor => _customIconColor;
   int get appIconIndex => _appIconIndex;
   String get homeIconMode => _homeIconMode;
   String? get homeIconCustomPath => _homeIconCustomPath;
@@ -567,19 +581,21 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   /// 保存的莫奈配色方案列表
-  List<MonetConfig> get savedMonetConfigs => List.unmodifiable(_savedMonetConfigs);
+  List<MonetConfig> get savedMonetConfigs =>
+      List.unmodifiable(_savedMonetConfigs);
 
   /// 获取当前应使用的莫奈配色方案（根据主题模式）
   MonetColorScheme? get currentMonetScheme {
     if (!_monetEnabled) return null;
     final config = activeMonetConfig;
     if (config == null) return null;
-    
-    final isDark = _themeMode == ThemeMode.dark ||
+
+    final isDark =
+        _themeMode == ThemeMode.dark ||
         (_themeMode == ThemeMode.system &&
             WidgetsBinding.instance.platformDispatcher.platformBrightness ==
                 Brightness.dark);
-    
+
     return isDark ? config.scheme.darkScheme : config.scheme.lightScheme;
   }
 
@@ -616,8 +632,9 @@ class SettingsProvider extends ChangeNotifier {
     if (customThemeColorValue != null) {
       _customThemeColor = Color(customThemeColorValue);
     }
-    _adaptiveGradientEnabled = prefs.getBool('adaptive_gradient_enabled') ?? true;
-    
+    _adaptiveGradientEnabled =
+        prefs.getBool('adaptive_gradient_enabled') ?? true;
+
     // 界面字体颜色设置
     _uiFontColorIndex = prefs.getInt('ui_font_color_index') ?? 0;
     _useCustomUiFontColor = prefs.getBool('use_custom_ui_font_color') ?? false;
@@ -625,16 +642,19 @@ class SettingsProvider extends ChangeNotifier {
     if (customUiFontColorValue != null) {
       _customUiFontColor = Color(customUiFontColorValue);
     }
-    _uiFontAdaptiveGradientEnabled = prefs.getBool('ui_font_adaptive_gradient_enabled') ?? true;
+    _uiFontAdaptiveGradientEnabled =
+        prefs.getBool('ui_font_adaptive_gradient_enabled') ?? true;
 
     // 编辑器文字颜色设置
     _editorFontColorIndex = prefs.getInt('editor_font_color_index') ?? 0;
-    _useCustomEditorFontColor = prefs.getBool('use_custom_editor_font_color') ?? false;
+    _useCustomEditorFontColor =
+        prefs.getBool('use_custom_editor_font_color') ?? false;
     final customEditorFontColorValue = prefs.getInt('custom_editor_font_color');
     if (customEditorFontColorValue != null) {
       _customEditorFontColor = Color(customEditorFontColorValue);
     }
-    _editorFontAdaptiveGradientEnabled = prefs.getBool('editor_font_adaptive_gradient_enabled') ?? true;
+    _editorFontAdaptiveGradientEnabled =
+        prefs.getBool('editor_font_adaptive_gradient_enabled') ?? true;
 
     // 编辑器设置
     _fontSize = prefs.getDouble('font_size') ?? 16.0;
@@ -667,7 +687,9 @@ class SettingsProvider extends ChangeNotifier {
     );
     // 异步验证背景图是否存在
     if (_editorBackgroundImagePath != null) {
-      _editorBackgroundImageExists = await File(_editorBackgroundImagePath!).exists();
+      _editorBackgroundImageExists = await File(
+        _editorBackgroundImagePath!,
+      ).exists();
     }
     _backgroundEffect = prefs.getString('background_effect') ?? 'none';
     _backgroundBlur = prefs.getDouble('background_blur') ?? 10.0;
@@ -722,6 +744,13 @@ class SettingsProvider extends ChangeNotifier {
     final customCardColorValue = prefs.getInt('custom_card_color');
     if (customCardColorValue != null) {
       _customCardColor = Color(customCardColorValue);
+    }
+
+    // 自定义全局图标颜色
+    _useCustomIconColor = prefs.getBool('use_custom_icon_color') ?? false;
+    final customIconColorValue = prefs.getInt('custom_icon_color');
+    if (customIconColorValue != null) {
+      _customIconColor = Color(customIconColorValue);
     }
 
     // 图标设置
@@ -803,7 +832,7 @@ class SettingsProvider extends ChangeNotifier {
     // 莫奈取色设置
     _monetEnabled = prefs.getBool('monet_enabled') ?? false;
     _activeMonetConfigId = prefs.getString('active_monet_config_id');
-    
+
     // 加载保存的莫奈配置
     final savedConfigsJson = prefs.getString('saved_monet_configs');
     if (savedConfigsJson != null && savedConfigsJson.isNotEmpty) {
@@ -1400,6 +1429,29 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   // ==================== 图标设置方法 ====================
+
+  /// 设置是否启用自定义全局图标颜色
+  Future<void> setUseCustomIconColor(bool use) async {
+    _useCustomIconColor = use;
+    notifyListeners();
+    _schedulePersist('use_custom_icon_color', use);
+  }
+
+  /// 设置自定义全局图标颜色
+  Future<void> setCustomIconColor(Color? color) async {
+    _customIconColor = color;
+    if (color != null) {
+      _useCustomIconColor = true;
+    }
+    notifyListeners();
+    final prefs = await _getPrefs();
+    if (color != null) {
+      await prefs.setInt('custom_icon_color', color.toARGB32());
+      await prefs.setBool('use_custom_icon_color', true);
+    } else {
+      await prefs.remove('custom_icon_color');
+    }
+  }
 
   /// 设置桌面图标索引（0=默认, 1=icon2）
   Future<void> setAppIconIndex(int index) async {

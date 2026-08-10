@@ -126,11 +126,7 @@ class SettingsTab extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
       child: Row(
         children: [
-          Icon(
-            Icons.settings,
-            color: Theme.of(context).colorScheme.onSurface,
-            size: 26,
-          ),
+          Icon(Icons.settings, color: context.appIconColor, size: 26),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,11 +179,7 @@ class SettingsTab extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(2),
-                  child: Icon(
-                    icon,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    size: 18,
-                  ),
+                  child: Icon(icon, color: context.appIconColor, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

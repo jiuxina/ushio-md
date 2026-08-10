@@ -156,10 +156,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
       children: [
         Row(
           children: [
-            Icon(
-              Icons.folder,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            Icon(Icons.folder, color: context.appMutedIconColor),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -232,7 +229,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             children: [
               Icon(
                 Icons.info_outline,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: context.appMutedIconColor,
                 size: 18,
               ),
               const SizedBox(width: 8),
@@ -257,10 +254,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        Icons.history,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      leading: Icon(Icons.history, color: context.appMutedIconColor),
       title: Text(l10n.clearRecentFiles),
       subtitle: Text(l10n.filesCount(fileProvider.recentFiles.length)),
       trailing: TextButton(
@@ -284,10 +278,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        Icons.folder_open,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      leading: Icon(Icons.folder_open, color: context.appMutedIconColor),
       title: Text(l10n.clearRecentFolders),
       subtitle: Text(l10n.foldersCount(fileProvider.recentFolders.length)),
       trailing: TextButton(
@@ -318,7 +309,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.warning, color: Theme.of(context).colorScheme.onSurface),
+            Icon(Icons.warning, color: context.appIconColor),
             const SizedBox(width: 12),
             Flexible(child: Text(title)),
           ],
@@ -368,7 +359,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.edit, color: Theme.of(context).colorScheme.onSurface),
+            Icon(Icons.edit, color: context.appIconColor),
             const SizedBox(width: 12),
             Text(l10n.changeWorkspaceName),
           ],
@@ -402,7 +393,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                 children: [
                   Icon(
                     Icons.info_outline,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: context.appMutedIconColor,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
@@ -488,10 +479,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(
-              Icons.edit_location,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            Icon(Icons.edit_location, color: context.appIconColor),
             const SizedBox(width: 12),
             Text(l10n.customBasePath),
           ],
@@ -525,7 +513,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                 children: [
                   Icon(
                     Icons.info_outline,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: context.appMutedIconColor,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
@@ -553,7 +541,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                 children: [
                   Icon(
                     Icons.warning_outlined,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: context.appMutedIconColor,
                     size: 18,
                   ),
                   const SizedBox(width: 8),

@@ -198,9 +198,7 @@ class FolderBrowserHeader extends StatelessWidget {
                 : Border.all(
                     color: isActive
                         ? colorScheme.primary
-                        : Theme.of(
-                            context,
-                          ).dividerColor.withValues(alpha: 0.5),
+                        : Theme.of(context).dividerColor.withValues(alpha: 0.5),
                   ),
             child: Icon(
               icon,
@@ -336,7 +334,10 @@ class FolderBrowserHeader extends StatelessWidget {
     IconData icon,
   ) {
     final isSelected = sortOption == option;
-    final color = isSelected
+    final iconColor = isSelected
+        ? Theme.of(context).colorScheme.primary
+        : context.appIconColor;
+    final textColor = isSelected
         ? Theme.of(context).colorScheme.primary
         : Theme.of(context).colorScheme.onSurface;
 
@@ -358,20 +359,20 @@ class FolderBrowserHeader extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(icon, color: color),
+              Icon(icon, color: iconColor),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: color,
+                    color: textColor,
                     fontWeight: isSelected
                         ? FontWeight.w600
                         : FontWeight.normal,
                   ),
                 ),
               ),
-              if (isSelected) Icon(Icons.check, color: color, size: 20),
+              if (isSelected) Icon(Icons.check, color: iconColor, size: 20),
             ],
           ),
         ),
