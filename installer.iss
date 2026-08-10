@@ -1,10 +1,10 @@
 ; 汐 Markdown 编辑器 - Windows 安装脚本
-; 版本: 1.5.11
+; 版本: 1.5.12
 ; 使用 Inno Setup 编译
 
 #define MyAppName "汐"
 #define MyAppNameEn "Ushio"
-#define MyAppVersion "1.5.11"
+#define MyAppVersion "1.5.12"
 #define MyAppPublisher "汐 Markdown Editor"
 #define MyAppURL "https://github.com/jiuxina/ushio-md"
 #define MyAppExeName "汐.exe"
