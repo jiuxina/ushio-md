@@ -153,3 +153,5 @@ deploy.cmd
 .sisyphus/
 /.sisyphus
 /.omo
+/harmonyos-version
+/.local_webdav/
