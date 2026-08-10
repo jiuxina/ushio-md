@@ -59,19 +59,10 @@ class _HistoryTabState extends State<HistoryTab> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.history_rounded,
-              color: Theme.of(context).colorScheme.primary,
-              size: 24,
-            ),
+          Icon(
+            Icons.history_rounded,
+            color: Theme.of(context).colorScheme.onSurface,
+            size: 24,
           ),
           const SizedBox(width: 12),
           Text(

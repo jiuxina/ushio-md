@@ -890,14 +890,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
           ),
           title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.link, color: Colors.blue),
-              ),
+              Icon(Icons.link, color: Theme.of(context).colorScheme.onSurface),
               const SizedBox(width: 12),
               const Text('插入图片链接'),
             ],

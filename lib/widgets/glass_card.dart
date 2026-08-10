@@ -5,7 +5,6 @@ import 'liquid_glass_card.dart';
 
 class GlassCard extends StatelessWidget {
   final IconData icon;
-  final Color iconColor;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -15,7 +14,6 @@ class GlassCard extends StatelessWidget {
   const GlassCard({
     super.key,
     required this.icon,
-    required this.iconColor,
     required this.title,
     required this.subtitle,
     required this.onTap,
@@ -40,18 +38,12 @@ class GlassCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      iconColor.withValues(alpha: 0.2),
-                      iconColor.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
+              Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
-                child: Icon(icon, color: iconColor),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -61,15 +53,15 @@ class GlassCard extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -85,9 +77,7 @@ class GlassCard extends StatelessWidget {
 
     final decorated = Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: appStyle.surfaceDecoration(
-        borderRadius: borderRadius,
-      ),
+      decoration: appStyle.surfaceDecoration(borderRadius: borderRadius),
       child: content,
     );
 
@@ -95,9 +85,6 @@ class GlassCard extends StatelessWidget {
       return decorated;
     }
 
-    return LiquidGlassCard(
-      borderRadius: borderRadius,
-      child: decorated,
-    );
+    return LiquidGlassCard(borderRadius: borderRadius, child: decorated);
   }
 }

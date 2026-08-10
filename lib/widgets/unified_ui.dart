@@ -16,7 +16,6 @@ class UnifiedUI {
     required String title,
     required String message,
     required IconData icon,
-    Color iconColor = Colors.blue,
     String cancelText = '取消',
     String confirmText = '确定',
     Color? confirmColor,
@@ -27,14 +26,7 @@ class UnifiedUI {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: iconColor),
-            ),
+            Icon(icon, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(width: 12),
             Flexible(child: Text(title)),
           ],
@@ -62,7 +54,6 @@ class UnifiedUI {
     BuildContext context, {
     required String title,
     required IconData icon,
-    Color iconColor = Colors.blue,
     String? initialValue,
     String? hintText,
     String cancelText = '取消',
@@ -75,14 +66,7 @@ class UnifiedUI {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: iconColor),
-            ),
+            Icon(icon, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(width: 12),
             Flexible(child: Text(title)),
           ],
@@ -157,13 +141,9 @@ class UnifiedUI {
               // 菜单项
               ...items.map(
                 (item) => ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: item.iconColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(item.icon, color: item.iconColor),
+                  leading: Icon(
+                    item.icon,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: Text(item.title),
                   subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
@@ -245,14 +225,12 @@ class UnifiedUI {
 /// 底部菜单项
 class BottomMenuItem<T> {
   final IconData icon;
-  final Color iconColor;
   final String title;
   final String? subtitle;
   final T value;
 
   const BottomMenuItem({
     required this.icon,
-    required this.iconColor,
     required this.title,
     this.subtitle,
     required this.value,

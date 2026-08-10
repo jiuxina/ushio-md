@@ -231,29 +231,24 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         boxShadow: appStyle.surfaceShadow,
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.8,
+        ),
         borderRadius: BorderRadius.circular(16),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.3),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
               ),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
+          Padding(
+            padding: const EdgeInsets.all(2),
             child: Icon(
               Icons.cloud_sync,
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(width: 16),
@@ -329,24 +324,27 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.15),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+              ),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.warning_amber,
-                  color: Colors.orange.shade700,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     '⚠️ FTP 不加密传输，密码和文件内容可能被窃取。建议使用 WebDAV (HTTPS)。此功能将在未来版本移除。',
-                    style: TextStyle(
-                      color: Colors.orange.shade900,
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -432,14 +430,12 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: (_testResult! ? Colors.green : Colors.red).withValues(
-                alpha: 0.1,
-              ),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: (_testResult! ? Colors.green : Colors.red).withValues(
-                  alpha: 0.3,
-                ),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
               ),
             ),
             child: Row(
@@ -451,8 +447,8 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                 const SizedBox(width: 12),
                 Text(
                   _testResult! ? l10n.connectionSuccess : l10n.connectionFailed,
-                  style: TextStyle(
-                    color: _testResult! ? Colors.green : Colors.red,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -627,27 +623,16 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           border: appStyle.useBorderlessButtons
               ? null
               : Border.all(
-                  color: Theme.of(
-                    context,
-                  ).dividerColor.withValues(alpha: 0.5),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                 ),
           child: Column(
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.autorenew,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 20,
-                    ),
+                  Icon(
+                    Icons.autorenew,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 20,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -693,14 +678,15 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: Theme.of(
                               context,
-                            ).colorScheme.primary.withValues(alpha: 0.5),
+                            ).dividerColor.withValues(alpha: 0.5),
                           ),
                         ),
                         child: Column(
@@ -713,7 +699,9 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                                       ? Icons.upload
                                       : Icons.download,
                                   size: 16,
-                                  color: Theme.of(context).colorScheme.primary,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -808,17 +796,24 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline, color: Colors.red),
+                Icon(
+                  Icons.error_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     _syncError!,
-                    style: const TextStyle(color: Colors.red),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               ],
@@ -849,9 +844,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
           border: appStyle.useBorderlessButtons
               ? null
               : Border.all(
-                  color: Theme.of(
-                    context,
-                  ).dividerColor.withValues(alpha: 0.5),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                 ),
           child: Column(
             children: [
@@ -1119,18 +1112,9 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
               ),
               title: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        dialogContext,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.sync,
-                      color: Theme.of(dialogContext).colorScheme.primary,
-                    ),
+                  Icon(
+                    Icons.sync,
+                    color: Theme.of(dialogContext).colorScheme.onSurface,
                   ),
                   const SizedBox(width: 12),
                   Text(l10n.syncPreview),
@@ -1144,7 +1128,6 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                     if (preview.toUpload.isNotEmpty) ...[
                       _buildPreviewSection(
                         l10n.willUpload(preview.toUpload.length),
-                        Colors.blue,
                         preview.toUpload,
                       ),
                       const SizedBox(height: 12),
@@ -1152,7 +1135,6 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                     if (preview.toDownload.isNotEmpty) ...[
                       _buildPreviewSection(
                         l10n.willDownload(preview.toDownload.length),
-                        Colors.green,
                         preview.toDownload,
                       ),
                       const SizedBox(height: 12),
@@ -1161,10 +1143,15 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
+                          color: Theme.of(dialogContext)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3),
+                            color: Theme.of(
+                              dialogContext,
+                            ).dividerColor.withValues(alpha: 0.5),
                           ),
                         ),
                         child: Column(
@@ -1182,9 +1169,11 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                                   l10n.conflictWarning(
                                     preview.conflicts.length,
                                   ),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.orange,
+                                    color: Theme.of(
+                                      dialogContext,
+                                    ).colorScheme.onSurface,
                                   ),
                                 ),
                               ],
@@ -1222,11 +1211,13 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
         false;
   }
 
-  Widget _buildPreviewSection(String title, Color color, List<String> files) {
+  Widget _buildPreviewSection(String title, List<String> files) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1234,7 +1225,10 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
         children: [
           Text(
             title,
-            style: TextStyle(fontWeight: FontWeight.bold, color: color),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           if (files.length <= 3) ...[
             const SizedBox(height: 4),

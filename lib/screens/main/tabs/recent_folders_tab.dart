@@ -40,7 +40,11 @@ class RecentFoldersTab extends StatelessWidget {
     );
   }
 
-  Widget _buildFolderTile(BuildContext context, String path, FileProvider fileProvider) {
+  Widget _buildFolderTile(
+    BuildContext context,
+    String path,
+    FileProvider fileProvider,
+  ) {
     final folderName = path.split(Platform.pathSeparator).last;
     final dir = Directory(path);
     String dateStr = '';
@@ -48,7 +52,8 @@ class RecentFoldersTab extends StatelessWidget {
       if (dir.existsSync()) {
         final stat = dir.statSync();
         final modified = stat.modified;
-        dateStr = '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
+        dateStr =
+            '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
       }
     } catch (e) {
       appDebugLog('获取文件夹信息失败: $e');
@@ -56,7 +61,6 @@ class RecentFoldersTab extends StatelessWidget {
 
     return GlassCard(
       icon: Icons.folder,
-      iconColor: Colors.amber,
       title: folderName,
       subtitle: dateStr.isNotEmpty ? '$dateStr · $path' : path,
       onTap: () {
@@ -68,7 +72,8 @@ class RecentFoldersTab extends StatelessWidget {
           ),
         );
       },
-      onLongPress: () => FileActions.showFolderContextMenu(context, path, fileProvider),
+      onLongPress: () =>
+          FileActions.showFolderContextMenu(context, path, fileProvider),
     );
   }
 }

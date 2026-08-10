@@ -40,7 +40,11 @@ class RecentFilesTab extends StatelessWidget {
     );
   }
 
-  Widget _buildRecentFileTile(BuildContext context, String path, FileProvider fileProvider) {
+  Widget _buildRecentFileTile(
+    BuildContext context,
+    String path,
+    FileProvider fileProvider,
+  ) {
     final fileName = path.split(Platform.pathSeparator).last;
     final file = File(path);
     final exists = file.existsSync();
@@ -48,7 +52,8 @@ class RecentFilesTab extends StatelessWidget {
     if (exists) {
       try {
         final modified = file.lastModifiedSync();
-        dateStr = '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
+        dateStr =
+            '${modified.month}/${modified.day} ${modified.hour.toString().padLeft(2, '0')}:${modified.minute.toString().padLeft(2, '0')}';
       } catch (e) {
         appDebugLog('获取文件修改时间失败: $e');
       }
@@ -56,21 +61,22 @@ class RecentFilesTab extends StatelessWidget {
 
     return GlassCard(
       icon: Icons.description,
-      iconColor: exists
-          ? Theme.of(context).colorScheme.primary
-          : Colors.grey,
       title: fileName.replaceAll('.md', '').replaceAll('.markdown', ''),
-      subtitle: exists ? (dateStr.isNotEmpty ? '$dateStr · $path' : path) : '文件不存在',
+      subtitle: exists
+          ? (dateStr.isNotEmpty ? '$dateStr · $path' : path)
+          : '文件不存在',
       onTap: exists
           ? () async {
               fileProvider.addToRecentFiles(path);
-              await EditorNavigationHelper.openEditor(
-                context,
-                path,
-              );
+              await EditorNavigationHelper.openEditor(context, path);
             }
           : () {},
-      onLongPress: () => FileActions.showFileContextMenu(context, path, fileProvider, isRecent: true),
+      onLongPress: () => FileActions.showFileContextMenu(
+        context,
+        path,
+        fileProvider,
+        isRecent: true,
+      ),
     );
   }
 }

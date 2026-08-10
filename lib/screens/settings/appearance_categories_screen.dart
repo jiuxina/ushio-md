@@ -39,14 +39,11 @@ class AppearanceCategoriesScreen extends StatelessWidget {
               context,
               appStyle: appStyle,
               icon: Icons.palette_outlined,
-              iconColor: Colors.purple,
               title: l10n.themeSettings,
               description: l10n.themeSettingsDesc,
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const ThemeSettingsScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const ThemeSettingsScreen()),
               ),
             ),
 
@@ -57,14 +54,11 @@ class AppearanceCategoriesScreen extends StatelessWidget {
               context,
               appStyle: appStyle,
               icon: Icons.font_download_outlined,
-              iconColor: Colors.blue,
               title: l10n.fontSettings,
               description: l10n.fontSettingsDesc,
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const FontSettingsScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const FontSettingsScreen()),
               ),
             ),
 
@@ -75,7 +69,6 @@ class AppearanceCategoriesScreen extends StatelessWidget {
               context,
               appStyle: appStyle,
               icon: Icons.image_outlined,
-              iconColor: Colors.teal,
               title: l10n.backgroundSettings,
               description: l10n.backgroundSettingsDesc,
               onTap: () => Navigator.push(
@@ -93,7 +86,6 @@ class AppearanceCategoriesScreen extends StatelessWidget {
               context,
               appStyle: appStyle,
               icon: Icons.more_horiz,
-              iconColor: Colors.amber,
               title: l10n.otherAppearanceSettings,
               description: l10n.otherAppearanceSettingsDesc,
               onTap: () => Navigator.push(
@@ -113,7 +105,6 @@ class AppearanceCategoriesScreen extends StatelessWidget {
     BuildContext context, {
     required AppStyleTheme appStyle,
     required IconData icon,
-    required Color iconColor,
     required String title,
     required String description,
     required VoidCallback onTap,
@@ -138,13 +129,13 @@ class AppearanceCategoriesScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    icon,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    size: 22,
                   ),
-                  child: Icon(icon, color: iconColor, size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -154,15 +145,15 @@ class AppearanceCategoriesScreen extends StatelessWidget {
                       Text(
                         title,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         description,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),

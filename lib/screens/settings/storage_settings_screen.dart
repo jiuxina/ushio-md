@@ -156,13 +156,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
       children: [
         Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.folder, color: Colors.amber),
+            Icon(
+              Icons.folder,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -227,17 +223,25 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: 0.1),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, color: Colors.blue, size: 18),
+              Icon(
+                Icons.info_outline,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   l10n.workspaceFilesSyncToCloud,
-                  style: TextStyle(fontSize: 13, color: Colors.blue.shade700),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -253,13 +257,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Icon(Icons.history, color: Colors.red),
+      leading: Icon(
+        Icons.history,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       title: Text(l10n.clearRecentFiles),
       subtitle: Text(l10n.filesCount(fileProvider.recentFiles.length)),
@@ -284,13 +284,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.orange.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Icon(Icons.folder_open, color: Colors.orange),
+      leading: Icon(
+        Icons.folder_open,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       title: Text(l10n.clearRecentFolders),
       subtitle: Text(l10n.foldersCount(fileProvider.recentFolders.length)),
@@ -322,14 +318,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.warning, color: Colors.red),
-            ),
+            Icon(Icons.warning, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(width: 12),
             Flexible(child: Text(title)),
           ],
@@ -379,19 +368,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.edit,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
+            Icon(Icons.edit, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(width: 12),
             Text(l10n.changeWorkspaceName),
           ],
@@ -416,23 +393,24 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline,
-                    color: Colors.orange,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       l10n.warningChangeNameRequiresCloudSync,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.orange.shade700,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -510,18 +488,9 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.edit_location,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+            Icon(
+              Icons.edit_location,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             const SizedBox(width: 12),
             Text(l10n.customBasePath),
@@ -547,19 +516,24 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                  Icon(
+                    Icons.info_outline,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       l10n.defaultPath(defaultPath),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.blue.shade700,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -570,23 +544,24 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.warning_outlined,
-                    color: Colors.orange,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       l10n.warningChangeBasePathAffectsWorkspace,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.orange.shade700,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),

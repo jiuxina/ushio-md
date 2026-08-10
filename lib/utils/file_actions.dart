@@ -112,7 +112,6 @@ class FileActions {
                 context,
                 icon: Icons.edit,
                 label: '重命名',
-                color: Colors.orange,
                 onTap: () {
                   Navigator.pop(context);
                   showRenameDialog(
@@ -134,7 +133,6 @@ class FileActions {
                     ? Icons.push_pin_outlined
                     : Icons.push_pin,
                 label: isCurrentlyPinned ? '取消置顶' : '置顶',
-                color: Colors.purple,
                 onTap: () {
                   Navigator.pop(context);
                   // 防抖：避免快速点击
@@ -152,7 +150,6 @@ class FileActions {
                   context,
                   icon: Icons.delete,
                   label: '删除文件',
-                  color: Colors.red,
                   onTap: () {
                     Navigator.pop(context);
                     confirmDelete(
@@ -169,8 +166,6 @@ class FileActions {
                   context,
                   icon: Icons.history, // Icon for remove from history
                   label: '移除记录',
-                  color: Colors
-                      .red, // Or orange/grey? Red implies destructive usually.
                   onTap: () {
                     Navigator.pop(context);
                     fileProvider.removeFromRecentFiles(path);
@@ -247,7 +242,6 @@ class FileActions {
                 context,
                 icon: Icons.folder_zip,
                 label: '分享文件夹 (ZIP)',
-                color: Colors.blue,
                 onTap: () async {
                   Navigator.pop(context);
                   final success = await shareService.shareFolder(path);
@@ -278,7 +272,6 @@ class FileActions {
                 context,
                 icon: Icons.edit,
                 label: '重命名',
-                color: Colors.orange,
                 onTap: () {
                   Navigator.pop(context);
                   showRenameFolderDialog(
@@ -298,7 +291,6 @@ class FileActions {
                     ? Icons.push_pin_outlined
                     : Icons.push_pin,
                 label: isCurrentlyPinned ? '取消置顶' : '置顶',
-                color: Colors.purple,
                 onTap: () {
                   Navigator.pop(context);
                   fileProvider.togglePinFolder(path);
@@ -312,7 +304,6 @@ class FileActions {
                   context,
                   icon: Icons.delete,
                   label: '删除文件夹',
-                  color: Colors.red,
                   onTap: () {
                     Navigator.pop(context);
                     confirmDeleteFolder(
@@ -329,7 +320,6 @@ class FileActions {
                   context,
                   icon: Icons.history,
                   label: '移除记录',
-                  color: Colors.red,
                   onTap: () {
                     Navigator.pop(context);
                     fileProvider.removeFromRecentFolders(path);
@@ -365,7 +355,6 @@ class FileActions {
     BuildContext context, {
     required IconData icon,
     required String label,
-    required Color color,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -375,19 +364,20 @@ class FileActions {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
-          child: Container(
+          child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
             child: Row(
               children: [
-                Icon(icon, color: color),
+                Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   label,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w600),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -431,17 +421,18 @@ class FileActions {
     ShareService shareService,
   ) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          leading: const Icon(Icons.share, color: Colors.blue),
-          title: const Text(
+          leading: Icon(
+            Icons.share,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          title: Text(
             '分享',
-            style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           childrenPadding: const EdgeInsets.only(
             left: 16,
@@ -916,7 +907,6 @@ class FileActions {
     required VoidCallback onTap,
     bool isDisabled = false,
   }) {
-    final color = isDisabled ? Colors.grey : Colors.blue;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -925,13 +915,21 @@ class FileActions {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.5),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
           ),
           child: Row(
             children: [
-              Icon(icon, color: color, size: 20),
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -939,16 +937,15 @@ class FileActions {
                   children: [
                     Text(
                       label,
-                      style: TextStyle(
-                        color: color,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w500,
-                        fontSize: 13,
                       ),
                     ),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        color: color.withValues(alpha: 0.7),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 11,
                       ),
                     ),
@@ -962,12 +959,16 @@ class FileActions {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.2),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text(
+                  child: Text(
                     '待开发',
-                    style: TextStyle(fontSize: 10, color: Colors.orange),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
             ],
@@ -1221,18 +1222,9 @@ class FileActions {
           ),
           title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.add_circle,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              Icon(
+                Icons.add_circle,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               const SizedBox(width: 12),
               const Text('新建 Markdown'),
@@ -1303,7 +1295,10 @@ class FileActions {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.folder, color: Colors.amber),
+                        Icon(
+                          Icons.folder,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -1394,16 +1389,9 @@ class FileActions {
           ),
           title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.create_new_folder,
-                  color: Colors.orange,
-                ),
+              Icon(
+                Icons.create_new_folder,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               const SizedBox(width: 12),
               const Text('新建文件夹'),
@@ -1473,7 +1461,10 @@ class FileActions {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.folder, color: Colors.amber),
+                        Icon(
+                          Icons.folder,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(

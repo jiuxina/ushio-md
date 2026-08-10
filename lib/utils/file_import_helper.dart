@@ -18,10 +18,10 @@ import 'editor_navigation_helper.dart';
 class FileImportResult {
   /// 导入后的文件路径（如果导入了的话）
   final String? importedPath;
-  
+
   /// 是否成功打开
   final bool success;
-  
+
   /// 是否为新导入的文件
   final bool wasImported;
 
@@ -57,7 +57,9 @@ class FileImportHelper {
       final settings = Provider.of<SettingsProvider>(context, listen: false);
       _myFilesService.setSettingsProvider(settings);
     } catch (e) {
-      debugPrint('FileImportHelper: SettingsProvider not available, using defaults: $e');
+      debugPrint(
+        'FileImportHelper: SettingsProvider not available, using defaults: $e',
+      );
     }
 
     // 检查文件是否在工作区内
@@ -113,10 +115,10 @@ class FileImportHelper {
             ),
           );
         }
-        
+
         // 通知刷新文件列表
         onImportComplete?.call();
-        
+
         return FileImportResult(
           importedPath: newPath,
           success: true,
@@ -168,18 +170,9 @@ class _ImportDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.folder_copy,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+          Icon(
+            Icons.folder_copy,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
           const SizedBox(width: 12),
           const Flexible(child: Text('导入到我的文件？')),
@@ -197,17 +190,25 @@ class _ImportDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                Icon(
+                  Icons.info_outline,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '导入到"我的文件"后，文件将被云同步备份',
-                    style: TextStyle(fontSize: 13, color: Colors.blue.shade700),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],

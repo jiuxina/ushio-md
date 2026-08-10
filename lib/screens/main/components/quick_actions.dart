@@ -35,20 +35,14 @@ class QuickActions extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         boxShadow: appStyle.surfaceShadow,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
-          ],
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.8,
         ),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.2),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
               ),
       ),
       child: Column(
@@ -58,7 +52,7 @@ class QuickActions extends StatelessWidget {
             children: [
               Icon(
                 Icons.flash_on,
-                color: Theme.of(context).colorScheme.primary,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Text(
@@ -78,7 +72,6 @@ class QuickActions extends StatelessWidget {
                   context,
                   icon: Icons.add_circle,
                   label: '新建文件',
-                  color: Colors.green,
                   onTap: () => FileActions.showCreateFileDialog(
                     context,
                     fileProvider,
@@ -92,7 +85,6 @@ class QuickActions extends StatelessWidget {
                   context,
                   icon: Icons.create_new_folder,
                   label: '新建文件夹',
-                  color: Colors.orange,
                   onTap: () =>
                       FileActions.showCreateFolderDialog(context, fileProvider),
                 ),
@@ -108,7 +100,6 @@ class QuickActions extends StatelessWidget {
                   context,
                   icon: Icons.file_open,
                   label: '打开文件',
-                  color: Colors.blue,
                   onTap: () async {
                     final path = await fileProvider.pickAndOpenFile();
                     if (path != null && context.mounted) {
@@ -127,7 +118,6 @@ class QuickActions extends StatelessWidget {
                   context,
                   icon: Icons.folder_open,
                   label: '打开文件夹',
-                  color: Colors.amber,
                   onTap: () async {
                     final path = await fileProvider.pickDirectory();
                     if (path != null) {
@@ -159,20 +149,14 @@ class QuickActions extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         boxShadow: appStyle.surfaceShadow,
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft, // Horizontal gradient for compact row
-          end: Alignment.centerRight,
-          colors: [
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
-          ],
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.8,
         ),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.2),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
               ),
       ),
       child: Row(
@@ -181,7 +165,6 @@ class QuickActions extends StatelessWidget {
           _buildCompactIconButton(
             context,
             icon: Icons.add_circle,
-            color: Colors.green,
             tooltip: '新建文件',
             onTap: () => FileActions.showCreateFileDialog(
               context,
@@ -192,7 +175,6 @@ class QuickActions extends StatelessWidget {
           _buildCompactIconButton(
             context,
             icon: Icons.create_new_folder,
-            color: Colors.orange,
             tooltip: '新建文件夹',
             onTap: () =>
                 FileActions.showCreateFolderDialog(context, fileProvider),
@@ -200,7 +182,6 @@ class QuickActions extends StatelessWidget {
           _buildCompactIconButton(
             context,
             icon: Icons.file_open,
-            color: Colors.blue,
             tooltip: '打开文件',
             onTap: () async {
               final path = await fileProvider.pickAndOpenFile();
@@ -216,7 +197,6 @@ class QuickActions extends StatelessWidget {
           _buildCompactIconButton(
             context,
             icon: Icons.folder_open,
-            color: Colors.amber,
             tooltip: '打开文件夹',
             onTap: () async {
               final path = await fileProvider.pickDirectory();
@@ -242,7 +222,6 @@ class QuickActions extends StatelessWidget {
   Widget _buildCompactIconButton(
     BuildContext context, {
     required IconData icon,
-    required Color color,
     required String tooltip,
     required VoidCallback onTap,
   }) {
@@ -254,12 +233,12 @@ class QuickActions extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              icon,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 24,
             ),
-            child: Icon(icon, color: color, size: 24),
           ),
         ),
       ),
@@ -284,7 +263,6 @@ class QuickActions extends StatelessWidget {
               context,
               icon: Icons.add_circle,
               label: '新建文件',
-              color: Colors.green,
               onTap: () => FileActions.showCreateFileDialog(
                 context,
                 fileProvider,
@@ -298,7 +276,6 @@ class QuickActions extends StatelessWidget {
               context,
               icon: Icons.create_new_folder,
               label: '新建文件夹',
-              color: Colors.orange,
               onTap: () =>
                   FileActions.showCreateFolderDialog(context, fileProvider),
             ),
@@ -309,7 +286,6 @@ class QuickActions extends StatelessWidget {
               context,
               icon: Icons.file_open,
               label: '打开文件',
-              color: Colors.blue,
               onTap: () async {
                 final path = await fileProvider.pickAndOpenFile();
                 if (path != null && context.mounted) {
@@ -328,7 +304,6 @@ class QuickActions extends StatelessWidget {
               context,
               icon: Icons.folder_open,
               label: '打开文件夹',
-              color: Colors.amber,
               onTap: () async {
                 final path = await fileProvider.pickDirectory();
                 if (path != null) {
@@ -355,7 +330,6 @@ class QuickActions extends StatelessWidget {
     BuildContext context, {
     required IconData icon,
     required String label,
-    required Color color,
     required VoidCallback onTap,
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
@@ -375,17 +349,21 @@ class QuickActions extends StatelessWidget {
             ),
             border: appStyle.useBorderlessButtons
                 ? null
-                : Border.all(color: color.withValues(alpha: 0.3)),
+                : Border.all(
+                    color: Theme.of(
+                      context,
+                    ).dividerColor.withValues(alpha: 0.5),
+                  ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+                Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    icon,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 20,
                   ),
-                  child: Icon(icon, color: color, size: 20),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -406,7 +384,6 @@ class QuickActions extends StatelessWidget {
     BuildContext context, {
     required IconData icon,
     required String label,
-    required Color color,
     required VoidCallback onTap,
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
@@ -424,16 +401,18 @@ class QuickActions extends StatelessWidget {
           ),
           border: appStyle.useBorderlessButtons
               ? null
-              : Border.all(color: color.withValues(alpha: 0.3)),
+              : Border.all(
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                ),
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+              Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  size: 24,
                 ),
-                child: Icon(icon, color: color, size: 24),
               ),
               const SizedBox(height: 8),
               Text(

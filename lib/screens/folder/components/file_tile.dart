@@ -99,7 +99,9 @@ class FileTile extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(tileRadius),
             onTap: () async {
-              debugPrint('[FileTile] onTap: isFile=$isFile, type=${entity.runtimeType}, path=${entity.path}');
+              debugPrint(
+                '[FileTile] onTap: isFile=$isFile, type=${entity.runtimeType}, path=${entity.path}',
+              );
               if (isFile) {
                 if (isMarkdownFile) {
                   final fileProvider = context.read<FileProvider>();
@@ -231,30 +233,20 @@ class FileTile extends StatelessWidget {
     bool isPinned,
   ) {
     IconData iconData;
-    Color iconColor;
 
     if (!isFile) {
       iconData = Icons.folder;
-      iconColor = Colors.amber;
     } else if (isImage) {
       iconData = Icons.image;
-      iconColor = Colors.purple;
     } else {
       iconData = Icons.description;
-      iconColor = Theme.of(context).colorScheme.primary;
     }
 
-    return Container(
-      padding: EdgeInsets.all(
-        ResponsiveLayout.isDesktopWidth(context) ? 8 : 10,
-      ),
-      decoration: BoxDecoration(
-        color: iconColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-      ),
+    return Padding(
+      padding: EdgeInsets.all(ResponsiveLayout.isDesktopWidth(context) ? 6 : 8),
       child: Icon(
         iconData,
-        color: iconColor,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
         size: ResponsiveLayout.isDesktopWidth(context) ? 18 : 20,
       ),
     );

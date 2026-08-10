@@ -80,21 +80,15 @@ class _AboutScreenState extends State<AboutScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         boxShadow: appStyle.surfaceShadow,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
-          ],
+        color: appStyle.scaledSurfaceColor(
+          Theme.of(context).colorScheme,
+          alpha: 0.8,
         ),
         borderRadius: BorderRadius.circular(20),
         border: appStyle.useBorderlessButtons
             ? null
             : Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.2),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
               ),
       ),
       child: Column(
@@ -139,13 +133,13 @@ class _AboutScreenState extends State<AboutScreen> {
             decoration: BoxDecoration(
               color: Theme.of(
                 context,
-              ).colorScheme.primary.withValues(alpha: 0.1),
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               'v${AppConstants.appVersion}',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -202,13 +196,9 @@ class _AboutScreenState extends State<AboutScreen> {
   }) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      leading: Icon(
+        icon,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       title: Text(title),
       subtitle: Text(
@@ -229,16 +219,9 @@ class _AboutScreenState extends State<AboutScreen> {
     final settings = context.watch<SettingsProvider>();
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      secondary: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          Icons.update_outlined,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+      secondary: Icon(
+        Icons.update_outlined,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       title: Text(l10n.autoCheckUpdate),
       subtitle: Text(l10n.autoCheckUpdateDesc),
@@ -251,20 +234,16 @@ class _AboutScreenState extends State<AboutScreen> {
     final l10n = AppLocalizations.of(context)!;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: _isCheckingUpdate
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.update, color: Colors.green),
-      ),
+      leading: _isCheckingUpdate
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              Icons.update,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
       title: Text(l10n.checkForUpdates),
       subtitle: Text(l10n.checkForUpdatesDesc),
       trailing: TextButton(
@@ -329,14 +308,7 @@ class _AboutScreenState extends State<AboutScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.update, color: Colors.green),
-            ),
+            Icon(Icons.update, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(width: 12),
             Flexible(child: Text(l10n.foundNewVersion)),
           ],

@@ -44,7 +44,6 @@ class SettingsTab extends StatelessWidget {
                   context,
                   l10n: l10n,
                   icon: Icons.palette,
-                  iconColor: Colors.purple,
                   title: l10n.appearance,
                   onTap: () => Navigator.push(
                     context,
@@ -58,7 +57,6 @@ class SettingsTab extends StatelessWidget {
                   context,
                   l10n: l10n,
                   icon: Icons.edit,
-                  iconColor: Colors.blue,
                   title: l10n.editor,
                   onTap: () => Navigator.push(
                     context,
@@ -72,7 +70,6 @@ class SettingsTab extends StatelessWidget {
                   context,
                   l10n: l10n,
                   icon: Icons.cloud_sync,
-                  iconColor: Colors.teal,
                   title: l10n.cloudSync,
                   onTap: () => Navigator.push(
                     context,
@@ -84,7 +81,6 @@ class SettingsTab extends StatelessWidget {
                   context,
                   l10n: l10n,
                   icon: Icons.folder,
-                  iconColor: Colors.amber,
                   title: l10n.storage,
                   onTap: () => Navigator.push(
                     context,
@@ -98,7 +94,6 @@ class SettingsTab extends StatelessWidget {
                   context,
                   l10n: l10n,
                   icon: Icons.info,
-                  iconColor: Colors.cyan,
                   title: l10n.about,
                   onTap: () => Navigator.push(
                     context,
@@ -110,7 +105,6 @@ class SettingsTab extends StatelessWidget {
                   context,
                   l10n: l10n,
                   icon: Icons.bug_report,
-                  iconColor: Colors.deepOrange,
                   title: l10n.debugMode,
                   onTap: () => Navigator.push(
                     context,
@@ -132,18 +126,10 @@ class SettingsTab extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.settings,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+          Icon(
+            Icons.settings,
+            color: Theme.of(context).colorScheme.onSurface,
+            size: 26,
           ),
           const SizedBox(width: 12),
           Column(
@@ -166,7 +152,6 @@ class SettingsTab extends StatelessWidget {
     BuildContext context, {
     required AppLocalizations l10n,
     required IconData icon,
-    required Color iconColor,
     required String title,
     required VoidCallback onTap,
   }) {
@@ -196,13 +181,13 @@ class SettingsTab extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+                Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    icon,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    size: 18,
                   ),
-                  child: Icon(icon, color: iconColor, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

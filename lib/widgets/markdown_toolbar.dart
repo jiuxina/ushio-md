@@ -454,7 +454,6 @@ class MarkdownToolbar extends StatelessWidget {
               icon: Icons.link,
               label: '输入图片链接',
               subtitle: '使用网络图片 URL',
-              color: Colors.blue,
               onTap: () {
                 Navigator.pop(context);
                 _showImageUrlDialog(context);
@@ -466,7 +465,6 @@ class MarkdownToolbar extends StatelessWidget {
               icon: Icons.folder_open,
               label: '从设备选择',
               subtitle: '选择本地图片文件',
-              color: Colors.green,
               onTap: () {
                 Navigator.pop(context);
                 _pickImageFile(context);
@@ -484,7 +482,6 @@ class MarkdownToolbar extends StatelessWidget {
     required IconData icon,
     required String label,
     required String subtitle,
-    required Color color,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -495,19 +492,22 @@ class MarkdownToolbar extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
+              Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                child: Icon(icon, color: color),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -550,14 +550,7 @@ class MarkdownToolbar extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.link, color: Colors.blue),
-            ),
+            Icon(Icons.link, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(width: 12),
             const Text('插入图片链接'),
           ],
@@ -764,13 +757,9 @@ class MarkdownToolbar extends StatelessWidget {
               ),
               title: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.table_chart, color: Colors.blue),
+                  Icon(
+                    Icons.table_chart,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   const SizedBox(width: 12),
                   const Text('插入表格'),
