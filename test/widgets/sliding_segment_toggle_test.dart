@@ -68,6 +68,12 @@ void main() {
     final toggleRect = tester.getRect(find.byType(SlidingSegmentToggle));
     final firstSlotCenter = toggleRect.left + toggleRect.width / 4;
     expect(tester.getCenter(pillFinder).dx, closeTo(firstSlotCenter, 2.0));
+
+    final slotWidth = toggleRect.width / 2;
+    expect(tester.getSize(pillFinder).width, closeTo(slotWidth, 2.0));
+    final pillDecoration =
+        tester.widget<Container>(pillFinder).decoration as BoxDecoration;
+    expect(pillDecoration.borderRadius, BorderRadius.circular(12));
   });
 
   testWidgets('点击选项会触发 onChanged', (tester) async {

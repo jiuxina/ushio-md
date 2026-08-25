@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
@@ -24,6 +22,7 @@ class SlidingSegmentToggle extends StatefulWidget {
   final ValueChanged<int> onChanged;
   final double height;
   final double? width;
+  final double borderRadius;
 
   const SlidingSegmentToggle({
     super.key,
@@ -32,6 +31,7 @@ class SlidingSegmentToggle extends StatefulWidget {
     required this.onChanged,
     this.height = 36,
     this.width,
+    this.borderRadius = 12,
   }) : assert(items.length >= 2);
 
   @override
@@ -51,10 +51,7 @@ class _SlidingSegmentToggleState extends State<SlidingSegmentToggle> {
         builder: (context, constraints) {
           final slotCount = widget.items.length;
           final slotWidth = constraints.maxWidth / slotCount;
-          final pillWidth = math.min(
-            math.max(slotWidth * 0.72, 40.0),
-            72.0,
-          );
+          final pillWidth = slotWidth;
           const pillHeightInset = 8.0;
           final pillHeight = widget.height - pillHeightInset;
           final maxLeft = slotWidth * slotCount - pillWidth;
@@ -178,7 +175,7 @@ class _SlidingSegmentToggleState extends State<SlidingSegmentToggle> {
       key: const ValueKey('sliding_segment_pill'),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(widget.borderRadius),
         boxShadow: [
           BoxShadow(
             color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
