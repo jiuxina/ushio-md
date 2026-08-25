@@ -23,6 +23,7 @@ class SlidingSegmentToggle extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onChanged;
   final double height;
+  final double? width;
 
   const SlidingSegmentToggle({
     super.key,
@@ -30,6 +31,7 @@ class SlidingSegmentToggle extends StatefulWidget {
     required this.selectedIndex,
     required this.onChanged,
     this.height = 36,
+    this.width,
   }) : assert(items.length >= 2);
 
   @override
@@ -43,6 +45,7 @@ class _SlidingSegmentToggleState extends State<SlidingSegmentToggle> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      width: widget.width ?? 160,
       height: widget.height,
       child: LayoutBuilder(
         builder: (context, constraints) {

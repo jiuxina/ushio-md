@@ -104,4 +104,34 @@ void main() {
     final secondSlotCenter = toggleRect.left + toggleRect.width * 3 / 4;
     expect(tester.getCenter(pillFinder).dx, closeTo(secondSlotCenter, 2.0));
   });
+
+  testWidgets('在无界宽度 Row 中也能正常渲染', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              const Text('Title'),
+              const Spacer(),
+              SlidingSegmentToggle(
+                selectedIndex: 0,
+                onChanged: (_) {},
+                items: const [
+                  SlidingSegmentItem(icon: Icons.description, label: 'File'),
+                  SlidingSegmentItem(icon: Icons.folder, label: 'Folder'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('File'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('sliding_segment_pill')),
+      findsOneWidget,
+    );
+  });
 }
