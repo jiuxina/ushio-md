@@ -123,10 +123,7 @@ void main() {
     expect(find.byIcon(Icons.home_rounded), findsOneWidget);
     expect(find.byIcon(Icons.history_outlined), findsOneWidget);
 
-    final pillFinder = find.descendant(
-      of: find.byType(AnimatedPositioned),
-      matching: find.byType(Container),
-    );
+    final pillFinder = find.byKey(const ValueKey('capsule_selection_pill'));
     final initialPillCenter = tester.getCenter(pillFinder);
     final homeIconCenter = tester.getCenter(find.byIcon(Icons.home_rounded));
     expect(initialPillCenter.dx, closeTo(homeIconCenter.dx, 0.5));
@@ -150,14 +147,23 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 100));
-
     final settingsIconCenter = tester.getCenter(
       find.byIcon(Icons.settings_rounded),
     );
-    final midPillCenter = tester.getCenter(pillFinder);
-    expect(midPillCenter.dx, greaterThan(initialPillCenter.dx));
-    expect(midPillCenter.dx, lessThan(settingsIconCenter.dx));
+
+    final slideCenters = <double>[];
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(pillFinder, findsOneWidget);
+      slideCenters.add(tester.getCenter(pillFinder).dx);
+    }
+    for (var i = 0; i < slideCenters.length; i++) {
+      expect(slideCenters[i], greaterThan(initialPillCenter.dx));
+      expect(slideCenters[i], lessThan(settingsIconCenter.dx));
+      if (i > 0) {
+        expect(slideCenters[i], greaterThan(slideCenters[i - 1]));
+      }
+    }
 
     await tester.pumpAndSettle();
     final finalPillCenter = tester.getCenter(pillFinder);

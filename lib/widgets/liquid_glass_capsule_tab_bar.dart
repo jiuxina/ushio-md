@@ -103,14 +103,11 @@ class LiquidGlassCapsuleTabBar extends StatelessWidget {
                         (selectedIndex + 0.5) * slotWidth - pillWidth / 2;
                     return Stack(
                       children: [
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 260),
-                          curve: Curves.easeOutCubic,
+                        _SlidingSelectionPill(
                           left: pillLeft,
                           top: (constraints.maxHeight - pillHeight) / 2,
                           width: pillWidth,
                           height: pillHeight,
-                          child: _buildSelectionPill(context),
                         ),
                         Row(
                           children: [
@@ -137,29 +134,6 @@ class LiquidGlassCapsuleTabBar extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSelectionPill(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = Theme.of(context).colorScheme.primary;
-    return Container(
-      decoration: BoxDecoration(
-        color: primary.withValues(alpha: isDark ? 0.28 : 0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: primary.withValues(alpha: isDark ? 0.45 : 0.34),
-          width: 0.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withValues(alpha: isDark ? 0.24 : 0.18),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-            spreadRadius: -4,
-          ),
-        ],
       ),
     );
   }
@@ -191,6 +165,106 @@ class LiquidGlassCapsuleTabBar extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 由显式动画控制器驱动的滑动选中胶囊。
+///
+/// 选中项变化时从当前位置连续滑向新位置，避免隐式动画退化为消失/重现。
+class _SlidingSelectionPill extends StatefulWidget {
+  final double left;
+  final double top;
+  final double width;
+  final double height;
+
+  const _SlidingSelectionPill({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<_SlidingSelectionPill> createState() => _SlidingSelectionPillState();
+}
+
+class _SlidingSelectionPillState extends State<_SlidingSelectionPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  double _from = 0;
+  double _to = 0;
+  double _currentLeft = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _from = widget.left;
+    _to = widget.left;
+    _currentLeft = widget.left;
+  }
+
+  @override
+  void didUpdateWidget(_SlidingSelectionPill oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.left != widget.left) {
+      _from = _currentLeft;
+      _to = widget.left;
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: _buildPill(context),
+      builder: (context, child) {
+        final progress = Curves.easeOutCubic.transform(_controller.value);
+        final left = _from + (_to - _from) * progress;
+        _currentLeft = left;
+        return Positioned(
+          left: left,
+          top: widget.top,
+          width: widget.width,
+          height: widget.height,
+          child: child!,
+        );
+      },
+    );
+  }
+
+  Widget _buildPill(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+    return Container(
+      key: const ValueKey('capsule_selection_pill'),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: isDark ? 0.28 : 0.18),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: primary.withValues(alpha: isDark ? 0.45 : 0.34),
+          width: 0.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withValues(alpha: isDark ? 0.24 : 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: -4,
+          ),
+        ],
       ),
     );
   }
