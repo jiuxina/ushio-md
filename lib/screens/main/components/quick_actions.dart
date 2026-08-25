@@ -48,19 +48,6 @@ class QuickActions extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.flash_on, color: context.appMutedIconColor),
-              const SizedBox(width: 8),
-              Text(
-                '快速操作',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           // First row
           Row(
             children: [
