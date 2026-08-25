@@ -25,6 +25,7 @@ import '../services/update_service.dart';
 import '../utils/debug_log.dart';
 import '../utils/responsive_layout.dart';
 import '../widgets/desktop_navigation_shell.dart';
+import '../widgets/liquid_glass_capsule_tab_bar.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -340,6 +341,34 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   Widget _buildBottomNav(AppLocalizations l10n) {
     return Consumer<SettingsProvider>(
       builder: (context, settings, _) {
+        if (settings.tabBarStyle == AppTabBarStyleMode.liquidGlassCapsule) {
+          return LiquidGlassCapsuleTabBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: _switchTab,
+            destinations: [
+              LiquidGlassCapsuleDestination(
+                icon: Icons.home_outlined,
+                selectedIcon: Icons.home_rounded,
+                label: l10n.homeTab,
+              ),
+              LiquidGlassCapsuleDestination(
+                icon: Icons.folder_special_outlined,
+                selectedIcon: Icons.folder_special_rounded,
+                label: l10n.myFiles,
+              ),
+              LiquidGlassCapsuleDestination(
+                icon: Icons.history_outlined,
+                selectedIcon: Icons.history_rounded,
+                label: l10n.historyTab,
+              ),
+              LiquidGlassCapsuleDestination(
+                icon: Icons.settings_outlined,
+                selectedIcon: Icons.settings_rounded,
+                label: l10n.settings,
+              ),
+            ],
+          );
+        }
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           child: Container(

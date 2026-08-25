@@ -50,6 +50,7 @@ void main() {
       expect(provider.webdavUrl, isEmpty);
       expect(provider.syncFolderName, 'Ushio-MD');
       expect(provider.buttonStyleMode, AppButtonStyleMode.softShadow);
+      expect(provider.tabBarStyle, AppTabBarStyleMode.classic);
       expect(provider.useCustomIconColor, isFalse);
       expect(provider.customIconColor, isNull);
     });
@@ -127,6 +128,30 @@ void main() {
         prefs.getString('button_style_mode'),
         AppButtonStyleMode.softShadow.name,
       );
+    });
+
+    test('setTabBarStyle 应更新内存和持久化存储', () async {
+      await provider.setTabBarStyle(AppTabBarStyleMode.liquidGlassCapsule);
+      expect(provider.tabBarStyle, AppTabBarStyleMode.liquidGlassCapsule);
+      await flushPersist();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString('tab_bar_style'),
+        AppTabBarStyleMode.liquidGlassCapsule.name,
+      );
+    });
+
+    test('initialize 应加载 tab_bar_style', () async {
+      SharedPreferences.setMockInitialValues({
+        'tab_bar_style': 'liquidGlassCapsule',
+      });
+      FlutterSecureStorage.setMockInitialValues({});
+
+      final restored = SettingsProvider();
+      await restored.initialize();
+
+      expect(restored.tabBarStyle, AppTabBarStyleMode.liquidGlassCapsule);
     });
 
     test('WebDAV 密码应存储在 SecureStorage 中', () async {

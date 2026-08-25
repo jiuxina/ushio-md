@@ -75,6 +75,8 @@ class _OtherAppearanceSettingsScreenState
 
                 // 底部导航栏透明度
                 buildSection(l10n.bottomNavBar, Icons.tab_rounded, [
+                  buildTabBarStyleSelector(settings, l10n),
+                  const SizedBox(height: 12),
                   buildTabBarOpacitySlider(settings, l10n),
                 ]),
 

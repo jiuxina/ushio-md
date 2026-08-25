@@ -986,6 +986,36 @@ abstract class AppLocalizations {
   /// **'底部导航栏'**
   String get bottomNavBar;
 
+  /// 底部导航栏样式设置
+  ///
+  /// In zh, this message translates to:
+  /// **'底部导航栏样式'**
+  String get tabBarStyle;
+
+  /// 经典底部导航栏样式
+  ///
+  /// In zh, this message translates to:
+  /// **'经典底栏'**
+  String get tabBarStyleClassic;
+
+  /// 经典底部导航栏样式说明
+  ///
+  /// In zh, this message translates to:
+  /// **'保留当前的底部图标栏样式'**
+  String get tabBarStyleClassicDesc;
+
+  /// 液态玻璃胶囊底部导航栏样式
+  ///
+  /// In zh, this message translates to:
+  /// **'液态玻璃胶囊'**
+  String get tabBarStyleCapsule;
+
+  /// 液态玻璃胶囊底部导航栏样式说明
+  ///
+  /// In zh, this message translates to:
+  /// **'悬浮玻璃胶囊，选中项带滑动胶囊动画'**
+  String get tabBarStyleCapsuleDesc;
+
   /// 清除图片按钮
   ///
   /// In zh, this message translates to:

@@ -461,6 +461,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bottomNavBar => 'Bottom Navigation Bar';
 
   @override
+  String get tabBarStyle => 'Tab Bar Style';
+
+  @override
+  String get tabBarStyleClassic => 'Classic';
+
+  @override
+  String get tabBarStyleClassicDesc => 'Keep current bottom icon bar style';
+
+  @override
+  String get tabBarStyleCapsule => 'Liquid Glass Capsule';
+
+  @override
+  String get tabBarStyleCapsuleDesc =>
+      'Floating glass capsule with sliding selected highlight';
+
+  @override
   String get clearImage => 'Clear Image';
 
   @override

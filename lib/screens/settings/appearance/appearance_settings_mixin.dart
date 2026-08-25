@@ -3235,4 +3235,230 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
       ],
     );
   }
+
+  /// 构建底部导航栏样式选择器
+  Widget buildTabBarStyleSelector(
+    SettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: buildTabBarStyleOption(
+            settings,
+            AppTabBarStyleMode.classic,
+            Icons.tab_rounded,
+            l10n.tabBarStyleClassic,
+            l10n.tabBarStyleClassicDesc,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: buildTabBarStyleOption(
+            settings,
+            AppTabBarStyleMode.liquidGlassCapsule,
+            Icons.water_drop_outlined,
+            l10n.tabBarStyleCapsule,
+            l10n.tabBarStyleCapsuleDesc,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildTabBarStyleOption(
+    SettingsProvider settings,
+    AppTabBarStyleMode mode,
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
+    final isSelected = settings.tabBarStyle == mode;
+    final previewPrimary = Theme.of(context).colorScheme.primary;
+
+    return GestureDetector(
+      onTap: () => settings.setTabBarStyle(mode),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: buildOptionDecoration(isSelected: isSelected),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: isSelected ? previewPrimary : context.appIconColor,
+                ),
+                const Spacer(),
+                if (isSelected)
+                  Icon(
+                    Icons.check_circle,
+                    size: 18,
+                    color: previewPrimary,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: isSelected ? previewPrimary : null,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
+            _buildTabBarStylePreview(mode, previewPrimary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabBarStylePreview(
+    AppTabBarStyleMode mode,
+    Color previewPrimary,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (mode == AppTabBarStyleMode.classic) {
+      return Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.surface.withValues(alpha: 0.7),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+          border: appStyle.surfaceBorder(),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavPreviewIcon(
+              Icons.home_rounded,
+              selected: true,
+              primary: previewPrimary,
+            ),
+            _buildNavPreviewIcon(
+              Icons.folder_special_rounded,
+              primary: previewPrimary,
+            ),
+            _buildNavPreviewIcon(
+              Icons.history_rounded,
+              primary: previewPrimary,
+            ),
+            _buildNavPreviewIcon(
+              Icons.settings_rounded,
+              primary: previewPrimary,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.10)
+              : Colors.white.withValues(alpha: 0.24),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Colors.white.withValues(
+              alpha: isDark ? 0.16 : 0.32,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildNavPreviewIcon(
+                Icons.home_rounded,
+                selected: true,
+                primary: previewPrimary,
+                capsule: true,
+              ),
+            ),
+            Expanded(
+              child: _buildNavPreviewIcon(
+                Icons.folder_special_rounded,
+                primary: previewPrimary,
+                capsule: true,
+              ),
+            ),
+            Expanded(
+              child: _buildNavPreviewIcon(
+                Icons.history_rounded,
+                primary: previewPrimary,
+                capsule: true,
+              ),
+            ),
+            Expanded(
+              child: _buildNavPreviewIcon(
+                Icons.settings_rounded,
+                primary: previewPrimary,
+                capsule: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavPreviewIcon(
+    IconData icon, {
+    bool selected = false,
+    required Color primary,
+    bool capsule = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: capsule && selected
+            ? BoxDecoration(
+                color: primary.withValues(alpha: isDark ? 0.32 : 0.20),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: primary.withValues(alpha: 0.4),
+                ),
+              )
+            : BoxDecoration(
+                color: selected && !capsule
+                    ? primary.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: selected
+              ? primary
+              : Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
 }

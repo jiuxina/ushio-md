@@ -457,6 +457,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bottomNavBar => '底部导航栏';
 
   @override
+  String get tabBarStyle => '底部导航栏样式';
+
+  @override
+  String get tabBarStyleClassic => '经典底栏';
+
+  @override
+  String get tabBarStyleClassicDesc => '保留当前的底部图标栏样式';
+
+  @override
+  String get tabBarStyleCapsule => '液态玻璃胶囊';
+
+  @override
+  String get tabBarStyleCapsuleDesc => '悬浮玻璃胶囊，选中项带滑动胶囊动画';
+
+  @override
   String get clearImage => '清除图片';
 
   @override

@@ -598,6 +598,26 @@
   "@bottomNavBar": {
     "description": "底部导航栏设置"
   },
+  "tabBarStyle": "底部导航栏样式",
+  "@tabBarStyle": {
+    "description": "底部导航栏样式设置"
+  },
+  "tabBarStyleClassic": "经典底栏",
+  "@tabBarStyleClassic": {
+    "description": "经典底部导航栏样式"
+  },
+  "tabBarStyleClassicDesc": "保留当前的底部图标栏样式",
+  "@tabBarStyleClassicDesc": {
+    "description": "经典底部导航栏样式说明"
+  },
+  "tabBarStyleCapsule": "液态玻璃胶囊",
+  "@tabBarStyleCapsule": {
+    "description": "液态玻璃胶囊底部导航栏样式"
+  },
+  "tabBarStyleCapsuleDesc": "悬浮玻璃胶囊，选中项带滑动胶囊动画",
+  "@tabBarStyleCapsuleDesc": {
+    "description": "液态玻璃胶囊底部导航栏样式说明"
+  },
   "clearImage": "清除图片",
   "@clearImage": {
     "description": "清除图片按钮"

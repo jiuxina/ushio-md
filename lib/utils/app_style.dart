@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 /// 应用按钮风格模式。
 enum AppButtonStyleMode { classic, softShadow, liquidGlass }
 
+/// 底部导航栏样式模式。
+enum AppTabBarStyleMode { classic, liquidGlassCapsule }
+
 /// 统一管理按钮与边框风格的主题扩展。
 class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   final AppButtonStyleMode buttonStyleMode;
