@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/file_provider.dart';
+import '../../../services/file_service.dart';
 import '../../../utils/file_actions.dart';
 import '../../../utils/editor_navigation_helper.dart';
 import '../../../utils/app_style.dart';
@@ -33,7 +34,7 @@ class FileTile extends StatelessWidget {
     final isFile = entity is File;
     final name = entity.path.split(Platform.pathSeparator).last;
     final isImage = isFile && _isImage(name);
-    final isMarkdownFile = isFile && _isMarkdownDocument(name);
+    final isMarkdownFile = isFile && _isMarkdownDocument(entity as File);
     final isPinned = source == FileSource.pinned;
 
     // 获取文件/文件夹信息 (日期/大小)
@@ -42,10 +43,16 @@ class FileTile extends StatelessWidget {
       final stat = entity.statSync();
       // 对于文件夹，显示路径；对于文件，显示路径或大小
       if (isFile) {
-        final date = stat.modified;
-        final formattedDate =
-            '${date.year}/${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-        subtitle = '${_formatSize(stat.size)} · $formattedDate';
+        if (stat.size < 0 ||
+            stat.modified.year < 1971 ||
+            stat.modified.year > 2100) {
+          subtitle = '未知 · 未知';
+        } else {
+          final date = stat.modified;
+          final formattedDate =
+              '${date.year}/${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+          subtitle = '${_formatSize(stat.size)} · $formattedDate';
+        }
       } else {
         subtitle = entity.path;
       }
@@ -261,14 +268,30 @@ class FileTile extends StatelessWidget {
         lower.endsWith('.webp');
   }
 
-  bool _isMarkdownDocument(String name) {
+  bool _isMarkdownDocument(File file) {
+    final name = file.path.split(Platform.pathSeparator).last;
     final lower = name.toLowerCase();
-    return lower.endsWith('.md') ||
+    if (lower.endsWith('.md') ||
         lower.endsWith('.markdown') ||
-        lower.endsWith('.txt');
+        lower.endsWith('.txt')) {
+      return true;
+    }
+    if (name.contains('.')) return false;
+    try {
+      final randomAccess = file.openSync();
+      try {
+        final bytes = randomAccess.readSync(FileService.binaryProbeBytes);
+        return FileService.looksLikeTextBytes(bytes);
+      } finally {
+        randomAccess.closeSync();
+      }
+    } catch (_) {
+      return false;
+    }
   }
 
   String _formatSize(int bytes) {
+    if (bytes < 0) return '未知';
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';

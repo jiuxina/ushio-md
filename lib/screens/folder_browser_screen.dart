@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../providers/file_provider.dart';
 import '../models/file_sort_option.dart';
 import '../services/folder_sort_service.dart';
+import '../services/file_service.dart';
 import '../utils/file_actions.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/app_background.dart';
@@ -99,7 +100,7 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
         if (isDir) return true;
 
         // 文件过滤
-        if (name.toLowerCase().endsWith('.md')) return true;
+        if (_isTextMarkdownFile(e as File)) return true;
         if (_showImages && _isImage(name)) return true;
 
         return false;
@@ -123,6 +124,28 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
         lower.endsWith('.png') ||
         lower.endsWith('.gif') ||
         lower.endsWith('.webp');
+  }
+
+  bool _isTextMarkdownFile(File file) {
+    final name = file.path.split(Platform.pathSeparator).last;
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.md') ||
+        lower.endsWith('.markdown') ||
+        lower.endsWith('.txt')) {
+      return true;
+    }
+    if (name.contains('.')) return false;
+    try {
+      final randomAccess = file.openSync();
+      try {
+        final bytes = randomAccess.readSync(FileService.binaryProbeBytes);
+        return FileService.looksLikeTextBytes(bytes);
+      } finally {
+        randomAccess.closeSync();
+      }
+    } catch (_) {
+      return false;
+    }
   }
 
   void _sortFiles() {

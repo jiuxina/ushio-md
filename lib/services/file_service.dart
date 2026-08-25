@@ -30,6 +30,17 @@ class FileTooLargeException implements Exception {
   String toString() => message;
 }
 
+/// 文件编码异常
+class FileEncodingException implements Exception {
+  final String message;
+  final String path;
+
+  const FileEncodingException(this.message, this.path);
+
+  @override
+  String toString() => message;
+}
+
 /// 文件服务类
 ///
 /// 提供文件系统的底层操作封装
@@ -39,11 +50,40 @@ class FileService {
   /// 最大文件大小限制 (10MB)
   static const int maxFileSize = 10 * 1024 * 1024;
 
+  /// 二进制探测字节数
+  static const int binaryProbeBytes = 8 * 1024;
+
   /// 最大文件名长度
   static const int maxFileNameLength = 255;
 
   static final LinkedHashMap<String, _CachedFileContent> _contentCache =
       LinkedHashMap<String, _CachedFileContent>();
+
+  /// 判断字节内容是否看起来像文本（无 NUL 且可按 UTF-8 解码）。
+  static bool looksLikeTextBytes(List<int> bytes) {
+    if (bytes.isEmpty) return true;
+    final probe = bytes.length > binaryProbeBytes
+        ? bytes.sublist(0, binaryProbeBytes)
+        : bytes;
+    if (probe.contains(0)) return false;
+    try {
+      utf8.decode(probe);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// 统一换行风格并保留指定的行尾（默认 LF）。
+  static String normalizeLineEndings(
+    String content, {
+    String lineEnding = '\n',
+  }) {
+    final normalized = content.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    return lineEnding == '\r\n'
+        ? normalized.replaceAll('\n', '\r\n')
+        : normalized;
+  }
 
   /// 验证并清理文件名
   ///
@@ -342,7 +382,22 @@ class FileService {
       }
     }
 
-    final content = await file.readAsString();
+    final bytes = await file.readAsBytes();
+    if (!looksLikeTextBytes(bytes)) {
+      throw FileEncodingException(
+        '文件不是有效的 UTF-8 文本，可能包含二进制内容（$path）',
+        path,
+      );
+    }
+    String content;
+    try {
+      content = utf8.decode(bytes);
+    } on FormatException {
+      throw FileEncodingException(
+        '文件不是有效的 UTF-8 文本（$path）',
+        path,
+      );
+    }
     _storeInCache(path, content, lastModified: stat.modified, size: stat.size);
     return content;
   }

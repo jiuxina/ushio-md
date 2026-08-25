@@ -3,6 +3,7 @@
 // ============================================================================
 
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mdreader/services/file_service.dart';
 
@@ -61,6 +62,43 @@ void main() {
 
       final content = await File(file.path).readAsString();
       expect(content, startsWith('# newfile'));
+    });
+
+    test('looksLikeTextBytes 识别文本、二进制与非法 UTF-8', () {
+      expect(FileService.looksLikeTextBytes(utf8.encode('hello 汐')), true);
+      expect(FileService.looksLikeTextBytes([0x00, 0x01, 0x02]), false);
+      expect(FileService.looksLikeTextBytes([0x68, 0xC3, 0x28]), false);
+    });
+
+    test('normalizeLineEndings 保留 CRLF / 归一化 LF', () {
+      expect(
+        FileService.normalizeLineEndings('a\nb\n', lineEnding: '\r\n'),
+        'a\r\nb\r\n',
+      );
+      expect(
+        FileService.normalizeLineEndings('a\r\nb\r\n'),
+        'a\nb\n',
+      );
+    });
+
+    test('readFile 对非法 UTF-8 抛出 FileEncodingException', () async {
+      final file = File('${tempDir.path}/invalid_utf8.md');
+      await file.writeAsBytes([0x68, 0x69, 0xC3, 0x28]);
+
+      expect(
+        () => service.readFile(file.path),
+        throwsA(isA<FileEncodingException>()),
+      );
+    });
+
+    test('readFile 对二进制内容抛出 FileEncodingException', () async {
+      final file = File('${tempDir.path}/binary.md');
+      await file.writeAsBytes([0x00, 0x01, 0x02, 0x03]);
+
+      expect(
+        () => service.readFile(file.path),
+        throwsA(isA<FileEncodingException>()),
+      );
     });
 
     test('createFile 如果文件已存在应抛出异常', () async {
