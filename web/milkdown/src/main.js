@@ -10,6 +10,7 @@ import { emoji } from '@milkdown/plugin-emoji';
 import { highlight, highlightPluginConfig } from '@milkdown/plugin-highlight';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
+import { redoDepth, undoDepth } from '@milkdown/prose/history';
 import { indent } from '@milkdown/plugin-indent';
 import { math } from '@milkdown/plugin-math';
 import { trailing } from '@milkdown/plugin-trailing';
@@ -2180,12 +2181,30 @@ const syncRenderedDom = () => {
   });
 };
 
+const emitHistoryState = () => {
+  if (!editorInstance) return;
+  let canUndo = false;
+  let canRedo = false;
+  editorInstance.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const state = view?.state;
+    if (!state) return;
+    canUndo = undoDepth(state) > 0;
+    canRedo = redoDepth(state) > 0;
+  });
+  emit('on_history_state', {
+    canUndo,
+    canRedo,
+  });
+};
+
 const notifyRenderComplete = () => {
   requestAnimationFrame(() => {
     syncRenderedDom();
     updateActiveMarkdownHints();
     emitOutlineUpdate();
     emit('on_render_complete', {});
+    emitHistoryState();
   });
 };
 
@@ -2222,7 +2241,7 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
   const preprocessedMarkdown = preprocessImageUrlsInMarkdown(htmlWrappedMarkdown);
   currentMarkdown = preprocessedMarkdown;
   emitDebug('[JS] setMarkdown: calling editorInstance.action(replaceAll)');
-  editorInstance.action(replaceAll(preprocessedMarkdown));
+  editorInstance.action(replaceAll(preprocessedMarkdown, forceRender));
   emitDebug('[JS] setMarkdown: calling notifyRenderComplete');
   notifyRenderComplete();
   emitDebug('[JS] setMarkdown: done');
@@ -3435,6 +3454,7 @@ const executeCommand = (cmd, args = {}) => {
           : commands.call(redoCommand.key);
       });
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
+      emitHistoryState();
       return;
     }
     if (

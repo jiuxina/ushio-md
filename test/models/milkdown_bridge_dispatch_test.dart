@@ -207,5 +207,24 @@ void main() {
       expect(payload!.reason, 'upload_timeout');
       expect(payload!.count, 2);
     });
+
+    test('dispatches on_history_state payload', () {
+      OnHistoryStatePayload? payload;
+
+      dispatchMilkdownBridgeMessage(
+        {
+          'type': 'on_history_state',
+          'payload': {
+            'canUndo': true,
+            'canRedo': false,
+          },
+        },
+        onHistoryState: (value) => payload = value,
+      );
+
+      expect(payload, isNotNull);
+      expect(payload!.canUndo, isTrue);
+      expect(payload!.canRedo, isFalse);
+    });
   });
 }

@@ -396,6 +396,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final ValueChanged<OnLinkClickPayload>? onLinkClick;
   final MilkdownCheckboxToggleHandler? onCheckboxToggle;
   final ValueChanged<OnUploadImagesRequestPayload>? onUploadImagesRequest;
+  final void Function(bool canUndo, bool canRedo)? onHistoryState;
   final bool enableInsertImagePicker;
   final bool enableInsertImageUrl;
   final VoidCallback? onLoadFinished;
@@ -421,6 +422,7 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.onLinkClick,
     this.onCheckboxToggle,
     this.onUploadImagesRequest,
+    this.onHistoryState,
     this.enableInsertImagePicker = true,
     this.enableInsertImageUrl = true,
     this.onLoadFinished,
@@ -1195,12 +1197,20 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         insertImagePayload = payload;
       },
       onCheckboxToggle: widget.onCheckboxToggle,
+      onHistoryState: (payload) {
+        widget.onHistoryState?.call(payload.canUndo, payload.canRedo);
+      },
       onCmdResult: (cmd, ok, reason) {
         if (!ok) {
           appDebugLog(
             'Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}',
           );
-          if (mounted && reason != null && reason.isNotEmpty) {
+          final isExpectedHistoryNoop =
+              (cmd == 'undo' || cmd == 'redo') && reason == 'not_applicable';
+          if (!isExpectedHistoryNoop &&
+              mounted &&
+              reason != null &&
+              reason.isNotEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('编辑命令失败：$cmd（$reason）'),

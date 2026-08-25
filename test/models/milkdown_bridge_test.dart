@@ -255,5 +255,14 @@ void main() {
         payload.toJson(),
       );
     });
+
+    test('OnHistoryStatePayload serializes and deserializes', () {
+      const payload = OnHistoryStatePayload(canUndo: true, canRedo: false);
+      expect(payload.toJson(), {'canUndo': true, 'canRedo': false});
+      expect(
+        OnHistoryStatePayload.fromJson(payload.toJson()).toJson(),
+        payload.toJson(),
+      );
+    });
   });
 }

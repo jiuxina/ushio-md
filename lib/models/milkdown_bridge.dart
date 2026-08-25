@@ -393,6 +393,22 @@ class OnCmdFailureAggregatePayload {
   };
 }
 
+class OnHistoryStatePayload {
+  final bool canUndo;
+  final bool canRedo;
+
+  const OnHistoryStatePayload({required this.canUndo, required this.canRedo});
+
+  factory OnHistoryStatePayload.fromJson(Map<String, dynamic> json) {
+    return OnHistoryStatePayload(
+      canUndo: json['canUndo'] == true,
+      canRedo: json['canRedo'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'canUndo': canUndo, 'canRedo': canRedo};
+}
+
 String createBridgeRequestId() {
   final now = DateTime.now();
   final salt = Random.secure().nextInt(_bridgeRequestSaltLimit);
@@ -416,6 +432,7 @@ void dispatchMilkdownBridgeMessage(
   void Function(OnInsertImageRequestPayload payload)? onInsertImageRequest,
   void Function(OnCmdMetricPayload payload)? onCmdMetric,
   void Function(OnCmdFailureAggregatePayload payload)? onCmdFailureAggregate,
+  void Function(OnHistoryStatePayload payload)? onHistoryState,
   void Function(int index, bool checked)? onCheckboxToggle,
   void Function(String cmd, bool ok, String? reason)? onCmdResult,
   void Function()? onRenderComplete,
@@ -507,6 +524,15 @@ void dispatchMilkdownBridgeMessage(
     onCmdFailureAggregate?.call(
       OnCmdFailureAggregatePayload.fromJson(payloadMap),
     );
+    return;
+  }
+
+  if (type == 'on_history_state') {
+    try {
+      onHistoryState?.call(OnHistoryStatePayload.fromJson(payloadMap));
+    } on FormatException {
+      // Ignore malformed payload.
+    }
     return;
   }
 

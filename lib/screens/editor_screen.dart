@@ -113,6 +113,8 @@ class _EditorScreenState extends State<EditorScreen>
   bool _showSearchBar = false;
   bool _showSearchCandidates = false;
   final TocOverlayController _tocOverlayController = TocOverlayController();
+  bool _previewCanUndo = false;
+  bool _previewCanRedo = false;
   bool _hidePlatformViews = false;
   bool _isAppInBackground = false;
   Timer? _autoSaveTimer;
@@ -2016,6 +2018,7 @@ class _EditorScreenState extends State<EditorScreen>
           _handleLinkTap(payload.text ?? '', payload.href, payload.title ?? ''),
       onImageClick: _showImagePreview,
       onCheckboxToggle: _toggleCheckbox,
+      onHistoryState: _onPreviewHistoryState,
       onBridgeMessage: _handleMilkdownBridgeMessage,
       controller: _previewWebViewController,
       codeBlockTheme:
@@ -2238,6 +2241,8 @@ class _EditorScreenState extends State<EditorScreen>
     final settings = context.watch<SettingsProvider>();
     final isFocusMode = settings.focusMode;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final isPreviewUndoRedo =
+        _mode == EditorMode.preview && _editingBlockIndex == null;
 
     return Container(
       decoration: BoxDecoration(
@@ -2366,22 +2371,36 @@ class _EditorScreenState extends State<EditorScreen>
                                     controller: _editingBlockIndex != null
                                         ? _inlineEditController
                                         : _textController,
-                                    undoController: _editingBlockIndex != null
+                                    undoController: isPreviewUndoRedo
+                                        ? null
+                                        : _editingBlockIndex != null
                                         ? null
                                         : _undoController,
                                     canUndo: _editingBlockIndex != null
                                         ? _historyIndex > 0
+                                        : isPreviewUndoRedo
+                                        ? _previewCanUndo
                                         : null,
                                     canRedo: _editingBlockIndex != null
                                         ? (_historyIndex >= 0 &&
                                               _historyIndex <
                                                   _editHistory.length - 1)
+                                        : isPreviewUndoRedo
+                                        ? _previewCanRedo
                                         : null,
                                     onUndo: _editingBlockIndex != null
                                         ? _undoEditHistory
+                                        : isPreviewUndoRedo
+                                        ? () => _handlePreviewToolbarAction(
+                                            MarkdownToolbarAction.undo,
+                                          )
                                         : null,
                                     onRedo: _editingBlockIndex != null
                                         ? _redoEditHistory
+                                        : isPreviewUndoRedo
+                                        ? () => _handlePreviewToolbarAction(
+                                            MarkdownToolbarAction.redo,
+                                          )
                                         : null,
                                     filePath: widget.filePath,
                                     onSearchPressed: _showInlineSearch,
@@ -2658,6 +2677,8 @@ class _EditorScreenState extends State<EditorScreen>
                   onTap: () => setState(() {
                     _mode = EditorMode.preview;
                     _isMilkdownEditorFocused = false;
+                    _previewCanUndo = false;
+                    _previewCanRedo = false;
                   }),
                 ),
               ),
@@ -2786,6 +2807,15 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  void _onPreviewHistoryState(bool canUndo, bool canRedo) {
+    if (!mounted) return;
+    if (_previewCanUndo == canUndo && _previewCanRedo == canRedo) return;
+    setState(() {
+      _previewCanUndo = canUndo;
+      _previewCanRedo = canRedo;
+    });
+  }
+
   Future<void> _handlePreviewToolbarAction(MarkdownToolbarAction action) async {
     if (_mode != EditorMode.preview || _editingBlockIndex != null) return;
     if (action == MarkdownToolbarAction.search) {
@@ -2797,9 +2827,11 @@ class _EditorScreenState extends State<EditorScreen>
     Map<String, dynamic>? args;
     switch (action) {
       case MarkdownToolbarAction.undo:
+        if (!_previewCanUndo) return;
         cmd = 'undo';
         break;
       case MarkdownToolbarAction.redo:
+        if (!_previewCanRedo) return;
         cmd = 'redo';
         break;
       case MarkdownToolbarAction.bold:
