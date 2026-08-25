@@ -13,6 +13,7 @@ import '../../../providers/file_provider.dart';
 import '../../../widgets/empty_state.dart';
 import '../../../utils/app_style.dart';
 import '../../../widgets/app_surface.dart';
+import '../../../widgets/sliding_segment_toggle.dart';
 
 import '../../../utils/file_actions.dart';
 import '../../../utils/responsive_layout.dart';
@@ -131,68 +132,17 @@ class _HistoryTabState extends State<HistoryTab> {
           : Border.all(
               color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
             ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildToggleItem(
-            icon: Icons.description,
-            label: l10n.file,
-            isSelected: _viewMode == HistoryViewMode.files,
-            onTap: () => setState(() {
-              _viewMode = HistoryViewMode.files;
-            }),
-          ),
-          _buildToggleItem(
-            icon: Icons.folder,
-            label: l10n.folder,
-            isSelected: _viewMode == HistoryViewMode.folders,
-            onTap: () => setState(() {
-              _viewMode = HistoryViewMode.folders;
-            }),
-          ),
+      child: SlidingSegmentToggle(
+        height: 36,
+        selectedIndex: _viewMode == HistoryViewMode.files ? 0 : 1,
+        onChanged: (index) => setState(() {
+          _viewMode =
+              index == 0 ? HistoryViewMode.files : HistoryViewMode.folders;
+        }),
+        items: [
+          SlidingSegmentItem(icon: Icons.description, label: l10n.file),
+          SlidingSegmentItem(icon: Icons.folder, label: l10n.folder),
         ],
-      ),
-    );
-  }
-
-  Widget _buildToggleItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : context.appIconColor,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? Colors.white
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
