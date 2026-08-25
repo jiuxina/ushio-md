@@ -27,18 +27,8 @@ android {
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionName = flutter.versionName
-        
-        // Custom Version Code Formula: (Major + 1) * 1000 + Minor * 10 + Patch
-        // Example: 1.0.0 -> 2000, 1.0.1 -> 2001, 1.1.0 -> 2010, 2.0.0 -> 3000
-        val vParts = flutter.versionName?.split(".") ?: emptyList()
-        if (vParts.size >= 3) {
-            val major = vParts[0].toIntOrNull() ?: 0
-            val minor = vParts[1].toIntOrNull() ?: 0
-            val patch = vParts[2].substringBefore("+").toIntOrNull() ?: 0
-            versionCode = (major + 1) * 1000 + (minor * 10) + patch
-        } else {
-            versionCode = flutter.versionCode
-        }
+        // 直接使用 pubspec 的 build number，保证版本码随发布单调递增。
+        versionCode = flutter.versionCode
     }
 
     buildTypes {
