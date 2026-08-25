@@ -65,6 +65,9 @@ let currentBaseDirectory = '';
 // The main editor always uses readOnly=false. Do NOT file UX bugs about "read-only mode".
 let currentReadOnly = true;
 let isApplyingFromFlutter = false;
+let initializingEditor = false;
+let initializingEditorTimer = null;
+let editorUserInputListenerAttached = false;
 let createEditorPromise = null;
 let contextMenuElement = null;
 let tableFloatingButtonElement = null;
@@ -2181,8 +2184,31 @@ const notifyRenderComplete = () => {
   });
 };
 
+const endEditorInitialization = () => {
+  initializingEditor = false;
+  if (initializingEditorTimer != null) {
+    clearTimeout(initializingEditorTimer);
+    initializingEditorTimer = null;
+  }
+};
+
+const markEditorInitializing = () => {
+  initializingEditor = true;
+  if (!editorUserInputListenerAttached) {
+    editorUserInputListenerAttached = true;
+    ['beforeinput', 'keydown', 'compositionstart', 'paste'].forEach((eventName) => {
+      app.addEventListener(eventName, endEditorInitialization, true);
+    });
+  }
+  if (initializingEditorTimer != null) {
+    clearTimeout(initializingEditorTimer);
+  }
+  initializingEditorTimer = setTimeout(endEditorInitialization, 1500);
+};
+
 const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}) => {
   emitDebug(`[JS] setMarkdown: len=${markdown?.length}, forceRender=${forceRender}`);
+  markEditorInitializing();
   const rawMarkdown = typeof markdown === 'string' ? markdown : '';
   const nextMarkdown = rawMarkdown;
   emitDebug(`[JS] setMarkdown: nextMarkdown === currentMarkdown: ${nextMarkdown === currentMarkdown}`);
@@ -2728,6 +2754,7 @@ const createEditor = async () => {
     .config(nord)
     .config((ctx) => {
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
+        if (initializingEditor) markEditorInitializing();
         if (markdown === prev) return;
         const sanitizedMarkdown = stripGhostCodeLanguageMarkers(markdown);
         if (sanitizedMarkdown !== markdown) {
@@ -2735,7 +2762,7 @@ const createEditor = async () => {
             wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
           );
           currentMarkdown = renderReadyMarkdown;
-          if (!currentReadOnly && !isApplyingFromFlutter) {
+          if (!currentReadOnly && !isApplyingFromFlutter && !initializingEditor) {
             scheduleContentChange(sanitizedMarkdown, { mode: 'code_sanitized' });
           }
           isApplyingFromFlutter = true;
@@ -2746,7 +2773,7 @@ const createEditor = async () => {
         currentMarkdown = preprocessImageUrlsInMarkdown(
           wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
         );
-        if (!isApplyingFromFlutter) {
+        if (!isApplyingFromFlutter && !initializingEditor) {
           scheduleContentChange(sanitizedMarkdown);
         }
         isApplyingFromFlutter = false;
@@ -3970,6 +3997,7 @@ const onFlutterMessage = (message) => {
       emitDebug('[JS] init_doc: setMarkdown done');
     } else {
       emitDebug('[JS] init_doc: no editorInstance, calling ensureEditor');
+      markEditorInitializing();
       ensureEditor().catch((error) => {
         console.error('Failed to initialize Milkdown', error);
         showBootstrapError(error);

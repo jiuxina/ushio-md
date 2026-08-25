@@ -218,6 +218,8 @@
   - `parseMarkdownOutline` 重新支持 setext 标题，目录与标题跳转仍可用；
   - 因为打开本身没有变更，所以不会产生 `on_content_change`，也不会标记“已修改”或触发自动保存；
   - Flutter 侧新增 `_isMilkdownReady` 初始化保护，未就绪时忽略内容变更，防止残留事件误标记；
+  - 初始化渲染期间 Milkdown 内部事务（代码块/HTML/嵌套列表等触发的二次渲染）也被抑制，
+    只有首次用户输入后才恢复内容变更上报；
   - 用户在编辑模式修改后切预览再切回编辑，未在预览内编辑时文本保持原样。
 - 产物同步：
   - 重新构建 `web/milkdown` 并同步 `assets/milkdown_web/index.html`。
