@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -92,20 +93,24 @@ class LiquidGlassCapsuleTabBar extends StatelessWidget {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final slotCount = destinations.length;
+                    final slotWidth = constraints.maxWidth / slotCount;
+                    final pillWidth = math.min(
+                      math.max(slotWidth * 0.72, 48.0),
+                      64.0,
+                    );
+                    const pillHeight = 44.0;
+                    final pillLeft =
+                        (selectedIndex + 0.5) * slotWidth - pillWidth / 2;
                     return Stack(
                       children: [
-                        AnimatedAlign(
+                        AnimatedPositioned(
                           duration: const Duration(milliseconds: 260),
                           curve: Curves.easeOutCubic,
-                          alignment: Alignment(
-                            -1 + (2 * selectedIndex + 1) / slotCount,
-                            0,
-                          ),
-                          child: FractionallySizedBox(
-                            widthFactor: 1 / slotCount,
-                            heightFactor: 0.72,
-                            child: _buildSelectionPill(context),
-                          ),
+                          left: pillLeft,
+                          top: (constraints.maxHeight - pillHeight) / 2,
+                          width: pillWidth,
+                          height: pillHeight,
+                          child: _buildSelectionPill(context),
                         ),
                         Row(
                           children: [

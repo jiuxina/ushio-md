@@ -113,7 +113,7 @@ void main() {
     expect(tappedIndex, 3);
   });
 
-  testWidgets('选中索引变化会更新图标和胶囊位置', (tester) async {
+  testWidgets('滑块中心对准选中图标并平滑过渡', (tester) async {
     await pumpBar(
       tester,
       selectedIndex: 0,
@@ -123,12 +123,14 @@ void main() {
     expect(find.byIcon(Icons.home_rounded), findsOneWidget);
     expect(find.byIcon(Icons.history_outlined), findsOneWidget);
 
-    Alignment initialAlignment = Alignment.center;
-    final initialAlign = tester.widget<AnimatedAlign>(
-      find.byType(AnimatedAlign),
+    final pillFinder = find.descendant(
+      of: find.byType(AnimatedPositioned),
+      matching: find.byType(Container),
     );
-    initialAlignment = initialAlign.alignment as Alignment;
-    expect(initialAlignment.x, closeTo(-0.75, 0.001));
+    final initialPillCenter = tester.getCenter(pillFinder);
+    final homeIconCenter = tester.getCenter(find.byIcon(Icons.home_rounded));
+    expect(initialPillCenter.dx, closeTo(homeIconCenter.dx, 0.5));
+    expect(initialPillCenter.dy, closeTo(homeIconCenter.dy, 0.5));
 
     final settings = await createSettings();
     await tester.pumpWidget(
@@ -148,13 +150,17 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.history_outlined), findsOneWidget);
-    final updatedAlign = tester.widget<AnimatedAlign>(
-      find.byType(AnimatedAlign),
+    final settingsIconCenter = tester.getCenter(
+      find.byIcon(Icons.settings_rounded),
     );
-    expect((updatedAlign.alignment as Alignment).x, closeTo(0.75, 0.001));
+    final midPillCenter = tester.getCenter(pillFinder);
+    expect(midPillCenter.dx, greaterThan(initialPillCenter.dx));
+    expect(midPillCenter.dx, lessThan(settingsIconCenter.dx));
+
+    await tester.pumpAndSettle();
+    final finalPillCenter = tester.getCenter(pillFinder);
+    expect(finalPillCenter.dx, closeTo(settingsIconCenter.dx, 0.5));
   });
 }
