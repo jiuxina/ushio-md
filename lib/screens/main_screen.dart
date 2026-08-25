@@ -25,6 +25,7 @@ import '../services/update_service.dart';
 import '../utils/debug_log.dart';
 import '../utils/responsive_layout.dart';
 import '../widgets/desktop_navigation_shell.dart';
+import '../widgets/capsule_tab_bar_scope.dart';
 import '../widgets/liquid_glass_capsule_tab_bar.dart';
 
 class MainScreen extends StatefulWidget {
@@ -36,6 +37,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
+  double _capsuleTabBarInset = 0;
+  final GlobalKey _capsuleTabBarKey = GlobalKey();
 
   // PageController for swipe gesture with follow-through effect
   late PageController _pageController;
@@ -238,12 +241,9 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             !isDesktopLayout &&
             settings.tabBarStyle == AppTabBarStyleMode.liquidGlassCapsule;
 
-        return AppBackground(
-          wrapWithSafeArea: false,
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            extendBody: capsuleFloating,
-            body: Column(
+        final pageBody = Stack(
+          children: [
+            Column(
               children: [
                 if (useCustomTitleBar)
                   const CustomTitleBar(isEditorMode: false),
@@ -256,12 +256,48 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                 ),
               ],
             ),
-            bottomNavigationBar: isDesktopLayout ? null : _buildBottomNav(l10n),
+            if (!isDesktopLayout && capsuleFloating)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildCapsuleTabBar(l10n, key: _capsuleTabBarKey),
+              ),
+          ],
+        );
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _updateCapsuleTabBarInset();
+        });
+
+        return AppBackground(
+          wrapWithSafeArea: false,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: CapsuleTabBarScope(
+              inset: _capsuleTabBarInset,
+              child: pageBody,
+            ),
+            bottomNavigationBar: isDesktopLayout || capsuleFloating
+                ? null
+                : _buildBottomNav(l10n),
             drawer: isDesktopLayout ? null : _buildDrawer(l10n),
           ),
         );
       },
     );
+  }
+
+  void _updateCapsuleTabBarInset() {
+    if (!mounted) return;
+    double inset = 0;
+    final renderObject = _capsuleTabBarKey.currentContext?.findRenderObject();
+    if (renderObject is RenderBox) {
+      inset = renderObject.size.height;
+    }
+    if ((inset - _capsuleTabBarInset).abs() > 0.01) {
+      setState(() => _capsuleTabBarInset = inset);
+    }
   }
 
   Widget _buildDesktopKeyboardScope({required Widget child}) {
@@ -343,37 +379,39 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildCapsuleTabBar(AppLocalizations l10n, {Key? key}) {
+    return LiquidGlassCapsuleTabBar(
+      key: key,
+      selectedIndex: _currentIndex,
+      onDestinationSelected: _switchTab,
+      destinations: [
+        LiquidGlassCapsuleDestination(
+          icon: Icons.home_outlined,
+          selectedIcon: Icons.home_rounded,
+          label: l10n.homeTab,
+        ),
+        LiquidGlassCapsuleDestination(
+          icon: Icons.folder_special_outlined,
+          selectedIcon: Icons.folder_special_rounded,
+          label: l10n.myFiles,
+        ),
+        LiquidGlassCapsuleDestination(
+          icon: Icons.history_outlined,
+          selectedIcon: Icons.history_rounded,
+          label: l10n.historyTab,
+        ),
+        LiquidGlassCapsuleDestination(
+          icon: Icons.settings_outlined,
+          selectedIcon: Icons.settings_rounded,
+          label: l10n.settings,
+        ),
+      ],
+    );
+  }
+
   Widget _buildBottomNav(AppLocalizations l10n) {
     return Consumer<SettingsProvider>(
       builder: (context, settings, _) {
-        if (settings.tabBarStyle == AppTabBarStyleMode.liquidGlassCapsule) {
-          return LiquidGlassCapsuleTabBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: _switchTab,
-            destinations: [
-              LiquidGlassCapsuleDestination(
-                icon: Icons.home_outlined,
-                selectedIcon: Icons.home_rounded,
-                label: l10n.homeTab,
-              ),
-              LiquidGlassCapsuleDestination(
-                icon: Icons.folder_special_outlined,
-                selectedIcon: Icons.folder_special_rounded,
-                label: l10n.myFiles,
-              ),
-              LiquidGlassCapsuleDestination(
-                icon: Icons.history_outlined,
-                selectedIcon: Icons.history_rounded,
-                label: l10n.historyTab,
-              ),
-              LiquidGlassCapsuleDestination(
-                icon: Icons.settings_outlined,
-                selectedIcon: Icons.settings_rounded,
-                label: l10n.settings,
-              ),
-            ],
-          );
-        }
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           child: Container(

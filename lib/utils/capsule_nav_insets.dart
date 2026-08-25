@@ -1,18 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter/widgets.dart';
 
-import '../providers/settings_provider.dart';
-import 'app_style.dart';
-import 'responsive_layout.dart';
+import '../widgets/capsule_tab_bar_scope.dart';
 
 /// 液态玻璃胶囊底栏在页面底部占用的滚动余量。
 ///
-/// 仅移动端启用胶囊底栏时返回非零值，桌面端返回 0。
+/// 数值来自 [CapsuleTabBarScope] 提供的运行时测量高度；
+/// 未启用胶囊底栏时返回 0。
 double capsuleTabBarBottomInset(BuildContext context) {
-  final settings = context.watch<SettingsProvider>();
-  if (ResponsiveLayout.isDesktopWidth(context) ||
-      settings.tabBarStyle != AppTabBarStyleMode.liquidGlassCapsule) {
-    return 0;
-  }
-  return MediaQuery.paddingOf(context).bottom + 84;
+  return CapsuleTabBarScope.maybeOf(context)?.inset ?? 0;
 }
