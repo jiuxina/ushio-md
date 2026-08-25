@@ -129,6 +129,7 @@ let editorTouchScrollSuppressUntil = 0;
 let viewportScrollSuppressUntil = 0;
 let lastKeyboardInsetPx = 0;
 let lastUserScrollAt = 0;
+let lastEditorInteractionAt = 0;
 let editorTouchTracking = null;
 // IME composition state - prevent viewport sync during composition
 let isComposing = false;
@@ -566,6 +567,7 @@ const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => 
   // Skip viewport sync during IME composition to prevent janky animations
   if (!allowDuringComposition && isComposing) return;
   if (Date.now() < editorTouchScrollSuppressUntil || Date.now() < viewportScrollSuppressUntil) return;
+  if (Date.now() - lastEditorInteractionAt > 1200) return;
   const active = document.activeElement instanceof Element ? document.activeElement : null;
   if (!active?.closest('.ProseMirror')) return;
 
@@ -653,6 +655,7 @@ const scheduleCaretIntoUpperViewport = () => {
   if (Date.now() < editorTouchScrollSuppressUntil) return;
   if (Date.now() < viewportScrollSuppressUntil) return;
   if (Date.now() - lastUserScrollAt < 600) return;
+  if (Date.now() - lastEditorInteractionAt > 1200) return;
   if (caretViewportSyncRafId != null) return;
   caretViewportSyncRafId = requestAnimationFrame(() => {
     caretViewportSyncRafId = null;
@@ -2186,10 +2189,15 @@ const notifyRenderComplete = () => {
 
 const endEditorInitialization = () => {
   initializingEditor = false;
+  lastEditorInteractionAt = Date.now();
   if (initializingEditorTimer != null) {
     clearTimeout(initializingEditorTimer);
     initializingEditorTimer = null;
   }
+};
+
+const markEditorInteraction = () => {
+  lastEditorInteractionAt = Date.now();
 };
 
 const markEditorInitializing = () => {
@@ -2979,6 +2987,11 @@ app.addEventListener('mouseout', (event) => {
   }
 });
 
+app.addEventListener('pointerdown', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest('.ProseMirror')) markEditorInteraction();
+}, true);
+
 app.addEventListener('mousedown', (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (isImageInteractionTarget(target)) {
@@ -3410,7 +3423,7 @@ const executeCommand = (cmd, args = {}) => {
   }
   try {
     if (cmd === 'focus_editor') {
-      app.querySelector('.ProseMirror')?.focus();
+      app.querySelector('.ProseMirror')?.focus({ preventScroll: true });
       emitCmdResult(cmd, true, null, startedAt);
       return;
     }
