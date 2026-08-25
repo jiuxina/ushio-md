@@ -89,7 +89,7 @@
 
 | 首页 | 编辑器 | 设置 |
 |:---:|:---:|:---:|
-| 置顶文件 | 目录搜索与渲染态点选编辑 | 个性化设置 |
+| 快速操作、置顶文件 | 目录搜索与渲染态点选编辑 | 个性化设置 |
 | <img src="sample/1.png" alt="home" style="zoom: 40%;" /> | <img src="sample/2.png" alt="editor" style="zoom: 40%;" /> | <img src="sample/3.png" alt="settings" style="zoom: 40%;" /> |
 
 ## 安装

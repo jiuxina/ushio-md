@@ -8,6 +8,7 @@ import '../../../../utils/app_style.dart';
 
 import '../../../utils/responsive_layout.dart';
 import '../../../widgets/responsive_page_frame.dart';
+import '../components/quick_actions.dart';
 import '../../folder/components/file_tile.dart';
 
 class HomeTab extends StatefulWidget {
@@ -38,6 +39,10 @@ class _HomeTabState extends State<HomeTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        QuickActions(
+                          fileProvider: widget.fileProvider,
+                          onRefresh: () => widget.fileProvider.refresh(),
+                        ),
                         if (widget.fileProvider.pinnedFiles.isNotEmpty) ...[
                           SizedBox(height: isDesktop ? 20 : 24),
                           _buildSectionHeader('置顶文件', Icons.push_pin),
