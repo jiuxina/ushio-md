@@ -73,7 +73,10 @@ class _HistoryTabState extends State<HistoryTab> {
               l10n.historyTab,
               style: Theme.of(
                 context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              ).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                height: 1.0,
+              ),
             ),
             const Spacer(),
             // 清空历史按钮

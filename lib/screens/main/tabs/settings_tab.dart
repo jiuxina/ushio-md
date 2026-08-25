@@ -126,25 +126,20 @@ class SettingsTab extends StatelessWidget {
     final isDesktop = ResponsiveLayout.isDesktopWidth(context);
     return SizedBox(
       height: isDesktop ? null : 56,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Row(
-          children: [
-            Icon(Icons.settings, color: context.appIconColor, size: 26),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.settings,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ],
+      child: Row(
+        children: [
+          Icon(Icons.settings, color: context.appIconColor, size: 24),
+          const SizedBox(width: 12),
+          Text(
+            l10n.settings,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              height: 1.0,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
