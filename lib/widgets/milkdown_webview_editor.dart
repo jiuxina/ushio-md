@@ -248,6 +248,9 @@ class MilkdownWebViewController {
   Future<void> insertTable() => execCmd('insert_table');
   Future<void> insertHorizontalRule() => execCmd('insert_hr');
   Future<void> focusEditor() => execCmd('focus_editor');
+  Future<void> clearFocus() async {
+    await _webViewController?.clearFocus();
+  }
   Future<void> toggleStrikethrough() => execCmd('toggle_strikethrough');
   Future<void> toggleHighlight() => execCmd('toggle_highlight');
   Future<void> toggleInlineCode() => execCmd('toggle_inline_code');

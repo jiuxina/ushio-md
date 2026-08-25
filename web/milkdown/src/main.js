@@ -127,6 +127,7 @@ const searchHighlightPluginKey = new PluginKey('USHIO_SEARCH_HIGHLIGHT');
 let progressiveRenderTimerId = null;
 let progressiveRenderCancelled = false;
 let progressiveRenderPending = false;
+let progressiveFirstPaintEmitted = false;
 const PROGRESSIVE_RENDER_THRESHOLD_CHARS = 512 * 1024;
 const searchHighlightProsePlugin = $prose(() => {
   return new Plugin({
@@ -2209,10 +2210,19 @@ const emitRenderProgress = (progress) => {
 const cancelProgressiveRender = () => {
   progressiveRenderCancelled = true;
   progressiveRenderPending = false;
+  progressiveFirstPaintEmitted = false;
   if (progressiveRenderTimerId != null) {
     clearTimeout(progressiveRenderTimerId);
     progressiveRenderTimerId = null;
   }
+};
+
+const emitFirstRenderReady = () => {
+  requestAnimationFrame(() => {
+    syncRenderedDom();
+    updateActiveMarkdownHints();
+    emit('on_render_complete', {});
+  });
 };
 
 const notifyRenderComplete = () => {
@@ -2284,6 +2294,7 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
     cancelProgressiveRender();
     progressiveRenderCancelled = false;
     progressiveRenderPending = true;
+    progressiveFirstPaintEmitted = false;
     let cursor = 0;
     const total = preprocessedMarkdown.length;
     const renderStep = () => {
@@ -2293,13 +2304,17 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
         notifyRenderComplete();
         return;
       }
-      const nextTarget = Math.min(total, Math.max(cursor + 4096, cursor * 2 + 4096));
+      const nextTarget = Math.min(total, Math.max(cursor + 2048, cursor * 2 + 2048));
       let end = preprocessedMarkdown.indexOf('\n', nextTarget);
-      if (end < 0 || end > nextTarget + 8192) end = nextTarget;
-      if (end <= cursor) end = Math.min(total, cursor + 4096);
+      if (end < 0 || end > nextTarget + 4096) end = nextTarget;
+      if (end <= cursor) end = Math.min(total, cursor + 2048);
       const partial = preprocessedMarkdown.slice(0, end);
       editorInstance.action(replaceAll(partial, end === total ? forceRender : false));
       cursor = end;
+      if (!progressiveFirstPaintEmitted && cursor > 0) {
+        progressiveFirstPaintEmitted = true;
+        emitFirstRenderReady();
+      }
       emitRenderProgress(cursor / total);
       if (cursor < total) {
         progressiveRenderTimerId = setTimeout(renderStep, 0);
@@ -2813,13 +2828,23 @@ const createEditor = async () => {
   // Pre-process: wrap HTML blocks as code fences, then resolve image URLs
   const htmlWrappedMarkdown = wrapHtmlBlocksInCodeFence(currentMarkdown);
   const preprocessedInitialMarkdown = preprocessImageUrlsInMarkdown(htmlWrappedMarkdown);
+  const fullSourceMarkdown = currentMarkdown;
+
+  // 大文档先只解析首块，避免 createEditor 阶段同步解析全文导致首帧卡死。
+  let initialCrepeMarkdown = preprocessedInitialMarkdown;
+  if (preprocessedInitialMarkdown.length > PROGRESSIVE_RENDER_THRESHOLD_CHARS) {
+    const target = Math.min(preprocessedInitialMarkdown.length, 2048);
+    let end = preprocessedInitialMarkdown.indexOf('\n', target);
+    if (end < 0 || end > target + 4096) end = target;
+    initialCrepeMarkdown = preprocessedInitialMarkdown.slice(0, Math.max(1, end));
+  }
   
   // Get the effective CodeMirror theme
   const codeBlockTheme = getEffectiveCodeBlockTheme();
   
   const crepe = new Crepe({
     root: app,
-    defaultValue: preprocessedInitialMarkdown,
+    defaultValue: initialCrepeMarkdown,
     features: {
       [Crepe.Feature.BlockEdit]: false,
       [Crepe.Feature.Toolbar]: false,
@@ -2858,7 +2883,9 @@ const createEditor = async () => {
         if (!isApplyingFromFlutter && !initializingEditor) {
           scheduleContentChange(sanitizedMarkdown);
         }
-        isApplyingFromFlutter = false;
+        if (!progressiveRenderPending) {
+          isApplyingFromFlutter = false;
+        }
         if (!progressiveRenderPending) notifyRenderComplete();
       });
       ctx.set(highlightPluginConfig.key, {
@@ -2889,7 +2916,11 @@ const createEditor = async () => {
   tableFloatingPanelElement = buildTableFloatingPanel();
   app.append(tableFloatingButtonElement);
   app.append(tableFloatingPanelElement);
-  notifyRenderComplete();
+  if (preprocessedInitialMarkdown.length > PROGRESSIVE_RENDER_THRESHOLD_CHARS) {
+    setMarkdown(fullSourceMarkdown, { forceRender: true });
+  } else {
+    notifyRenderComplete();
+  }
   emit('on_ready', {
     runtimeTag: RUNTIME_BUILD_TAG,
   });

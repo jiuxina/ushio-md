@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1542,10 +1543,16 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   /// 搜索栏失焦后重新聚焦编辑器，恢复 IME 输入链路。
+  ///
+  /// 搜索确实输入过内容时，Android WebView 的 IME 连接可能失效，
+  /// 需要重载页面重建输入连接。
   void _refocusEditorAfterSearch() {
-    Future<void>.delayed(const Duration(milliseconds: 100), () {
+    appDebugLog('[EDITOR] refocus after search');
+    Future<void>.delayed(const Duration(milliseconds: 100), () async {
       if (!mounted || _showSearchBar) return;
       if (_mode == EditorMode.preview) {
+        await _previewWebViewController.execCmd('blur_editor');
+        await _previewWebViewController.clearFocus();
         _previewWebViewController.focusEditor();
       } else {
         _editFocusNode.requestFocus();
@@ -1612,6 +1619,13 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _closeSearch() {
+    // 释放 Flutter 搜索框遗留的 IME client，避免后续键盘事件仍路由到旧连接。
+    unawaited(
+      SystemChannels.textInput.invokeMethod<void>('TextInput.hide'),
+    );
+    unawaited(
+      SystemChannels.textInput.invokeMethod<void>('TextInput.clearClient'),
+    );
     // Clear highlights in WebView
     if (_mode == EditorMode.preview) {
       _previewWebViewController.execCmd('search_clear');

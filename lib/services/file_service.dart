@@ -67,7 +67,9 @@ class FileService {
         : bytes;
     if (probe.contains(0)) return false;
     try {
-      utf8.decode(probe);
+      // 探测块可能截断多字节字符，这里只做 NUL 检测；
+      // 完整文件的严格 UTF-8 校验由 readFile 负责。
+      utf8.decode(probe, allowMalformed: true);
       return true;
     } on FormatException {
       return false;

@@ -64,10 +64,13 @@ void main() {
       expect(content, startsWith('# newfile'));
     });
 
-    test('looksLikeTextBytes 识别文本、二进制与非法 UTF-8', () {
+    test('looksLikeTextBytes 识别文本与二进制，截断多字节字符不误判', () {
       expect(FileService.looksLikeTextBytes(utf8.encode('hello 汐')), true);
       expect(FileService.looksLikeTextBytes([0x00, 0x01, 0x02]), false);
-      expect(FileService.looksLikeTextBytes([0x68, 0xC3, 0x28]), false);
+      expect(
+        FileService.looksLikeTextBytes([0xE4, 0xB8]),
+        true,
+      );
     });
 
     test('normalizeLineEndings 保留 CRLF / 归一化 LF', () {
