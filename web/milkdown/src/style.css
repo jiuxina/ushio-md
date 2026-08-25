@@ -101,6 +101,18 @@ body {
   caret-color: var(--milkdown-color-primary);
 }
 
+/* Render Milkdown's inline hardbreak (soft newline) as a real line break */
+.milkdown [data-type="hardbreak"] {
+  white-space: pre-line;
+}
+.milkdown [data-type="hardbreak"]::after {
+  content: "\A";
+}
+/* Keep blank-line separated paragraphs looking like a full empty line */
+.milkdown .ProseMirror > p + p {
+  margin-top: calc(var(--milkdown-font-size) * var(--milkdown-line-height));
+}
+
 .milkdown .ProseMirror blockquote {
   border-left: 4px solid var(--milkdown-color-primary);
   padding: 0.4em 0.8em;

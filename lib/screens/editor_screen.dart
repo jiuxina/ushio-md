@@ -127,6 +127,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   // Original Markdown for incremental merge (preserves original formatting)
   String _originalMarkdown = '';
+  bool _isMilkdownReady = false;
   static const bool _enableIncrementalMerge = true;
 
   // Undo/redo feedback state
@@ -312,6 +313,7 @@ class _EditorScreenState extends State<EditorScreen>
     _textController.text = content;
     // Store original markdown for incremental merge
     _originalMarkdown = content;
+    _isMilkdownReady = false;
     if (!_textListenerAttached) {
       _textController.addListener(_onTextChanged);
       _textListenerAttached = true;
@@ -1939,6 +1941,7 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== Milkdown WebView ====================
 
   void _handleMilkdownContentChange(String markdown) {
+    if (!_isMilkdownReady) return;
     _pendingMilkdownMarkdown = markdown;
     final seq = ++_milkdownChangeSeq;
     _mergeDebouncer.run(() => _applyMilkdownContentChange(markdown, seq));
@@ -1946,6 +1949,13 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _applyMilkdownContentChange(String markdown, int seq) {
     if (!mounted || seq != _milkdownChangeSeq) return;
+    if (!_isMilkdownReady) {
+      if (identical(_pendingMilkdownMarkdown, markdown) ||
+          _pendingMilkdownMarkdown == markdown) {
+        _pendingMilkdownMarkdown = null;
+      }
+      return;
+    }
     if (identical(_pendingMilkdownMarkdown, markdown) ||
         _pendingMilkdownMarkdown == markdown) {
       _pendingMilkdownMarkdown = null;
@@ -2042,6 +2052,10 @@ class _EditorScreenState extends State<EditorScreen>
       if (payload is Map) {
         settings.appendDebugLog('js: ${payload['message']}');
       }
+      return;
+    }
+    if (type == 'on_ready') {
+      _isMilkdownReady = true;
       return;
     }
     if (type != 'on_editor_focus') return;

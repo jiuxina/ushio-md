@@ -2213,12 +2213,6 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
   const rawMarkdown = typeof markdown === 'string' ? markdown : '';
   const withoutSetext = neutralizeSetextHeadingSyntax(rawMarkdown);
   const nextMarkdown = stripGhostCodeLanguageMarkers(withoutSetext);
-  if (!emitContent && nextMarkdown !== rawMarkdown) {
-    emit('on_content_change', {
-      mode: 'full',
-      markdown: nextMarkdown,
-    });
-  }
   emitDebug(`[JS] setMarkdown: nextMarkdown === currentMarkdown: ${nextMarkdown === currentMarkdown}`);
   // Skip equality check if forceRender is true (needed when switching documents)
   if (!forceRender && nextMarkdown === currentMarkdown) {
@@ -2771,7 +2765,7 @@ const createEditor = async () => {
             wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
           );
           currentMarkdown = renderReadyMarkdown;
-          if (!currentReadOnly) {
+          if (!currentReadOnly && !isApplyingFromFlutter) {
             scheduleContentChange(sanitizedMarkdown, { mode: 'code_sanitized' });
           }
           isApplyingFromFlutter = true;
