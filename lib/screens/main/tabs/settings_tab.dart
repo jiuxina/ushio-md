@@ -34,12 +34,12 @@ class SettingsTab extends StatelessWidget {
             maxWidth: ResponsiveLayout.isDesktopWidth(context) ? 760 : null,
             padding: ResponsiveLayout.isDesktopWidth(context)
                 ? const EdgeInsets.fromLTRB(32, 24, 32, 28)
-                : const EdgeInsets.all(16),
+                : const EdgeInsets.fromLTRB(20, 0, 20, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildSettingsHeader(context, l10n),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 _buildSettingsItem(
                   context,
@@ -123,24 +123,28 @@ class SettingsTab extends StatelessWidget {
   }
 
   Widget _buildSettingsHeader(BuildContext context, AppLocalizations l10n) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-      child: Row(
-        children: [
-          Icon(Icons.settings, color: context.appIconColor, size: 26),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.settings,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ],
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    return SizedBox(
+      height: isDesktop ? null : 56,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            Icon(Icons.settings, color: context.appIconColor, size: 26),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.settings,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

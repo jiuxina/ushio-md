@@ -420,7 +420,10 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
         onRefresh: _loadFiles,
         child: _wrapFileList(
           Padding(
-            padding: EdgeInsets.only(bottom: widget.bottomPadding),
+            padding: EdgeInsets.only(
+              top: ResponsiveLayout.isDesktopWidth(context) ? 0 : 12,
+              bottom: widget.bottomPadding,
+            ),
             child: Column(
               children: [
                 for (final entity in filtered)
@@ -447,7 +450,7 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
               : const AlwaysScrollableScrollPhysics(),
           padding: ResponsiveLayout.isDesktopWidth(context)
               ? EdgeInsets.only(bottom: widget.bottomPadding)
-              : EdgeInsets.fromLTRB(20, 20, 20, 20 + widget.bottomPadding),
+              : EdgeInsets.fromLTRB(20, 12, 20, 20 + widget.bottomPadding),
           itemCount: filtered.length,
           buildDefaultDragHandles: false, // 禁用默认的长按拖拽，使用 FileTile 内部的 Handle
           onReorder: _handleReorder,

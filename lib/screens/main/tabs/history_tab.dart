@@ -55,34 +55,41 @@ class _HistoryTabState extends State<HistoryTab> {
     return ResponsivePageFrame(
       padding: EdgeInsets.fromLTRB(
         isDesktop ? 32 : 20,
-        isDesktop ? 22 : 16,
+        0,
         isDesktop ? 32 : 20,
-        isDesktop ? 12 : 20,
+        0,
       ),
-      child: Row(
-        children: [
-          Icon(Icons.history_rounded, color: context.appIconColor, size: 24),
-          const SizedBox(width: 12),
-          Text(
-            l10n.historyTab,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const Spacer(),
-          // 清空历史按钮
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: l10n.clearHistory,
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
+      child: SizedBox(
+        height: isDesktop ? null : 56,
+        child: Row(
+          children: [
+            Icon(
+              Icons.history_rounded,
+              color: context.appIconColor,
+              size: 24,
             ),
-            onPressed: _showClearHistoryDialog,
-          ),
-          const SizedBox(width: 8),
-          _buildToggleButton(),
-        ],
+            const SizedBox(width: 12),
+            Text(
+              l10n.historyTab,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            // 清空历史按钮
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: l10n.clearHistory,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+              ),
+              onPressed: _showClearHistoryDialog,
+            ),
+            const SizedBox(width: 8),
+            _buildToggleButton(),
+          ],
+        ),
       ),
     );
   }
@@ -178,6 +185,12 @@ class _HistoryTabState extends State<HistoryTab> {
       padding: EdgeInsets.only(bottom: capsuleTabBarBottomInset(context)),
       children: [
         ResponsivePageFrame(
+          padding: EdgeInsets.fromLTRB(
+            ResponsiveLayout.isDesktopWidth(context) ? 32 : 20,
+            ResponsiveLayout.isDesktopWidth(context) ? 24 : 12,
+            ResponsiveLayout.isDesktopWidth(context) ? 32 : 20,
+            20,
+          ),
           child: Column(
             children: [
               for (final path in processedFiles)
@@ -206,6 +219,12 @@ class _HistoryTabState extends State<HistoryTab> {
       padding: EdgeInsets.only(bottom: capsuleTabBarBottomInset(context)),
       children: [
         ResponsivePageFrame(
+          padding: EdgeInsets.fromLTRB(
+            ResponsiveLayout.isDesktopWidth(context) ? 32 : 20,
+            ResponsiveLayout.isDesktopWidth(context) ? 24 : 12,
+            ResponsiveLayout.isDesktopWidth(context) ? 32 : 20,
+            20,
+          ),
           child: Column(
             children: [
               for (final path in processedFolders)

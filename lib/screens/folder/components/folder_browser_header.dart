@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/file_sort_option.dart';
 import '../../../utils/app_style.dart';
+import '../../../utils/responsive_layout.dart';
 import '../../../widgets/app_surface.dart';
 
 class FolderBrowserHeader extends StatelessWidget {
@@ -46,10 +47,13 @@ class FolderBrowserHeader extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-      child: Row(
-        children: [
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    return SizedBox(
+      height: isDesktop ? null : 56,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
+        child: Row(
+          children: [
           if (onBack != null)
             IconButton(
               icon: AppSurface(
@@ -111,6 +115,7 @@ class FolderBrowserHeader extends StatelessWidget {
           _buildIconButton(context, icon: Icons.add, onPressed: onNewItem),
         ],
       ),
+    ),
     );
   }
 
@@ -118,10 +123,13 @@ class FolderBrowserHeader extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-      child: Row(
-        children: [
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    return SizedBox(
+      height: isDesktop ? null : 56,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
+        child: Row(
+          children: [
           _buildIconButton(
             context,
             icon: Icons.arrow_back,
@@ -167,6 +175,7 @@ class FolderBrowserHeader extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
