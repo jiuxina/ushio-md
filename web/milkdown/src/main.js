@@ -3,6 +3,8 @@ import {
   editorViewCtx,
 } from '@milkdown/core';
 import { Crepe } from '@milkdown/crepe';
+import { Plugin, PluginKey } from '@milkdown/prose/state';
+import { Decoration, DecorationSet } from '@milkdown/prose/view';
 import { automd } from '@milkdown/plugin-automd';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
@@ -43,7 +45,7 @@ import { deleteColumn, deleteRow, isInTable } from '@milkdown/prose/tables';
 import { createParser as createRefractorParser } from 'prosemirror-highlight/refractor';
 import { refractor } from 'refractor/all';
 import { nord } from '@milkdown/theme-nord';
-import { replaceAll } from '@milkdown/utils';
+import { $prose, replaceAll } from '@milkdown/utils';
 // CodeMirror themes for code block syntax highlighting
 import { oneDark } from '@codemirror/theme-one-dark';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
@@ -121,6 +123,28 @@ let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
 let searchHighlightRanges = [];
 let searchHighlightActiveIndex = -1;
+const searchHighlightPluginKey = new PluginKey('USHIO_SEARCH_HIGHLIGHT');
+let progressiveRenderTimerId = null;
+let progressiveRenderCancelled = false;
+let progressiveRenderPending = false;
+const PROGRESSIVE_RENDER_THRESHOLD_CHARS = 512 * 1024;
+const searchHighlightProsePlugin = $prose(() => {
+  return new Plugin({
+    key: searchHighlightPluginKey,
+    state: {
+      init: () => DecorationSet.empty,
+      apply: (transaction, decorationSet) => {
+        const meta = transaction.getMeta(searchHighlightPluginKey);
+        if (meta) return meta;
+        return decorationSet.map(transaction.mapping, transaction.doc);
+      },
+    },
+    props: {
+      decorations: (state) =>
+        searchHighlightPluginKey.getState(state) || DecorationSet.empty,
+    },
+  });
+});
 
 let caretViewportSyncRafId = null;
 let suppressNextCaretViewportSync = false;
@@ -2177,7 +2201,22 @@ const emitHistoryState = () => {
   });
 };
 
+const emitRenderProgress = (progress) => {
+  const clamped = Math.max(0, Math.min(1, progress));
+  emit('on_render_progress', { progress: clamped });
+};
+
+const cancelProgressiveRender = () => {
+  progressiveRenderCancelled = true;
+  progressiveRenderPending = false;
+  if (progressiveRenderTimerId != null) {
+    clearTimeout(progressiveRenderTimerId);
+    progressiveRenderTimerId = null;
+  }
+};
+
 const notifyRenderComplete = () => {
+  cancelProgressiveRender();
   requestAnimationFrame(() => {
     syncRenderedDom();
     updateActiveMarkdownHints();
@@ -2240,10 +2279,42 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
   const htmlWrappedMarkdown = wrapHtmlBlocksInCodeFence(nextMarkdown);
   const preprocessedMarkdown = preprocessImageUrlsInMarkdown(htmlWrappedMarkdown);
   currentMarkdown = preprocessedMarkdown;
-  emitDebug('[JS] setMarkdown: calling editorInstance.action(replaceAll)');
-  editorInstance.action(replaceAll(preprocessedMarkdown, forceRender));
-  emitDebug('[JS] setMarkdown: calling notifyRenderComplete');
-  notifyRenderComplete();
+  if (preprocessedMarkdown.length > PROGRESSIVE_RENDER_THRESHOLD_CHARS) {
+    emitDebug(`[JS] setMarkdown: using progressive render (${preprocessedMarkdown.length} chars)`);
+    cancelProgressiveRender();
+    progressiveRenderCancelled = false;
+    progressiveRenderPending = true;
+    let cursor = 0;
+    const total = preprocessedMarkdown.length;
+    const renderStep = () => {
+      if (progressiveRenderCancelled) return;
+      if (cursor >= total) {
+        progressiveRenderPending = false;
+        notifyRenderComplete();
+        return;
+      }
+      const nextTarget = Math.min(total, Math.max(cursor + 4096, cursor * 2 + 4096));
+      let end = preprocessedMarkdown.indexOf('\n', nextTarget);
+      if (end < 0 || end > nextTarget + 8192) end = nextTarget;
+      if (end <= cursor) end = Math.min(total, cursor + 4096);
+      const partial = preprocessedMarkdown.slice(0, end);
+      editorInstance.action(replaceAll(partial, end === total ? forceRender : false));
+      cursor = end;
+      emitRenderProgress(cursor / total);
+      if (cursor < total) {
+        progressiveRenderTimerId = setTimeout(renderStep, 0);
+      } else {
+        progressiveRenderPending = false;
+        notifyRenderComplete();
+      }
+    };
+    renderStep();
+  } else {
+    emitDebug('[JS] setMarkdown: calling editorInstance.action(replaceAll)');
+    editorInstance.action(replaceAll(preprocessedMarkdown, forceRender));
+    emitDebug('[JS] setMarkdown: calling notifyRenderComplete');
+    notifyRenderComplete();
+  }
   emitDebug('[JS] setMarkdown: done');
 };
 
@@ -2764,6 +2835,9 @@ const createEditor = async () => {
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
         if (initializingEditor) markEditorInitializing();
         if (markdown === prev) return;
+        if (!isApplyingFromFlutter && !initializingEditor) {
+          cancelProgressiveRender();
+        }
         const sanitizedMarkdown = stripGhostCodeLanguageMarkers(markdown);
         if (sanitizedMarkdown !== markdown) {
           const renderReadyMarkdown = preprocessImageUrlsInMarkdown(
@@ -2775,7 +2849,7 @@ const createEditor = async () => {
           }
           isApplyingFromFlutter = true;
           editorInstance?.action(replaceAll(renderReadyMarkdown));
-          notifyRenderComplete();
+          if (!progressiveRenderPending) notifyRenderComplete();
           return;
         }
         currentMarkdown = preprocessImageUrlsInMarkdown(
@@ -2785,7 +2859,7 @@ const createEditor = async () => {
           scheduleContentChange(sanitizedMarkdown);
         }
         isApplyingFromFlutter = false;
-        notifyRenderComplete();
+        if (!progressiveRenderPending) notifyRenderComplete();
       });
       ctx.set(highlightPluginConfig.key, {
         parser: highlightParser,
@@ -2800,7 +2874,8 @@ const createEditor = async () => {
     .use(highlight)
     .use(math)
     .use(cursor)
-    .use(upload);
+    .use(upload)
+    .use(searchHighlightProsePlugin);
 
   await crepe.create();
   crepeInstance = crepe;
@@ -3423,7 +3498,12 @@ const executeCommand = (cmd, args = {}) => {
   }
   try {
     if (cmd === 'focus_editor') {
-      app.querySelector('.ProseMirror')?.focus({ preventScroll: true });
+      const pm = app.querySelector('.ProseMirror');
+      if (pm instanceof HTMLElement) {
+        pm.focus({ preventScroll: true });
+        emitDebug('[CMD] focus_editor: focused');
+        emitEditorFocus(true);
+      }
       emitCmdResult(cmd, true, null, startedAt);
       return;
     }
@@ -3680,30 +3760,24 @@ const executeCommand = (cmd, args = {}) => {
     }
 
     // Define search highlight functions BEFORE they are used
-    const clearSearchHighlights = () => {
-      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
-      if (!root) return;
-      root.querySelectorAll('.ushio-search-highlight, .ushio-search-highlight-active').forEach((span) => {
-        const parent = span.parentNode;
-        while (span.firstChild) {
-          parent?.insertBefore(span.firstChild, span);
-        }
-        span.remove();
-        // Normalize the parent to merge adjacent text nodes
-        if (parent instanceof HTMLElement) {
-          parent.normalize();
-        }
+    const dispatchSearchDecorations = (deco) => {
+      if (!editorInstance) return;
+      editorInstance.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        view.dispatch(view.state.tr.setMeta(searchHighlightPluginKey, deco));
       });
+    };
+
+    const clearSearchHighlights = () => {
       searchHighlightRanges = [];
       searchHighlightActiveIndex = -1;
+      dispatchSearchDecorations(DecorationSet.empty);
     };
 
     const highlightSearchMatches = (query, options = {}) => {
       clearSearchHighlights();
       if (!query || typeof query !== 'string' || !query.trim()) return;
-
-      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
-      if (!root) return;
+      if (!editorInstance) return;
 
       const trimmedQuery = query.trim();
       if (!trimmedQuery) return;
@@ -3712,16 +3786,8 @@ const executeCommand = (cmd, args = {}) => {
       const wholeWord = options.wholeWord === true;
       const useRegex = options.useRegex === true;
 
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      const textNodes = [];
-      while (walker.nextNode()) {
-        textNodes.push(walker.currentNode);
-      }
-
-      const ranges = [];
-
       // Build match function based on options
-      const findMatches = (text, textNode) => {
+      const findMatches = (text) => {
         const matches = [];
 
         if (useRegex) {
@@ -3765,53 +3831,46 @@ const executeCommand = (cmd, args = {}) => {
         return matches;
       };
 
-      textNodes.forEach((textNode) => {
-        const text = textNode.textContent || '';
-        const matches = findMatches(text, textNode);
-
-        matches.forEach(({ start, end }) => {
-          const range = document.createRange();
-          range.setStart(textNode, start);
-          range.setEnd(textNode, end);
-          ranges.push(range);
+      editorInstance.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const doc = view.state.doc;
+        const ranges = [];
+        doc.descendants((node, pos) => {
+          if (!node.isText) return;
+          const text = node.text || '';
+          findMatches(text).forEach(({ start, end }) => {
+            ranges.push({ from: pos + start, to: pos + end });
+          });
         });
-      });
 
-      // Highlight all matches
-      ranges.forEach((range) => {
-        try {
-          const span = document.createElement('span');
-          span.className = 'ushio-search-highlight';
-          range.surroundContents(span);
-        } catch (e) {
-          // Skip if range crosses element boundaries
-        }
+        const decorations = ranges.map(({ from, to }) =>
+          Decoration.inline(from, to, {
+            class: 'ushio-search-highlight',
+          })
+        );
+        const deco = DecorationSet.create(doc, decorations);
+        searchHighlightRanges = ranges;
+        searchHighlightActiveIndex = -1;
+        view.dispatch(view.state.tr.setMeta(searchHighlightPluginKey, deco));
       });
-
-      searchHighlightRanges = ranges;
-      searchHighlightActiveIndex = -1;
     };
 
     const highlightSearchActive = (index) => {
-      const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
-      if (!root) return;
-
-      // Remove previous active highlight
-      root.querySelectorAll('.ushio-search-highlight-active').forEach((span) => {
-        span.classList.remove('ushio-search-highlight-active');
-        span.classList.add('ushio-search-highlight');
-      });
-
-      if (index < 0) return;
-
-      // Add active highlight to current match
-      const highlights = root.querySelectorAll('.ushio-search-highlight');
-      if (index < highlights.length) {
-        highlights[index].classList.remove('ushio-search-highlight');
-        highlights[index].classList.add('ushio-search-highlight-active');
-      }
-
+      if (!editorInstance || index < 0) return;
       searchHighlightActiveIndex = index;
+      editorInstance.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const decorations = searchHighlightRanges.map(({ from, to }, i) =>
+          Decoration.inline(from, to, {
+            class:
+              i === index
+                ? 'ushio-search-highlight ushio-search-highlight-active'
+                : 'ushio-search-highlight',
+          })
+        );
+        const deco = DecorationSet.create(view.state.doc, decorations);
+        view.dispatch(view.state.tr.setMeta(searchHighlightPluginKey, deco));
+      });
     };
 
     if (cmd === 'search_jump') {

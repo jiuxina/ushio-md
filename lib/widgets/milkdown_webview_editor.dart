@@ -400,6 +400,9 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final bool enableInsertImagePicker;
   final bool enableInsertImageUrl;
   final VoidCallback? onLoadFinished;
+  final void Function(double progress)? onRenderProgress;
+  final VoidCallback? onRenderTimeout;
+  final VoidCallback? onRenderTimeoutExit;
   final MilkdownWebViewController? controller;
   final String? bodyFont;
   final String? monoFont;
@@ -426,6 +429,9 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.enableInsertImagePicker = true,
     this.enableInsertImageUrl = true,
     this.onLoadFinished,
+    this.onRenderProgress,
+    this.onRenderTimeout,
+    this.onRenderTimeoutExit,
     this.controller,
     this.bodyFont,
     this.monoFont,
@@ -458,6 +464,9 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   String? _lastSyncedMarkdown;
   bool _isServerStarting = false;
   bool _didFinishFirstRender = false;
+  Timer? _firstRenderTimer;
+  bool _renderTimedOut = false;
+  double _renderProgress = 0;
   // 使用带时间戳的 token 机制，避免布尔标志因时序问题被错误消费
   static const _suppressTtlMs = 2000; // 2 秒有效期
   DateTime? _suppressReloadToken;
@@ -466,6 +475,22 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   /// Log errors only (minimal logging for production)
   void _logError(String message) {
     appDebugLog(message);
+  }
+
+  void _resetFirstRenderState() {
+    _firstRenderTimer?.cancel();
+    _didFinishFirstRender = false;
+    _renderTimedOut = false;
+    _renderProgress = 0;
+  }
+
+  void _startFirstRenderTimer() {
+    _firstRenderTimer?.cancel();
+    _firstRenderTimer = Timer(const Duration(seconds: 15), () {
+      if (!mounted || _isDisposed || _didFinishFirstRender) return;
+      setState(() => _renderTimedOut = true);
+      widget.onRenderTimeout?.call();
+    });
   }
 
   /// 安全检查：验证请求的文件路径是否在允许的目录范围内
@@ -733,6 +758,8 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     var markdown = markdownOverride ?? widget.initialMarkdown;
     appDebugLog('[WEBVIEW] _sendInitDoc: markdown length = ${markdown.length}');
 
+    _resetFirstRenderState();
+    _startFirstRenderTimer();
     _lastSyncedMarkdown = markdown;
     final msg = BridgeEnvelope<InitDocPayload>(
       v: 1,
@@ -1224,11 +1251,24 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         appDebugLog(
           '[WEBVIEW] onRenderComplete received, _didFinishFirstRender: $_didFinishFirstRender',
         );
+        _firstRenderTimer?.cancel();
         if (!_didFinishFirstRender) {
           _didFinishFirstRender = true;
           appDebugLog('[WEBVIEW] _didFinishFirstRender set to true');
         }
+        if (mounted) {
+          setState(() {
+            _renderTimedOut = false;
+            _renderProgress = 1;
+          });
+        }
         widget.onLoadFinished?.call();
+      },
+      onRenderProgress: (progress) {
+        if (mounted && !_didFinishFirstRender) {
+          setState(() => _renderProgress = progress.clamp(0.0, 1.0));
+        }
+        widget.onRenderProgress?.call(progress);
       },
     );
     if (uploadPayload != null) {
@@ -1281,6 +1321,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   @override
   void dispose() {
     _isDisposed = true;
+    _firstRenderTimer?.cancel();
     widget.controller?._detach(this);
     final server = _localhostServer;
     _localhostServer = null;
@@ -1465,8 +1506,53 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         ),
         // Loading overlay until first render
         if (!_didFinishFirstRender)
-          Positioned.fill(child: _buildLoadingSkeleton(context, '正在加载内容...')),
+          Positioned.fill(
+            child: _renderTimedOut
+                ? _buildRenderTimeoutOverlay()
+                : _buildLoadingSkeleton(
+                    context,
+                    _renderProgress > 0
+                        ? '正在加载内容... ${(_renderProgress * 100).round()}%'
+                        : '正在加载内容...',
+                  ),
+          ),
       ],
+    );
+  }
+
+  Widget _buildRenderTimeoutOverlay() {
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.hourglass_top,
+            size: 48,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 12),
+          const Text('仍在加载，可继续等待或返回'),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  setState(() => _renderTimedOut = false);
+                  _startFirstRenderTimer();
+                },
+                child: const Text('继续等待'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: widget.onRenderTimeoutExit,
+                child: const Text('返回'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

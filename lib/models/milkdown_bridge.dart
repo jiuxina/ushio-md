@@ -436,12 +436,24 @@ void dispatchMilkdownBridgeMessage(
   void Function(int index, bool checked)? onCheckboxToggle,
   void Function(String cmd, bool ok, String? reason)? onCmdResult,
   void Function()? onRenderComplete,
+  void Function(double progress)? onRenderProgress,
 }) {
   final type = map['type'] as String?;
   if (type == null || type.isEmpty) return;
 
   if (type == 'on_render_complete') {
     onRenderComplete?.call();
+    return;
+  }
+
+  if (type == 'on_render_progress') {
+    final payload = map['payload'];
+    if (payload is Map) {
+      final progress = payload['progress'];
+      if (progress is num) {
+        onRenderProgress?.call(progress.toDouble());
+      }
+    }
     return;
   }
 

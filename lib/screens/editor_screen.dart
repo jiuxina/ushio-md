@@ -31,6 +31,7 @@ import '../utils/debug_log.dart';
 import '../utils/markdown_incremental_merge.dart';
 import '../utils/responsive_layout.dart';
 import '../services/cloud_sync_service.dart';
+import '../services/file_service.dart';
 import '../services/webdav_service.dart';
 import '../services/ftp_service.dart';
 import '../services/my_files_service.dart';
@@ -127,6 +128,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   // Original Markdown for incremental merge (preserves original formatting)
   String _originalMarkdown = '';
+  String _originalLineEnding = '\n';
   bool _isMilkdownReady = false;
   static const bool _enableIncrementalMerge = true;
 
@@ -313,6 +315,7 @@ class _EditorScreenState extends State<EditorScreen>
     _textController.text = content;
     // Store original markdown for incremental merge
     _originalMarkdown = content;
+    _originalLineEnding = content.contains('\r\n') ? '\r\n' : '\n';
     _isMilkdownReady = false;
     if (!_textListenerAttached) {
       _textController.addListener(_onTextChanged);
@@ -633,6 +636,13 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  String _normalizeLineEndings(String text) {
+    return FileService.normalizeLineEndings(
+      text,
+      lineEnding: _originalLineEnding,
+    );
+  }
+
   Future<void> _saveFile({
     bool showSnackbar = true,
     bool isAutoSave = false,
@@ -647,7 +657,10 @@ class _EditorScreenState extends State<EditorScreen>
 
     try {
       final fileService = context.read<FileProvider>().fileService;
-      await fileService.saveFile(widget.filePath, _textController.text);
+      await fileService.saveFile(
+        widget.filePath,
+        _normalizeLineEndings(_textController.text),
+      );
       if (mounted) {
         // Update original markdown after successful save
         // This resets the baseline for future incremental merges
@@ -1525,6 +1538,19 @@ class _EditorScreenState extends State<EditorScreen>
       setState(() => _showSearchCandidates = false);
     }
     _jumpToSearchOccurrence(match.occurrence);
+    _refocusEditorAfterSearch();
+  }
+
+  /// 搜索栏失焦后重新聚焦编辑器，恢复 IME 输入链路。
+  void _refocusEditorAfterSearch() {
+    Future<void>.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted || _showSearchBar) return;
+      if (_mode == EditorMode.preview) {
+        _previewWebViewController.focusEditor();
+      } else {
+        _editFocusNode.requestFocus();
+      }
+    });
   }
 
   void _jumpToSearchOccurrence(int occurrence) {
@@ -1597,6 +1623,7 @@ class _EditorScreenState extends State<EditorScreen>
       _activeSearchMatchIndex = -1;
       _showSearchCandidates = false;
     });
+    _refocusEditorAfterSearch();
   }
 
   // ==================== 复选框和链接处理 ====================
@@ -2030,6 +2057,24 @@ class _EditorScreenState extends State<EditorScreen>
       onCheckboxToggle: _toggleCheckbox,
       onHistoryState: _onPreviewHistoryState,
       onBridgeMessage: _handleMilkdownBridgeMessage,
+      onRenderProgress: (progress) {
+        appDebugLog('[EDITOR] preview render progress: $progress');
+      },
+      onRenderTimeout: () {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('渲染较慢，仍在加载，可继续等待或返回'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      },
+      onRenderTimeoutExit: () {
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      },
       controller: _previewWebViewController,
       codeBlockTheme:
           AppConstants.codeBlockThemes[settings.codeBlockThemeIndex].themeId,
@@ -2152,6 +2197,9 @@ class _EditorScreenState extends State<EditorScreen>
         }
         if (shouldInterceptForMilkdownBlur) {
           await _previewWebViewController.execCmd('blur_editor');
+          if (mounted) {
+            setState(() => _isMilkdownEditorFocused = false);
+          }
           // 超时降级：如果 WebView 在 800ms 内没有响应 blur_editor
           // （即没有回传 on_editor_focus: false），强制取消焦点并返回，
           // 防止用户被卡在无法退出的状态
@@ -2257,6 +2305,38 @@ class _EditorScreenState extends State<EditorScreen>
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     final isPreviewUndoRedo =
         _mode == EditorMode.preview && _editingBlockIndex == null;
+
+    if (_error != null && !_isLoading) {
+      return Container(
+        color: isDark ? const Color(0xFF1a1a2e) : const Color(0xFFf8f9ff),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '打开文档失败：$_error',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('返回'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -2701,7 +2781,8 @@ class _EditorScreenState extends State<EditorScreen>
         );
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
-        final previewBottom = safeBottom + 24.0;
+        // 悬浮按钮列固定放在底部工具栏上方，避免遮挡“标题 1/标题 2”。
+        final previewBottom = safeBottom + 56.0 + 16.0;
         return Positioned(
           right: desktopRightInset,
           bottom: previewBottom,
