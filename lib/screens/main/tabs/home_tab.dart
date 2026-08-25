@@ -5,6 +5,7 @@ import '../../../../providers/file_provider.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../utils/file_actions.dart';
 import '../../../../utils/app_style.dart';
+import '../../../../utils/capsule_nav_insets.dart';
 
 import '../../../utils/responsive_layout.dart';
 import '../../../widgets/responsive_page_frame.dart';
@@ -33,7 +34,9 @@ class _HomeTabState extends State<HomeTab> {
             child: RefreshIndicator(
               onRefresh: () => widget.fileProvider.refresh(),
               child: ListView(
-                padding: EdgeInsets.zero,
+                padding: EdgeInsets.only(
+                  bottom: capsuleTabBarBottomInset(context),
+                ),
                 children: [
                   ResponsivePageFrame(
                     child: Column(

@@ -12,6 +12,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../providers/file_provider.dart';
 import '../../../widgets/empty_state.dart';
 import '../../../utils/app_style.dart';
+import '../../../utils/capsule_nav_insets.dart';
 import '../../../widgets/app_surface.dart';
 import '../../../widgets/sliding_segment_toggle.dart';
 
@@ -174,7 +175,7 @@ class _HistoryTabState extends State<HistoryTab> {
     }
 
     return ListView(
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.only(bottom: capsuleTabBarBottomInset(context)),
       children: [
         ResponsivePageFrame(
           child: Column(
@@ -202,7 +203,7 @@ class _HistoryTabState extends State<HistoryTab> {
     }
 
     return ListView(
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.only(bottom: capsuleTabBarBottomInset(context)),
       children: [
         ResponsivePageFrame(
           child: Column(

@@ -233,11 +233,16 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
         final isDesktopLayout = ResponsiveLayout.isDesktopWidth(context);
+        final settings = context.watch<SettingsProvider>();
+        final capsuleFloating =
+            !isDesktopLayout &&
+            settings.tabBarStyle == AppTabBarStyleMode.liquidGlassCapsule;
 
         return AppBackground(
           wrapWithSafeArea: false,
           child: Scaffold(
             backgroundColor: Colors.transparent,
+            extendBody: capsuleFloating,
             body: Column(
               children: [
                 if (useCustomTitleBar)

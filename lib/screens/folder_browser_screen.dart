@@ -18,12 +18,14 @@ class FolderBrowserScreen extends StatefulWidget {
   final String folderPath;
   final bool showBackButton;
   final String? title;
+  final double bottomPadding;
 
   const FolderBrowserScreen({
     super.key,
     required this.folderPath,
     this.showBackButton = true,
     this.title,
+    this.bottomPadding = 0,
   });
 
   @override
@@ -417,16 +419,19 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
       return RefreshIndicator(
         onRefresh: _loadFiles,
         child: _wrapFileList(
-          Column(
-            children: [
-              for (final entity in filtered)
-                FileTile(
-                  entity: entity,
-                  onRefresh: _loadFiles,
-                  isDraggable: false,
-                  source: FileSource.myFiles,
-                ),
-            ],
+          Padding(
+            padding: EdgeInsets.only(bottom: widget.bottomPadding),
+            child: Column(
+              children: [
+                for (final entity in filtered)
+                  FileTile(
+                    entity: entity,
+                    onRefresh: _loadFiles,
+                    isDraggable: false,
+                    source: FileSource.myFiles,
+                  ),
+              ],
+            ),
           ),
         ),
       );
@@ -441,8 +446,8 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
               ? const NeverScrollableScrollPhysics()
               : const AlwaysScrollableScrollPhysics(),
           padding: ResponsiveLayout.isDesktopWidth(context)
-              ? EdgeInsets.zero
-              : const EdgeInsets.all(20),
+              ? EdgeInsets.only(bottom: widget.bottomPadding)
+              : EdgeInsets.fromLTRB(20, 20, 20, 20 + widget.bottomPadding),
           itemCount: filtered.length,
           buildDefaultDragHandles: false, // 禁用默认的长按拖拽，使用 FileTile 内部的 Handle
           onReorder: _handleReorder,

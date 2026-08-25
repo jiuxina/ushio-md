@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/file_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/my_files_service.dart';
+import '../../../utils/capsule_nav_insets.dart';
 import '../../folder_browser_screen.dart';
 
 class MyFilesTab extends StatefulWidget {
@@ -79,6 +80,7 @@ class _MyFilesTabState extends State<MyFilesTab> with AutomaticKeepAliveClientMi
       key: _browserKey,
       folderPath: _rootPath!,
       showBackButton: false,
+      bottomPadding: capsuleTabBarBottomInset(context),
     );
   }
 }
@@ -87,11 +89,13 @@ class _MyFilesTabState extends State<MyFilesTab> with AutomaticKeepAliveClientMi
 class _FolderBrowserWrapper extends StatefulWidget {
   final String folderPath;
   final bool showBackButton;
+  final double bottomPadding;
 
   const _FolderBrowserWrapper({
     super.key,
     required this.folderPath,
     this.showBackButton = false,
+    this.bottomPadding = 0,
   });
 
   @override
@@ -112,6 +116,7 @@ class _FolderBrowserWrapperState extends State<_FolderBrowserWrapper> {
       key: _browserKey,
       folderPath: widget.folderPath,
       showBackButton: widget.showBackButton,
+      bottomPadding: widget.bottomPadding,
     );
   }
 }

@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
+import '../../../utils/capsule_nav_insets.dart';
 import '../../../utils/responsive_layout.dart';
 import '../../../widgets/app_surface.dart';
 import '../../../widgets/responsive_page_frame.dart';
@@ -27,7 +28,7 @@ class SettingsTab extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: ListView(
-        padding: EdgeInsets.zero,
+        padding: EdgeInsets.only(bottom: capsuleTabBarBottomInset(context)),
         children: [
           ResponsivePageFrame(
             maxWidth: ResponsiveLayout.isDesktopWidth(context) ? 760 : null,
