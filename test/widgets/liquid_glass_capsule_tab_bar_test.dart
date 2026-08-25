@@ -41,6 +41,32 @@ const _destinations = [
   ),
 ];
 
+class _TabBarHarness extends StatefulWidget {
+  final int initialIndex;
+  final ValueChanged<int>? onSelected;
+
+  const _TabBarHarness({required this.initialIndex, this.onSelected});
+
+  @override
+  State<_TabBarHarness> createState() => _TabBarHarnessState();
+}
+
+class _TabBarHarnessState extends State<_TabBarHarness> {
+  late int _index = widget.initialIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return LiquidGlassCapsuleTabBar(
+      selectedIndex: _index,
+      onDestinationSelected: (index) {
+        widget.onSelected?.call(index);
+        setState(() => _index = index);
+      },
+      destinations: _destinations,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -66,10 +92,9 @@ void main() {
           home: Scaffold(
             body: Align(
               alignment: Alignment.bottomCenter,
-              child: LiquidGlassCapsuleTabBar(
-                selectedIndex: selectedIndex,
-                onDestinationSelected: onDestinationSelected,
-                destinations: _destinations,
+              child: _TabBarHarness(
+                initialIndex: selectedIndex,
+                onSelected: onDestinationSelected,
               ),
             ),
           ),
@@ -129,24 +154,8 @@ void main() {
     expect(initialPillCenter.dx, closeTo(homeIconCenter.dx, 0.5));
     expect(initialPillCenter.dy, closeTo(homeIconCenter.dy, 0.5));
 
-    final settings = await createSettings();
-    await tester.pumpWidget(
-      ChangeNotifierProvider<SettingsProvider>.value(
-        value: settings,
-        child: MaterialApp(
-          home: Scaffold(
-            body: Align(
-              alignment: Alignment.bottomCenter,
-              child: LiquidGlassCapsuleTabBar(
-                selectedIndex: 3,
-                onDestinationSelected: (_) {},
-                destinations: _destinations,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pump();
     final settingsIconCenter = tester.getCenter(
       find.byIcon(Icons.settings_rounded),
     );
@@ -168,5 +177,35 @@ void main() {
     await tester.pumpAndSettle();
     final finalPillCenter = tester.getCenter(pillFinder);
     expect(finalPillCenter.dx, closeTo(settingsIconCenter.dx, 0.5));
+  });
+
+  testWidgets('按住滑块拖动会缩放并切换到最近的 tab', (tester) async {
+    int? selected;
+    await pumpBar(
+      tester,
+      selectedIndex: 0,
+      onDestinationSelected: (index) => selected = index,
+    );
+
+    final pillFinder = find.byKey(const ValueKey('capsule_selection_pill'));
+    final gesture = await tester.startGesture(tester.getCenter(pillFinder));
+    await gesture.moveBy(const Offset(20, 0));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(
+      tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale,
+      lessThan(1.0),
+    );
+
+    await gesture.moveBy(const Offset(240, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(selected, 1);
+    final filesIconCenter = tester.getCenter(
+      find.byIcon(Icons.folder_special_rounded),
+    );
+    expect(tester.getCenter(pillFinder).dx, closeTo(filesIconCenter.dx, 0.5));
   });
 }

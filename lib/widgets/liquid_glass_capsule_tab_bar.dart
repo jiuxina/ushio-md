@@ -103,12 +103,6 @@ class LiquidGlassCapsuleTabBar extends StatelessWidget {
                         (selectedIndex + 0.5) * slotWidth - pillWidth / 2;
                     return Stack(
                       children: [
-                        _SlidingSelectionPill(
-                          left: pillLeft,
-                          top: (constraints.maxHeight - pillHeight) / 2,
-                          width: pillWidth,
-                          height: pillHeight,
-                        ),
                         Row(
                           children: [
                             for (
@@ -125,6 +119,15 @@ class LiquidGlassCapsuleTabBar extends StatelessWidget {
                                 ),
                               ),
                           ],
+                        ),
+                        _SlidingSelectionPill(
+                          left: pillLeft,
+                          top: (constraints.maxHeight - pillHeight) / 2,
+                          width: pillWidth,
+                          height: pillHeight,
+                          slotCount: slotCount,
+                          slotWidth: slotWidth,
+                          onDestinationSelected: onDestinationSelected,
                         ),
                       ],
                     );
@@ -178,12 +181,18 @@ class _SlidingSelectionPill extends StatefulWidget {
   final double top;
   final double width;
   final double height;
+  final int slotCount;
+  final double slotWidth;
+  final ValueChanged<int> onDestinationSelected;
 
   const _SlidingSelectionPill({
     required this.left,
     required this.top,
     required this.width,
     required this.height,
+    required this.slotCount,
+    required this.slotWidth,
+    required this.onDestinationSelected,
   });
 
   @override
@@ -196,6 +205,10 @@ class _SlidingSelectionPillState extends State<_SlidingSelectionPill>
   double _from = 0;
   double _to = 0;
   double _currentLeft = 0;
+  bool _dragging = false;
+  double _dragStartLeft = 0;
+  double _dragAccumulated = 0;
+  double? _dragLeft;
 
   @override
   void initState() {
@@ -213,9 +226,7 @@ class _SlidingSelectionPillState extends State<_SlidingSelectionPill>
   void didUpdateWidget(_SlidingSelectionPill oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.left != widget.left) {
-      _from = _currentLeft;
-      _to = widget.left;
-      _controller.forward(from: 0);
+      _animateTo(_currentLeft, widget.left);
     }
   }
 
@@ -229,10 +240,27 @@ class _SlidingSelectionPillState extends State<_SlidingSelectionPill>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      child: _buildPill(context),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragStart: _startDrag,
+        onHorizontalDragUpdate: _updateDrag,
+        onHorizontalDragEnd: _endDrag,
+        onHorizontalDragCancel: _cancelDrag,
+        child: AnimatedScale(
+          scale: _dragging ? 0.88 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: _buildPill(context),
+        ),
+      ),
       builder: (context, child) {
-        final progress = Curves.easeOutCubic.transform(_controller.value);
-        final left = _from + (_to - _from) * progress;
+        final double left;
+        if (_dragging && _dragLeft != null) {
+          left = _dragLeft!;
+        } else {
+          final progress = Curves.easeOutCubic.transform(_controller.value);
+          left = _from + (_to - _from) * progress;
+        }
         _currentLeft = left;
         return Positioned(
           left: left,
@@ -243,6 +271,48 @@ class _SlidingSelectionPillState extends State<_SlidingSelectionPill>
         );
       },
     );
+  }
+
+  void _animateTo(double from, double to) {
+    _from = from;
+    _to = to;
+    _controller.forward(from: 0);
+  }
+
+  void _startDrag(DragStartDetails details) {
+    _dragStartLeft = _currentLeft;
+    _dragAccumulated = 0;
+    setState(() => _dragging = true);
+  }
+
+  void _updateDrag(DragUpdateDetails details) {
+    _dragAccumulated += details.primaryDelta ?? 0;
+    final maxLeft = widget.slotWidth * widget.slotCount - widget.width;
+    final nextLeft = (_dragStartLeft + _dragAccumulated)
+        .clamp(0.0, maxLeft)
+        .toDouble();
+    setState(() => _dragLeft = nextLeft);
+  }
+
+  void _endDrag(DragEndDetails details) {
+    final dragLeft = _dragLeft ?? _currentLeft;
+    final center = dragLeft + widget.width / 2;
+    final index = (center / widget.slotWidth)
+        .floor()
+        .clamp(0, widget.slotCount - 1);
+    setState(() {
+      _dragging = false;
+      _dragLeft = null;
+    });
+    widget.onDestinationSelected(index);
+  }
+
+  void _cancelDrag() {
+    setState(() {
+      _dragging = false;
+      _dragLeft = null;
+    });
+    _animateTo(_currentLeft, widget.left);
   }
 
   Widget _buildPill(BuildContext context) {
