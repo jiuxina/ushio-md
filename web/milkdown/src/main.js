@@ -329,58 +329,31 @@ const parseMarkdownOutline = (markdown) => {
     if (activeFence) continue;
 
     const atxMatch = trimmed.match(/^(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/);
-    if (!atxMatch) continue;
-    outline.push({
-      id: `line-${index}`,
-      lineNumber: index,
-      level: atxMatch[1].length,
-      text: atxMatch[2].trim(),
-    });
+    if (atxMatch) {
+      outline.push({
+        id: `line-${index}`,
+        lineNumber: index,
+        level: atxMatch[1].length,
+        text: atxMatch[2].trim(),
+      });
+      continue;
+    }
+
+    if (trimmed && index + 1 < lines.length) {
+      const nextTrimmed = (lines[index + 1] || '').trim();
+      if (/^=+$/.test(nextTrimmed) || /^-+$/.test(nextTrimmed)) {
+        outline.push({
+          id: `line-${index}`,
+          lineNumber: index,
+          level: /^=+$/.test(nextTrimmed) ? 1 : 2,
+          text: trimmed,
+        });
+        index += 1;
+      }
+    }
   }
 
   return outline;
-};
-
-const neutralizeSetextHeadingSyntax = (markdown) => {
-  if (typeof markdown !== 'string' || !markdown.includes('\n')) return markdown;
-  const lines = markdown.split('\n');
-  if (lines.length < 2) return markdown;
-  const output = [...lines];
-  let activeFence = null;
-  let changed = false;
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const trimmed = (lines[i] || '').trim();
-    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
-    if (fenceMatch) {
-      const marker = fenceMatch[1] || '';
-      const markerChar = marker[0] || '';
-      const markerLength = marker.length;
-      if (!activeFence) {
-        activeFence = { markerChar, markerLength };
-      } else if (activeFence.markerChar === markerChar && markerLength >= activeFence.markerLength) {
-        activeFence = null;
-      }
-      continue;
-    }
-    if (activeFence || i <= 0) continue;
-
-    const underlineMatch = trimmed.match(/^(=+|-+)\s*$/);
-    if (!underlineMatch) continue;
-
-    const prevTrimmed = (lines[i - 1] || '').trim();
-    if (!prevTrimmed) continue;
-    if (/^(#{1,6})\s+/.test(prevTrimmed)) continue;
-    if (/^\s*>/.test(prevTrimmed)) continue;
-    if (/^\s*(```|~~~)/.test(prevTrimmed)) continue;
-
-    const escaped = `${underlineMatch[1][0]}\\${underlineMatch[1].slice(1)}`;
-    const suffixMatch = lines[i].match(/\s*$/);
-    output[i] = `${escaped}${suffixMatch ? suffixMatch[0] : ''}`;
-    changed = true;
-  }
-
-  return changed ? output.join('\n') : markdown;
 };
 
 const isFenceLine = (line) => /^\s*(```|~~~)/.test((line || '').trim());
@@ -2211,8 +2184,7 @@ const notifyRenderComplete = () => {
 const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}) => {
   emitDebug(`[JS] setMarkdown: len=${markdown?.length}, forceRender=${forceRender}`);
   const rawMarkdown = typeof markdown === 'string' ? markdown : '';
-  const withoutSetext = neutralizeSetextHeadingSyntax(rawMarkdown);
-  const nextMarkdown = stripGhostCodeLanguageMarkers(withoutSetext);
+  const nextMarkdown = rawMarkdown;
   emitDebug(`[JS] setMarkdown: nextMarkdown === currentMarkdown: ${nextMarkdown === currentMarkdown}`);
   // Skip equality check if forceRender is true (needed when switching documents)
   if (!forceRender && nextMarkdown === currentMarkdown) {
@@ -2757,9 +2729,7 @@ const createEditor = async () => {
     .config((ctx) => {
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
         if (markdown === prev) return;
-        const sanitizedMarkdown = stripGhostCodeLanguageMarkers(
-          neutralizeSetextHeadingSyntax(markdown),
-        );
+        const sanitizedMarkdown = stripGhostCodeLanguageMarkers(markdown);
         if (sanitizedMarkdown !== markdown) {
           const renderReadyMarkdown = preprocessImageUrlsInMarkdown(
             wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
@@ -3986,9 +3956,8 @@ const onFlutterMessage = (message) => {
     currentBaseDirectory = typeof payload.baseDirectory === 'string' ? payload.baseDirectory : '';
     currentReadOnly = payload.readOnly !== false;
     applyReadOnlyState();
-    const markdown = neutralizeSetextHeadingSyntax(
-      typeof payload.markdown === 'string' ? payload.markdown : '',
-    );
+    const markdown =
+      typeof payload.markdown === 'string' ? payload.markdown : '';
     emitDebug(`[JS] init_doc: markdown length=${markdown.length}, editorInstance=${!!editorInstance}`);
     // Always update and render, even if markdown appears the same
     // (needed when switching between documents)

@@ -213,10 +213,11 @@
   - 单个 `\n` 在 Milkdown 中渲染为真实换行，不再折叠成空格；
   - `\n\n` 保留为顶层段落之间约一行高的可见空行；
   - 两空格行尾、`Shift+Enter` 硬换行、代码块、列表、表格行为不变。
-- 打开/模式切换不再格式化源文件：
-  - `setMarkdown` 不再把渲染前清洗（setext 标题、幽灵代码语言标记）上报为 `on_content_change`；
-  - `markdownUpdated` 的清洗回写分支仅在非初始化状态下上报；
-  - Flutter 侧新增 `_isMilkdownReady` 初始化保护，未就绪时忽略内容变更，避免打开即标记“已修改”或触发自动保存；
+- 打开/模式切换不发生任何内容或格式变更：
+  - 打开时按原文直接解析，setext 标题按标准 Markdown 渲染为标题，不再做渲染前改写；
+  - `parseMarkdownOutline` 重新支持 setext 标题，目录与标题跳转仍可用；
+  - 因为打开本身没有变更，所以不会产生 `on_content_change`，也不会标记“已修改”或触发自动保存；
+  - Flutter 侧新增 `_isMilkdownReady` 初始化保护，未就绪时忽略内容变更，防止残留事件误标记；
   - 用户在编辑模式修改后切预览再切回编辑，未在预览内编辑时文本保持原样。
 - 产物同步：
   - 重新构建 `web/milkdown` 并同步 `assets/milkdown_web/index.html`。
