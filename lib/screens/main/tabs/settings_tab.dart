@@ -171,13 +171,17 @@ class SettingsTab extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: isDesktop ? 9 : 10,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: isDesktop ? 0 : 60,
             ),
-            child: Row(
-              children: [
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: isDesktop ? 9 : 10,
+              ),
+              child: Row(
+                children: [
                 Padding(
                   padding: const EdgeInsets.all(2),
                   child: Icon(icon, color: context.appIconColor, size: 18),
@@ -201,6 +205,7 @@ class SettingsTab extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

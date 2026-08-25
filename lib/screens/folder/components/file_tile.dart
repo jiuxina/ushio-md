@@ -135,10 +135,14 @@ class FileTile extends StatelessWidget {
             },
             onSecondaryTapDown: isDesktop ? (_) => showEntityActions() : null,
             onLongPress: showEntityActions,
-            child: Padding(
-              padding: ResponsiveLayout.listTilePadding(context),
-              child: Row(
-                children: [
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: isDesktop ? 0 : 60,
+              ),
+              child: Padding(
+                padding: ResponsiveLayout.listTilePadding(context),
+                child: Row(
+                  children: [
                   _buildIcon(context, isFile, isImage, isPinned),
                   const SizedBox(width: 12),
                   Expanded(
@@ -168,7 +172,7 @@ class FileTile extends StatelessWidget {
                     ReorderableDelayedDragStartListener(
                       index: index!,
                       child: Container(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                        padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
                         child: Icon(
                           Icons.drag_handle,
                           color: Theme.of(context).colorScheme.outline,
@@ -186,6 +190,7 @@ class FileTile extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 
