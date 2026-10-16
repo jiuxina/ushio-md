@@ -5,6 +5,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../utils/capsule_nav_insets.dart';
 import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../providers/settings_provider.dart';
@@ -53,7 +54,12 @@ class _ColorThemeScreenState extends State<ColorThemeScreen>
             final isDark = Theme.of(context).brightness == Brightness.dark;
 
             return ListView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + systemNavBottomInset(context),
+              ),
               children: [
                 buildSection(l10n.themeMode, Icons.brightness_6, [
                   buildThemeModeSelector(settings, l10n),

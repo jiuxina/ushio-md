@@ -42,7 +42,9 @@ void main() {
 
       fileService = MockFileService();
       // 不落盘：真实文件 IO 要等 runAsync，会让断言抢在创建流程完成之前跑掉。
-      when(() => fileService.createFile(any(), any())).thenAnswer((invocation) async {
+      when(() => fileService.createFile(any(), any())).thenAnswer((
+        invocation,
+      ) async {
         final directory = invocation.positionalArguments[0] as String;
         final name = invocation.positionalArguments[1] as String;
         return MarkdownFile(
@@ -118,10 +120,11 @@ void main() {
       return refreshCount;
     }
 
-    testWidgets('refreshes the list even when it was started from a dismissed sheet', (
-      tester,
-    ) async {
-      expect(await runCreateFlow(tester), 1);
-    });
+    testWidgets(
+      'refreshes the list even when it was started from a dismissed sheet',
+      (tester) async {
+        expect(await runCreateFlow(tester), 1);
+      },
+    );
   });
 }

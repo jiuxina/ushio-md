@@ -5,6 +5,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../utils/capsule_nav_insets.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -50,7 +51,12 @@ class _FontSettingsScreenState extends State<FontSettingsScreen>
         body: Consumer<SettingsProvider>(
           builder: (context, settings, child) {
             return ListView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + systemNavBottomInset(context),
+              ),
               children: [
                 buildSection(l10n.language, Icons.language, [
                   buildLanguageSelector(settings, l10n),

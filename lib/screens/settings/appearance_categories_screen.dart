@@ -5,6 +5,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../../utils/capsule_nav_insets.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/app_background.dart';
@@ -50,7 +51,12 @@ class AppearanceCategoriesScreen extends StatelessWidget {
           centerTitle: true,
         ),
         body: ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            16 + systemNavBottomInset(context),
+          ),
           itemCount: categories.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, index) {

@@ -5,6 +5,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../../utils/capsule_nav_insets.dart';
 import 'package:provider/provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/settings_provider.dart';
@@ -29,7 +30,12 @@ class EditorSettingsScreen extends StatelessWidget {
         body: Consumer<SettingsProvider>(
           builder: (context, settings, child) {
             return ListView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + systemNavBottomInset(context),
+              ),
               children: [
                 _buildSection(l10n.fontSize, Icons.format_size, [
                   _buildFontSizeSlider(context, settings, l10n),

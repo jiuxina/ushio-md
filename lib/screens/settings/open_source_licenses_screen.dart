@@ -5,6 +5,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../../utils/capsule_nav_insets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../utils/app_style.dart';
@@ -87,7 +88,12 @@ class OpenSourceLicensesScreen extends StatelessWidget {
           centerTitle: true,
         ),
         body: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            20 + systemNavBottomInset(context),
+          ),
           children: [
             Text(
               '本应用使用了多个开源项目。以下列表根据仓库依赖配置整理（pubspec.yaml、web/milkdown/package.json）。详细条款请以各项目仓库内 LICENSE 文件为准。',

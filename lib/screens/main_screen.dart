@@ -300,7 +300,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 0,
+                // 三键导航的横条会压在 bottom: 0 上，胶囊得先避开系统导航栏。
+                bottom: MediaQuery.viewPaddingOf(context).bottom,
                 child: _buildCapsuleTabBar(l10n, key: _capsuleTabBarKey),
               ),
             if (_warmupRequested && !_warmupDone)
@@ -349,6 +350,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     if (renderObject is RenderBox) {
       inset = renderObject.size.height;
     }
+    // 胶囊整体抬高了系统导航栏的高度，页面内容要避让的余量也得一起算上。
+    inset += MediaQuery.viewPaddingOf(context).bottom;
     if ((inset - _capsuleTabBarInset).abs() > 0.01) {
       setState(() => _capsuleTabBarInset = inset);
     }

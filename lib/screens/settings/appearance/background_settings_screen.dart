@@ -8,6 +8,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../../utils/capsule_nav_insets.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -57,7 +58,12 @@ class _BackgroundSettingsScreenState extends State<BackgroundSettingsScreen>
             initBrightnessValues(settings);
 
             return ListView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + systemNavBottomInset(context),
+              ),
               children: [
                 buildSection(l10n.uiStyle, Icons.auto_awesome_rounded, [
                   buildButtonStyleSelector(settings, l10n),

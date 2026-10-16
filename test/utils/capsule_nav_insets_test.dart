@@ -38,4 +38,26 @@ void main() {
     );
     expect(value, 123);
   });
+
+  testWidgets('二级页取系统导航栏的真实占用', (tester) async {
+    double value = -1;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            padding: EdgeInsets.zero,
+            viewPadding: EdgeInsets.only(bottom: 48),
+          ),
+          child: Builder(
+            builder: (context) {
+              value = systemNavBottomInset(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
+    // padding 会被祖先 SafeArea 清零，viewPadding 才是系统导航栏的真实占用。
+    expect(value, 48);
+  });
 }

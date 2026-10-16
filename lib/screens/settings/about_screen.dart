@@ -5,6 +5,7 @@
 // ============================================================================
 
 import 'package:flutter/material.dart';
+import '../../utils/capsule_nav_insets.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -41,7 +42,12 @@ class _AboutScreenState extends State<AboutScreen> {
           centerTitle: true,
         ),
         body: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            20 + systemNavBottomInset(context),
+          ),
           children: [
             _buildAppInfo(),
             const SizedBox(height: 24),

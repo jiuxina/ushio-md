@@ -101,6 +101,27 @@ void main() async {
 /// 主应用组件
 /// ============================================================================
 
+/// 系统栏（状态栏 + 导航栏）外观，按 App 当前主题的明暗派生。
+///
+/// 两条都必须是透明的，让页面渐变一直铺到屏幕边缘；图标的明暗反过来跟主题走，
+/// 浅色主题配深色图标。系统夜间模式不能参与判断：用户可以只把 App 设成浅色。
+SystemUiOverlayStyle overlayStyleForBrightness(Brightness brightness) {
+  final isDark = brightness == Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarBrightness: brightness,
+    statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: isDark
+        ? Brightness.light
+        : Brightness.dark,
+    systemNavigationBarDividerColor: Colors.transparent,
+    // 关掉 Android 10 给透明导航栏自动叠的那层暗色遮罩，否则浅色页面底部
+    // 会凭空多出一条灰带。
+    systemNavigationBarContrastEnforced: false,
+  );
+}
+
 /// 应用根组件
 ///
 /// 职责：
@@ -165,11 +186,19 @@ class MyApp extends StatelessWidget {
             themeMode: inputs.themeMode, // 主题模式（跟随系统/浅色/深色）
             builder: (context, child) {
               final pageChild = child ?? const SizedBox.shrink();
+              // 系统栏跟随 App 自己的主题：把 App 单独设成浅色而系统仍是深色时，
+              // 浅色底上必须是深色图标，否则状态栏直接看不清。
+              final overlayStyle = AnnotatedRegion<SystemUiOverlayStyle>(
+                value: overlayStyleForBrightness(Theme.of(context).brightness),
+                child: pageChild,
+              );
 
               if (!_isLiquidGlassMode()) {
-                return pageChild;
+                return overlayStyle;
               }
 
+              // statusBarStyle 交给上面自己接管：GlassPage 的 auto 只认系统的
+              // 夜间模式，而且它在 dispose 时会把样式还原成硬编码的白色图标。
               return GlassPage(
                 settings: LiquidGlassSettings(
                   glassColor: Theme.of(context).brightness == Brightness.dark
@@ -178,8 +207,8 @@ class MyApp extends StatelessWidget {
                   blur: 16,
                   platformViewMode: PlatformViewGlassMode.passthrough,
                 ),
-                statusBarStyle: GlassStatusBarStyle.auto,
-                child: pageChild,
+                statusBarStyle: GlassStatusBarStyle.none,
+                child: overlayStyle,
               );
             },
             home: const MainScreen(), // 主页面
@@ -300,6 +329,9 @@ class MyApp extends StatelessWidget {
         foregroundColor: textColor,
         elevation: 0,
         centerTitle: false,
+        // 二级页的 AppBar 背景是透明的，Material 会按背景亮度自己推断状态栏
+        // 图标颜色，透明色被判成深色 → 浅色主题下图标跟着变白。显式给一个。
+        systemOverlayStyle: overlayStyleForBrightness(brightness),
       ),
       cardTheme: CardThemeData(
         color: appStyle.cardSurfaceColor(effectiveColorScheme),
