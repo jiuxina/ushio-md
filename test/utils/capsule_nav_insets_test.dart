@@ -60,4 +60,30 @@ void main() {
     // padding 会被祖先 SafeArea 清零，viewPadding 才是系统导航栏的真实占用。
     expect(value, 48);
   });
+
+  testWidgets('胶囊只补自带留白不够的那一段', (tester) async {
+    Future<double> liftFor(double navInset) async {
+      double value = -1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              viewPadding: EdgeInsets.only(bottom: navInset),
+            ),
+            child: Builder(
+              builder: (context) {
+                value = capsuleBottomLift(context);
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+      return value;
+    }
+
+    expect(await liftFor(0), 0); // 没有系统占用就不抬
+    expect(await liftFor(15), 0); // 胶囊自带的 15dp 已经够
+    expect(await liftFor(48), 33); // 三键横条：只补差额
+  });
 }
