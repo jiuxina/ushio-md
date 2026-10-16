@@ -233,9 +233,6 @@ class SettingsProvider extends ChangeNotifier {
   /// 同步类型（webdav 或 ftp）
   String _syncType = 'webdav';
 
-  /// 专注模式（隐藏非必要 UI 元素）
-  bool _focusMode = false;
-
   /// 浮动按钮显示模式：auto（智能隐藏）、always（永久显示）、never（永久隐藏）
   String _floatingButtonsMode = 'auto';
 
@@ -451,7 +448,6 @@ class SettingsProvider extends ChangeNotifier {
 
   // 云同步 Getters
   String get syncType => _syncType;
-  bool get focusMode => _focusMode;
   String get floatingButtonsMode => _floatingButtonsMode;
   String get webdavUrl => _webdavUrl;
   String get webdavUsername => _webdavUsername;
@@ -735,7 +731,6 @@ class SettingsProvider extends ChangeNotifier {
 
     // 云同步设置
     _syncType = prefs.getString('sync_type') ?? 'webdav';
-    _focusMode = prefs.getBool('focusMode') ?? false;
     _floatingButtonsMode = prefs.getString('floating_buttons_mode') ?? 'auto';
     _webdavUrl = prefs.getString('webdav_url') ?? '';
     _webdavUsername = prefs.getString('webdav_username') ?? '';
@@ -1416,14 +1411,6 @@ class SettingsProvider extends ChangeNotifier {
     _autoSyncEnabled = enabled;
     notifyListeners();
     _schedulePersist('auto_sync_enabled', enabled);
-  }
-
-  /// 设置专注模式
-  Future<void> setFocusMode(bool value) async {
-    if (_focusMode == value) return;
-    _focusMode = value;
-    notifyListeners();
-    _schedulePersist('focusMode', value);
   }
 
   /// 设置浮动按钮显示模式

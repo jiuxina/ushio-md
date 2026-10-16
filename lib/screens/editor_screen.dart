@@ -128,7 +128,6 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isSaving = false;
   bool _isAutoSaving = false;
   DateTime? _lastSaveTime;
-  DateTime? _lastTapDownTime;
   Timer? _blurFallbackTimer;
   bool _isMilkdownEditorFocused = false;
   bool _showToc = false;
@@ -2420,7 +2419,6 @@ class _EditorScreenState extends State<EditorScreen>
 
   Widget _buildBody() {
     final settings = context.watch<SettingsProvider>();
-    final isFocusMode = settings.focusMode;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final isPreviewUndoRedo =
         _mode == EditorMode.preview && _editingBlockIndex == null;
@@ -2512,7 +2510,7 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                     ),
                   // Toolbar with smooth slide-up animation
-                  if (!_isLoading && _error == null && !isFocusMode)
+                  if (!_isLoading && _error == null)
                     Positioned(
                       bottom: keyboardInset,
                       left: 0,
@@ -2576,26 +2574,11 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                       ),
                     ),
-                  // Focus mode exit hint
-                  if (isFocusMode)
-                    Positioned(
-                      top: 16,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: _FocusModeHint(
-                          onHide: () {
-                            final settings = context.read<SettingsProvider>();
-                            settings.setFocusMode(false);
-                          },
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
             // EditorHeader
-            if (!isFocusMode && !_showSearchBar)
+            if (!_showSearchBar)
               Positioned(
                 top: 0,
                 left: 0,
@@ -2671,29 +2654,7 @@ class _EditorScreenState extends State<EditorScreen>
       onPointerDown: (_) => _onUserInteraction(),
       onPointerMove: (_) => _onUserInteraction(),
       onPointerUp: (_) => _showFloatingButtonsAfterDelay(),
-      child: GestureDetector(
-        onTapDown: (_) {
-          final now = DateTime.now();
-          final lastTap = _lastTapDownTime;
-          _lastTapDownTime = now;
-          if (lastTap != null &&
-              now.difference(lastTap) < const Duration(milliseconds: 400)) {
-            // 双击检测：切换专注模式
-            _lastTapDownTime = null; // 重置，防止连续三击
-            final settings = context.read<SettingsProvider>();
-            settings.setFocusMode(!settings.focusMode);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(settings.focusMode ? '专注模式已开启' : '专注模式已关闭'),
-                duration: const Duration(seconds: 1),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-        },
-        behavior: HitTestBehavior.translucent,
-        child: _buildEditor(includeBackground: false),
-      ),
+      child: _buildEditor(includeBackground: false),
     );
   }
 
@@ -3149,81 +3110,6 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             const SizedBox(height: 16),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Focus mode exit hint widget.
-class _FocusModeHint extends StatefulWidget {
-  final VoidCallback onHide;
-
-  const _FocusModeHint({required this.onHide});
-
-  @override
-  State<_FocusModeHint> createState() => _FocusModeHintState();
-}
-
-class _FocusModeHintState extends State<_FocusModeHint> {
-  bool _visible = true;
-  Timer? _hideTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _hideTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() => _visible = false);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 300),
-      opacity: _visible ? 1.0 : 0.0,
-      child: GestureDetector(
-        onTap: widget.onHide,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 8,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.fullscreen_exit,
-                size: 16,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '双击退出专注模式',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
