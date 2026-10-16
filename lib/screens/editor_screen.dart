@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
@@ -97,6 +98,18 @@ class _EditorScreenState extends State<EditorScreen>
   Timer? _searchDebounceTimer;
 
   final _previewWebViewController = MilkdownWebViewController();
+
+  /// 把 Flutter 侧的遮挡数据同步给 WebView。
+  ///
+  /// WebView 在 adjustNothing 下尺寸恒定，`visualViewport` 也报不出软键盘，
+  /// 工具栏和头部又是压在它上面的 Flutter 覆盖层：这三段高度只有这里知道。
+  void _pushPreviewOcclusion() {
+    _previewWebViewController.setKeyboardMetrics(
+      keyboardInset: MediaQuery.viewInsetsOf(context).bottom,
+      toolbarHeight: MarkdownToolbar.heightFor(context),
+      headerHeight: EditorHeader.reserveHeight,
+    );
+  }
 
   int? _editingBlockIndex;
   late TextEditingController _inlineEditController;
@@ -423,23 +436,25 @@ class _EditorScreenState extends State<EditorScreen>
     final fontSize = settings.fontSize;
     final lineHeight = fontSize * 1.5;
 
-    // 使用 substring + split 计算行号，比逐字符遍历更快
-    final lineCount = text.substring(0, cursorOffset).split('\n').length - 1;
-
-    const topPadding = 16.0;
-    final estimatedY = topPadding + (lineCount * lineHeight);
-
     if (!_editScrollController.hasClients) return;
     final scrollPosition = _editScrollController.position;
     final viewportHeight = scrollPosition.viewportDimension;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
-    const toolbarHeight = 56.0;
+    final toolbarHeight = MarkdownToolbar.heightFor(context);
 
     // 预留输入法遮挡的安全距离
     // 当键盘弹出时，输入法可能会遮挡部分区域
     // 添加预测性滚动边距，提前滚动避免光标进入遮挡区域
     const imeSafeMargin = 80.0;
     final bottomOffset = keyboardInset + toolbarHeight + imeSafeMargin;
+
+    // 顶部留白要和 _buildEditPanel 的 contentPadding 完全一致
+    final caretY = _editCaretY(
+      cursorOffset,
+      EditorHeader.reserveHeight + 16,
+      lineHeight,
+      scrollPosition,
+    );
 
     final visibleTop = scrollPosition.pixels;
     final visibleBottom = visibleTop + viewportHeight - bottomOffset;
@@ -449,21 +464,56 @@ class _EditorScreenState extends State<EditorScreen>
     // 底部预测边距：光标距离底部遮挡区域这个距离时就开始滚动
     final predictiveBottomMargin = lineHeight * 2;
 
-    if (estimatedY < visibleTop + topMargin) {
+    if (caretY < visibleTop + topMargin) {
       _editScrollController.animateTo(
-        (estimatedY - topMargin).clamp(0.0, scrollPosition.maxScrollExtent),
+        (caretY - topMargin).clamp(0.0, scrollPosition.maxScrollExtent),
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
       );
-    } else if (estimatedY > visibleBottom - predictiveBottomMargin) {
+    } else if (caretY > visibleBottom - predictiveBottomMargin) {
       // 光标即将进入底部遮挡区域，提前滚动
       _editScrollController.animateTo(
-        (estimatedY - viewportHeight + bottomOffset + predictiveBottomMargin)
+        (caretY - viewportHeight + bottomOffset + predictiveBottomMargin)
             .clamp(0.0, scrollPosition.maxScrollExtent),
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
       );
     }
+  }
+
+  /// 光标在滚动内容坐标系里的 Y。
+  ///
+  /// 旧的「行号 × 行高」估法看不见软换行：一段折了三行的长文本只被算成一行，
+  /// 估出来的位置比真实位置高一大截，于是永远滚不到看得见光标的那里。
+  /// 布局就绪时直接问 [RenderEditable] 要，拿不到才退回估算。
+  double _editCaretY(
+    int cursorOffset,
+    double topPadding,
+    double lineHeight,
+    ScrollPosition scrollPosition,
+  ) {
+    final editable = _editFocusNode.context
+        ?.findAncestorStateOfType<EditableTextState>()
+        ?.renderEditable;
+    final viewport = scrollPosition.context.storageContext.findRenderObject();
+    if (editable != null &&
+        editable.attached &&
+        editable.hasSize &&
+        viewport is RenderBox &&
+        viewport.attached) {
+      final caret = editable.getLocalRectForCaret(
+        TextPosition(offset: cursorOffset),
+      );
+      final caretGlobal = editable.localToGlobal(caret.topLeft);
+      final viewportGlobal = viewport.localToGlobal(Offset.zero);
+      return caretGlobal.dy - viewportGlobal.dy + scrollPosition.pixels;
+    }
+
+    final lineCount = _textController.text
+        .substring(0, cursorOffset)
+        .split('\n')
+        .length;
+    return topPadding + ((lineCount - 1) * lineHeight);
   }
 
   void _onTextChanged() {
@@ -1247,6 +1297,7 @@ class _EditorScreenState extends State<EditorScreen>
     WidgetsBinding.instance.scheduleFrameCallback((_) {
       if (!mounted) return;
       final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+      _pushPreviewOcclusion();
       // 键盘弹出时（高度增加），触发光标滚动
       if (keyboardInset > _lastKeyboardInset && keyboardInset > 0) {
         if (_mode == EditorMode.edit && _editFocusNode.hasFocus) {
@@ -2114,6 +2165,7 @@ class _EditorScreenState extends State<EditorScreen>
     final type = map['type']?.toString();
     if (type == 'on_ready') {
       _isMilkdownReady = true;
+      _pushPreviewOcclusion();
       return;
     }
     if (type != 'on_editor_focus') return;
@@ -2687,7 +2739,13 @@ class _EditorScreenState extends State<EditorScreen>
         ),
         Offstage(
           offstage: _mode != EditorMode.edit,
-          child: panel(child: _buildEditPanel(settings, toolbarPadding: 56)),
+          child: panel(
+            child: _buildEditPanel(
+              settings,
+              toolbarPadding: MarkdownToolbar.heightFor(context),
+              keyboardInset: MediaQuery.viewInsetsOf(context).bottom,
+            ),
+          ),
         ),
       ],
     );
@@ -2842,6 +2900,7 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildEditPanel(
     SettingsProvider settings, {
     double toolbarPadding = 0,
+    double keyboardInset = 0,
   }) {
     final l10n = AppLocalizations.of(context)!;
     final isDesktop = ResponsiveLayout.isDesktopWidth(context);
@@ -2868,11 +2927,13 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           decoration: InputDecoration(
             border: InputBorder.none,
+            // 头部和工具栏都是浮在正文上的覆盖层：顶部不留出头部高度，第一行
+            // 就一直压在头部下面；底部不留出键盘高度，最后几行根本滚不进可视区。
             contentPadding: EdgeInsets.fromLTRB(
               hPad,
-              16,
+              EditorHeader.reserveHeight + 16,
               hPad,
-              16 + toolbarPadding,
+              16 + toolbarPadding + keyboardInset,
             ),
             hintText: l10n.startWriting,
             hintStyle: TextStyle(

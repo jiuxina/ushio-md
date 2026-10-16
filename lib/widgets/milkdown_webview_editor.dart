@@ -261,6 +261,19 @@ class MilkdownWebViewController {
   Future<void> undo() => execCmd('undo');
   Future<void> redo() => execCmd('redo');
   Future<void> forceCaretIntoView() => execCmd('scroll_caret_into_view');
+
+  /// 同步 Flutter 侧的遮挡信息，WebView 用它换算光标可用的可视区。
+  Future<void> setKeyboardMetrics({
+    required double keyboardInset,
+    required double toolbarHeight,
+    required double headerHeight,
+  }) async {
+    await _state?._sendKeyboardMetrics(
+      keyboardInset: keyboardInset,
+      toolbarHeight: toolbarHeight,
+      headerHeight: headerHeight,
+    );
+  }
   Future<void> toggleBold() => execCmd('toggle_bold');
   Future<void> toggleItalic() => execCmd('toggle_italic');
   Future<void> insertTable() => execCmd('insert_table');
@@ -821,6 +834,33 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     if (_lastThemeSignature != sig) {
       _sendTheme();
     }
+  }
+
+  Map<String, double> _lastKeyboardMetrics = const {};
+
+  /// 键盘高度、悬浮工具栏与悬浮头部的高度只有 Flutter 侧知道。
+  ///
+  /// WebView 在 adjustNothing 下尺寸恒定，`window.visualViewport` 也报不出软键盘，
+  /// JS 自己算出来的可视区会一路延伸到键盘以下，光标避让因此既不触发、触发时又
+  /// 一次跳出很远。这三个数就是它唯一可信的遮挡来源。
+  Future<void> _sendKeyboardMetrics({
+    required double keyboardInset,
+    required double toolbarHeight,
+    required double headerHeight,
+  }) async {
+    final metrics = <String, double>{
+      'keyboardInset': keyboardInset,
+      'toolbarHeight': toolbarHeight,
+      'headerHeight': headerHeight,
+    };
+    _lastKeyboardMetrics = metrics;
+    await _sendExecCmd('set_keyboard_metrics', args: metrics);
+  }
+
+  /// 页面重新加载后 JS 侧的遮挡数据全丢了，按缓存补发一次。
+  Future<void> _resendKeyboardMetrics() async {
+    if (_lastKeyboardMetrics.isEmpty || _controller == null) return;
+    await _sendExecCmd('set_keyboard_metrics', args: _lastKeyboardMetrics);
   }
 
   Future<void> _sendInitDoc({String? markdownOverride}) async {
@@ -1535,6 +1575,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
             openTrace('document handed to webview');
             appDebugLog('[WEBVIEW] onLoadStop: calling _sendTheme()');
             await _sendTheme();
+            await _resendKeyboardMetrics();
             appDebugLog('[WEBVIEW] onLoadStop: done');
           },
           onLoadResourceWithCustomScheme: (controller, request) async {

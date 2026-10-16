@@ -39,6 +39,10 @@ class EditorHeader extends StatelessWidget {
   String get _displayFileName =>
       fileName.replaceAll('.markdown', '').replaceAll('.md', '');
 
+  /// 头部同样是浮在正文之上的覆盖层：上下各 8 的内边距 + 40 高的按钮。
+  /// 正文顶部要按这个值留白，否则第一行永远压在头部下面。
+  static const double reserveHeight = 8 + 40 + 8;
+
   @override
   Widget build(BuildContext context) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;

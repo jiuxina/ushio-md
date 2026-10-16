@@ -55,6 +55,17 @@ class MarkdownToolbar extends StatelessWidget {
     this.onAction,
   });
 
+  static bool isTouchDevice(BuildContext context) {
+    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    return !isDesktop && MediaQuery.of(context).size.shortestSide < 600;
+  }
+
+  /// 工具栏自身的高度。它是浮在正文之上的覆盖层，凡是给它留位置的
+  /// 地方都必须取同一个值：各处写死 56 时，触屏端实际的 64 会差出 8px，
+  /// 正文最后一行就被压在栏下看不见。
+  static double heightFor(BuildContext context) =>
+      isTouchDevice(context) ? 64.0 : 56.0;
+
   void _runAction(MarkdownToolbarAction action, VoidCallback fallback) {
     final handler = onAction;
     if (handler != null) {
@@ -71,9 +82,8 @@ class MarkdownToolbar extends StatelessWidget {
         undoController == null && onUndo != null && onRedo != null;
     // Increase toolbar height on touch devices
     final isDesktop = ResponsiveLayout.isDesktopWidth(context);
-    final isTouchDevice =
-        !isDesktop && MediaQuery.of(context).size.shortestSide < 600;
-    final toolbarHeight = isTouchDevice ? 64.0 : 56.0;
+    final touchDevice = isTouchDevice(context);
+    final toolbarHeight = heightFor(context);
 
     final borderRadius = BorderRadius.vertical(
       top: Radius.circular(isDesktop ? 12 : 20),
@@ -82,7 +92,7 @@ class MarkdownToolbar extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       padding: EdgeInsets.symmetric(
         horizontal: 8,
-        vertical: isTouchDevice ? 10 : 6,
+        vertical: touchDevice ? 10 : 6,
       ),
       children: [
         // 撤回重做按钮组

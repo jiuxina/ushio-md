@@ -183,7 +183,16 @@ let editorTouchScrollSuppressUntil = 0;
 let viewportScrollSuppressUntil = 0;
 let lastKeyboardInsetPx = 0;
 let lastUserScrollAt = 0;
+// 我们自己 scrollTo 引发的那次 scroll 事件不能算成「用户在滚动」，
+// 否则光标避让每滚一次就把下一次抑制掉，连续输入时光标一路沉到键盘底下。
+let lastProgrammaticScrollAt = 0;
 let lastEditorInteractionAt = 0;
+// Flutter 推来的遮挡数据：软键盘高度，以及压在 WebView 上面的工具栏和头部。
+// adjustNothing 下 WebView 尺寸恒定、visualViewport 也报不出软键盘，光标可用区
+// 只能靠这三个数算，自己估出来的那份会把键盘以下也算成看得见。
+let flutterKeyboardInsetPx = 0;
+let flutterToolbarHeightPx = 0;
+let flutterHeaderHeightPx = 0;
 let editorTouchTracking = null;
 // IME composition state - prevent viewport sync during composition
 let isComposing = false;
@@ -349,14 +358,20 @@ const updateViewportMetrics = () => {
   const vv = window.visualViewport;
   if (!vv) {
     root.style.setProperty('--ushio-viewport-height', `${window.innerHeight}px`);
-    root.style.setProperty('--ushio-keyboard-inset', '0px');
-    lastKeyboardInsetPx = 0;
+    root.style.setProperty('--ushio-keyboard-inset', `${flutterKeyboardInsetPx}px`);
+    root.style.setProperty('--ushio-header-height', `${flutterHeaderHeightPx}px`);
+    lastKeyboardInsetPx = flutterKeyboardInsetPx;
     return;
   }
   const viewportHeight = Math.max(0, vv.height);
-  const keyboardInset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+  const keyboardInset = Math.max(
+    0,
+    window.innerHeight - (vv.height + vv.offsetTop),
+    flutterKeyboardInsetPx,
+  );
   root.style.setProperty('--ushio-viewport-height', `${viewportHeight}px`);
   root.style.setProperty('--ushio-keyboard-inset', `${keyboardInset}px`);
+  root.style.setProperty('--ushio-header-height', `${flutterHeaderHeightPx}px`);
   const keyboardInsetIncreased = keyboardInset > lastKeyboardInsetPx + 2;
   lastKeyboardInsetPx = keyboardInset;
   if (keyboardInset > 0 && keyboardInsetIncreased) {
@@ -684,47 +699,46 @@ const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => 
   const currentTop = Number.isFinite(caretTop) ? caretTop : fallbackRectTop;
   if (!Number.isFinite(currentTop)) return;
 
-  // 使用类似纯文本编辑器的预测性滚动逻辑
   const fontSize = getMilkdownFontSize();
   const lineHeight = fontSize * 1.5; // 与Flutter端保持一致
 
-  // 获取键盘高度和工具栏高度
+  const layoutHeight = window.innerHeight || viewportHeight;
   const keyboardInset = getKeyboardInset();
-  const toolbarHeight = 56.0;
+  // 键盘只能扣一次：浏览器自己缩了视口的场合（iOS、桌面软键盘）vv.height 已经
+  // 不含键盘，adjustNothing 下的 Android 则仍是整窗高度，得由我们自己扣。
+  const viewportExcludesKeyboard = layoutHeight - viewportHeight >= keyboardInset - 1;
+  const visibleHeight = viewportExcludesKeyboard ? viewportHeight : layoutHeight - keyboardInset;
 
-  // 预留输入法遮挡的安全距离
-  const imeSafeMargin = 80.0;
-  const bottomOffset = keyboardInset + toolbarHeight + imeSafeMargin;
+  // 工具栏和头部是 Flutter 画在 WebView 之上的覆盖层，只有推过来的数可信
+  const toolbarHeight = flutterToolbarHeightPx > 0 ? flutterToolbarHeightPx : 56;
+  const headerHeight = flutterHeaderHeightPx > 0 ? flutterHeaderHeightPx : 0;
 
-  // 视口可见区域（排除键盘和工具栏遮挡）
-  const visibleBottom = viewportHeight - bottomOffset;
-
-  // 顶部安全边距：当光标接近顶部时提前滚动
-  const topMargin = 100.0;
-  // 底部预测边距：光标距离底部遮挡区域这个距离时就开始滚动
-  const predictiveBottomMargin = lineHeight * 2;
+  // 光标要落在的区间：头部以下、工具栏与键盘以上。底部留整整一行，
+  // 只留半行的话光标那一行的下沿还是会压在工具栏上。
+  const caretMargin = lineHeight * 0.5;
+  const usableTop = headerHeight + caretMargin;
+  const usableBottom = visibleHeight - toolbarHeight - lineHeight;
 
   const scroller = document.scrollingElement || document.documentElement || document.body;
   const scrollTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
 
-  // 计算滚动目标位置
-  let targetScrollTop = null;
-
-  if (currentTop < topMargin) {
-    // 光标接近顶部，向下滚动使光标显示在顶部边距以下
-    targetScrollTop = scrollTop - (topMargin - currentTop) - lineHeight;
-  } else if (currentTop > visibleBottom - predictiveBottomMargin) {
-    // 光标即将进入底部遮挡区域，提前向上滚动
-    targetScrollTop = scrollTop + (currentTop - visibleBottom + predictiveBottomMargin) + lineHeight;
+  // 只补到刚好回到区间内：多退少退都会让下一次输入又判定成越界，来回拉扯
+  let delta = 0;
+  if (currentTop > usableBottom) {
+    delta = currentTop - usableBottom;
+  } else if (currentTop < usableTop) {
+    delta = currentTop - usableTop;
   }
 
-  if (targetScrollTop !== null && Math.abs(targetScrollTop - scrollTop) >= 4) {
-    const maxScroll = Math.max(0, (scroller.scrollHeight || 0) - viewportHeight);
-    const clampedTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+  if (Math.abs(delta) >= 4) {
+    const maxScroll = Math.max(0, (scroller.scrollHeight || 0) - layoutHeight);
+    const targetScrollTop = Math.max(0, Math.min(scrollTop + delta, maxScroll));
     if (scroller && typeof scroller.scrollTo === 'function') {
-      scroller.scrollTo({ top: clampedTop, behavior: 'auto' });
+      lastProgrammaticScrollAt = Date.now();
+      scroller.scrollTo({ top: targetScrollTop, behavior: 'auto' });
     } else {
-      window.scrollBy(0, clampedTop - scrollTop);
+      lastProgrammaticScrollAt = Date.now();
+      window.scrollBy(0, targetScrollTop - scrollTop);
     }
   }
 };
@@ -3355,8 +3369,11 @@ app.addEventListener('pointercancel', (event) => {
   clearMobileLongPress();
 });
 document.addEventListener('scroll', () => {
-  lastUserScrollAt = Date.now();
-  suppressCaretViewportSync(1000);
+  // 光标避让自己滚出来的那一下不算用户滚动，否则会把下一次避让抑制掉
+  if (Date.now() - lastProgrammaticScrollAt >= 150) {
+    lastUserScrollAt = Date.now();
+    suppressCaretViewportSync(1000);
+  }
   hideContextMenu();
   hideLinkTooltip();
 }, true);
@@ -3596,7 +3613,7 @@ const executeCommand = (cmd, args = {}) => {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
-  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report' && cmd !== 'scroll_caret_into_view') {
+  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report' && cmd !== 'scroll_caret_into_view' && cmd !== 'set_keyboard_metrics') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
@@ -3614,6 +3631,23 @@ const executeCommand = (cmd, args = {}) => {
     if (cmd === 'blur_editor') {
       const ok = blurEditorFocus();
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
+      return;
+    }
+    if (cmd === 'set_keyboard_metrics') {
+      const keyboardInset = Number(args?.keyboardInset);
+      const toolbarHeight = Number(args?.toolbarHeight);
+      const headerHeight = Number(args?.headerHeight);
+      if (Number.isFinite(keyboardInset) && keyboardInset >= 0) {
+        flutterKeyboardInsetPx = keyboardInset;
+      }
+      if (Number.isFinite(toolbarHeight) && toolbarHeight >= 0) {
+        flutterToolbarHeightPx = toolbarHeight;
+      }
+      if (Number.isFinite(headerHeight) && headerHeight >= 0) {
+        flutterHeaderHeightPx = headerHeight;
+      }
+      updateViewportMetrics();
+      emitCmdResult(cmd, true, null, startedAt);
       return;
     }
     if (cmd === 'scroll_caret_into_view') {
