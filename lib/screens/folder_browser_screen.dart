@@ -246,9 +246,9 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (sheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Theme.of(sheetContext).colorScheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(24),
@@ -259,7 +259,9 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
               leading: const Icon(Icons.note_add, color: Colors.blue),
               title: Text(l10n?.newMarkdown ?? 'New Markdown'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
+                // 这里必须用页面自己的 context：菜单收起后 sheetContext 就失效了，
+                // 拿它去创建只会让后半段流程整段跳过。
                 FileActions.showCreateFileInFolderDialog(
                   context,
                   widget.folderPath,
@@ -275,7 +277,7 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
               ),
               title: Text(l10n?.newFolder ?? 'New Folder'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 _showCreateFolderDialog();
               },
             ),

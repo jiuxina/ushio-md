@@ -1155,9 +1155,12 @@ class FileActions {
 
     if (result != null && result.isNotEmpty) {
       final file = await fileProvider.createFile(folderPath, result);
-      if (file != null && context.mounted) {
-        // Trigger refresh immediately after file creation
+      if (file != null) {
+        // 刷新不依赖 context，放在 mounted 判断之前：调用方通常是先收起菜单
+        // 再弹这个输入框，此时它的 context 已经随弹层一起销毁了。
         onRefresh?.call();
+      }
+      if (file != null && context.mounted) {
         await EditorNavigationHelper.openEditor(
           context,
           file.path,
