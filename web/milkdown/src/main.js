@@ -103,8 +103,9 @@ let createEditorPromise = null;
 let contextMenuElement = null;
 let tableFloatingButtonElement = null;
 let tableFloatingPanelElement = null;
-let mobileLongPressTimer = null;
-let mobileLongPressStartPoint = null;
+// 最近一次按下用的是手指还是鼠标：长按要走 WebView 原生选字菜单，
+// 右键才用自绘菜单，contextmenu 事件本身分不出来源。
+let lastPointerType = 'mouse';
 const pendingUploadResolvers = new Map();
 const cmdFailureAggregate = new Map();
 const MAX_UPLOAD_FILES = 6;
@@ -3310,30 +3311,23 @@ app.addEventListener('contextmenu', (event) => {
     hideContextMenu();
     return;
   }
+  // 手指长按要留给 WebView 原生的选字菜单：在这里 preventDefault 会把系统
+  // 的选区手柄和「复制/全选」操作条一起掐掉，而原生菜单本来就分得清中英文词。
+  if (lastPointerType === 'touch') {
+    hideContextMenu();
+    return;
+  }
   event.preventDefault();
   showContextMenuAt(event.clientX, event.clientY, target);
 });
 
-const clearMobileLongPress = () => {
-  if (mobileLongPressTimer != null) {
-    clearTimeout(mobileLongPressTimer);
-    mobileLongPressTimer = null;
-  }
-  mobileLongPressStartPoint = null;
-};
-
 app.addEventListener('pointerdown', (event) => {
+  lastPointerType = event.pointerType;
   if (event.pointerType !== 'touch' || currentReadOnly) return;
   const target = event.target instanceof Element ? event.target : null;
   if (!target?.closest('.ProseMirror')) return;
   suppressCaretViewportSync(1200);
   editorTouchTracking = { x: event.clientX, y: event.clientY };
-  clearMobileLongPress();
-  mobileLongPressStartPoint = { x: event.clientX, y: event.clientY };
-  mobileLongPressTimer = setTimeout(() => {
-    mobileLongPressTimer = null;
-    showContextMenuAt(event.clientX, event.clientY, target);
-  }, 420);
 });
 
 app.addEventListener('pointermove', (event) => {
@@ -3346,12 +3340,6 @@ app.addEventListener('pointermove', (event) => {
       suppressCaretViewportSync(1400);
     }
   }
-  if (!mobileLongPressStartPoint) return;
-  const dx = Math.abs(event.clientX - mobileLongPressStartPoint.x);
-  const dy = Math.abs(event.clientY - mobileLongPressStartPoint.y);
-  if (dx > 14 || dy > 14) {
-    clearMobileLongPress();
-  }
 });
 
 app.addEventListener('pointerup', (event) => {
@@ -3359,14 +3347,12 @@ app.addEventListener('pointerup', (event) => {
     editorTouchTracking = null;
     suppressCaretViewportSync(1000);
   }
-  clearMobileLongPress();
 });
 app.addEventListener('pointercancel', (event) => {
   if (event.pointerType === 'touch') {
     editorTouchTracking = null;
     suppressCaretViewportSync(1000);
   }
-  clearMobileLongPress();
 });
 document.addEventListener('scroll', () => {
   // 光标避让自己滚出来的那一下不算用户滚动，否则会把下一次避让抑制掉
