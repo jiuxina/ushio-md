@@ -5,11 +5,13 @@ import '../utils/app_style.dart';
 /// 分段开关中的单个选项。
 class SlidingSegmentItem {
   final IconData icon;
-  final String label;
+
+  /// 图标化的按钮没有可见文字，读屏靠它念出含义。
+  final String? semanticLabel;
 
   const SlidingSegmentItem({
     required this.icon,
-    required this.label,
+    this.semanticLabel,
   });
 }
 
@@ -142,28 +144,14 @@ class _SlidingSegmentToggleState extends State<SlidingSegmentToggle> {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                item.icon,
-                size: 16,
-                color: selected ? Colors.white : context.appIconColor,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                item.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  color: selected
-                      ? Colors.white
-                      : Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ],
+        child: Semantics(
+          label: item.semanticLabel,
+          button: true,
+          selected: selected,
+          child: Icon(
+            item.icon,
+            size: 18,
+            color: selected ? Colors.white : context.appIconColor,
           ),
         ),
       ),

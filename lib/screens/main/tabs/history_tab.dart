@@ -130,12 +130,9 @@ class _HistoryTabState extends State<HistoryTab> {
     final l10n = AppLocalizations.of(context)!;
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     if (appStyle.useLiquidGlass) {
-      // 固定宽度可给两个中文标签留出呼吸空间，避免相邻文字贴在一起。
       return SizedBox(
-        width: 140,
+        width: 88,
         child: GlassSegmentedControl(
-          // 包内 icon+label 是竖排的（16 + 2 + 13px 文字 ≈ 33），还要再加默认
-          // EdgeInsets.all(2) 的内边距；36 会挤出 1px 的底部溢出。
           height: 40,
           selectedIndex: _viewMode == HistoryViewMode.files ? 0 : 1,
           onSegmentSelected: (index) => setState(() {
@@ -145,12 +142,12 @@ class _HistoryTabState extends State<HistoryTab> {
           }),
           segments: [
             GlassSegment(
-              icon: Icon(Icons.description, size: 16),
-              label: l10n.file,
+              icon: const Icon(Icons.description),
+              semanticLabel: l10n.file,
             ),
             GlassSegment(
-              icon: Icon(Icons.folder, size: 16),
-              label: l10n.folder,
+              icon: const Icon(Icons.folder),
+              semanticLabel: l10n.folder,
             ),
           ],
         ),
@@ -168,6 +165,7 @@ class _HistoryTabState extends State<HistoryTab> {
               color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
             ),
       child: SlidingSegmentToggle(
+        width: 88,
         height: 36,
         selectedIndex: _viewMode == HistoryViewMode.files ? 0 : 1,
         onChanged: (index) => setState(() {
@@ -176,8 +174,8 @@ class _HistoryTabState extends State<HistoryTab> {
               : HistoryViewMode.folders;
         }),
         items: [
-          SlidingSegmentItem(icon: Icons.description, label: l10n.file),
-          SlidingSegmentItem(icon: Icons.folder, label: l10n.folder),
+          SlidingSegmentItem(icon: Icons.description, semanticLabel: l10n.file),
+          SlidingSegmentItem(icon: Icons.folder, semanticLabel: l10n.folder),
         ],
       ),
     );
