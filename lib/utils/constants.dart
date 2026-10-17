@@ -67,7 +67,7 @@ class AppConstants {
 
   /// 版本号。运行时在 main() 中由 package_info_plus 覆盖为 pubspec 的真实版本，
   /// 这里的值仅作为读取失败时的兜底默认，应与 pubspec.yaml 保持一致。
-  static String appVersion = '1.6.6';
+  static String appVersion = '1.6.7';
 
   /// 应用描述
   static const String appDescription = 'Markdown 编辑器';
