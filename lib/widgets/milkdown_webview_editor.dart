@@ -24,6 +24,18 @@ const _defaultMonoFont = 'JetBrains Mono';
 const _defaultFontSize = 16.0;
 const _defaultLineHeight = 1.6;
 
+/// 这类失败是预期内的空操作，不该弹成用户可见的错误条。
+///
+/// 遮挡数据是开机即发的内部同步：JS 侧 `editorInstance` 还没建好时会回
+/// `editor_not_ready`，但值已缓存在 `_lastKeyboardMetrics`，`on_ready` 与
+/// `onLoadStop` 都会补发，所以这条失败既无信息量也会自愈。
+bool isExpectedEditorCmdNoop(String cmd, String? reason) {
+  if ((cmd == 'undo' || cmd == 'redo') && reason == 'not_applicable') {
+    return true;
+  }
+  return cmd == 'set_keyboard_metrics' && reason == 'editor_not_ready';
+}
+
 /// 内容安全工具类
 class _ContentSanitizer {
   /// 危险的 HTML 标签
@@ -1349,9 +1361,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
           appDebugLog(
             'Milkdown exec_cmd failed: cmd=$cmd reason=${reason ?? 'unknown'}',
           );
-          final isExpectedHistoryNoop =
-              (cmd == 'undo' || cmd == 'redo') && reason == 'not_applicable';
-          if (!isExpectedHistoryNoop &&
+          if (!isExpectedEditorCmdNoop(cmd, reason) &&
               mounted &&
               reason != null &&
               reason.isNotEmpty) {
