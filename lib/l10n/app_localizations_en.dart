@@ -115,10 +115,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lineHeight => 'Line Height';
 
   @override
-  String get letterSpacing => '字间距';
+  String get letterSpacing => 'Letter Spacing';
 
   @override
-  String get paragraphSpacing => '段落间距';
+  String get paragraphSpacing => 'Paragraph Spacing';
 
   @override
   String get autoSave => 'Auto Save';

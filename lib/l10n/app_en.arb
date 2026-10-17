@@ -908,5 +908,13 @@
         "example": "Noto Sans SC"
       }
     }
+  },
+  "letterSpacing": "Letter Spacing",
+  "@letterSpacing": {
+    "description": "Letter spacing setting label"
+  },
+  "paragraphSpacing": "Paragraph Spacing",
+  "@paragraphSpacing": {
+    "description": "Paragraph spacing setting label"
   }
 }
