@@ -674,6 +674,7 @@ const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => 
   if (anchorElement?.closest('.milkdown-image-block')) return;
 
   let caretTop = null;
+  let caretBottom = null;
   let selectionIsImage = false;
   editorInstance?.action((ctx) => {
     const view = ctx.get(editorViewCtx);
@@ -687,6 +688,7 @@ const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => 
       const coords = view.coordsAtPos(pos);
       if (coords && Number.isFinite(coords.top)) {
         caretTop = coords.top;
+        caretBottom = coords.bottom;
       }
     } catch (_) {
       caretTop = null;
@@ -714,19 +716,25 @@ const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => 
   const toolbarHeight = flutterToolbarHeightPx > 0 ? flutterToolbarHeightPx : 56;
   const headerHeight = flutterHeaderHeightPx > 0 ? flutterHeaderHeightPx : 0;
 
-  // 光标要落在的区间：头部以下、工具栏与键盘以上。底部留整整一行，
-  // 只留半行的话光标那一行的下沿还是会压在工具栏上。
+  // 光标要落在的区间：头部以下、工具栏与键盘以上。
   const caretMargin = lineHeight * 0.5;
   const usableTop = headerHeight + caretMargin;
-  const usableBottom = visibleHeight - toolbarHeight - lineHeight;
 
   const scroller = document.scrollingElement || document.documentElement || document.body;
   const scrollTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
 
+  // 要清出去的是「光标那一行的下沿」，不是插入点顶端：只把顶端卡在一行之外时，
+  // 行盒下沿正好贴在工具栏玻璃上，看着就是被压住。coordsAtPos 的 bottom 实测与
+  // 行高一致（顶端 442 → 下沿 465），拿不到时退回顶端加一行。
+  const caretLineBottom = Number.isFinite(caretBottom)
+    ? caretBottom
+    : currentTop + lineHeight;
+  const lineBottomLimit = visibleHeight - toolbarHeight - caretMargin;
+
   // 只补到刚好回到区间内：多退少退都会让下一次输入又判定成越界，来回拉扯
   let delta = 0;
-  if (currentTop > usableBottom) {
-    delta = currentTop - usableBottom;
+  if (caretLineBottom > lineBottomLimit) {
+    delta = caretLineBottom - lineBottomLimit;
   } else if (currentTop < usableTop) {
     delta = currentTop - usableTop;
   }
