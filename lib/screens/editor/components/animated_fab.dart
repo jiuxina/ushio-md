@@ -6,6 +6,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../utils/app_style.dart';
 import '../../../utils/theme_tones.dart';
+import '../../../widgets/outer_shadow.dart';
 
 /// A floating action button with a scale-down press animation and a color
 /// glow shadow that intensifies when pressed.
@@ -54,28 +55,31 @@ class _AnimatedFabState extends State<AnimatedFab> {
             shape: const LiquidRoundedSuperellipse(borderRadius: 16),
             child: Icon(widget.icon, color: context.appIconColor, size: 24),
           )
-        : AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _pressed
-                  ? widget.color.withValues(alpha: 0.85)
-                  : widget.color,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: _pressed ? 0.28 : 0.20),
-                  blurRadius: _pressed ? 20 : 14,
-                  offset: _pressed ? const Offset(0, 3) : const Offset(0, 6),
-                  spreadRadius: _pressed ? -6 : -10,
-                ),
-              ],
-            ),
-            child: Icon(
-              widget.icon,
-              // 底色由主题派生，前景按对比度就近取白或墨色
-              color: ThemeTones.readableOn(widget.color),
-              size: 24,
+        : OuterShadow(
+            shadows: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: _pressed ? 0.28 : 0.20),
+                blurRadius: _pressed ? 20 : 14,
+                offset: _pressed ? const Offset(0, 3) : const Offset(0, 6),
+                spreadRadius: _pressed ? -6 : -10,
+              ),
+            ],
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _pressed
+                    ? widget.color.withValues(alpha: 0.85)
+                    : widget.color,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                widget.icon,
+                // 底色由主题派生，前景按对比度就近取白或墨色
+                color: ThemeTones.readableOn(widget.color),
+                size: 24,
+              ),
             ),
           );
 

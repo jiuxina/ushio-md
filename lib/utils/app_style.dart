@@ -180,15 +180,19 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
   BoxDecoration surfaceDecoration({
     required BorderRadius borderRadius,
     Color? color,
-    bool prominent = false,
     Border? border,
   }) {
     return BoxDecoration(
       color: color ?? cardSurface,
       borderRadius: borderRadius,
       border: border ?? surfaceBorder(),
-      boxShadow: prominent ? prominentShadow : surfaceShadow,
     );
+  }
+
+  /// 卡片阴影必须用 [OuterShadow] 绘制，不要塞进 [surfaceDecoration] 的 boxShadow：
+  /// 卡片填充是半透明的，BoxShadow 会从填充下面透出来，在边缘内侧形成内阴影。
+  List<BoxShadow> outerShadow({bool prominent = false}) {
+    return prominent ? prominentShadow : surfaceShadow;
   }
 
   @override

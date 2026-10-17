@@ -23,6 +23,7 @@ import 'package:window_manager/window_manager.dart';
 import '../providers/settings_provider.dart';
 import '../utils/app_style.dart';
 import '../utils/constants.dart';
+import 'outer_shadow.dart';
 
 /// 自定义窗口标题栏
 ///
@@ -128,71 +129,61 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       },
       // 双击最大化/还原
       onDoubleTap: _maximizeOrRestore,
-      child: Container(
-        height: titleBarHeight,
-        decoration: BoxDecoration(
-          color: backgroundColor.withValues(alpha: settings.cardOpacity),
-          border: Border(
-            bottom: BorderSide(
-              color: textSecondaryColor.withValues(alpha: 0.1),
-              width: 0.5,
+      child: OuterShadow(
+        shadows: useBorderless
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                  spreadRadius: -4,
+                ),
+              ]
+            : const [],
+        borderRadius: BorderRadius.zero,
+        child: Container(
+          height: titleBarHeight,
+          decoration: BoxDecoration(
+            color: backgroundColor.withValues(alpha: settings.cardOpacity),
+            border: Border(
+              bottom: BorderSide(
+                color: textSecondaryColor.withValues(alpha: 0.1),
+                width: 0.5,
+              ),
             ),
           ),
-          boxShadow: useBorderless
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                    spreadRadius: -4,
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            // 左侧：应用图标和名称
-            Padding(
-              padding: const EdgeInsets.only(left: 12.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 应用图标
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: Image.asset('app.png', fit: BoxFit.contain),
-                  ),
-                  const SizedBox(width: 8),
-                  // 应用名称
-                  Text(
-                    AppConstants.appName,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: textColor,
-                      fontFamily: settings.uiFontFamily == 'System'
-                          ? null
-                          : settings.uiFontFamily,
+          child: Row(
+            children: [
+              // 左侧：应用图标和名称
+              Padding(
+                padding: const EdgeInsets.only(left: 12.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 应用图标
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: Image.asset('app.png', fit: BoxFit.contain),
                     ),
-                  ),
-                  // 文件名（编辑器模式）
-                  if (widget.isEditorMode && widget.fileName != null) ...[
                     const SizedBox(width: 8),
+                    // 应用名称
                     Text(
-                      '-',
+                      AppConstants.appName,
                       style: TextStyle(
                         fontSize: 13,
-                        color: textSecondaryColor,
+                        fontWeight: FontWeight.w500,
+                        color: textColor,
                         fontFamily: settings.uiFontFamily == 'System'
                             ? null
                             : settings.uiFontFamily,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        widget.fileName!,
+                    // 文件名（编辑器模式）
+                    if (widget.isEditorMode && widget.fileName != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '-',
                         style: TextStyle(
                           fontSize: 13,
                           color: textSecondaryColor,
@@ -200,26 +191,39 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                               ? null
                               : settings.uiFontFamily,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          widget.fileName!,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: textSecondaryColor,
+                            fontFamily: settings.uiFontFamily == 'System'
+                                ? null
+                                : settings.uiFontFamily,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
 
-            const Spacer(),
+              const Spacer(),
 
-            // 右侧：窗口控制按钮
-            _buildWindowControls(
-              context: context,
-              isDark: isDark,
-              textColor: textColor,
-              textSecondaryColor: textSecondaryColor,
-              primaryColor: primaryColor,
-              useBorderless: useBorderless,
-            ),
-          ],
+              // 右侧：窗口控制按钮
+              _buildWindowControls(
+                context: context,
+                isDark: isDark,
+                textColor: textColor,
+                textSecondaryColor: textSecondaryColor,
+                primaryColor: primaryColor,
+                useBorderless: useBorderless,
+              ),
+            ],
+          ),
         ),
       ),
     );

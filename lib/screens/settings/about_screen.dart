@@ -16,6 +16,7 @@ import '../../providers/settings_provider.dart';
 import '../../utils/app_style.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/app_surface.dart';
+import '../../widgets/outer_shadow.dart';
 import 'open_source_licenses_screen.dart';
 import 'update_proxies_sheet.dart';
 
@@ -85,29 +86,25 @@ class _AboutScreenState extends State<AboutScreen> {
 
   Widget _buildAppInfo() {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        boxShadow: appStyle.surfaceShadow,
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.8,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
+      borderRadius: BorderRadius.circular(20),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.8,
       ),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
       child: Column(
         children: [
-          Container(
+          SizedBox(
             width: 80,
             height: 80,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
+            child: OuterShadow(
+              shadows: [
                 BoxShadow(
                   color: Colors.black.withValues(
                     alpha: Theme.of(context).brightness == Brightness.dark
@@ -119,10 +116,11 @@ class _AboutScreenState extends State<AboutScreen> {
                   spreadRadius: -8,
                 ),
               ],
-            ),
-            child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
-              child: Image.asset('app.png', fit: BoxFit.cover),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset('app.png', fit: BoxFit.cover),
+              ),
             ),
           ),
           const SizedBox(height: 16),

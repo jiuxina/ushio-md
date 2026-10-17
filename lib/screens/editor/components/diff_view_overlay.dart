@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../models/document_version.dart';
 import '../../../utils/line_diff_calculator.dart';
+import '../../../widgets/outer_shadow.dart';
 
 // ============================================================================
 // DiffViewOverlay — 行级 Diff 对比覆盖层
@@ -163,10 +164,12 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
       // 检查文档大小，超过阈值时提示用户
       final oldLineCount = widget.oldContent.split('\n').length;
       final newLineCount = widget.newContent.split('\n').length;
-      if (oldLineCount > _diffLineThreshold || newLineCount > _diffLineThreshold) {
+      if (oldLineCount > _diffLineThreshold ||
+          newLineCount > _diffLineThreshold) {
         if (mounted) {
           setState(() {
-            _errorMessage = '文档较大（${oldLineCount > newLineCount ? oldLineCount : newLineCount} 行），差异计算可能较慢';
+            _errorMessage =
+                '文档较大（${oldLineCount > newLineCount ? oldLineCount : newLineCount} 行），差异计算可能较慢';
           });
         }
         // 延迟一下再计算，让用户看到提示
@@ -299,93 +302,92 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 标题行
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
+    return OuterShadow(
+      shadows: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.08),
+          blurRadius: 12,
+          offset: const Offset(0, 2),
+        ),
+      ],
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题行
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colors.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.compare_arrows,
+                    color: colors.primary,
+                    size: 22,
+                  ),
                 ),
-                child: Icon(
-                  Icons.compare_arrows,
-                  color: colors.primary,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '版本对比',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '版本对比',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'v${widget.oldVersion.versionNumber} → v${widget.newVersion.versionNumber}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.outline,
+                      const SizedBox(height: 2),
+                      Text(
+                        'v${widget.oldVersion.versionNumber} → v${widget.newVersion.versionNumber}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.outline,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: _startClose,
-                tooltip: '关闭',
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // 版本信息行
-          Row(
-            children: [
-              _buildVersionChip(
-                context,
-                '旧版本 v${widget.oldVersion.versionNumber}',
-                widget.oldVersion.formattedTimestamp,
-                _formatFileSize(widget.oldVersion.fileSize),
-                colors.errorContainer,
-                colors.onErrorContainer,
-              ),
-              Icon(
-                Icons.arrow_forward,
-                size: 20,
-                color: colors.outline,
-              ),
-              _buildVersionChip(
-                context,
-                '新版本 v${widget.newVersion.versionNumber}',
-                widget.newVersion.formattedTimestamp,
-                _formatFileSize(widget.newVersion.fileSize),
-                colors.primaryContainer,
-                colors.onPrimaryContainer,
-              ),
-            ],
-          ),
-        ],
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _startClose,
+                  tooltip: '关闭',
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // 版本信息行
+            Row(
+              children: [
+                _buildVersionChip(
+                  context,
+                  '旧版本 v${widget.oldVersion.versionNumber}',
+                  widget.oldVersion.formattedTimestamp,
+                  _formatFileSize(widget.oldVersion.fileSize),
+                  colors.errorContainer,
+                  colors.onErrorContainer,
+                ),
+                Icon(Icons.arrow_forward, size: 20, color: colors.outline),
+                _buildVersionChip(
+                  context,
+                  '新版本 v${widget.newVersion.versionNumber}',
+                  widget.newVersion.formattedTimestamp,
+                  _formatFileSize(widget.newVersion.fileSize),
+                  colors.primaryContainer,
+                  colors.onPrimaryContainer,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -452,18 +454,8 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatItem(
-            context,
-            '+${result.addedCount}',
-            '新增',
-            Colors.green,
-          ),
-          _buildStatItem(
-            context,
-            '-${result.removedCount}',
-            '删除',
-            Colors.red,
-          ),
+          _buildStatItem(context, '+${result.addedCount}', '新增', Colors.green),
+          _buildStatItem(context, '-${result.removedCount}', '删除', Colors.red),
           _buildStatItem(
             context,
             '${result.unchangedCount}',
@@ -487,10 +479,7 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Text(
@@ -559,11 +548,7 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: colors.error,
-            ),
+            Icon(Icons.error_outline, size: 48, color: colors.error),
             const SizedBox(height: 12),
             Text(
               _errorMessage!,
@@ -612,98 +597,91 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
     final colors = theme.colorScheme;
     final lines = _diffResult!.lines;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // 列标题
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: colors.surfaceContainerHighest,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '旧版本 (v${widget.oldVersion.versionNumber})',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+    return OuterShadow(
+      shadows: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.06),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ],
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            // 列标题
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: colors.surfaceContainerHighest,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '旧版本 (v${widget.oldVersion.versionNumber})',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                ),
-                Container(
-                  width: 1,
-                  height: 16,
-                  color: colors.outlineVariant,
-                ),
-                Expanded(
-                  child: Text(
-                    '新版本 (v${widget.newVersion.versionNumber})',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                  Container(width: 1, height: 16, color: colors.outlineVariant),
+                  Expanded(
+                    child: Text(
+                      '新版本 (v${widget.newVersion.versionNumber})',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          // 左右同步滚动区域
-          Expanded(
-            child: Row(
-              children: [
-                // 左侧（旧版本）
-                Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: _onLeftScroll,
-                    child: ListView.builder(
-                      controller: _leftScrollController,
-                      padding: EdgeInsets.zero,
-                      itemCount: lines.length,
-                      itemBuilder: (context, index) => _buildDiffLine(
-                        context,
-                        lines[index],
-                        isLeft: true,
+            // 左右同步滚动区域
+            Expanded(
+              child: Row(
+                children: [
+                  // 左侧（旧版本）
+                  Expanded(
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: _onLeftScroll,
+                      child: ListView.builder(
+                        controller: _leftScrollController,
+                        padding: EdgeInsets.zero,
+                        itemCount: lines.length,
+                        itemBuilder: (context, index) =>
+                            _buildDiffLine(context, lines[index], isLeft: true),
                       ),
                     ),
                   ),
-                ),
-                // 分隔线
-                Container(
-                  width: 1,
-                  color: colors.outlineVariant,
-                ),
-                // 右侧（新版本）
-                Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: _onRightScroll,
-                    child: ListView.builder(
-                      controller: _rightScrollController,
-                      padding: EdgeInsets.zero,
-                      itemCount: lines.length,
-                      itemBuilder: (context, index) => _buildDiffLine(
-                        context,
-                        lines[index],
-                        isLeft: false,
+                  // 分隔线
+                  Container(width: 1, color: colors.outlineVariant),
+                  // 右侧（新版本）
+                  Expanded(
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: _onRightScroll,
+                      child: ListView.builder(
+                        controller: _rightScrollController,
+                        padding: EdgeInsets.zero,
+                        itemCount: lines.length,
+                        itemBuilder: (context, index) => _buildDiffLine(
+                          context,
+                          lines[index],
+                          isLeft: false,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -838,66 +816,69 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // 关闭按钮
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _startClose,
-              icon: const Icon(Icons.close, size: 18),
-              label: const Text('关闭'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+    return OuterShadow(
+      shadows: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.08),
+          blurRadius: 12,
+          offset: const Offset(0, -2),
+        ),
+      ],
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            // 关闭按钮
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _startClose,
+                icon: const Icon(Icons.close, size: 18),
+                label: const Text('关闭'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          // 回退按钮
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: widget.onRestore,
-              icon: const Icon(Icons.restore, size: 18),
-              label: const Text('回退'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            const SizedBox(width: 12),
+            // 回退按钮
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: widget.onRestore,
+                icon: const Icon(Icons.restore, size: 18),
+                label: const Text('回退'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          // 创建新文档按钮
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: widget.onCreateNewDoc,
-              icon: const Icon(Icons.note_add, size: 18),
-              label: const Text('新文档'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            const SizedBox(width: 12),
+            // 创建新文档按钮
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: widget.onCreateNewDoc,
+                icon: const Icon(Icons.note_add, size: 18),
+                label: const Text('新文档'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

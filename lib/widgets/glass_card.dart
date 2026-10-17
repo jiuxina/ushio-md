@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
 import 'liquid_glass_card.dart';
+import 'outer_shadow.dart';
 
 class GlassCard extends StatelessWidget {
   final IconData icon;
@@ -73,19 +74,22 @@ class GlassCard extends StatelessWidget {
     );
 
     if (!isLiquidGlass) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: appStyle.surfaceDecoration(borderRadius: borderRadius),
-        child: content,
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: OuterShadow(
+          shadows: appStyle.surfaceShadow,
+          borderRadius: borderRadius,
+          child: Container(
+            decoration: appStyle.surfaceDecoration(borderRadius: borderRadius),
+            child: content,
+          ),
+        ),
       );
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: LiquidGlassCard(
-        borderRadius: borderRadius,
-        child: content,
-      ),
+      child: LiquidGlassCard(borderRadius: borderRadius, child: content),
     );
   }
 }

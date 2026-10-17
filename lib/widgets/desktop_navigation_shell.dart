@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_style.dart';
 import '../utils/responsive_layout.dart';
 import 'liquid_glass_card.dart';
+import 'outer_shadow.dart';
 
 class DesktopNavigationDestination {
   final IconData icon;
@@ -58,30 +59,33 @@ class DesktopNavigationShell extends StatelessWidget {
         if (appStyle.useLiquidGlass)
           LiquidGlassCard(borderRadius: BorderRadius.zero, child: rail)
         else
-          Container(
-            width: railWidth,
-            decoration: BoxDecoration(
-              color: appStyle.scaledSurfaceColor(
-                theme.colorScheme,
-                alpha: 0.82,
-              ),
-              border: Border(
-                right: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.35),
+          OuterShadow(
+            shadows: appStyle.useBorderlessButtons
+                ? const [
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 18,
+                      offset: Offset(4, 0),
+                      spreadRadius: -12,
+                    ),
+                  ]
+                : const [],
+            borderRadius: BorderRadius.zero,
+            child: Container(
+              width: railWidth,
+              decoration: BoxDecoration(
+                color: appStyle.scaledSurfaceColor(
+                  theme.colorScheme,
+                  alpha: 0.82,
+                ),
+                border: Border(
+                  right: BorderSide(
+                    color: theme.dividerColor.withValues(alpha: 0.35),
+                  ),
                 ),
               ),
-              boxShadow: appStyle.useBorderlessButtons
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 18,
-                        offset: const Offset(4, 0),
-                        spreadRadius: -12,
-                      ),
-                    ]
-                  : null,
+              child: rail,
             ),
-            child: rail,
           ),
         Expanded(child: child),
       ],

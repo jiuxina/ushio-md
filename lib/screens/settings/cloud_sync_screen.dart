@@ -233,21 +233,18 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     final fullPath = settings.getFullSyncPath();
     final syncTypeName = _selectedSyncType == 'webdav' ? l10n.webdav : l10n.ftp;
 
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        boxShadow: appStyle.surfaceShadow,
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.8,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: appStyle.useBorderlessButtons
-            ? null
-            : Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
+      borderRadius: BorderRadius.circular(16),
+      color: appStyle.scaledSurfaceColor(
+        Theme.of(context).colorScheme,
+        alpha: 0.8,
       ),
+      border: appStyle.useBorderlessButtons
+          ? null
+          : Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
       child: Row(
         children: [
           Padding(

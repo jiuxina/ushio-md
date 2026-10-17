@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:ui';
+import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
@@ -7,9 +7,11 @@ import '../providers/file_provider.dart';
 import '../models/file_sort_option.dart';
 import '../services/folder_sort_service.dart';
 import '../services/file_service.dart';
+import '../utils/app_style.dart';
 import '../utils/file_actions.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/app_background.dart';
+import '../widgets/outer_shadow.dart';
 import '../utils/responsive_layout.dart';
 import '../widgets/responsive_page_frame.dart';
 import 'folder/components/folder_browser_header.dart';
@@ -489,12 +491,16 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
                   animation.value,
                 );
                 final double scale = lerpDouble(1.0, 1.05, animValue)!;
+                final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
                 return Transform.scale(
                   scale: scale,
-                  child: Material(
-                    elevation: 8,
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
+                  child: OuterShadow(
+                    // 半透明的 Material 兜不住自己的物理阴影，会透进拖拽中的
+                    // 磁贴变成内阴影；阴影改画在外侧。
+                    shadows: appStyle.outerShadow(prominent: true),
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveLayout.cardRadius(context),
+                    ),
                     child: child,
                   ),
                 );

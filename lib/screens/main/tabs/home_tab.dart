@@ -9,6 +9,7 @@ import '../../../../utils/capsule_nav_insets.dart';
 
 import '../../../utils/responsive_layout.dart';
 import '../../../widgets/responsive_page_frame.dart';
+import '../../../widgets/outer_shadow.dart';
 import '../components/quick_actions.dart';
 import '../../folder/components/file_tile.dart';
 
@@ -89,12 +90,11 @@ class _HomeTabState extends State<HomeTab> {
             imageProvider = const AssetImage('app.png');
           }
 
-          iconWidget = Container(
+          iconWidget = SizedBox(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
+            child: OuterShadow(
+              shadows: [
                 BoxShadow(
                   color: Colors.black.withValues(
                     alpha: Theme.of(context).brightness == Brightness.dark
@@ -106,25 +106,26 @@ class _HomeTabState extends State<HomeTab> {
                   spreadRadius: -6,
                 ),
               ],
-            ),
-            child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image(
-                image: imageProvider,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.image_not_supported,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 24,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image(
+                  image: imageProvider,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.image_not_supported,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 24,
+                    ),
                   ),
                 ),
               ),

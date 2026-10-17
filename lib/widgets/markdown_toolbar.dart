@@ -7,6 +7,7 @@ import '../services/my_files_service.dart';
 import '../utils/app_style.dart';
 import '../utils/responsive_layout.dart';
 import 'liquid_glass_card.dart';
+import 'outer_shadow.dart';
 
 enum MarkdownToolbarAction {
   undo,
@@ -320,23 +321,26 @@ class MarkdownToolbar extends StatelessWidget {
         child: LiquidGlassCard(borderRadius: borderRadius, child: list),
       );
     }
-    return Container(
-      height: toolbarHeight,
-      decoration: BoxDecoration(
-        color: appStyle.scaledSurfaceColor(
-          Theme.of(context).colorScheme,
-          alpha: 0.95,
+    return OuterShadow(
+      shadows: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.08),
+          blurRadius: 10,
+          offset: const Offset(0, -2),
         ),
-        borderRadius: borderRadius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+      ],
+      borderRadius: borderRadius,
+      child: Container(
+        height: toolbarHeight,
+        decoration: BoxDecoration(
+          color: appStyle.scaledSurfaceColor(
+            Theme.of(context).colorScheme,
+            alpha: 0.95,
           ),
-        ],
+          borderRadius: borderRadius,
+        ),
+        child: list,
       ),
-      child: list,
     );
   }
 

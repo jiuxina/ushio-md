@@ -28,6 +28,7 @@ import '../utils/responsive_layout.dart';
 import '../widgets/desktop_navigation_shell.dart';
 import '../utils/capsule_nav_insets.dart';
 import '../widgets/capsule_tab_bar_scope.dart';
+import '../widgets/outer_shadow.dart';
 import '../widgets/liquid_glass_capsule_tab_bar.dart';
 
 class MainScreen extends StatefulWidget {
@@ -245,7 +246,9 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         .animateToPage(
           index,
           // 跨多页时按页拉长时长，保证每页滑速和跟手滑动一致，不会一闪而过。
-          duration: Duration(milliseconds: 320 + 110 * (distance - 1).clamp(0, 3)),
+          duration: Duration(
+            milliseconds: 320 + 110 * (distance - 1).clamp(0, 3),
+          ),
           curve: Curves.easeOutCubic,
         )
         .whenComplete(() => _tabSlideDepth -= 1);
@@ -470,39 +473,42 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   Widget _buildBottomNav(AppLocalizations l10n) {
     return Consumer<SettingsProvider>(
       builder: (context, settings, _) {
-        return ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surface.withValues(alpha: settings.tabBarOpacity),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 12,
-                  offset: const Offset(0, -3),
-                ),
-              ],
+        return OuterShadow(
+          shadows: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
             ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildNavItem(0, Icons.home_rounded, l10n.homeTab),
-                    _buildNavItem(
-                      1,
-                      Icons.folder_special_rounded,
-                      l10n.myFiles,
-                    ),
-                    _buildNavItem(2, Icons.history_rounded, l10n.historyTab),
-                    _buildNavItem(3, Icons.settings_rounded, l10n.settings),
-                  ],
+          ],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surface.withValues(alpha: settings.tabBarOpacity),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildNavItem(0, Icons.home_rounded, l10n.homeTab),
+                      _buildNavItem(
+                        1,
+                        Icons.folder_special_rounded,
+                        l10n.myFiles,
+                      ),
+                      _buildNavItem(2, Icons.history_rounded, l10n.historyTab),
+                      _buildNavItem(3, Icons.settings_rounded, l10n.settings),
+                    ],
+                  ),
                 ),
               ),
             ),

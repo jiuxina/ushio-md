@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/toc_item.dart';
+import '../../../widgets/outer_shadow.dart';
 
 class TocOverlayController {
   VoidCallback? _closeImpl;
@@ -40,8 +41,7 @@ class TocOverlay extends StatefulWidget {
   State<TocOverlay> createState() => _TocOverlayState();
 }
 
-class _TocOverlayState extends State<TocOverlay>
-    with TickerProviderStateMixin {
+class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
   static const int _filterThreshold = 6;
 
   late final AnimationController _controller;
@@ -158,29 +158,34 @@ class _TocOverlayState extends State<TocOverlay>
                 position: _slideAnimation,
                 child: GestureDetector(
                   onTap: () {},
-                  child: Container(
-                    width: MediaQuery.of(context).size.width * 0.78,
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: OuterShadow(
+                      shadows: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.22),
                           blurRadius: 24,
                           offset: const Offset(-6, 0),
                         ),
                       ],
-                    ),
-                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(22),
-                      child: Column(
-                        children: [
-                          _buildHeader(context, l10n),
-                          if (widget.items.length >= _filterThreshold)
-                            _buildFilter(context, l10n),
-                          Expanded(child: _buildList(context, l10n)),
-                        ],
+                      child: Container(
+                        width: MediaQuery.of(context).size.width * 0.78,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: Column(
+                            children: [
+                              _buildHeader(context, l10n),
+                              if (widget.items.length >= _filterThreshold)
+                                _buildFilter(context, l10n),
+                              Expanded(child: _buildList(context, l10n)),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -217,9 +222,9 @@ class _TocOverlayState extends State<TocOverlay>
               l10n.tableOfContents,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           _countPill(context, widget.items.length),
@@ -297,8 +302,15 @@ class _TocOverlayState extends State<TocOverlay>
             isDense: true,
             hintText: l10n.searchContent,
             hintStyle: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
-            prefixIcon: Icon(Icons.search_rounded, size: 20, color: cs.onSurfaceVariant),
-            prefixIconConstraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: cs.onSurfaceVariant,
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 38,
+              minHeight: 38,
+            ),
             suffixIcon: _query.isEmpty
                 ? null
                 : IconButton(
@@ -371,16 +383,21 @@ class _TocOverlayState extends State<TocOverlay>
           const SizedBox(height: 10),
           Text(
             message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: cs.outline,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: cs.outline),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTocItem(BuildContext context, TocItem item, int origIndex, int visualIndex) {
+  Widget _buildTocItem(
+    BuildContext context,
+    TocItem item,
+    int origIndex,
+    int visualIndex,
+  ) {
     final cs = Theme.of(context).colorScheme;
     final accent = cs.primary;
     final level = item.level.clamp(1, 6);
@@ -446,7 +463,9 @@ class _TocOverlayState extends State<TocOverlay>
                               : (15.0 - (level - 1) * 0.6).clamp(12.5, 15.0),
                           fontWeight: level == 1
                               ? FontWeight.w700
-                              : (level == 2 ? FontWeight.w600 : FontWeight.w400),
+                              : (level == 2
+                                    ? FontWeight.w600
+                                    : FontWeight.w400),
                           color: textColor,
                           height: 1.25,
                         ),
@@ -462,7 +481,12 @@ class _TocOverlayState extends State<TocOverlay>
     );
   }
 
-  Widget _nodeDot(BuildContext context, bool isCurrent, Color accent, ColorScheme cs) {
+  Widget _nodeDot(
+    BuildContext context,
+    bool isCurrent,
+    Color accent,
+    ColorScheme cs,
+  ) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       width: isCurrent ? 8 : 6,

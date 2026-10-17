@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_style.dart';
 import 'app_surface.dart';
+import 'outer_shadow.dart';
 
 const double _kFallbackCardOpacity = 0.72;
 
@@ -25,7 +26,8 @@ class ThemedProgressDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final appStyle = theme.extension<AppStyleTheme>() ??
+    final appStyle =
+        theme.extension<AppStyleTheme>() ??
         AppStyleTheme.resolve(
           brightness: theme.brightness,
           colorScheme: colorScheme,
@@ -52,37 +54,38 @@ class ThemedProgressDialog extends StatelessWidget {
           prominent: appStyle.useBorderlessButtons,
           border: appStyle.useBorderlessButtons
               ? null
-              : Border.all(
-                  color: accent.withValues(alpha: 0.14),
-                ),
+              : Border.all(color: accent.withValues(alpha: 0.14)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: appStyle.useBorderlessButtons
-                        ? appStyle.prominentShadow
-                        : null,
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 34,
-                        height: 34,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 3,
-                          valueColor: AlwaysStoppedAnimation<Color>(accent),
+                OuterShadow(
+                  shadows: appStyle.useBorderlessButtons
+                      ? appStyle.prominentShadow
+                      : const [],
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 34,
+                          height: 34,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor: AlwaysStoppedAnimation<Color>(accent),
+                          ),
                         ),
-                      ),
-                      Icon(icon, color: accent, size: 18),
-                    ],
+                        Icon(icon, color: accent, size: 18),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -141,7 +144,8 @@ void showThemedSnackBar(
   final messenger = ScaffoldMessenger.of(context);
   final theme = Theme.of(context);
   final colorScheme = theme.colorScheme;
-  final appStyle = theme.extension<AppStyleTheme>() ??
+  final appStyle =
+      theme.extension<AppStyleTheme>() ??
       AppStyleTheme.resolve(
         brightness: theme.brightness,
         colorScheme: colorScheme,
@@ -170,7 +174,9 @@ void showThemedSnackBar(
         content: AppSurface(
           borderRadius: BorderRadius.circular(18),
           color: Color.alphaBlend(
-            accent.withValues(alpha: appStyle.useBorderlessButtons ? 0.10 : 0.06),
+            accent.withValues(
+              alpha: appStyle.useBorderlessButtons ? 0.10 : 0.06,
+            ),
             colorScheme.surface,
           ),
           prominent: appStyle.useBorderlessButtons,

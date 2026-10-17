@@ -19,6 +19,7 @@ import '../../../services/font_service.dart';
 import '../../../utils/image_accent.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../widgets/liquid_glass_card.dart';
+import '../../../widgets/outer_shadow.dart';
 
 /// 外观设置共用方法 Mixin
 mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
@@ -94,18 +95,88 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   }
 
   /// 构建选项装饰
+  ///
+  /// 只画填充和描边；阴影必须配 [buildOptionOuterShadow] 交给 OuterShadow，
+  /// 否则半透明填充会把阴影透出来变成内阴影。
+  static const BorderRadius optionRadius = BorderRadius.all(
+    Radius.circular(12),
+  );
+
   BoxDecoration buildOptionDecoration({required bool isSelected}) {
     final primary = Theme.of(context).colorScheme.primary;
     return appStyle.surfaceDecoration(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: optionRadius,
       color: appStyle.optionBackground(context, selected: isSelected),
-      prominent: isSelected && appStyle.useBorderlessButtons,
       border: appStyle.useBorderlessButtons
           ? null
           : Border.all(
               color: isSelected ? primary : appStyle.outlineColor,
               width: isSelected ? 2 : 1,
             ),
+    );
+  }
+
+  List<BoxShadow> buildOptionOuterShadow({required bool isSelected}) {
+    return appStyle.outerShadow(
+      prominent: isSelected && appStyle.useBorderlessButtons,
+    );
+  }
+
+  /// 选项卡片：填充与描边来自 [buildOptionDecoration]，阴影由 OuterShadow 画在外侧
+  Widget optionCard({
+    required bool isSelected,
+    required EdgeInsetsGeometry padding,
+    required Widget child,
+  }) {
+    return OuterShadow(
+      shadows: buildOptionOuterShadow(isSelected: isSelected),
+      borderRadius: optionRadius,
+      child: Container(
+        padding: padding,
+        decoration: buildOptionDecoration(isSelected: isSelected),
+        child: child,
+      ),
+    );
+  }
+
+  /// 图标选择卡片：AnimatedContainer 只做填充/描边动画，阴影由 OuterShadow 画在外侧
+  Widget borderedOptionCard({
+    required bool isSelected,
+    required EdgeInsetsGeometry padding,
+    EdgeInsetsGeometry margin = EdgeInsets.zero,
+    required Widget child,
+  }) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final radius = BorderRadius.circular(12);
+    return Padding(
+      padding: margin,
+      child: OuterShadow(
+        shadows: appStyle.useBorderlessButtons
+            ? appStyle.surfaceShadow
+            : const [],
+        borderRadius: radius,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: padding,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? primary.withValues(alpha: 0.1)
+                : (appStyle.useBorderlessButtons
+                      ? appStyle.strongSurface
+                      : Colors.transparent),
+            borderRadius: radius,
+            border: appStyle.useBorderlessButtons
+                ? null
+                : Border.all(
+                    color: isSelected
+                        ? primary
+                        : Theme.of(context).dividerColor,
+                    width: isSelected ? 2 : 1,
+                  ),
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 
@@ -155,9 +226,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     final isSelected = settings.themeMode == mode;
     return GestureDetector(
       onTap: () => settings.setThemeMode(mode),
-      child: Container(
+      child: optionCard(
+        isSelected: isSelected,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: buildOptionDecoration(isSelected: isSelected),
         child: Column(
           children: [
             Icon(
@@ -220,9 +291,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
   ) {
     return GestureDetector(
       onTap: () => settings.setLocale(locale),
-      child: Container(
+      child: optionCard(
+        isSelected: isSelected,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: buildOptionDecoration(isSelected: isSelected),
         child: Column(
           children: [
             Icon(
@@ -318,9 +389,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
       message: option.desc,
       child: GestureDetector(
         onTap: () => settings.setButtonStyleMode(option.mode),
-        child: Container(
+        child: optionCard(
+          isSelected: isSelected,
           padding: const EdgeInsets.all(10),
-          decoration: buildOptionDecoration(isSelected: isSelected),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -379,7 +450,6 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
           ? BoxDecoration(
               color: surface,
               borderRadius: BorderRadius.circular(8),
-              boxShadow: appStyle.prominentShadow,
             )
           : BoxDecoration(
               color: primary,
@@ -1303,31 +1373,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
             return Expanded(
               child: GestureDetector(
                 onTap: () => _setAppIcon(settings, idx, l10n),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                child: borderedOptionCard(
+                  isSelected: isSelected,
                   margin: EdgeInsets.only(right: idx == 0 ? 8 : 0),
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    boxShadow: appStyle.useBorderlessButtons
-                        ? appStyle.surfaceShadow
-                        : null,
-                    color: isSelected
-                        ? Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.1)
-                        : (appStyle.useBorderlessButtons
-                              ? appStyle.strongSurface
-                              : Colors.transparent),
-                    borderRadius: BorderRadius.circular(12),
-                    border: appStyle.useBorderlessButtons
-                        ? null
-                        : Border.all(
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).dividerColor,
-                            width: isSelected ? 2 : 1,
-                          ),
-                  ),
                   child: Column(
                     children: [
                       ClipRRect(
@@ -1503,28 +1552,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     final isSelected = settings.homeIconMode == mode;
     return GestureDetector(
       onTap: () => settings.setHomeIconMode(mode),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      child: borderedOptionCard(
+        isSelected: isSelected,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          boxShadow: appStyle.useBorderlessButtons
-              ? appStyle.surfaceShadow
-              : null,
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : (appStyle.useBorderlessButtons
-                    ? appStyle.strongSurface
-                    : Colors.transparent),
-          borderRadius: BorderRadius.circular(12),
-          border: appStyle.useBorderlessButtons
-              ? null
-              : Border.all(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).dividerColor,
-                  width: isSelected ? 2 : 1,
-                ),
-        ),
         child: Column(
           children: [
             if (iconWidget != null)
@@ -1573,28 +1603,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     final customPath = settings.homeIconCustomPath;
     return GestureDetector(
       onTap: () => _pickHomeCustomIcon(settings),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      child: borderedOptionCard(
+        isSelected: isSelected,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          boxShadow: appStyle.useBorderlessButtons
-              ? appStyle.surfaceShadow
-              : null,
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : (appStyle.useBorderlessButtons
-                    ? appStyle.strongSurface
-                    : Colors.transparent),
-          borderRadius: BorderRadius.circular(12),
-          border: appStyle.useBorderlessButtons
-              ? null
-              : Border.all(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).dividerColor,
-                  width: isSelected ? 2 : 1,
-                ),
-        ),
         child: Row(
           children: [
             if (isSelected && customPath != null)
