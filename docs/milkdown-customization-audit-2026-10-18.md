@@ -5,6 +5,18 @@
 
 ---
 
+## 零、实测后的更正（2026-10-18 晚，Phase 0 数据回来后）
+
+本报告的 §3.1 把触发频率写错了，以下三条以实测为准（数据见 `docs/milkdown-performance-baseline.md` §5.1）：
+
+1. ❌「每敲一个字符跑一遍全量重算」→ ✅ **每次停顿跑一遍**。`@milkdown/plugin-listener/lib/index.js:75-91` 是 lodash `debounce(handler, 200)` 尾缘触发，且 `tr.getMeta('addToHistory') === false` 时直接 return（`:122`）。连续打字期间整条链不跑，停手 200ms 后跑一次。§3.2 那张表的单位因此是「每停顿」而非「每键」。
+2. ❌「`emitHistoryState` 做全历史遍历」→ ✅ `undoDepth`/`redoDepth` 是 O(1)（`prosemirror-history/dist/index.js:434-437` 读 `hist.done.eventCount`）。它的成本只是每停顿一次 `editorInstance.action()` + 一次 IPC。
+3. ❌「clipboard/indent/trailing/history 四个 import 后未使用」→ ✅ `history` 的 `undoCommand`/`redoCommand` 在 `executeCommand` 里**有使用**，import 必须保留；只有 `clipboard`/`indent`/`trailing` 是纯冗余。另：删掉这三个之后 **bundle 体积与文件名完全未变**（2,444.88 kB），说明 Rollup 原本就已把它们摇掉了——§2.3 里「可能仍占体积」的保留说法可以定论。
+
+**更重要的一条是瓶颈定位被数据推翻**：每停顿的字符串扫描链实测只占 11–23ms，真正支配的是 `crepe.create()`（50K 字符 = **21.9 秒**；桌面 Chromium 507K 字符 = **68.9 秒**）与 `syncRenderedDom` 的整棵 DOM 遍历（50K 字符 / 1359 块 = **1.29 秒**；13K 块时 rAF 从未收尾）。因此路线 A 的优先级从「Phase 1 合并字符串扫描」改为「先杀整篇重建与 DOM 全遍历」。
+
+---
+
 ## 一、结论先行
 
 **是，魔改远超必要程度，而且性能问题主要是我们自己造成的，不是 Milkdown 或 WebView 的固有问题。**

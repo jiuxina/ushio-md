@@ -98,6 +98,20 @@ import {
   buildLocalFileProxyUrl,
   preprocessImageUrlsInMarkdown,
 } from './local-path.mjs';
+import {
+  perfNow,
+  perfStart,
+  perfMarkKeyDown,
+  perfNoteHint,
+  perfNoteCaret,
+  perfRecordChain,
+  perfRecordSettle,
+  perfRecordEvent,
+  perfDump,
+  perfSetEnabled,
+  perfSnapshot,
+  perfObserveFrames,
+} from './perf.mjs';
 
 const app = document.getElementById('app');
 let bridgeSeq = 0;
@@ -528,7 +542,9 @@ const scheduleCaretIntoUpperViewport = () => {
   if (caretViewportSyncRafId != null) return;
   caretViewportSyncRafId = requestAnimationFrame(() => {
     caretViewportSyncRafId = null;
+    const c0 = perfNow();
     ensureCaretInUpperViewport();
+    perfNoteCaret(perfNow() - c0);
   });
 };
 
@@ -544,7 +560,9 @@ const forceCaretIntoUpperViewport = () => {
   if (forceCaretRafId != null) return;
   forceCaretRafId = requestAnimationFrame(() => {
     forceCaretRafId = null;
+    const c0 = perfNow();
     ensureCaretInUpperViewport({ allowDuringComposition: true });
+    perfNoteCaret(perfNow() - c0);
   });
 };
 
@@ -1324,6 +1342,16 @@ const scheduleContentChange = (markdown, { mode = 'full' } = {}) => {
   }, debounceMs);
 };
 
+// Phase 0 度量用：O(1) 规模读数，避免测量本身改变被测量的成本
+const perfSizes = () => {
+  const pm = app.querySelector('.ProseMirror');
+  return {
+    chars: currentMarkdown.length,
+    topBlocks: pm ? pm.childElementCount : 0,
+    readOnly: currentReadOnly ? 1 : 0,
+  };
+};
+
 const emitOutlineUpdate = () => {
   const outline = parseMarkdownOutline(currentMarkdown).map(({ id, level, text }) => ({
     id,
@@ -1911,11 +1939,23 @@ const emitFirstRenderReady = () => {
 const notifyRenderComplete = () => {
   cancelProgressiveRender();
   requestAnimationFrame(() => {
+    const s0 = perfNow();
     syncRenderedDom();
+    const s1 = perfNow();
     updateActiveMarkdownHints();
+    const s2 = perfNow();
     emitOutlineUpdate();
+    const s3 = perfNow();
     emit('on_render_complete', {});
     emitHistoryState();
+    const s4 = perfNow();
+    perfRecordSettle({
+      syncMs: s1 - s0,
+      hintMs: s2 - s1,
+      outlineMs: s3 - s2,
+      historyMs: s4 - s3,
+      settleTotalMs: s4 - s0,
+    }, perfSizes());
   });
 };
 
@@ -2427,7 +2467,9 @@ const scheduleActiveMarkdownHints = () => {
   if (activeHintsRafId != null) return;
   activeHintsRafId = requestAnimationFrame(() => {
     activeHintsRafId = null;
+    const h0 = perfNow();
     updateActiveMarkdownHints();
+    perfNoteHint(perfNow() - h0);
   });
 };
 
@@ -2500,23 +2542,51 @@ const createEditor = async () => {
         if (!isApplyingFromFlutter && !initializingEditor) {
           cancelProgressiveRender();
         }
+        const perfT0 = perfNow();
         const sanitizedMarkdown = stripGhostCodeLanguageMarkers(markdown);
+        const perfT1 = perfNow();
         if (sanitizedMarkdown !== markdown) {
-          const renderReadyMarkdown = preprocessImages(
-            wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
-          );
+          const perfWrap0 = perfNow();
+          const wrappedMarkdown = wrapHtmlBlocksInCodeFence(sanitizedMarkdown);
+          const perfPre0 = perfNow();
+          const renderReadyMarkdown = preprocessImages(wrappedMarkdown);
+          const perfPre1 = perfNow();
+          const perfRebuild0 = perfNow();
           currentMarkdown = renderReadyMarkdown;
           if (!currentReadOnly && !isApplyingFromFlutter && !initializingEditor) {
             scheduleContentChange(sanitizedMarkdown, { mode: 'code_sanitized' });
           }
           isApplyingFromFlutter = true;
           editorInstance?.action(replaceAll(renderReadyMarkdown));
+          const perfRebuild1 = perfNow();
+          perfRecordChain({
+            serializeChars: markdown.length,
+            stripMs: perfT1 - perfT0,
+            wrapMs: perfPre0 - perfWrap0,
+            preImgMs: perfPre1 - perfPre0,
+            rebuildMs: perfRebuild1 - perfRebuild0,
+            totalMs: perfRebuild1 - perfT0,
+            sanitizeHit: 1,
+            fullRebuild: 1,
+          }, perfSizes());
           if (!progressiveRenderPending) notifyRenderComplete();
           return;
         }
-        currentMarkdown = preprocessImages(
-          wrapHtmlBlocksInCodeFence(sanitizedMarkdown),
-        );
+        const perfWrap2 = perfNow();
+        const preWrappedMarkdown = wrapHtmlBlocksInCodeFence(sanitizedMarkdown);
+        const perfPre2 = perfNow();
+        currentMarkdown = preprocessImages(preWrappedMarkdown);
+        const perfPre3 = perfNow();
+        perfRecordChain({
+          serializeChars: markdown.length,
+          stripMs: perfT1 - perfT0,
+          wrapMs: perfPre2 - perfWrap2,
+          preImgMs: perfPre3 - perfPre2,
+          rebuildMs: 0,
+          totalMs: perfPre3 - perfT0,
+          sanitizeHit: 0,
+          fullRebuild: 0,
+        }, perfSizes());
         if (!isApplyingFromFlutter && !initializingEditor) {
           scheduleContentChange(sanitizedMarkdown);
         }
@@ -2541,7 +2611,16 @@ const createEditor = async () => {
     .use(upload)
     .use(searchHighlightProsePlugin);
 
+  const perfCreate0 = perfNow();
   await crepe.create();
+  perfStart();
+  perfRecordEvent('boot', {
+    crepeCreateMs: perfNow() - perfCreate0,
+    longFrameObserver: perfObserveFrames(),
+    sourceChars: preprocessedInitialMarkdown.length,
+    fullChars: fullSourceMarkdown.length,
+    progressive: preprocessedInitialMarkdown.length > PROGRESSIVE_RENDER_THRESHOLD_CHARS ? 1 : 0,
+  });
   crepeInstance = crepe;
   crepe.setReadonly(currentReadOnly);
   applyReadOnlyState();
@@ -3148,11 +3227,21 @@ const executeCommand = (cmd, args = {}) => {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
   }
-  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report' && cmd !== 'scroll_caret_into_view' && cmd !== 'set_keyboard_metrics') {
+  if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report' && cmd !== 'scroll_caret_into_view' && cmd !== 'set_keyboard_metrics' && cmd !== 'dump_perf' && cmd !== 'set_perf_probe') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
   }
   try {
+    if (cmd === 'dump_perf') {
+      perfDump();
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
+    if (cmd === 'set_perf_probe') {
+      perfSetEnabled(args.enabled !== false);
+      emitCmdResult(cmd, true, null, startedAt);
+      return;
+    }
     if (cmd === 'focus_editor') {
       const pm = app.querySelector('.ProseMirror');
       if (pm instanceof HTMLElement) {
@@ -3707,6 +3796,9 @@ window.addEventListener('resize', updateViewportMetrics);
 window.addEventListener('orientationchange', updateViewportMetrics);
 window.visualViewport?.addEventListener('resize', updateViewportMetrics);
 document.addEventListener('keydown', handleEditorShortcut, true);
+// Phase 0 度量：按键时刻用于算「按键→停顿收尾」的输入延迟
+document.addEventListener('keydown', perfMarkKeyDown, true);
+document.addEventListener('beforeinput', perfMarkKeyDown, true);
 
 const onFlutterMessage = (message) => {
   let m = message;
@@ -3770,6 +3862,8 @@ const onFlutterMessage = (message) => {
     executeCommand(cmd, args);
   }
 };
+
+window.__USHIO_PERF__ = { dump: perfDump, snapshot: perfSnapshot, setEnabled: perfSetEnabled };
 
 window.__USHIO_BRIDGE__ = {
   onFlutterMessage,

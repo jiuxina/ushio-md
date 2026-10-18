@@ -79,6 +79,39 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-__-__ | Device A | 14 | 13x.xx | S/M/L | __ / __ ms | __ / __ / __ ms | __ | 通过/风险 |
 
+### 5.1 首轮实测（2026-10-18，路线 A Phase 0 基线）
+
+这是本阈值表定义以来**第一次**有真机数据回填（此前 `milkdown-step3-first-pass-results.md:29` 一直为 `N/A（阻塞）`）。
+
+采样条件：AVD `codex_mdreader_test`（`emulator-5554`），Android 12 / API 32，x86_64，1080×2400，**swiftshader GPU**；`flutter build apk --profile --target-platform android-x64`（versionCode 4104，DEBUGGABLE）；插桩见 `web/milkdown/src/perf.mjs`，取数 `node tools/collect_perf.mjs --parse <log>`。
+语料：`PerfS.md` = 50,004 字符（84KB 文件，1359 顶层块）；`PerfL.md` = 500,073 字符（827KB 文件，>512KB 故走渐进渲染）。
+
+| 文档 | TTI-Edit（实测） | 阈值 | `crepe.create()` | 首次 `syncRenderedDom` | 首次收尾合计 | 判定 |
+| --- | --- | --- | --- | --- | --- | --- |
+| S（50K 字符） | **≈23.5s** | P95 ≤1.2s | **21,943.7ms** | **1,288ms** | 1,521.7ms（hints 179.4 + outline 24 + history 30.3） | **阻断（超阈 ≈19×）** |
+| L（500K 字符） | >55s 未收尾 | P95 ≤2.6s | 4,598.9ms（仅先解析 2048 字符） | 55s 内未出现 settle 样本 | — | **阻断** |
+
+L 文档的 `create()` 反而更快，是因为渐进渲染把首次解析截到 2048 字符，代价变成随后**连环 `replaceAll`**：首个 `chain` 样本停在 `chars=6277 / topBlocks=155`，其串行成本 22.7ms（`stripGhost` 18.6 + `wrapHtml` 3.6 + `preprocessImg` 0.4）。
+
+桌面 Chromium 对照（同一 `dist` 构建，非设备，用于看 scaling）：507,668 字符 / 13,038 顶层块 → `crepe.create()` **68,918.7ms**；6 次 `chain`（`totalMs` 11.0–16.9）但 **0 次 `settle`**，即 `notifyRenderComplete` 的 rAF 从未跑完，`chain` 事件间隔 5s / 45s / 120s。
+
+**结论（修正了对瓶颈的估计）**：每停顿的**字符串扫描链不是主要成本**（实测 11–23ms）；支配项是 **`crepe.create()` 的整篇解析建树** 与 **`syncRenderedDom` 的整棵 DOM 遍历**（50K 字符 / 1359 块就要 1.3s，且随块数线性以上恶化）。路线 A 的 Phase 2/3 优先级因此高于 Phase 1。
+
+未取到的指标与原因：
+
+- **Input Latency**：adb 无法可靠把按键送进 Milkdown 编辑态——`input tap` 落在纯文本编辑模式（截图可见原始 markdown 字面量），20 次 `input keyevent` 后 `USHIO_PERF` 样本为 0。需在编辑态重采，或改由 JS 侧自驱 `execCommand` 采样。
+- **Scroll Smoothness**：未测。`longFrameObserver: true` 说明 LoAF 探针在该 WebView 可用，后续可直接取 `longestFrameMs`。
+
+测量副产物（两个真实缺陷）：
+
+1. `[JS ERROR] __USHIO_BRIDGE__ not defined` ×2 —— Dart 在 bundle 定义 `window.__USHIO_BRIDGE__` 之前就向页面注入了调用（开档时序竞态）。
+2. `ProseMirror expects the CSS white-space property to be set, preferably to 'pre-wrap'` —— ProseMirror 官方样式前提未满足。
+3. `[syncRenderedDom] Code block count mismatch` 在 50K 文档上即触发，直接证实审计里「DOM 与 markdown 按下标配对」的假设不可靠。
+
+取数注意：profile 包**不会**出现 `[WebView Console]`（Dart 侧 `onConsoleMessage` 转发未生效），日志只在 `chromium` 标签的 `[INFO:CONSOLE]` 里；logcat 单行可能截断，解析必须用花括号配对而非单条正则。
+swiftshader AVD 的渲染比真机慢 2–3×，但 `create()`/`syncRenderedDom` 是 CPU+DOM 绑定，量级结论不受影响；本机 MuMu（GPU 直通）当时未运行，故本轮用 AVD。
+
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。
