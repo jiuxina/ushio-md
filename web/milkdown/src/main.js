@@ -2032,7 +2032,14 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
       if (end < 0 || end > nextTarget + 4096) end = nextTarget;
       if (end <= cursor) end = Math.min(total, cursor + 2048);
       const partial = preprocessedMarkdown.slice(0, end);
+      const perfStep0 = perfNow();
       editorInstance.action(replaceAll(partial, end === total ? forceRender : false));
+      perfRecordEvent('setdoc', {
+        replaceAllMs: perfNow() - perfStep0,
+        chars: partial.length,
+        topBlocks: (app.querySelector('.ProseMirror') || { childElementCount: 0 }).childElementCount,
+        progressiveStep: 1,
+      });
       cursor = end;
       if (!progressiveFirstPaintEmitted && cursor > 0) {
         progressiveFirstPaintEmitted = true;
@@ -2049,7 +2056,14 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
     renderStep();
   } else {
     emitDebug('[JS] setMarkdown: calling editorInstance.action(replaceAll)');
+    const perfFull0 = perfNow();
     editorInstance.action(replaceAll(preprocessedMarkdown, forceRender));
+    perfRecordEvent('setdoc', {
+      replaceAllMs: perfNow() - perfFull0,
+      chars: preprocessedMarkdown.length,
+      topBlocks: (app.querySelector('.ProseMirror') || { childElementCount: 0 }).childElementCount,
+      progressiveStep: 0,
+    });
     emitDebug('[JS] setMarkdown: calling notifyRenderComplete');
     notifyRenderComplete();
   }

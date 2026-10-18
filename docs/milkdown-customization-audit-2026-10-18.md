@@ -13,7 +13,9 @@
 2. ❌「`emitHistoryState` 做全历史遍历」→ ✅ `undoDepth`/`redoDepth` 是 O(1)（`prosemirror-history/dist/index.js:434-437` 读 `hist.done.eventCount`）。它的成本只是每停顿一次 `editorInstance.action()` + 一次 IPC。
 3. ❌「clipboard/indent/trailing/history 四个 import 后未使用」→ ✅ `history` 的 `undoCommand`/`redoCommand` 在 `executeCommand` 里**有使用**，import 必须保留；只有 `clipboard`/`indent`/`trailing` 是纯冗余。另：删掉这三个之后 **bundle 体积与文件名完全未变**（2,444.88 kB），说明 Rollup 原本就已把它们摇掉了——§2.3 里「可能仍占体积」的保留说法可以定论。
 
-**更重要的一条是瓶颈定位被数据推翻**：每停顿的字符串扫描链实测只占 11–23ms，真正支配的是 `crepe.create()`（50K 字符 = **21.9 秒**；桌面 Chromium 507K 字符 = **68.9 秒**）与 `syncRenderedDom` 的整棵 DOM 遍历（50K 字符 / 1359 块 = **1.29 秒**；13K 块时 rAF 从未收尾）。因此路线 A 的优先级从「Phase 1 合并字符串扫描」改为「先杀整篇重建与 DOM 全遍历」。
+**更重要的一条是瓶颈定位被数据推翻**：每停顿的字符串扫描链实测只占 3–23ms（桌面 3.2 / 真机 22.7），真正支配的是**整篇解析建树**（桌面 Chromium 50K 字符 `crepe.create()` = 2454ms、`replaceAll` = 1015–2290ms，约 0.83–1.3ms/顶层块；AVD 同文档 = **21.9 秒**，比桌面慢 ≈8.9×）与 `syncRenderedDom` 的整棵 DOM 遍历（50K 字符 / 1359 块 = **1.29 秒**）。因此路线 A 的优先级从「Phase 1 合并字符串扫描」改为「先杀整篇重建与 DOM 全遍历」，归因矩阵见 `docs/milkdown-performance-baseline.md` §5.2。
+
+（本报告初稿中「桌面 507K 字符 6 次 chain 0 次 settle → rAF 从未收尾」与「13K 块时 rAF 从未收尾」两句**作废**：那是后台标签里 `requestAnimationFrame` 根本不触发造成的测量假象，不是产品行为，见 §5.3。桌面 507K 字符 `crepe.create()` = 68.9 秒这一条仍然有效。）
 
 ---
 
