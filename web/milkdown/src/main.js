@@ -1106,6 +1106,10 @@ const renderHtmlBlockCodeNodes = (root) => {
     // Use the overlay height so the block reserves proper space in the document flow.
     const overlayHeight = overlayItem.offsetHeight;
     hideHtmlBlockCodeNode(block);
+    // 伪块自身带 padding/border，而 height 默认是 content-box：直接写 height 会让实际
+    // 占位高 = 渲染高 + padding，每个 HTML 块多出一截（实测 249.5 vs 252 = 2.5px/块），
+    // 并按块数累积成后续内容与 overlay 的位移。定成 border-box 让占位精确等于渲染高。
+    block.style.setProperty('box-sizing', 'border-box', 'important');
     if (overlayHeight > 0) {
       block.style.setProperty('height', `${overlayHeight}px`, 'important');
       block.style.setProperty('min-height', `${overlayHeight}px`, 'important');
