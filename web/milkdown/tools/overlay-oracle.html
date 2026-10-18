@@ -2,35 +2,38 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8" />
-<title>HTML 块 overlay 收敛判据</title>
+<title>HTML 块 overlay 判据</title>
 <style>
   body { font: 13px/1.55 system-ui, sans-serif; margin: 22px; color: #17202a; }
   h1 { font-size: 17px; margin: 0 0 4px; }
-  p.hint { color: #5b6b7b; margin: 0 0 14px; max-width: 940px; }
+  p.hint { color: #5b6b7b; margin: 0 0 14px; max-width: 960px; }
   table { border-collapse: collapse; margin: 10px 0; }
   th, td { border: 1px solid #d5dde5; padding: 4px 9px; font-variant-numeric: tabular-nums; }
   th { background: #f2f5f8; }
   .pass { color: #14612e; font-weight: 600; }
   .fail { color: #96141a; font-weight: 600; }
+  h2 { font-size: 15px; margin: 18px 0 6px; }
   iframe { width: 880px; height: 300px; border: 1px solid #d5dde5; }
 </style>
 </head>
 <body>
-<h1>HTML 块 overlay 收敛判据 —— 渲染收尾反复跑，位置必须不再变化</h1>
+<h1>HTML 块 overlay 判据 —— 收敛、占位精确、版面变化后仍贴着各自的块</h1>
 <p class="hint">
   旧实现把 overlay 的渲染高度回写进被隐藏的伪代码块（<code>height !important</code>），而伪块自身带
-  padding/border 且 <code>box-sizing</code> 是 content-box，于是实际占位高 = 回写值 + padding。
-  每经过一个 html 块，其后所有块的 <code>top</code> 就多一截，表现为逐块递增的漂移
-  （实测 +8 / +24 / +32 / +48 / +56 / +72px，正是 8px 的倍数）。
-  本页面连跑 N 次渲染收尾，要求：① 第 2 次起每个 overlay 的 top/left/width 与上一次**完全相同**（收敛）；
-  ② overlay 宽度等于正文宽度而不是塌成几像素；③ 伪块占位高与 overlay 实际高一致。
+  padding/border 且 <code>box-sizing</code> 是 content-box，实际占位高 = 渲染高 + padding，
+  每个 HTML 块多占一截（实测 252 vs 249.5 = 2.5px/块）并按块数累积。
+  本页面跑三组检查：
+  <strong>A 收敛</strong> 连跑 N 次收尾，overlay 的 top/left/width 与 DOM 节点身份必须逐趟不变；
+  <strong>B 占位精确</strong> 伪块占位高 == overlay 渲染高，且宽度等于正文宽；
+  <strong>C 版面跟随</strong> 在文档<strong>上方</strong>插入内容把版面推下去之后，每个 overlay 仍必须
+  紧贴自己的伪块（误差 &lt; 2px），内容没变的 overlay 不得被整块重建，文本不得错位。
 </p>
 <p class="sum" id="sum">准备中…</p>
 <div id="out"></div>
 <iframe id="editor" src="/dist/index.html" title="被测编辑器"></iframe>
 
 <script type="module">
-const PASSES = Number(new URLSearchParams(location.search).get('passes') || 5);
+const PASSES = Number(new URLSearchParams(location.search).get('passes') || 4);
 const BLOCKS = Number(new URLSearchParams(location.search).get('blocks') || 6);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const statusEl = document.getElementById('sum');
@@ -41,8 +44,8 @@ const seed = (() => {
   let md = '# overlay 判据\n\n';
   for (let i = 1; i <= BLOCKS; i++) {
     md += `## 节 ${i}\n\n正文 ${i} ${'P'.repeat(120)}\n\n`;
-    // 故意让「渲染高度 ≫ 源码行数」：单行长文本会被换成多行显示，
-    // 而被隐藏的伪代码块只占一两行高——这正是回写占位高会复利漂移的条件。
+    // 让「渲染高 ≫ 源码高」：单行长文本折成多行，而被隐藏的伪块只占一两行——
+    // 这正是占位高算错会累积暴露的条件。
     md += `<div class="card${i}">\n<p>${'这是一段会被折行成很多行的中文内容，用来制造渲染高与源码高的差异。'.repeat(12)}</p>\n</div>\n\n`;
   }
   return md;
@@ -66,30 +69,56 @@ async function boot() {
   return false;
 }
 
-/** 每趟收尾后，记录 overlay 项几何与伪块占位高 */
+let tokenSeq = 0;
+/** 记录每个 overlay 项的几何，以及它自己那个伪块的几何；给节点打身份标记以便数重建 */
 function snapshot(win) {
   const doc = win.document;
   const overlay = doc.getElementById('ushio-html-overlay');
   const items = overlay ? Array.from(overlay.querySelectorAll('.ushio-html-block')) : [];
+  const blocks = Array.from(doc.querySelectorAll('.milkdown-code-block'))
+    .filter((b) => b.querySelector('pre[data-language="html-block"]') || b.classList.contains('ushio-html-block-target'));
   const pmContent = doc.querySelector('.ProseMirror');
   return {
     count: items.length,
+    blockCount: blocks.length,
     pmWidth: pmContent ? Math.round(pmContent.getBoundingClientRect().width) : -1,
-    items: items.map((el) => {
+    items: items.map((el, i) => {
+      if (el.__oracleToken === undefined) el.__oracleToken = `t${++tokenSeq}`;
       const r = el.getBoundingClientRect();
+      const b = blocks[i] ? blocks[i].getBoundingClientRect() : null;
       return {
         idx: el.getAttribute('data-html-block-index'),
+        token: el.__oracleToken,
+        text: (el.textContent || '').slice(0, 24),
         top: Math.round(r.top * 100) / 100,
         left: Math.round(r.left * 100) / 100,
         width: Math.round(r.width * 100) / 100,
         height: Math.round(r.height * 100) / 100,
+        blockTop: b ? Math.round(b.top * 100) / 100 : null,
+        blockHeight: b ? Math.round(b.height * 100) / 100 : null,
       };
     }),
-    blocks: Array.from(doc.querySelectorAll('.milkdown-code-block'))
-      .filter((b) => b.querySelector('pre[data-language="html-block"]') || b.classList.contains('ushio-html-block-target'))
-      .map((b) => Math.round(b.getBoundingClientRect().height * 100) / 100),
   };
 }
+
+/** 在最上方的段落末尾插入文字，把后面所有块推下去 */
+function pushLayoutDown(win, chars) {
+  const firstPara = win.document.querySelector('.ProseMirror p');
+  if (!firstPara) return false;
+  const doc = win.document;
+  const sel = win.getSelection();
+  const range = doc.createRange();
+  range.selectNodeContents(firstPara);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  firstPara.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'x', bubbles: true, cancelable: true }));
+  return doc.execCommand('insertText', false, chars);
+}
+
+const offBy = (list) => (list.length
+  ? Math.max(...list.map((x) => Math.abs(x.top - (x.blockTop ?? NaN)))).toFixed(1)
+  : '0');
 
 (async () => {
   statusEl.textContent = '等待编辑器就绪…';
@@ -97,43 +126,57 @@ function snapshot(win) {
   const win = frame.contentWindow;
   if (!win.__USHIO_PERF__?.sync) { statusEl.textContent = '缺 sync 诊断入口，判据未执行'; return; }
 
+  // ---- A / B ----
   const shots = [];
   for (let p = 0; p < PASSES; p++) {
     win.__USHIO_PERF__.sync();
     shots.push(snapshot(win));
   }
-
-  // 收敛：第 2 趟起，几何必须与上一趟逐字节相同
   const drift = [];
   for (let p = 1; p < shots.length; p++) {
-    const a = shots[p - 1].items;
-    const b = shots[p].items;
-    if (a.length !== b.length) { drift.push({ pass: p, why: `overlay 项数变化 ${a.length}->${b.length}` }); continue; }
+    const a = shots[p - 1].items, b = shots[p].items;
+    if (a.length !== b.length) { drift.push({ pass: p, why: `项数 ${a.length}->${b.length}` }); continue; }
     for (let i = 0; i < a.length; i++) {
-      if (a[i].top !== b[i].top || a[i].left !== b[i].left || a[i].width !== b[i].width) {
-        drift.push({ pass: p, idx: a[i].idx, from: a[i].top, to: b[i].top, wFrom: a[i].width, wTo: b[i].width });
+      if (a[i].top !== b[i].top || a[i].left !== b[i].left || a[i].width !== b[i].width || a[i].token !== b[i].token) {
+        drift.push({ pass: p, idx: a[i].idx, from: a[i].top, to: b[i].top });
       }
     }
   }
   const last = shots[shots.length - 1];
   const narrow = last.items.filter((it) => it.width < Math.max(60, last.pmWidth * 0.3));
-  const heightMismatch = last.items.filter((it, i) => last.blocks[i] !== undefined && Math.abs(last.blocks[i] - it.height) > 1.5);
+  const heightMismatch = last.items.filter((it) => it.blockHeight !== null && Math.abs(it.blockHeight - it.height) > 1.5);
+  const gluedBefore = last.items.filter((it) => it.blockTop === null || Math.abs(it.top - it.blockTop) > 2);
 
-  const converged = drift.length === 0;
-  const widthsOk = narrow.length === 0 && last.pmWidth > 0;
-  const heightsOk = heightMismatch.length === 0;
-  statusEl.innerHTML = `收敛：<span class="${converged ? 'pass' : 'fail'}">${converged ? '是' : `否（${drift.length} 处逐趟变化）`}</span>`
-    + ` · 宽度正常：<span class="${widthsOk ? 'pass' : 'fail'}">${widthsOk ? '是' : `否（${narrow.length} 个塌成 ${narrow.map((x) => x.width).join('/')}px）`}</span>`
-    + ` · 占位高与渲染高一致：<span class="${heightsOk ? 'pass' : 'fail'}">${heightsOk ? '是' : '否'}</span>`
-    + ` · overlay ${last.count} 个 / 正文宽 ${last.pmWidth}px`;
+  // ---- C ----
+  const inserted = pushLayoutDown(win, 'Q'.repeat(900));
+  win.__USHIO_PERF__.sync();
+  const after = snapshot(win);
+  const rebuilt = after.items.filter((it, i) => last.items[i] && last.items[i].token !== it.token).length;
+  const notGlued = after.items.filter((it) => it.blockTop === null || Math.abs(it.top - it.blockTop) > 2);
+  const moved = after.items.filter((it, i) => last.items[i] && Math.abs(it.top - last.items[i].top) > 20).length;
+  const textMismatch = after.items.filter((it, i) => last.items[i] && last.items[i].text !== it.text).length;
 
-  outEl.innerHTML = `<table>
+  const checks = [
+    { name: 'A 收敛：逐趟几何与节点身份不变', ok: drift.length === 0, detail: drift.length ? `${drift.length} 处逐趟变化` : `${PASSES} 趟一致` },
+    { name: 'B1 占位高 == 渲染高', ok: heightMismatch.length === 0, detail: heightMismatch.length ? heightMismatch.map((x) => `${x.blockHeight}/${x.height}`).slice(0, 3).join(' ') : `一致（${last.items[0]?.blockHeight}/${last.items[0]?.height}）` },
+    { name: 'B2 overlay 宽度未塌缩', ok: narrow.length === 0 && last.pmWidth > 0, detail: narrow.length ? `塌成 ${narrow.map((x) => x.width).join('/')}px` : `正文宽 ${last.pmWidth}px` },
+    { name: 'C1 改前后 overlay 都贴着自己的块', ok: gluedBefore.length === 0 && notGlued.length === 0, detail: gluedBefore.length ? `改前 ${gluedBefore.length} 个偏离（最大 ${offBy(gluedBefore)}px）` : (notGlued.length ? `改后 ${notGlued.length} 个偏离（最大 ${offBy(notGlued)}px）` : `全部贴合；${moved}/${after.count} 个已随版面下移`) },
+    { name: 'C2 内容未变的 overlay 不被整块重建', ok: rebuilt === 0, detail: `重建 ${rebuilt}/${after.count} 个` },
+    { name: 'C3 overlay 文本不错位', ok: textMismatch === 0, detail: textMismatch ? `${textMismatch} 个文本变化` : '逐项一致' },
+  ];
+  const allOk = checks.every((c) => c.ok) && inserted;
+
+  statusEl.innerHTML = checks.map((c) =>
+    `<div class="${c.ok ? 'pass' : 'fail'}">${c.ok ? '✔' : '✘'} ${c.name} —— ${c.detail}</div>`).join('')
+    + `<div class="${inserted ? '' : 'fail'}">插入操作：${inserted ? '成功' : '失败（C 组判据无效）'}</div>`;
+
+  outEl.innerHTML = `<h2>逐趟几何（overlay top / 块 top / overlay 高 / 块高）</h2><table>
     <tr><th>趟</th>${last.items.map((it) => `<th>#${it.idx}</th>`).join('')}</tr>
-    ${shots.map((s, p) => `<tr><td>${p + 1}</td>${s.items.map((it) => `<td>top ${it.top}<br>w ${it.width}<br>h ${it.height}</td>`).join('')}</tr>`).join('')}
-    <tr><th>伪块占位高</th>${last.blocks.map((h) => `<th>${h}</th>`).join('')}</tr>
+    ${shots.map((s, p) => `<tr><td>${p + 1}</td>${s.items.map((it) => `<td>${it.top}<br>${it.blockTop}<br>${it.height}/${it.blockHeight}</td>`).join('')}</tr>`).join('')}
+    <tr><td>下移后</td>${after.items.map((it) => `<td>${it.top}<br>${it.blockTop}<br>${it.height}/${it.blockHeight}</td>`).join('')}</tr>
   </table>
-  ${drift.length ? `<pre>${drift.slice(0, 12).map((d) => JSON.stringify(d)).join('\n')}</pre>` : ''}`;
-  document.title = `overlay-oracle ${converged && widthsOk && heightsOk ? 'PASS' : 'FAIL'}`;
+  ${drift.length ? `<pre>${drift.slice(0, 10).map((d) => JSON.stringify(d)).join('\n')}</pre>` : ''}`;
+  document.title = `overlay-oracle ${allOk ? 'PASS' : 'FAIL'}`;
 })();
 </script>
 </body>
