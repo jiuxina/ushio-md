@@ -1,6 +1,8 @@
 import {
   commandsCtx,
   editorViewCtx,
+  parserCtx,
+  serializerCtx,
 } from '@milkdown/core';
 import { Crepe } from '@milkdown/crepe';
 import { Plugin, PluginKey } from '@milkdown/prose/state';
@@ -91,6 +93,7 @@ import {
   stripGhostCodeLanguageMarkers,
   wrapHtmlBlocksInCodeFence,
   setKnownCodeLanguages,
+  findAppendSplitPoints,
 } from './markdown-scans.mjs';
 import {
   LOCAL_FILE_SCHEME,
@@ -186,7 +189,14 @@ let progressiveRenderTimerId = null;
 let progressiveRenderCancelled = false;
 let progressiveRenderPending = false;
 let progressiveFirstPaintEmitted = false;
-const PROGRESSIVE_RENDER_THRESHOLD_CHARS = 512 * 1024;
+let PROGRESSIVE_RENDER_THRESHOLD_CHARS = 512 * 1024;
+// 渐进渲染默认改成「追加式」：旧实现每步 replaceAll(整个前缀)，等于把已建好的
+// 树反复推倒，500K 字符要重刷 5+ 次、累计解析量约为全文两倍（见基线 §5.5）。
+// 判据（tools/append-oracle.html）当前结论：代码/列表密集文档要么切不出安全点，
+// 要么分片产物与整篇解析不一致；且在能切的场景里并不更快（89K 代码文档
+// 追加 24869ms vs 整篇 13932ms）。因此默认关闭，等 Phase 3 把视图更新成本降下来后再评估。
+let appendRenderEnabled = false;
+const APPEND_MIN_CHUNK_CHARS = 24 * 1024;
 const searchHighlightProsePlugin = $prose(() => {
   return new Plugin({
     key: searchHighlightPluginKey,
@@ -2005,6 +2015,29 @@ const markEditorInitializing = () => {
   initializingEditorTimer = setTimeout(endEditorInitialization, 1500);
 };
 
+/**
+ * 把一段 markdown 解析成 fragment 后追加到文档末尾。
+ * 不用 @milkdown/utils 的 replaceRange —— 它经 DOMSerializer→DOMParser 往返，
+ * 对 CodeMirror / math 这类 nodeView 的渲染结果不可靠。
+ */
+const appendMarkdownChunk = (chunk) => {
+  if (!editorInstance) return;
+  editorInstance.action((ctx) => {
+    const parse = ctx.get(parserCtx);
+    const view = ctx.get(editorViewCtx);
+    const chunkDoc = parse(chunk);
+    if (!chunkDoc || !chunkDoc.childCount) return;
+    const { state } = view;
+    const at = state.doc.content.size;
+    // 载入文档不该进撤销栈：旧实现每步 replaceAll 会把整篇载入记成多步历史，
+    // 首次撤销就可能清空文档（CHANGELOG.md:168 记过）。同时 addToHistory=false
+    // 会让 plugin-listener 跳过该 tr，省掉每步一次的全文序列化与预处理。
+    view.dispatch(
+      state.tr.replaceWith(at, at, chunkDoc.content).setMeta('addToHistory', false),
+    );
+  });
+};
+
 const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}) => {
   emitDebug(`[JS] setMarkdown: len=${markdown?.length}, forceRender=${forceRender}`);
   markEditorInitializing();
@@ -2039,6 +2072,12 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
     progressiveFirstPaintEmitted = false;
     let cursor = 0;
     const total = preprocessedMarkdown.length;
+    const appendCuts = appendRenderEnabled
+      ? findAppendSplitPoints(preprocessedMarkdown, APPEND_MIN_CHUNK_CHARS)
+      : [];
+    const useAppend = appendCuts.length > 0;
+    let cutIndex = 0;
+    emitDebug(`[JS] setMarkdown: progressive mode=${useAppend ? `append(${appendCuts.length} cuts)` : 'prefix-replaceAll'}`);
     const renderStep = () => {
       if (progressiveRenderCancelled) return;
       if (cursor >= total) {
@@ -2046,20 +2085,41 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
         notifyRenderComplete();
         return;
       }
-      const nextTarget = Math.min(total, Math.max(cursor + 2048, cursor * 2 + 2048));
-      let end = preprocessedMarkdown.indexOf('\n', nextTarget);
-      if (end < 0 || end > nextTarget + 4096) end = nextTarget;
-      if (end <= cursor) end = Math.min(total, cursor + 2048);
-      const partial = preprocessedMarkdown.slice(0, end);
       const perfStep0 = perfNow();
-      editorInstance.action(replaceAll(partial, end === total ? forceRender : false));
+      let chunkChars = 0;
+      if (useAppend) {
+        const wanted = cutIndex < appendCuts.length ? appendCuts[cutIndex] : total;
+        cutIndex += 1;
+        const end = Math.min(total, Math.max(wanted, cursor + 2048));
+        // 片尾空白必须裁掉：切点总在空行之后，留着会让这一片以空行结尾，
+        // 独立解析时多出一个空段落（序列化回来就是一个 <br />），
+        // 与整篇一次解析的产物不一致。块边界处的尾部空白没有语义。
+        const chunk = preprocessedMarkdown.slice(cursor, end).replace(/[ \t\r\n]+$/, '');
+        if (cursor === 0) {
+          editorInstance.action(replaceAll(chunk, forceRender));
+        } else {
+          appendMarkdownChunk(chunk);
+        }
+        chunkChars = chunk.length;
+        cursor = end;
+      } else {
+        const nextTarget = Math.min(total, Math.max(cursor + 2048, cursor * 2 + 2048));
+        let end = preprocessedMarkdown.indexOf('\n', nextTarget);
+        if (end < 0 || end > nextTarget + 4096) end = nextTarget;
+        if (end <= cursor) end = Math.min(total, cursor + 2048);
+        const partial = preprocessedMarkdown.slice(0, end);
+        editorInstance.action(replaceAll(partial, end === total ? forceRender : false));
+        chunkChars = partial.length;
+        cursor = end;
+      }
       perfRecordEvent('setdoc', {
         replaceAllMs: perfNow() - perfStep0,
-        chars: partial.length,
+        chars: cursor,
+        chunkChars,
+        appendMode: useAppend ? 1 : 0,
         topBlocks: (app.querySelector('.ProseMirror') || { childElementCount: 0 }).childElementCount,
         progressiveStep: 1,
       });
-      cursor = end;
       if (!progressiveFirstPaintEmitted && cursor > 0) {
         progressiveFirstPaintEmitted = true;
         emitFirstRenderReady();
@@ -3915,6 +3975,18 @@ window.__USHIO_PERF__ = {
     return Math.round((perfNow() - t0) * 100) / 100;
   },
   setDoc: (markdown) => setMarkdown(markdown, { forceRender: true }),
+  setAppendRender: (on) => { appendRenderEnabled = Boolean(on); },
+  // 诊断用：把阈值设成 0 强制走渐进路径、设成极大值强制走整篇一次替换，
+  // 这样能在同一份文档上比较「分片追加解析」与「整篇解析」的产物是否一致。
+  setProgressiveThreshold: (chars) => {
+    const n = Number(chars);
+    if (Number.isFinite(n) && n >= 0) PROGRESSIVE_RENDER_THRESHOLD_CHARS = n;
+    return PROGRESSIVE_RENDER_THRESHOLD_CHARS;
+  },
+  appendRenderEnabled: () => appendRenderEnabled,
+  serialize: () => (editorInstance
+    ? editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc))
+    : ''),
 };
 
 window.__USHIO_BRIDGE__ = {

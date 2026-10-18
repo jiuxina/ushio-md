@@ -261,6 +261,96 @@ export const stripGhostCodeLanguageMarkers = (markdown) => {
 };
 
 /**
+ * 找出「可以安全切开、让后半段独立解析」的偏移，供追加式渲染使用。
+ *
+ * 规则刻意保守：
+ * 1. 只在代码围栏之外的空行之后切；
+ * 2. 切点后的第一行不能是列表项——CommonMark 里 `- a\n\n- b` 是**同一个**松散列表，
+ *    切成两片会变成两个列表（编号与 loose/tight 都可能变）。
+ *
+ * 返回 [] 表示找不到足够的切点，调用方应回退到整篇 replaceAll。
+ */
+/**
+ * 找出「可以安全切开、让后半段独立解析」的偏移，供追加式渲染使用。
+ *
+ * 规则刻意保守，因为分片解析必须与整篇一次解析逐字节一致
+ * （判据见 tools/append-oracle.html，实测过：只要切点紧邻列表/引用/表格，
+ *  松散列表的 spread 判定就会依赖后随块，序列化回来会多或少空行）。
+ *
+ * 1. 只在代码围栏之外切；
+ * 2. 只在空行之后切（块边界）；
+ * 3. 切点**前一个块**与**后一个块**都必须是简单块（标题或段落）——
+ *    列表项、引用、表格行、缩进代码一律不切。
+ *
+ * 返回 [] 表示找不到足够的切点，调用方应回退到整篇替换。
+ */
+// 列表项 / 引用 / 表格行 / 缩进代码 / setext 下划线 / 分割线，以及代码围栏本身：
+// 判据实测过，紧邻这些块的切点都会让「分片解析 + 追加」的产物与整篇解析不一致
+// （列表 spread 判定、围栏后多余空行）。
+const APPEND_UNSAFE_BLOCK_RE = /^\s*(?:[-*+]|\d+[.)])\s|^\s*>|^\s*\||^\s{4,}|^\s*(?:={3,}|-{3,})\s*$|^\s*(?:```|~~~)/;
+
+export const findAppendSplitPoints = (markdown, minChunkChars = 24 * 1024) => {
+  if (typeof markdown !== 'string' || !markdown.length) return [];
+  const total = markdown.length;
+  if (total < minChunkChars * 2) return [];
+
+  const cuts = [];
+  let offset = 0;
+  let lastCut = 0;
+  let fence = null;
+  let candidateOffset = -1;
+  let candidatePrevBlockLine = '';
+  let blockStartLine = '';
+  let atBlockStart = true;
+
+  while (offset < total) {
+    const nl = markdown.indexOf('\n', offset);
+    const lineEnd = nl < 0 ? total : nl;
+    const nextOffset = nl < 0 ? total : nl + 1;
+    const line = markdown.slice(offset, lineEnd);
+    const trimmed = line.trim();
+
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      // 围栏行本身就是一个块的起始行，必须记下来：否则「前一个块是代码围栏」
+      // 的判断会落空，切点就会紧贴围栏，而那样切出来的产物与整篇解析不一致。
+      if (atBlockStart) blockStartLine = line;
+      const marker = fenceMatch[1];
+      const markerChar = marker[0];
+      const markerLength = marker.length;
+      if (!fence) fence = { markerChar, markerLength };
+      else if (fence.markerChar === markerChar && markerLength >= fence.markerLength) fence = null;
+      candidateOffset = -1;
+      atBlockStart = false;
+    } else if (!fence) {
+      if (trimmed === '') {
+        if (candidateOffset < 0) {
+          candidateOffset = nextOffset;
+          candidatePrevBlockLine = blockStartLine;
+        }
+        atBlockStart = true;
+      } else {
+        if (candidateOffset > 0 && candidateOffset - lastCut >= minChunkChars) {
+          const prevSafe = !APPEND_UNSAFE_BLOCK_RE.test(candidatePrevBlockLine);
+          const nextSafe = !APPEND_UNSAFE_BLOCK_RE.test(line);
+          if (prevSafe && nextSafe) {
+            cuts.push(candidateOffset);
+            lastCut = candidateOffset;
+          }
+        }
+        blockStartLine = atBlockStart ? line : (blockStartLine || line);
+        candidateOffset = -1;
+        atBlockStart = false;
+      }
+    }
+
+    offset = nextOffset;
+  }
+
+  return cuts;
+};
+
+/**
  * Wrap top-level HTML blocks into ```html-block code fences so the markdown
  * parser keeps them verbatim, while enabling DOM post-processing to render
  * them as real HTML.

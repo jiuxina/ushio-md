@@ -22,6 +22,7 @@ import {
   stripGhostCodeLanguageMarkers,
   wrapHtmlBlocksInCodeFence,
   setKnownCodeLanguages,
+  findAppendSplitPoints,
 } from '../markdown-scans.mjs';
 import {
   decodeFileUriPath,
@@ -144,6 +145,85 @@ describe('路径与图片预处理等价（baseDirectory 由形参注入）', ()
 
   it('LOCAL_FILE_SCHEME 未变', () => {
     expect(LOCAL_FILE_SCHEME).toBe('ushio-local-file');
+  });
+});
+
+describe('findAppendSplitPoints（追加式渲染的切点）', () => {
+  const lineAt = (md, off) => md.slice(md.lastIndexOf('\n', off - 1) + 1, md.indexOf('\n', off) < 0 ? md.length : md.indexOf('\n', off));
+  const blankBefore = (md, off) => md.slice(md.lastIndexOf('\n', off - 2) + 1, off).trim() === '';
+
+  it('文档不够长时不切（回退整篇替换）', () => {
+    expect(findAppendSplitPoints('# 短\n\n正文\n', 40)).toEqual([]);
+    expect(findAppendSplitPoints('', 40)).toEqual([]);
+    expect(findAppendSplitPoints(null, 40)).toEqual([]);
+  });
+
+  it('切点都在空行之后、且彼此间隔不小于 minChunk', () => {
+    const md = Array.from({ length: 60 }, (_, i) => `段落 ${i} 内容够长可以撑满一个分片。\n\n`).join('');
+    const cuts = findAppendSplitPoints(md, 120);
+    expect(cuts.length).toBeGreaterThan(1);
+    let prev = 0;
+    for (const c of cuts) {
+      expect(blankBefore(md, c), `cut@${c} 前一行应是空行`).toBe(true);
+      expect(c - prev).toBeGreaterThanOrEqual(120);
+      prev = c;
+    }
+    for (let i = 1; i < cuts.length; i++) expect(cuts[i]).toBeGreaterThan(cuts[i - 1]);
+  });
+
+  it('绝不切进代码围栏内部（哪怕里面有空行和列表样子行）', () => {
+    const inner = Array.from({ length: 40 }, (_, i) => `- [ ] 围栏里的假列表 ${i}\n\n`).join('');
+    const md = `前段 ${'x'.repeat(200)}\n\n\`\`\`md\n${inner}\`\`\`\n\n后段 ${'y'.repeat(200)}\n\n`;
+    const cuts = findAppendSplitPoints(md, 120);
+    const fenceStart = md.indexOf('```');
+    const fenceEnd = md.lastIndexOf('```');
+    for (const c of cuts) {
+      expect(c < fenceStart || c > fenceEnd, `cut@${c} 落在围栏内`).toBe(true);
+    }
+  });
+
+  it('切点后第一行是列表项时不切（会把同一个松散列表拆成两个）', () => {
+    const prose = Array.from({ length: 20 }, (_, i) => `正文 ${i} ${'z'.repeat(20)}\n\n`).join('');
+    const md = `${prose}- 甲\n\n- 乙\n\n- 丙\n\n结尾 ${'e'.repeat(200)}\n\n`;
+    const listStart = md.indexOf('- 甲');
+    const cuts = findAppendSplitPoints(md, 120);
+    for (const c of cuts) {
+      if (c > listStart && c < md.indexOf('结尾')) {
+        expect(/^\s*(?:[-*+]|\d+[.)])\s/.test(lineAt(md, c)), `cut@${c} 后面是列表项`).toBe(false);
+      }
+    }
+  });
+
+  it('整篇只有一个大列表时不产生切点', () => {
+    const md = Array.from({ length: 200 }, (_, i) => `- 项 ${i} ${'q'.repeat(30)}\n\n`).join('');
+    expect(findAppendSplitPoints(md, 120)).toEqual([]);
+  });
+
+  it('切点紧邻代码围栏时不切（判据实测会让序列化多出空行）', () => {
+    let md = '';
+    for (let i = 1; i <= 200; i++) md += `\`\`\`js\nfunction f${i}() {\n  return ${i};\n}\n\`\`\`\n\n正文 ${i} ${'T'.repeat(60)}\n\n`;
+    const cuts = findAppendSplitPoints(md, 200);
+    for (const c of cuts) {
+      // 切点前的块与后的块都不能以围栏开头
+      const prevLineStart = md.lastIndexOf('\n', md.lastIndexOf('\n', c - 2) - 1) + 1;
+      expect(md.slice(c, c + 4).trimStart().startsWith('```')).toBe(false);
+      expect(md.slice(prevLineStart, prevLineStart + 4)).not.toBe('```j');
+    }
+    // 该语料里每个块边界都紧邻围栏，应当完全切不出来
+    expect(cuts).toEqual([]);
+  });
+
+  it('分片拼接后与原文完全一致（切点必须无缝）', () => {
+    const md = Array.from({ length: 80 }, (_, i) => (i % 7 === 0
+      ? `## 标题 ${i}\n\n\`\`\`js\nconst x=${i};\n\`\`\`\n\n`
+      : `段落 ${i} ${'w'.repeat(60)}\n\n`)).join('');
+    const cuts = findAppendSplitPoints(md, 200);
+    expect(cuts.length).toBeGreaterThan(0);
+    let rebuilt = '';
+    let prev = 0;
+    for (const c of cuts) { rebuilt += md.slice(prev, c); prev = c; }
+    rebuilt += md.slice(prev);
+    expect(rebuilt).toBe(md);
   });
 });
 

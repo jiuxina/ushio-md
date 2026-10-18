@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>Milkdown 追加式渲染判据</title>
+<style>
+  body { font: 14px/1.6 system-ui, sans-serif; margin: 24px; color: #17202a; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.hint { color: #5b6b7b; margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+  th, td { border: 1px solid #d5dde5; padding: 6px 10px; text-align: left; font-variant-numeric: tabular-nums; }
+  th { background: #f2f5f8; }
+  .pass { color: #14612e; font-weight: 600; }
+  .fail { color: #96141a; font-weight: 600; }
+  pre { background: #f7f9fb; border: 1px solid #e2e8ee; padding: 10px; overflow: auto; font-size: 12px; }
+  iframe { width: 900px; height: 320px; border: 1px solid #d5dde5; }
+  #status { font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>追加式渲染 vs 整篇解析 —— 产物一致性判据</h1>
+<p class="hint">
+  把同一份 markdown 分别用「整篇一次 replaceAll」和「按安全切点分片追加」灌进编辑器，
+  再序列化回来逐字节比对。任何差异都说明分片解析改变了文档结构，追加式就不能上线。
+  页面自动跑完并打印结果；iframe 是被测的 <code>/dist/index.html</code>。
+</p>
+<p id="status">准备中…</p>
+<div id="results"></div>
+<iframe id="editor" src="/dist/index.html" title="被测编辑器"></iframe>
+
+<script type="module">
+const statusEl = document.getElementById('status');
+const resultsEl = document.getElementById('results');
+const frame = document.getElementById('editor');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const shapes = {
+  '混合（松散列表/表格/引用/任务/HTML 块）': () => {
+    let md = '# 大文档\n\n';
+    for (let i = 1; i <= 400; i++) md += `## 章节 ${i}\n\n段落 ${i} [链](https://example.com/${i}) \`码\` 中文正文。\n\n`;
+    md += '松散开始\n\n';
+    for (let i = 1; i <= 120; i++) md += `- 项 ${i} ${'L'.repeat(200)}\n\n`;
+    md += '松散结束\n\n';
+    for (let i = 1; i <= 60; i++) md += `有序 ${i}\n\n`;
+    md += '1. 甲\n\n2. 乙\n\n3. 丙\n\n';
+    md += '```md\n内空行\n\n- 假\n\n# 题\n```\n\n';
+    for (let i = 1; i <= 40; i++) md += `| A | B |\n| --- | --- |\n| a${i} | b${i} |\n\n`;
+    for (let i = 1; i <= 60; i++) md += `> 引 ${i} ${'Q'.repeat(120)}\n\n`;
+    for (let i = 1; i <= 60; i++) md += `- [ ] 任 ${i}\n- [x] 完 ${i}\n\n`;
+    for (let i = 1; i <= 40; i++) md += `<div class="n${i}">\n<p>提示 ${i}</p>\n</div>\n\n`;
+    return md;
+  },
+  '嵌套列表与有序子项': () => {
+    let md = '# 嵌套列表\n\n';
+    for (let g = 1; g <= 400; g++) {
+      md += `- 父项 ${g} ${'P'.repeat(150)}\n`;
+      for (let k = 1; k <= 4; k++) md += `  - 子项 ${g}.${k}\n\n`;
+      md += `1. 有序父 ${g}\n   1. 内层 ${g}\n   2. 内层二 ${g}\n\n`;
+      if (g % 10 === 0) md += `列表之间的普通段落 ${g} ${'R'.repeat(200)}\n\n`;
+    }
+    return md;
+  },
+  '代码块为主（含 ~~~ 与围栏内空行）': () => {
+    let md = '# 代码为主\n\n';
+    for (let i = 1; i <= 400; i++) md += `\`\`\`js\nfunction f${i}() {\n  return ${i};\n}\n\n// 注释\n\`\`\`\n\n正文 ${i} ${'T'.repeat(120)}\n\n`;
+    for (let i = 1; i <= 120; i++) md += `~~~\n~~~ 内文本 ${i}\n\n正文 ${i} ${'U'.repeat(120)}\n\n`;
+    return md;
+  },
+};
+
+async function boot() {
+  for (let k = 0; k < 300; k++) {
+    const bridge = frame.contentWindow.__USHIO_BRIDGE__;
+    if (bridge?.onFlutterMessage) {
+      bridge.onFlutterMessage({
+        v: 1, source: 'flutter', target: 'web', type: 'init_doc',
+        payload: { markdown: '# 预热\n', readOnly: false, baseDirectory: '' },
+      });
+      for (let j = 0; j < 300; j++) {
+        if (frame.contentWindow.__USHIO_PERF__?.serialize?.()) return true;
+        await wait(100);
+      }
+    }
+    await wait(100);
+  }
+  return false;
+}
+
+async function runMode(win, md, threshold, append) {
+  const cap = [];
+  if (!win.__ORACLE_HOOKED__) {
+    win.__ORACLE_HOOKED__ = true;
+    const orig = win.console.log;
+    win.console.log = (...args) => {
+      for (const x of args) {
+        if (typeof x === 'string' && x.startsWith('USHIO_PERF ')) {
+          try { (win.__ORACLE_SAMPLES__ ||= []).push(JSON.parse(x.slice(11))); } catch (_) {}
+        }
+      }
+      return orig.apply(win.console, args);
+    };
+  }
+  win.__ORACLE_SAMPLES__ = cap;
+  const perf = win.__USHIO_PERF__;
+  perf.setAppendRender(append);
+  perf.setProgressiveThreshold(threshold);
+  const t0 = win.performance.now();
+  perf.setDoc(md);
+  let last = -1;
+  let stable = 0;
+  for (let k = 0; k < 600; k++) {
+    await wait(150);
+    const sd = cap.filter((s) => s.ev === 'setdoc');
+    const cur = sd.length ? sd[sd.length - 1].chars : -1;
+    if (cur === last && cur >= md.length - 5) { if (++stable >= 2) break; }
+    else { stable = 0; last = cur; }
+  }
+  const wallMs = Math.round(win.performance.now() - t0);
+  const sd = cap.filter((s) => s.ev === 'setdoc');
+  return {
+    steps: sd.length,
+    appendMode: sd.length ? sd[0].appendMode : null,
+    workMs: Math.round(sd.reduce((a, s) => a + (s.replaceAllMs || 0), 0)),
+    maxStepMs: sd.length ? Math.round(Math.max(...sd.map((s) => s.replaceAllMs || 0))) : 0,
+    wallMs,
+    serialized: perf.serialize(),
+  };
+}
+
+function firstDifference(a, b) {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return i;
+  return a.length === b.length ? -1 : n;
+}
+
+function render(name, r) {
+  const cls = r.identical ? 'pass' : 'fail';
+  return `<h3>${name}</h3>
+<table>
+<tr><th>结论</th><td class="${cls}">${r.identical ? '一致（追加式可上线）' : '不一致（追加式禁止上线）'}</td></tr>
+<tr><th>markdown 字符</th><td>${r.mdChars}</td></tr>
+<tr><th>整篇：序列化长度 / 步数 / 工作量 / 最大单步</th><td>${r.refLen} / ${r.ref.steps} / ${r.ref.workMs}ms / ${r.ref.maxStepMs}ms</td></tr>
+<tr><th>追加：序列化长度 / 步数 / 工作量 / 最大单步 / appendMode</th><td>${r.appLen} / ${r.app.steps} / ${r.app.workMs}ms / ${r.app.maxStepMs}ms / ${r.app.appendMode}</td></tr>
+<tr><th>首个差异偏移</th><td>${r.firstDiff}</td></tr>
+</table>
+${r.ctx ? `<pre>REF: ${JSON.stringify(r.ctx.REF)}\nAPP: ${JSON.stringify(r.ctx.APP)}</pre>` : ''}`;
+}
+
+(async () => {
+  statusEl.textContent = '等待编辑器就绪…';
+  if (!(await boot())) { statusEl.textContent = '编辑器未能就绪，判据未执行'; return; }
+  const win = frame.contentWindow;
+  const out = [];
+  for (const [name, build] of Object.entries(shapes)) {
+    statusEl.textContent = `跑：${name}`;
+    const md = build();
+    const ref = await runMode(win, md, 1e9, false);
+    const app = await runMode(win, md, 0, true);
+    const identical = ref.serialized === app.serialized;
+    const fd = identical ? -1 : firstDifference(ref.serialized, app.serialized);
+    out.push({
+      name, identical, mdChars: md.length,
+      refLen: ref.serialized.length, appLen: app.serialized.length,
+      ref, app, firstDiff: fd,
+      ctx: fd < 0 ? null : {
+        REF: ref.serialized.slice(Math.max(0, fd - 100), fd + 100),
+        APP: app.serialized.slice(Math.max(0, fd - 100), fd + 100),
+      },
+    });
+  }
+  const allPass = out.every((r) => r.identical);
+  const appendActuallyRan = out.every((r) => r.app.appendMode === 1);
+  statusEl.innerHTML = `${allPass ? '<span class="pass">全部一致</span>' : '<span class="fail">存在差异</span>'}`
+    + ` · 追加模式确实生效：<span class="${appendActuallyRan ? 'pass' : 'fail'}">${appendActuallyRan ? '是' : '否（说明切点没被用上，判据无效）'}</span>`;
+  resultsEl.innerHTML = out.map((r) => render(r.name, r)).join('');
+  document.title = `oracle ${allPass && appendActuallyRan ? 'PASS' : 'FAIL'}`;
+})();
+</script>
+</body>
+</html>
