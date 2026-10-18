@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>冷路径 sync 基准</title>
+<style>
+  body { font: 13px/1.55 system-ui, sans-serif; margin: 22px; color: #17202a; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  p.hint { color: #5b6b7b; margin: 0 0 14px; max-width: 940px; }
+  table { border-collapse: collapse; margin: 10px 0; }
+  th, td { border: 1px solid #d5dde5; padding: 5px 10px; font-variant-numeric: tabular-nums; }
+  th { background: #f2f5f8; }
+  .sum { font-weight: 600; }
+  iframe { width: 880px; height: 260px; border: 1px solid #d5dde5; }
+</style>
+</head>
+<body>
+<h1>冷路径 sync 基准 —— 每次全新加载编辑器，只量第一次 <code>syncRenderedDom</code></h1>
+<p class="hint">
+  上一轮的教训：桌面「连续第三次 sync」是热路径（幂等守卫全命中，什么都不写），真机上用户碰到的是
+  文档载入后的第一次 sync。所以本页面每轮都重建 iframe、重新解析 bundle、重新灌同一份文档，
+  然后<strong>只测第一次 sync 的耗时</strong>，跑 N 次报全部样本与中位数。
+  用 <code>?src=</code> 指定被测产物，便于对同一份代码改动做改前/改后对比。
+</p>
+<p class="sum" id="sum">准备中…</p>
+<div id="out"></div>
+<div id="stage"></div>
+
+<script type="module">
+const N = Number(new URLSearchParams(location.search).get('n') || 5);
+const SRC = new URLSearchParams(location.search).get('src') || '/dist/index.html';
+const DOC_CHARS = Number(new URLSearchParams(location.search).get('chars') || 50000);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+document.querySelector('h1').insertAdjacentHTML('afterend', `<p>被测产物：<code>${SRC}</code> · N=${N} · 目标文档 ${DOC_CHARS} 字符</p>`);
+
+const buildDoc = (target) => {
+  let md = '# 冷路径基准文档\n\n';
+  let i = 0;
+  while (md.length < target) {
+    i += 1;
+    md += `## 章节 ${i} 标题\n\n段落 ${i} 带 [链接](https://example.com/${i}) 与 \`代码\`，再加一些中文正文用来把文档撑到目标长度。\n\n`;
+    if (i % 5 === 0) md += `![图 ${i}](pic${i}.png)\n\n`;
+    if (i % 7 === 0) md += '```js\nconst x = ' + i + ';\n```\n\n';
+    if (i % 11 === 0) md += `<div class="note${i}">\n<p>提示 ${i}</p>\n<table><tr><td>a</td><td>b</td></tr></table>\n</div>\n\n`;
+    if (i % 3 === 0) md += `- [ ] 任务 ${i}\n- [x] 完成 ${i}\n\n`;
+  }
+  return md;
+};
+
+const md = buildDoc(DOC_CHARS);
+
+async function oneIteration(iter) {
+  const stage = document.getElementById('stage');
+  stage.innerHTML = '';
+  const frame = document.createElement('iframe');
+  frame.src = SRC;
+  frame.style.cssText = 'width:880px;height:260px;border:1px solid #d5dde5';
+  stage.appendChild(frame);
+  const win = frame.contentWindow;
+  for (let k = 0; k < 600; k++) {
+    if (win.__USHIO_BRIDGE__?.onFlutterMessage && win.__USHIO_PERF__?.sync) break;
+    await wait(100);
+  }
+  if (!win.__USHIO_BRIDGE__?.onFlutterMessage) return { error: 'bridge 未出现' };
+  win.__USHIO_BRIDGE__.onFlutterMessage({
+    v: 1, source: 'flutter', target: 'web', type: 'init_doc',
+    payload: { markdown: md, readOnly: false, baseDirectory: '' },
+  });
+  for (let k = 0; k < 900; k++) {
+    if (win.__USHIO_PERF__.serialize?.()) break;
+    await wait(100);
+  }
+  if (!win.__USHIO_PERF__.serialize?.()) return { error: '文档未载入' };
+  const root = win.document.querySelector('.ProseMirror');
+  const blocks = root ? root.childElementCount : -1;
+  const coldSyncMs = win.__USHIO_PERF__.sync();      // 第一次 = 冷路径
+  const warmSyncMs = win.__USHIO_PERF__.sync();      // 第二次 = 热路径，作对照
+  frame.remove();
+  return { coldSyncMs, warmSyncMs, blocks, chars: md.length };
+}
+
+(async () => {
+  const rows = [];
+  for (let i = 0; i < N; i++) {
+    document.getElementById('sum').textContent = `第 ${i + 1}/${N} 轮…`;
+    rows.push(await oneIteration(i));
+    const done = rows.filter((r) => !r.error).length;
+    document.getElementById('sum').textContent = `已完成 ${done}/${N}（被测 ${SRC}）`;
+  }
+  const ok = rows.filter((r) => !r.error);
+  const med = (arr) => { const a = arr.slice().sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
+  const colds = ok.map((r) => r.coldSyncMs);
+  const warms = ok.map((r) => r.warmSyncMs);
+  document.getElementById('out').innerHTML = `<table>
+    <tr><th>轮</th><th>冷 sync (ms)</th><th>热 sync (ms)</th><th>顶层块</th></tr>
+    ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${r.error ? r.error : r.coldSyncMs}</td><td>${r.error ? '—' : r.warmSyncMs}</td><td>${r.error ? '—' : r.blocks}</td></tr>`).join('')}
+    <tr><th>中位数</th><th>${med(colds)}</th><th>${med(warms)}</th><th>${ok[0]?.blocks ?? '—'}</th></tr>
+  </table>`;
+  document.getElementById('sum').textContent = `${SRC} · 冷路径中位数 ${med(colds)}ms · 样本 ${colds.join(' / ')}`;
+  document.title = `coldpath ${med(colds)}`;
+})();
+</script>
+</body>
+</html>
