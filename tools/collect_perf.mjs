@@ -20,7 +20,7 @@ const ADB = process.env.ADB || path.join(
 );
 
 const args = (() => {
-  const out = { keys: 0, gap: 60, adb: null, parse: null, file: null, tag: '' };
+  const out = { keys: 0, gap: 60, adb: null, parse: null, file: null, tag: '', minChars: 0 };
   const a = process.argv.slice(2);
   for (let i = 0; i < a.length; i++) {
     const k = a[i];
@@ -30,6 +30,9 @@ const args = (() => {
     else if (k === '--parse') out.parse = a[++i];
     else if (k === '--out') out.file = a[++i];
     else if (k === '--tag') out.tag = a[++i];
+    // 冷启动采样里会混进预热 WebView 的 4 字符空文档样本，必须能按规模过滤，
+    // 否则 P50 会被空文档拉低，得出「很快」的假结论。
+    else if (k === '--min-chars') out.minChars = Number(a[++i]) || 0;
   }
   return out;
 })();
@@ -155,7 +158,20 @@ function yieldSleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-const samples = parseLog(text);
+const sizeOf = (s) => (typeof s.chars === 'number' ? s.chars
+  : (typeof s.fullChars === 'number' ? s.fullChars : null));
+
+let samples = parseLog(text);
+// 冷启动采样会混进预热 WebView 的 4 字符空文档样本；不按规模过滤的话 P50 会被
+// 空文档拉低，得出「很快」的假结论。
+if (args.minChars > 0) {
+  const before = samples.length;
+  samples = samples.filter((s) => {
+    const size = sizeOf(s);
+    return size === null ? true : size >= args.minChars;
+  });
+  console.log(`按 --min-chars ${args.minChars} 过滤：${before} -> ${samples.length} 条样本`);
+}
 if (args.file) fs.writeFileSync(args.file, text, 'utf8');
 if (!samples.length) {
   console.error('没解析到任何 USHIO_PERF 样本。检查：profile 包是否装上、编辑器是否开着、logcat 标签是否含 flutter/chromium。');
