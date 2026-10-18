@@ -2521,12 +2521,15 @@ const showContextMenuAt = (clientX, clientY, target) => {
   contextMenuElement.style.top = `${top}px`;
 };
 
+// 真机实测：全量 querySelectorAll 清属性在 1359 块的文档上每次收尾要 204.7ms，
+// 而这个标记同一时刻只可能有一个元素。改成记住上一次标记的那个节点。
+let activeHintElement = null;
+
 const clearActiveMarkdownHints = () => {
-  const root = app.querySelector('.milkdown .ProseMirror') || app.querySelector('.ProseMirror');
-  if (!root) return;
-  root.querySelectorAll('[data-ushio-active-node="true"]').forEach((node) => {
-    node.removeAttribute('data-ushio-active-node');
-  });
+  if (!activeHintElement) return;
+  // 节点可能已被 ProseMirror 重建，对已脱离文档的节点 removeAttribute 无害。
+  activeHintElement.removeAttribute('data-ushio-active-node');
+  activeHintElement = null;
 };
 
 let editorFocusState = false;
@@ -2550,6 +2553,7 @@ const updateActiveMarkdownHints = () => {
   const active = anchorElement?.closest?.('h1, h2, h3, h4, h5, h6, blockquote, li, pre');
   if (active) {
     active.setAttribute('data-ushio-active-node', 'true');
+    activeHintElement = active;
   }
 };
 
@@ -3984,6 +3988,10 @@ window.__USHIO_PERF__ = {
     return PROGRESSIVE_RENDER_THRESHOLD_CHARS;
   },
   appendRenderEnabled: () => appendRenderEnabled,
+  // 判据页（tools/dom-oracle.html）需要的真实入口：
+  // 走产品自己的命令通道与追加分片，而不是在测试页里直接改 DOM。
+  execCmd: (cmd, args) => executeCommand(cmd, args || {}),
+  appendRaw: (markdown) => appendMarkdownChunk(markdown),
   serialize: () => (editorInstance
     ? editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc))
     : ''),
