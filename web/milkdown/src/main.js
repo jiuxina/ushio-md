@@ -893,6 +893,51 @@ const renderRawHtmlNodes = (root) => {
  * 3. Overlay items are positioned absolutely over the hidden code blocks
  */
 let htmlBlockHideStyleInjected = false;
+let codeBlockUiStyleInjected = false;
+// 与 injectHtmlBlockHideStyle 的选择器一一对应，取反即「非 html-block 代码块」。
+const NOT_HTML_BLOCK = [
+  ':not([data-ushio-html-block="1"])',
+  ':not(.ushio-html-block-target)',
+  ':not(:has(pre[data-language="html-block"]))',
+  ':not(:has(code[data-language="html-block"]))',
+  ':not(:has(.tools [data-language="html-block"]))',
+].join('');
+
+const injectCodeBlockUiStyle = () => {
+  if (codeBlockUiStyleInjected) return;
+  const style = document.createElement('style');
+  style.id = 'ushio-code-block-ui';
+  const block = `.milkdown .milkdown-code-block${NOT_HTML_BLOCK}`;
+  style.textContent = `
+    ${block} {
+      display: block !important;
+      position: relative !important;
+      overflow: visible !important;
+      padding-top: 8px !important;
+    }
+    ${block} .tools {
+      position: absolute !important;
+      left: auto !important;
+      right: 8px !important;
+      top: 8px !important;
+      bottom: auto !important;
+      transform: none !important;
+    }
+    ${block} .language-picker {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    ${block} .tools .language-button {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  codeBlockUiStyleInjected = true;
+};
 let htmlOverlayContainer = null;
 const htmlOverlayContentCache = new Map(); // blockIndex -> contentHash
 
@@ -1594,6 +1639,7 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
 
 
 const syncRenderedDom = () => {
+  injectCodeBlockUiStyle();
   const root = app.querySelector('.milkdown') || app;
   renderRawHtmlNodes(root);
   renderBlockHtmlGroups(root);
@@ -1807,35 +1853,10 @@ const syncRenderedDom = () => {
       return;
     }
 
-    // Style non-html-block code blocks for custom UI (tools positioning, etc.)
-    setImportantStyleIfNeeded(block, 'display', 'block');
-    setImportantStyleIfNeeded(block, 'position', 'relative');
-    setImportantStyleIfNeeded(block, 'overflow', 'visible');
-    setImportantStyleIfNeeded(block, 'padding-top', '8px');
-
+    // 这些块的 UI 样式已搬进 ushio-code-block-ui 持久样式表（见 injectCodeBlockUiStyle）。
+    // 旧实现在这里逐块写 17 条 !important，冷路径上每个代码块都要碰 CSSOM。
     const tools = block.querySelector(':scope > .tools, .tools');
     if (!(tools instanceof HTMLElement)) return;
-    setImportantStyleIfNeeded(tools, 'position', 'absolute');
-    setImportantStyleIfNeeded(tools, 'left', 'auto');
-    setImportantStyleIfNeeded(tools, 'right', '8px');
-    setImportantStyleIfNeeded(tools, 'top', '8px');
-    setImportantStyleIfNeeded(tools, 'bottom', 'auto');
-    setImportantStyleIfNeeded(tools, 'transform', 'none');
-
-    const nativePicker = block.querySelector('.language-picker');
-    if (nativePicker instanceof HTMLElement) {
-      setImportantStyleIfNeeded(nativePicker, 'display', 'none');
-      setImportantStyleIfNeeded(nativePicker, 'visibility', 'hidden');
-      setImportantStyleIfNeeded(nativePicker, 'opacity', '0');
-      setImportantStyleIfNeeded(nativePicker, 'pointer-events', 'none');
-    }
-
-    const nativeLanguageButton = block.querySelector('.tools .language-button');
-    if (nativeLanguageButton instanceof HTMLElement) {
-      setImportantStyleIfNeeded(nativeLanguageButton, 'display', 'none');
-      setImportantStyleIfNeeded(nativeLanguageButton, 'visibility', 'hidden');
-      setImportantStyleIfNeeded(nativeLanguageButton, 'pointer-events', 'none');
-    }
 
     const languageButton = ensureCustomLanguageTrigger(tools);
     if (!(languageButton instanceof HTMLElement)) return;
