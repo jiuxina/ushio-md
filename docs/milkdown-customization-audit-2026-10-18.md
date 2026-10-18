@@ -140,6 +140,25 @@
 代价：`syncRenderedDom` 每帧三趟全 DOM 查询（`renderRawHtmlNodes` / `renderBlockHtmlGroups` / `renderHtmlBlockCodeNodes`，`:1956-1958`）。
 这解释了 HTML 块相关缺陷为什么修不掉——**它已经不在 ProseMirror 的模型里，撤销、选区、协同全部覆盖不到**。
 
+#### 实测到的具体失效（2026-10-18，桌面 Chromium，50K 字符含 48 个 HTML 块）
+
+对同一文档连续调用渲染收尾并比对 DOM 指纹，抓到反馈环本身：
+
+```
+第 N 次与第 N+1 次的差异（仅 style 不同，位置逐块放大）：
+  data-html-block-index=0   top 9474.25px -> 9482.25px   (+8)
+  data-html-block-index=1   top 20025px   -> 20049px     (+24)
+  data-html-block-index=2   top 30244.8px -> 30276.8px   (+32)
+  data-html-block-index=3   top 40809.7px -> 40857.7px   (+48)
+  data-html-block-index=4   top 51306.2px -> 51362.2px   (+56)
+  data-html-block-index=5   top 61623.5px -> 61695.5px   (+72)
+且所有 overlay 项 width = 2px
+```
+
+机制：`renderHtmlBlockCodeNodes` 先量伪块矩形定位 overlay，再读 overlay 的 `offsetHeight` 用 `!important` 回写伪块高度占位；下一趟量到的是**被自己改过的高度**，于是每次收尾都把所有 overlay 往下推一段，且**按文档位置逐级放大**（第 6 个块已偏 72px）。宽度 2px 说明隐藏后的伪块矩形本身不可信。
+
+这不是「偶发错位」，而是**每次打字停顿都会重放一遍的确定性发散过程**——也正是 `ISSUE_FIX_VERIFICATION_2026_10_16.md:171` 记录的「overlay 偏差从 16 放大到 72」的根因（数值都对上了）。修法是切断反馈：占位高度只在 `contentHash` 变化时写，位置一律从不被回写的容器几何推导（Phase 5）。
+
 ### 4.3 状态机打架
 
 - **三重回环抑制标志并存**：`suppressNextReload` token（TTL 2000ms，`editor.dart:521/1418-1426/2087`）+ JS 侧 `isApplyingFromFlutter`（`main.js:98/2372/2971/2983`）+ Dart 侧 `_isApplyingHistory`（`editor_screen.dart:73/2094`）+ `_lastSyncedMarkdown`（`:511/1427`）。
