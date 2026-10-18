@@ -1935,9 +1935,23 @@ const cancelProgressiveRender = () => {
 
 const emitFirstRenderReady = () => {
   requestAnimationFrame(() => {
+    const s0 = perfNow();
     syncRenderedDom();
+    const s1 = perfNow();
     updateActiveMarkdownHints();
+    const s2 = perfNow();
     emit('on_render_complete', {});
+    const s3 = perfNow();
+    // 渐进渲染的收尾走这条路径而不是 notifyRenderComplete，之前没有样本，
+    // 导致「大文档到底有没有渲染完」在数据上不可见。
+    perfRecordSettle({
+      syncMs: s1 - s0,
+      hintMs: s2 - s1,
+      outlineMs: 0,
+      historyMs: 0,
+      settleTotalMs: s3 - s0,
+      firstPaint: 1,
+    }, perfSizes());
   });
 };
 

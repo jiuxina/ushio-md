@@ -162,6 +162,23 @@ swiftshader AVD 的渲染比真机慢 2–3×，但 `create()`/`syncRenderedDom`
 
 顺带查明：**`input[type="checkbox"]` 数量为 0**，而列表项块有 352 个——Crepe 的 `list-item-block` nodeView 用的是 `.label-wrapper`，所以 `syncRenderedDom` 里给 checkbox 写 `checkboxIndex` 的那段与 `emitCheckboxToggle` 主路径对任务列表根本不生效（点击走的是另一分支）。Phase 3 处置「下标假设 #5」时按此调整。
 
+### 5.5 渐进渲染的设备级证据（2026-10-18，500K 字符，改造后）
+
+冷启动恢复 500,073 字符文档（>512KB 阈值，走渐进渲染），logcat 采到的 `chain` 前缀规模：
+
+```
+6,277 → 31,261 → 64,556 → 131,146 → 264,133 字符
+（顶层块 155 → 747 → 1532 → 3086 → 6111，t=9.2s → 95.5s 仍未跑完）
+```
+
+`renderStep` 的步长是 `max(cursor + 2048, cursor * 2 + 2048)`，即**每步都 `replaceAll(从头到 cursor 的前缀)`**，把已经建好的整棵树推倒重建。到 500K 需要 5+ 次全量重刷、累计解析量约为全文的 2 倍，且最后几步单步就要重刷 6000+ 块。这是「改追加式」的直接依据（Phase 2 新增项）。
+
+同批样本里字符串链仍然很便宜：`chain` p50 = 11.6ms、p95 = 40.2ms（`stripGhost` 3.6 / `wrapHtml` 2.4 / `preprocessImg` 2.6 中位数），`code_sanitized` 命中 0/5 —— 说明**整篇 `replaceAll` 反馈环在这份语料上没有触发**，Phase 2 的第 1 项（杀 `code_sanitized`）优先级应让位于「渐进渲染/切档改追加式」。
+
+**探针缺口（已修）**：`settle` 只由 `notifyRenderComplete` 采样，而渐进渲染的首帧走 `emitFirstRenderReady`，因此「0 次 settle」当时**不能**推出「遮罩清不掉」——那是测量盲区，不是结论。已给 `emitFirstRenderReady` 补上同一份收尾采样（带 `firstPaint:1` 标记）。
+
+本轮未复测的项：50K 字符（S 档）改造后的 `syncMs` 设备值——冷启动总是恢复到上次的 L 文档，未能把编辑器稳定停在 S 文档上。桌面侧的对应数据是稳态 142.7ms → 19.5ms（§5.4）。
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。
