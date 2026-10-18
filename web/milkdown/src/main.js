@@ -3996,6 +3996,29 @@ window.__USHIO_PERF__ = {
   // 走产品自己的命令通道与追加分片，而不是在测试页里直接改 DOM。
   execCmd: (cmd, args) => executeCommand(cmd, args || {}),
   appendRaw: (markdown) => appendMarkdownChunk(markdown),
+  // 判据需要「删掉文档中间某个 HTML 块」这一步：伪块外层是 contenteditable=false，
+  // document.execCommand('delete') 进不去，所以走产品自己的状态层派发真实 tr.delete。
+  deleteNthHtmlBlock: (n) => {
+    if (!editorInstance) return false;
+    return editorInstance.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      let k = -1;
+      let found = null;
+      view.state.doc.descendants((node, pos) => {
+        if (found) return false;
+        if (node.type.name === 'code_block'
+          && String(node.attrs?.language || '').toLowerCase() === 'html-block') {
+          k += 1;
+          if (k === n) found = { pos, size: node.nodeSize };
+          return false;
+        }
+        return true;
+      });
+      if (!found) return false;
+      view.dispatch(view.state.tr.delete(found.pos, found.pos + found.size));
+      return true;
+    });
+  },
   serialize: () => (editorInstance
     ? editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc))
     : ''),

@@ -46,7 +46,7 @@ const seed = (() => {
     md += `## 节 ${i}\n\n正文 ${i} ${'P'.repeat(120)}\n\n`;
     // 让「渲染高 ≫ 源码高」：单行长文本折成多行，而被隐藏的伪块只占一两行——
     // 这正是占位高算错会累积暴露的条件。
-    md += `<div class="card${i}">\n<p>${'这是一段会被折行成很多行的中文内容，用来制造渲染高与源码高的差异。'.repeat(12)}</p>\n</div>\n\n`;
+    md += `<div class="card${i}">\n<p>卡片${i}唯一标记</p>\n<p>${'这是一段会被折行成很多行的中文内容，用来制造渲染高与源码高的差异。'.repeat(12)}</p>\n</div>\n\n`;
   }
   return md;
 })();
@@ -89,7 +89,7 @@ function snapshot(win) {
       return {
         idx: el.getAttribute('data-html-block-index'),
         token: el.__oracleToken,
-        text: (el.textContent || '').slice(0, 24),
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 24),
         top: Math.round(r.top * 100) / 100,
         left: Math.round(r.left * 100) / 100,
         width: Math.round(r.width * 100) / 100,
@@ -156,6 +156,21 @@ const offBy = (list) => (list.length
   const moved = after.items.filter((it, i) => last.items[i] && Math.abs(it.top - last.items[i].top) > 20).length;
   const textMismatch = after.items.filter((it, i) => last.items[i] && last.items[i].text !== it.text).length;
 
+  // ---- D：删掉中间那个 HTML 块，看剩下的 overlay 是否错位 ----
+  // 走产品状态层的 tr.delete（伪块外层 contenteditable=false，execCommand 进不去）
+  const target = win.__USHIO_PERF__.deleteNthHtmlBlock
+    ? win.__USHIO_PERF__.deleteNthHtmlBlock(1)
+    : (() => { throw new Error('缺 deleteNthHtmlBlock 诊断入口，D 组判据未执行'); })();
+  const deleted = Boolean(target);
+  win.__USHIO_PERF__.sync();
+  const afterDelete = snapshot(win);
+  const expectMarks = [1, 3, 4, 5, 6].map((n) => `卡片${n}唯一标记`);
+  const gotMarks = afterDelete.items.map((it) => (it.text || '').slice(0, 12));
+  const misAssigned = afterDelete.count === expectMarks.length
+    ? expectMarks.filter((m, i) => !(gotMarks[i] || '').startsWith(m.slice(0, 6))).length
+    : -1;
+  const notGluedAfterDelete = afterDelete.items.filter((it) => it.blockTop === null || Math.abs(it.top - it.blockTop) > 2);
+
   const checks = [
     { name: 'A 收敛：逐趟几何与节点身份不变', ok: drift.length === 0, detail: drift.length ? `${drift.length} 处逐趟变化` : `${PASSES} 趟一致` },
     { name: 'B1 占位高 == 渲染高', ok: heightMismatch.length === 0, detail: heightMismatch.length ? heightMismatch.map((x) => `${x.blockHeight}/${x.height}`).slice(0, 3).join(' ') : `一致（${last.items[0]?.blockHeight}/${last.items[0]?.height}）` },
@@ -163,6 +178,9 @@ const offBy = (list) => (list.length
     { name: 'C1 改前后 overlay 都贴着自己的块', ok: gluedBefore.length === 0 && notGlued.length === 0, detail: gluedBefore.length ? `改前 ${gluedBefore.length} 个偏离（最大 ${offBy(gluedBefore)}px）` : (notGlued.length ? `改后 ${notGlued.length} 个偏离（最大 ${offBy(notGlued)}px）` : `全部贴合；${moved}/${after.count} 个已随版面下移`) },
     { name: 'C2 内容未变的 overlay 不被整块重建', ok: rebuilt === 0, detail: `重建 ${rebuilt}/${after.count} 个` },
     { name: 'C3 overlay 文本不错位', ok: textMismatch === 0, detail: textMismatch ? `${textMismatch} 个文本变化` : '逐项一致' },
+    { name: 'D1 删掉中间块后 overlay 数量正确', ok: deleted && afterDelete.count === BLOCKS - 1, detail: `删除${deleted ? '成功' : '失败'}；期望 ${BLOCKS - 1} 个，实际 ${afterDelete.count} 个（伪块 ${afterDelete.blockCount} 个）` },
+    { name: 'D2 删掉中间块后内容不错位', ok: misAssigned === 0, detail: misAssigned === -1 ? `数量就不对，无法逐位比对：${gotMarks.join('|')}` : `顺序正确 ${gotMarks.join(' ')}` },
+    { name: 'D3 删掉中间块后仍贴着自己的块', ok: notGluedAfterDelete.length === 0, detail: notGluedAfterDelete.length ? `${notGluedAfterDelete.length} 个偏离（最大 ${offBy(notGluedAfterDelete)}px）` : '全部贴合' },
   ];
   const allOk = checks.every((c) => c.ok) && inserted;
 
