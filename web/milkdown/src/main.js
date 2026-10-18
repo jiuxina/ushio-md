@@ -1414,31 +1414,37 @@ const ensureCustomLanguageTrigger = (tools) => {
   return input;
 };
 
-const resolveCodeBlockLanguage = (codeBlock, fallback = '') => {
+/**
+ * 一次文档走查取全部 code_block 的语言（文档序）。
+ * 旧实现对每个代码块都跑一次 editorInstance.action + view.posAtDOM + doc.resolve，
+ * 等于把 O(代码块数) 次 ProseMirror 反查塞进渲染收尾里。
+ */
+const collectDocCodeLanguages = () => {
+  if (!editorInstance) return null;
+  try {
+    return editorInstance.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const languages = [];
+      const walk = (node) => {
+        if (node.type.name === 'code_block') {
+          languages.push(typeof node.attrs?.language === 'string' ? node.attrs.language : '');
+          return;
+        }
+        node.forEach((child) => walk(child));
+      };
+      view.state.doc.forEach((child) => walk(child));
+      return languages;
+    });
+  } catch (_) {
+    return null;
+  }
+};
+
+const resolveCodeBlockLanguage = (codeBlock, docLanguage = '', fallback = '') => {
   if (!(codeBlock instanceof HTMLElement)) return '';
 
-  if (editorInstance) {
-    let stateLanguage = '';
-    editorInstance.action((ctx) => {
-      const view = ctx.get(editorViewCtx);
-      const { state } = view;
-      let codeBlockPos = null;
-      const anchorDom = codeBlock.querySelector('.cm-content') || codeBlock.querySelector('.cm-editor') || codeBlock;
-      try {
-        const domPos = view.posAtDOM(anchorDom, 0);
-        codeBlockPos = findCodeBlockPosAtSelection(state, domPos);
-      } catch (_) {
-        codeBlockPos = null;
-      }
-      if (codeBlockPos == null) return;
-      const node = state.doc.nodeAt(codeBlockPos);
-      const rawLanguage = typeof node?.attrs?.language === 'string' ? node.attrs.language : '';
-      stateLanguage = normalizeCodeLanguage(rawLanguage);
-    });
-    if (!isPlainTextLanguage(stateLanguage)) {
-      return stateLanguage;
-    }
-  }
+  const docLang = normalizeCodeLanguage(docLanguage);
+  if (!isPlainTextLanguage(docLang)) return docLang;
 
   const preLanguage = normalizeCodeLanguage(codeBlock.querySelector('pre')?.getAttribute('data-language') || '');
   if (!isPlainTextLanguage(preLanguage)) {
@@ -1769,18 +1775,16 @@ const syncRenderedDom = () => {
   });
 
   const fenceLanguages = collectFenceLanguages(currentMarkdown);
+  const docCodeLanguages = collectDocCodeLanguages();
 
-  // Debug: Log code block matching info for troubleshooting
+  // 不变量改成「DOM 代码块数 == 文档 code_block 数」（两者同为文档序）。
+  // 旧实现拿 markdown 围栏数来比，内联代码与嵌套场景下会假报警。
   const domCodeBlocks = root.querySelectorAll('.milkdown-code-block');
-  if (domCodeBlocks.length !== fenceLanguages.length) {
+  if (docCodeLanguages && domCodeBlocks.length !== docCodeLanguages.length) {
     console.warn('[syncRenderedDom] Code block count mismatch:', {
       domCount: domCodeBlocks.length,
-      markdownCount: fenceLanguages.length,
-      markdownLanguages: fenceLanguages,
-      domLanguages: Array.from(domCodeBlocks).map((block, i) => ({
-        index: i,
-        language: block.querySelector('.language-button')?.dataset?.language || 'unknown',
-      })),
+      docCount: docCodeLanguages.length,
+      markdownFenceCount: fenceLanguages.length,
     });
   }
 
@@ -1794,33 +1798,33 @@ const syncRenderedDom = () => {
     }
 
     // Style non-html-block code blocks for custom UI (tools positioning, etc.)
-    block.style.setProperty('display', 'block', 'important');
-    block.style.setProperty('position', 'relative', 'important');
-    block.style.setProperty('overflow', 'visible', 'important');
-    block.style.setProperty('padding-top', '8px', 'important');
+    setImportantStyleIfNeeded(block, 'display', 'block');
+    setImportantStyleIfNeeded(block, 'position', 'relative');
+    setImportantStyleIfNeeded(block, 'overflow', 'visible');
+    setImportantStyleIfNeeded(block, 'padding-top', '8px');
 
     const tools = block.querySelector(':scope > .tools, .tools');
     if (!(tools instanceof HTMLElement)) return;
-    tools.style.setProperty('position', 'absolute', 'important');
-    tools.style.setProperty('left', 'auto', 'important');
-    tools.style.setProperty('right', '8px', 'important');
-    tools.style.setProperty('top', '8px', 'important');
-    tools.style.setProperty('bottom', 'auto', 'important');
-    tools.style.setProperty('transform', 'none', 'important');
+    setImportantStyleIfNeeded(tools, 'position', 'absolute');
+    setImportantStyleIfNeeded(tools, 'left', 'auto');
+    setImportantStyleIfNeeded(tools, 'right', '8px');
+    setImportantStyleIfNeeded(tools, 'top', '8px');
+    setImportantStyleIfNeeded(tools, 'bottom', 'auto');
+    setImportantStyleIfNeeded(tools, 'transform', 'none');
 
     const nativePicker = block.querySelector('.language-picker');
     if (nativePicker instanceof HTMLElement) {
-      nativePicker.style.setProperty('display', 'none', 'important');
-      nativePicker.style.setProperty('visibility', 'hidden', 'important');
-      nativePicker.style.setProperty('opacity', '0', 'important');
-      nativePicker.style.setProperty('pointer-events', 'none', 'important');
+      setImportantStyleIfNeeded(nativePicker, 'display', 'none');
+      setImportantStyleIfNeeded(nativePicker, 'visibility', 'hidden');
+      setImportantStyleIfNeeded(nativePicker, 'opacity', '0');
+      setImportantStyleIfNeeded(nativePicker, 'pointer-events', 'none');
     }
 
     const nativeLanguageButton = block.querySelector('.tools .language-button');
     if (nativeLanguageButton instanceof HTMLElement) {
-      nativeLanguageButton.style.setProperty('display', 'none', 'important');
-      nativeLanguageButton.style.setProperty('visibility', 'hidden', 'important');
-      nativeLanguageButton.style.setProperty('pointer-events', 'none', 'important');
+      setImportantStyleIfNeeded(nativeLanguageButton, 'display', 'none');
+      setImportantStyleIfNeeded(nativeLanguageButton, 'visibility', 'hidden');
+      setImportantStyleIfNeeded(nativeLanguageButton, 'pointer-events', 'none');
     }
 
     const languageButton = ensureCustomLanguageTrigger(tools);
@@ -1831,6 +1835,7 @@ const syncRenderedDom = () => {
 
     const currentLanguage = resolveCodeBlockLanguage(
       block,
+      (docCodeLanguages && docCodeLanguages[codeBlockIndex]) || '',
       languageButton.dataset.language || resolveFallbackLanguageFromBlock(block) || fenceLanguages[codeBlockIndex] || '',
     );
     const cacheKey = buildCodeLanguageCacheKey(block, codeBlockIndex);
@@ -3877,7 +3882,26 @@ const onFlutterMessage = (message) => {
   }
 };
 
-window.__USHIO_PERF__ = { dump: perfDump, snapshot: perfSnapshot, setEnabled: perfSetEnabled };
+window.__USHIO_PERF__ = {
+  dump: perfDump,
+  snapshot: perfSnapshot,
+  setEnabled: perfSetEnabled,
+  // 诊断入口：syncRenderedDom 是同步的，隐藏标签里 rAF 不触发时也能手动跑一次，
+  // 用于「DOM 指纹一致 + 更快」的重构验证闭环。
+  sync: () => {
+    const t0 = perfNow();
+    syncRenderedDom();
+    return Math.round((perfNow() - t0) * 100) / 100;
+  },
+  syncWithOutline: () => {
+    const t0 = perfNow();
+    syncRenderedDom();
+    updateActiveMarkdownHints();
+    emitOutlineUpdate();
+    return Math.round((perfNow() - t0) * 100) / 100;
+  },
+  setDoc: (markdown) => setMarkdown(markdown, { forceRender: true }),
+};
 
 window.__USHIO_BRIDGE__ = {
   onFlutterMessage,

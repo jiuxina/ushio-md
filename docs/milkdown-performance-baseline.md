@@ -142,6 +142,26 @@ swiftshader AVD 的渲染比真机慢 2–3×，但 `create()`/`syncRenderedDom`
 - 只有页面内 `performance.now()` 的差值可信；跨页面的墙钟时间在隐藏标签下不可用。
 - 要拿 rAF 相关数据（`syncRenderedDom`、hints、caret）只能用真机前台，或让页面可见。
 
+### 5.4 `syncRenderedDom` 幂等化改造（2026-10-18，Phase 3 首步）
+
+改动：① 每个代码块一次 `editorInstance.action` + `view.posAtDOM` + `doc.resolve` 的反查，换成**一次文档走查**按文档序取 `code_block.attrs.language`；② 22 条 `style.setProperty(...,'important')` 全部改走 `setImportantStyleIfNeeded`（值没变就不碰 CSSOM）；③ 代码块计数不变量从「DOM 块数 vs markdown 围栏数」改成「DOM 块数 vs 文档 code_block 数」（旧口径在内联代码/嵌套场景假报警，50K 文档上就一直在报）。
+
+同一份 50K 字符 / 123 代码块 / 529 标题 / 352 列表项文档，桌面 Chromium 连续 `sync()`：
+
+| | 旧实现 | 新实现 |
+| --- | --- | --- |
+| 第 1 次 | 489.4ms | 256.0ms |
+| 第 2 次 | 142.7ms | 137.8ms |
+| 第 3 次 | — | **19.5ms** |
+| `sync + hints + outline` | 56.0ms | 37.5ms |
+| 连续两遍 DOM 指纹一致 | **否（overlay 位置漂移）** | 是 |
+
+即**稳态从 142.7ms 降到 19.5ms（≈7×）**；但真机编辑态下 ProseMirror 会重建 NodeView、把幂等守卫重置，实际收益会落在两者之间，需设备复测（AVD 换算系数 ≈8.9×，旧稳态 1288ms）。
+
+功能正确性断言（同一次采样）：75 个语言输入框全部解析为 `js`（文档序配对正确）、529/529 标题带 `heading-line-N` 且 `dupIds=0`、`.tools` 与内联样式仍在。
+
+顺带查明：**`input[type="checkbox"]` 数量为 0**，而列表项块有 352 个——Crepe 的 `list-item-block` nodeView 用的是 `.label-wrapper`，所以 `syncRenderedDom` 里给 checkbox 写 `checkboxIndex` 的那段与 `emitCheckboxToggle` 主路径对任务列表根本不生效（点击走的是另一分支）。Phase 3 处置「下标假设 #5」时按此调整。
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。
