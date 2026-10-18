@@ -1,8 +1,0 @@
-packages:
-  - 'packages/*'
-  - 'packages/plugins/*'
-  - 'packages/integrations/*'
-  - e2e
-  - storybook
-  - dev
-  - docs
