@@ -313,6 +313,59 @@ final stamp = kDebugMode ? _debugUrlStamp : AppConstants.appVersion;
 
 规矩补充：**任何设备侧验证 JS/渲染改动，必须先确认 logcat 里加载的 bundle 文件名与仓库一致**（`grep -o 'index-.*\.js' <log>`），否则测的是缓存里的旧代码。
 
+### 5.12 `crepe.create()` 分段归因：成本在挂 DOM，不在解析（2026-10-19）
+
+**做法（零侵入）**：Milkdown core 的生命周期是一串 timer（Config→Init→Schema→Parser/Serializer/Commands/Keymap→EditorState→EditorView），
+每个完成时 `@milkdown/ctx` 的 `Timer.done()` 会往 `window` 派发同名 `CustomEvent`。只监听不介入即可拿到分段
+（`web/milkdown/src/perf.mjs` 的 `perfStartBootPhases()`，经 `__USHIO_PERF__.boot()` 暴露，
+`tools/coldpath-bench.html` 输出归因表并自检「10 个阶段是否全部派发」——没派发就是没数据，不折算成 0）。
+
+50789 字符 / 1306 顶层块，桌面 Chromium，N=6，冷路径（每轮重建 iframe）：
+
+| 段 | ms | 占 create 内 |
+| --- | --- | --- |
+| `EditorViewReady`（整棵 DOM + 每块 nodeView/Vue/CodeMirror 挂载） | **1192.8** | 56% |
+| `EditorStateReady`（整篇 markdown→MDAST→Prose 建树） | **915.1** | 43% |
+| Config+Init+Schema+Parser+Serializer+Commands+Keymap+PasteRule 合计 | 12.7 | 0.6% |
+| create 之前的字符串预处理（wrapHtml + preprocessImages） | 2.8 | — |
+| `crepe.create()` 合计 | 2509.8 | — （create 内合计 2112.5，差值 = await 让出的空隙） |
+
+尺寸扫描（6090/12001/25060/50033 字符，同构造文档，N=4，最小二乘斜率）：
+
+| 指标 | ms / 顶层块 | 固定开销（截距） |
+| --- | --- | --- |
+| `EditorStateReady` 建树 | **0.730** | 69.3ms |
+| `EditorViewReady` 挂 DOM | **0.914** | 31.3ms |
+| `crepe.create` 合计 | 2.013 | 81.8ms |
+| 冷路径 sync | 0.069 | 4.8ms |
+
+两项都是线性的，且挂 DOM 比建树更大。**桌面 2.0ms/块 × §5.1 的设备 8.9× ≈ 18ms/块 ⇒ 1306 块 ≈ 23s**，与真机观测到的 16–25s 对上。
+
+同块数换内容类型（402 顶层块、约 10.3K 字符、其中 100 块是目标类型，N=5）——这是决定改法的一张表：
+
+| 类型 | 建树 ms | 挂 DOM ms | create ms | 每块「挂 DOM」增量 | nodeView 实测 |
+| --- | --- | --- | --- | --- | --- |
+| plain 段落 | 131.0 | 43.8 | 190.5 | — | 0 |
+| list 任务列表 | 232.4 | 271.5 | 528.5 | +2.28 | `list-item` ×200 |
+| image | 194.6 | 168.4 | 396.9 | +1.25 | `image-block` ×100 |
+| code 代码块 | 148.5 | **355.7** | 870.5 | **+3.12** | `code-block` ×100，其中 `cm-editor` ×100 |
+| html 块 | 160.5 | **337.9** | 542.1 | **+2.94** | `code-block` ×100，其中 `cm-editor` ×100 |
+
+结论（推翻 §5.2 那种「内容类型乘数」的读法）：
+
+1. **块类型的差异几乎全部落在挂 DOM 段**：建树在五种类型间是平的（131→232），挂 DOM 从 43.8 跳到 355.7。
+   所以「代码块 +54%」不是解析贵，是**每块一个 CodeMirror 实例 + 一个 Vue app**。
+2. **代码块还有约 350ms 的异步尾巴**：`create` 合计 870.5 减去同步两段只剩 ~354ms（plain 只有 ~16ms），
+   即语言装载 + `reconfigure` 重高亮。一个代码块 ≈ 3.1ms 同步 + 3.5ms 异步 ≈ 桌面 6.6ms，真机 55–60ms。
+3. **HTML 块的浪费被坐实**：产品的 `wrapHtmlBlocksInCodeFence` 把每个 html 块变成 ```html-block 代码块，
+   于是给它建了一个**真 CodeMirror 编辑器和一个 Vue 组件**，再把这个 DOM 隐藏、内容改在 overlay 里显示。
+   即每块 2.94ms 挂载 + 一个编辑器的全部成本，换来的是「我们根本不看它」。
+
+因此剩下的两条路都能量化验证，且互不冲突：
+延迟 CodeMirror 挂载（攻 +3.1ms/块的同步段与异步尾巴）、把 html 块改成真正的节点而不是伪代码块（攻 +2.94ms/块，顺带完成 Phase 5 的原样 round-trip）。
+虚报风险登记：本表在 `document.hidden=true` 的标签页里采（§5.3），分段值是同步工作耗时不受节流影响，
+但 `create` 合计里的异步尾巴会被 1s 定时器钳位放大 ⇒ **异步段数字只能当上界看**。
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。

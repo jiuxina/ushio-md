@@ -131,6 +131,72 @@ export const perfStartSections = () => {
   };
 };
 
+/**
+ * crepe.create() 的阶段观察者。
+ *
+ * Milkdown core 的生命周期是一串 timer（Config→Init→Schema→Parser/Serializer/
+ * Commands/Keymap→EditorState→EditorView），每个完成时 @milkdown/ctx 的 Timer.done()
+ * 会往 window 派发同名 CustomEvent。只监听、不介入，就能拿到零侵入的分段归因；
+ * 名字若随升级改变，missing 会自己声明「没测到」，不会假装是 0。
+ *
+ * 阶段语义（决定改法的关键分界）：
+ *   EditorStateReady 之前完成的工作 = 整篇 markdown → MDAST → ProseMirror doc
+ *   EditorViewReady  之前的工作     = new EditorView + 每个块 nodeView/Vue/CodeMirror 挂载
+ */
+const BOOT_PHASE_ORDER = [
+  'ConfigReady',
+  'InitReady',
+  'SchemaReady',
+  'ParserReady',
+  'SerializerReady',
+  'CommandsReady',
+  'KeymapReady',
+  'PasteRuleReady',
+  'EditorStateReady',
+  'EditorViewReady',
+];
+
+export const perfStartBootPhases = () => {
+  const t0 = perfNow();
+  const seen = new Map();
+  const bound = BOOT_PHASE_ORDER.map((name) => {
+    const fn = () => {
+      if (!seen.has(name)) seen.set(name, Math.round((perfNow() - t0) * 100) / 100);
+    };
+    window.addEventListener(name, fn);
+    return [name, fn];
+  });
+  let closed = false;
+  return {
+    report: () => {
+      if (!closed) {
+        closed = true;
+        for (const [name, fn] of bound) window.removeEventListener(name, fn);
+      }
+      const fired = BOOT_PHASE_ORDER.filter((name) => seen.has(name));
+      const at = {};
+      const seg = {};
+      let prev = 0;
+      for (const name of fired) {
+        at[name] = seen.get(name);
+        seg[name] = Math.round((seen.get(name) - prev) * 100) / 100;
+        prev = seen.get(name);
+      }
+      return {
+        at,
+        seg,
+        totalMs: prev,
+        missing: BOOT_PHASE_ORDER.filter((name) => !seen.has(name)),
+      };
+    },
+    stop: () => {
+      if (closed) return;
+      closed = true;
+      for (const [name, fn] of bound) window.removeEventListener(name, fn);
+    },
+  };
+};
+
 let lastSections = { sections: {}, sizes: {} };
 
 export const perfSetSections = (sections, sizes = {}) => {
@@ -138,6 +204,10 @@ export const perfSetSections = (sections, sizes = {}) => {
 };
 
 export const perfSections = () => lastSections;
+
+let lastBoot = null;
+export const perfSetBoot = (report) => { lastBoot = report; };
+export const perfBoot = () => lastBoot;
 
 /** 里程碑事件（boot / firstPaint / fullResync 等）。 */
 export const perfRecordEvent = (name, details = {}) => {

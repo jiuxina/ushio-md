@@ -117,6 +117,9 @@ import {
   perfSnapshot,
   perfObserveFrames,
   perfStartSections,
+  perfStartBootPhases,
+  perfSetBoot,
+  perfBoot,
 } from './perf.mjs';
 
 const app = document.getElementById('app');
@@ -2644,9 +2647,12 @@ const blurEditorFocus = () => {
 };
 
 const createEditor = async () => {
+  const bootSec = perfStartSections();
   // Pre-process: wrap HTML blocks as code fences, then resolve image URLs
   const htmlWrappedMarkdown = wrapHtmlBlocksInCodeFence(currentMarkdown);
+  bootSec.mark('wrapHtmlMs');
   const preprocessedInitialMarkdown = preprocessImages(htmlWrappedMarkdown);
+  bootSec.mark('preprocessImagesMs');
   const fullSourceMarkdown = currentMarkdown;
 
   // 大文档先只解析首块，避免 createEditor 阶段同步解析全文导致首帧卡死。
@@ -2657,9 +2663,11 @@ const createEditor = async () => {
     if (end < 0 || end > target + 4096) end = target;
     initialCrepeMarkdown = preprocessedInitialMarkdown.slice(0, Math.max(1, end));
   }
+  bootSec.mark('sliceInitialMs');
   
   // Get the effective CodeMirror theme
   const codeBlockTheme = getEffectiveCodeBlockTheme();
+  bootSec.mark('themeMs');
   
   const crepe = new Crepe({
     root: app,
@@ -2673,6 +2681,7 @@ const createEditor = async () => {
       [Crepe.Feature.CodeMirror]: codeBlockTheme ? { theme: codeBlockTheme } : {},
     },
   });
+  bootSec.mark('crepeCtorMs');
   crepe.editor
     .config(nord)
     .config((ctx) => {
@@ -2750,17 +2759,26 @@ const createEditor = async () => {
     .use(cursor)
     .use(upload)
     .use(searchHighlightProsePlugin);
+  bootSec.mark('pluginSetupMs');
 
+  const bootPhases = perfStartBootPhases();
   const perfCreate0 = perfNow();
   await crepe.create();
+  const bootPhaseReport = bootPhases.report();
+  bootSec.mark('crepeCreateMs');
+  const bootSections = bootSec.report();
   perfStart();
-  perfRecordEvent('boot', {
+  const bootReport = {
     crepeCreateMs: perfNow() - perfCreate0,
     longFrameObserver: perfObserveFrames(),
     sourceChars: preprocessedInitialMarkdown.length,
     fullChars: fullSourceMarkdown.length,
     progressive: preprocessedInitialMarkdown.length > PROGRESSIVE_RENDER_THRESHOLD_CHARS ? 1 : 0,
-  });
+    bootSections,
+    bootPhases: bootPhaseReport,
+  };
+  perfSetBoot(bootReport);
+  perfRecordEvent('boot', bootReport);
   crepeInstance = crepe;
   crepe.setReadonly(currentReadOnly);
   applyReadOnlyState();
@@ -4007,6 +4025,7 @@ window.__USHIO_PERF__ = {
   dump: perfDump,
   snapshot: perfSnapshot,
   sections: perfSections,
+  boot: perfBoot,
   setEnabled: perfSetEnabled,
   // 诊断入口：syncRenderedDom 是同步的，隐藏标签里 rAF 不触发时也能手动跑一次，
   // 用于「DOM 指纹一致 + 更快」的重构验证闭环。

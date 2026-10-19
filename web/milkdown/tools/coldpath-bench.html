@@ -30,8 +30,12 @@
 const N = Number(new URLSearchParams(location.search).get('n') || 5);
 const SRC = new URLSearchParams(location.search).get('src') || '/dist/index.html';
 const DOC_CHARS = Number(new URLSearchParams(location.search).get('chars') || 50000);
+// 尺寸扫描：同构造文档按比例缩放，用来把「每块边际成本」从固定开销里分离出来。
+const SIZES = (new URLSearchParams(location.search).get('sizes') || '').split(',')
+  .map((x) => Number(x.trim())).filter((x) => Number.isFinite(x) && x > 0);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-document.querySelector('h1').insertAdjacentHTML('afterend', `<p>被测产物：<code>${SRC}</code> · N=${N} · 目标文档 ${DOC_CHARS} 字符</p>`);
+document.querySelector('h1').insertAdjacentHTML('afterend',
+  `<p>被测产物：<code>${SRC}</code> · N=${N} · 文档 ${SIZES.length ? SIZES.join(' / ') : DOC_CHARS} 字符</p>`);
 
 const buildDoc = (target) => {
   let md = '# 冷路径基准文档\n\n';
@@ -47,9 +51,25 @@ const buildDoc = (target) => {
   return md;
 };
 
-const md = buildDoc(DOC_CHARS);
+const med = (arr) => { const a = arr.slice().sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
+const num = (v) => (typeof v === 'number' && Number.isFinite(v));
 
-async function oneIteration(iter) {
+/** 最小二乘：返回 {slope, intercept}，点数不足或 x 全同则 null。 */
+const fit = (pts) => {
+  const p = pts.filter((q) => num(q.x) && num(q.y));
+  if (p.length < 2) return null;
+  const n = p.length;
+  const sx = p.reduce((a, q) => a + q.x, 0);
+  const sy = p.reduce((a, q) => a + q.y, 0);
+  const sxx = p.reduce((a, q) => a + q.x * q.x, 0);
+  const sxy = p.reduce((a, q) => a + q.x * q.y, 0);
+  const d = n * sxx - sx * sx;
+  if (!d) return null;
+  const slope = (n * sxy - sx * sy) / d;
+  return { slope, intercept: (sy - slope * sx) / n };
+};
+
+async function oneIteration(md) {
   const stage = document.getElementById('stage');
   stage.innerHTML = '';
   const frame = document.createElement('iframe');
@@ -73,48 +93,186 @@ async function oneIteration(iter) {
   if (!win.__USHIO_PERF__.serialize?.()) return { error: '文档未载入' };
   const root = win.document.querySelector('.ProseMirror');
   const blocks = root ? root.childElementCount : -1;
+  const count = (sel) => win.document.querySelectorAll(sel).length;
+  const nodeViews = {
+    codeBlock: count('.milkdown-code-block'),
+    codeMirror: count('.milkdown-code-block .cm-editor'),
+    listItem: count('.milkdown-list-item-block'),
+    imageBlock: count('.milkdown-image-block'),
+    tableBlock: count('.milkdown-table-block'),
+  };
   const coldSyncMs = win.__USHIO_PERF__.sync();      // 第一次 = 冷路径
   const coldSections = win.__USHIO_PERF__.sections?.() || null;
   const warmSyncMs = win.__USHIO_PERF__.sync();      // 第二次 = 热路径，作对照
   const warmSections = win.__USHIO_PERF__.sections?.() || null;
+  const boot = win.__USHIO_PERF__.boot?.() || null;
   frame.remove();
-  return { coldSyncMs, warmSyncMs, blocks, chars: md.length, coldSections, warmSections };
+  return { coldSyncMs, warmSyncMs, blocks, nodeViews, chars: md.length, coldSections, warmSections, boot };
+}
+
+/** 单份文档跑 N 轮，回来一份摘要。md 省略时按 chars 现造。 */
+async function runSize(chars, label, mdOverride) {
+  const md = mdOverride || buildDoc(chars);
+  const rows = [];
+  for (let i = 0; i < N; i++) {
+    document.getElementById('sum').textContent = `${label} 第 ${i + 1}/${N} 轮…`;
+    rows.push(await oneIteration(md));
+    document.getElementById('sum').textContent
+      = `${label} 已完成 ${rows.filter((r) => !r.error).length}/${N}（被测 ${SRC}）`;
+  }
+  const ok = rows.filter((r) => !r.error);
+  if (!ok.length) return { label, chars: md.length, error: rows[0].error, rows };
+  const boots = ok.map((r) => r.boot).filter(Boolean);
+  const seg = (name) => med(boots.map((b) => b.bootPhases?.seg?.[name]).filter(num));
+  return {
+    label,
+    chars: md.length,
+    rows,
+    ok,
+    boots,
+    blocks: med(ok.map((r) => r.blocks)),
+    nodeViews: ok[0].nodeViews,
+    coldSyncMs: med(ok.map((r) => r.coldSyncMs)),
+    warmSyncMs: med(ok.map((r) => r.warmSyncMs)),
+    crepeCreateMs: med(boots.map((b) => b.crepeCreateMs).filter(num)),
+    parseMs: seg('EditorStateReady'),
+    viewMs: seg('EditorViewReady'),
+    missing: [...new Set(boots.flatMap((b) => b.bootPhases?.missing || []))],
+  };
+}
+
+const METRICS = [
+  ['parseMs', 'EditorStateReady（整篇建树）'],
+  ['viewMs', 'EditorViewReady（DOM + nodeView 挂载）'],
+  ['crepeCreateMs', 'crepe.create 合计'],
+  ['coldSyncMs', '冷路径 sync'],
+];
+
+/**
+ * 同块数、换内容类型：把每种块的成本落到「建树」还是「挂 DOM」哪一段上。
+ * 这决定改法——只有落在 EditorViewReady 那段才可能被「延迟挂载」省掉。
+ *
+ * 每种重块都刻意做成 1–2 行、字符量与段落相当，这样类型间的差异只可能来自
+ * 块类型本身而不是文本长短；代价是 CodeMirror 这类成本被低估，读出的是下界。
+ */
+const KINDS = {
+  plain: (i) => `段落 ${i} 一些中文正文，体量与其他类型对齐。\n\n`,
+  list: (i) => `- [ ] 任务 ${i}\n- [x] 完成 ${i}\n\n`,
+  image: (i) => `![图 ${i}](pic${i}.png)\n\n`,
+  code: (i) => '```js\nconst a = ' + i + ';\n```\n\n',
+  html: (i) => `<div class="n${i}"><p>提示 ${i}</p></div>\n\n`,
+};
+
+async function runKind(kind, blocksPerKind, label) {
+  const make = KINDS[kind];
+  if (!make) return { label: `${kind} 不是已知类型`, error: 'bad kind' };
+  const heavy = Math.round(blocksPerKind * 0.25);
+  let md = '# 类型成本基准\n\n';
+  for (let i = 0; i < blocksPerKind; i++) {
+    // 每 4 块放 1 块目标类型，其余为纯段落——顶层块数在所有类型间完全相同。
+    md += (i % 4 === 0 && i / 4 < heavy) ? make(i) : KINDS.plain(i);
+    if (!md.endsWith('\n\n')) md += '\n\n';
+  }
+  const r = await runSize(0, label, md);
+  r.kind = kind;
+  r.heavy = heavy;
+  return r;
 }
 
 (async () => {
-  const rows = [];
-  for (let i = 0; i < N; i++) {
-    document.getElementById('sum').textContent = `第 ${i + 1}/${N} 轮…`;
-    rows.push(await oneIteration(i));
-    const done = rows.filter((r) => !r.error).length;
-    document.getElementById('sum').textContent = `已完成 ${done}/${N}（被测 ${SRC}）`;
+  const kinds = (new URLSearchParams(location.search).get('kinds') || '')
+    .split(',').map((x) => x.trim()).filter((x) => KINDS[x]);
+  if (kinds.length) {
+    const blockTarget = Number(new URLSearchParams(location.search).get('blocks') || 400);
+    const runs = [];
+    for (const k of kinds) runs.push(await runKind(k, blockTarget, k));
+    const good = runs.filter((r) => !r.error);
+    const base = good.find((r) => r.kind === 'plain') || good[0];
+    document.getElementById('out').innerHTML = `<h2>同块数下的类型成本（顶层块 ${base.blocks}，其中 ${base.heavy} 块是目标类型）</h2>
+    <table>
+      <tr><th>类型</th><th>字符</th><th>实际顶层块</th><th>建树 ms</th><th>挂 DOM ms</th><th>create ms</th><th>冷 sync ms</th><th>相对 plain：建树</th><th>相对 plain：挂 DOM</th></tr>
+      ${good.map((r) => `<tr><td>${r.kind}</td><td>${r.chars}</td><td>${r.blocks}</td><td>${r.parseMs ?? '—'}</td><td>${r.viewMs ?? '—'}</td>`
+        + `<td>${r.crepeCreateMs ?? '—'}</td><td>${r.coldSyncMs ?? '—'}</td>`
+        + `<td>${base.parseMs ? ((r.parseMs / base.parseMs - 1) * 100).toFixed(0) + '%' : '—'}</td>`
+        + `<td>${base.viewMs ? ((r.viewMs / base.viewMs - 1) * 100).toFixed(0) + '%' : '—'}</td></tr>`).join('')}
+    </table>
+    <p>自检：每种类型的 heavy 块数 ${good.map((r) => `${r.kind}=${r.heavy}`).join(' / ')}；`
+      + `nodeView 计数 ${good.map((r) => `${r.kind}=${JSON.stringify(r.nodeViews)}`).join(' · ')}</p>`
+      + good.map((r) => bootHtml(r.boots, r.missing)).join('');
+    document.getElementById('sum').textContent = `类型成本：${good.map((r) => `${r.kind} 建树${r.parseMs}/挂DOM ${r.viewMs}`).join(' · ')}`;
+    document.title = `coldpath kinds ${good.length}`;
+    return;
   }
-  const ok = rows.filter((r) => !r.error);
-  const med = (arr) => { const a = arr.slice().sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
-  const colds = ok.map((r) => r.coldSyncMs);
-  const warms = ok.map((r) => r.warmSyncMs);
-  const coldTotal = med(colds);
-  const sectionNames = [...new Set(ok.flatMap((r) => Object.keys(r.coldSections?.sections || {})))];
-  const bySection = sectionNames.map((name) => ({
-    name,
-    cold: med(ok.map((r) => r.coldSections?.sections?.[name]).filter((v) => typeof v === 'number')),
-    warm: med(ok.map((r) => r.warmSections?.sections?.[name]).filter((v) => typeof v === 'number')),
-  })).sort((a, b) => (b.cold ?? 0) - (a.cold ?? 0));
-  document.getElementById('out').innerHTML = `<table>
-    <tr><th>轮</th><th>冷 sync (ms)</th><th>热 sync (ms)</th><th>顶层块</th></tr>
-    ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${r.error ? r.error : r.coldSyncMs}</td><td>${r.error ? '—' : r.warmSyncMs}</td><td>${r.error ? '—' : r.blocks}</td></tr>`).join('')}
-    <tr><th>中位数</th><th>${med(colds)}</th><th>${med(warms)}</th><th>${ok[0]?.blocks ?? '—'}</th></tr>
-  </table>
-  <h2>冷路径分段归因（中位数，降序）</h2>
-  <table>
-    <tr><th>段</th><th>冷 (ms)</th><th>热 (ms)</th><th>占冷路径</th></tr>
-    ${bySection.map((x) => `<tr><td>${x.name}</td><td>${x.cold ?? '—'}</td><td>${x.warm ?? '—'}</td><td>${coldTotal ? ((x.cold / coldTotal) * 100).toFixed(0) + '%' : '—'}</td></tr>`).join('')}
-  </table>
-  <p>规模：${ok[0]?.coldSections?.sizes ? JSON.stringify(ok[0].coldSections.sizes) : '—'}</p>`;
-  document.getElementById('sum').textContent += ' · ' + bySection.slice(0, 4).map((x) => `${x.name} ${x.cold}ms`).join(' / ');
-  document.getElementById('sum').textContent = `${SRC} · 冷路径中位数 ${med(colds)}ms · 样本 ${colds.join(' / ')}`;
-  document.title = `coldpath ${med(colds)}`;
+
+  const sizes = SIZES.length ? SIZES : [DOC_CHARS];
+  const runs = [];
+  for (const s of sizes) runs.push(await runSize(s, `${s} 字符`));
+  const good = runs.filter((r) => !r.error);
+
+  let html = '';
+  if (good.length >= 2) {
+    const table = METRICS.map(([key, name]) => {
+      const f = fit(good.map((r) => ({ x: r.blocks, y: r[key] })));
+      const fp = fit(good.map((r) => ({ x: r.chars, y: r[key] })));
+      return { name, key, f, fp };
+    });
+    html += `<h2>每块边际成本（最小二乘斜率，跨 ${good.length} 个尺寸）</h2>
+    <table>
+      <tr><th>指标</th><th>ms / 顶层块</th><th>ms / 1K 字符</th><th>固定开销（截距 ms）</th></tr>
+      ${table.map((t) => `<tr><td>${t.name}</td>`
+        + `<td>${t.f ? (Math.round(t.f.slope * 1000) / 1000) : '—'}</td>`
+        + `<td>${t.fp ? (Math.round(t.fp.slope * 1000) / 1000) : '—'}</td>`
+        + `<td>${t.f ? (Math.round(t.f.intercept * 10) / 10) : '—'}</td></tr>`).join('')}
+    </table>`;
+  }
+
+  html += good.map((r) => `<h2>${r.label} · 实际 ${r.chars} 字符 · ${r.blocks} 顶层块</h2>
+    <table>
+      <tr><th>轮</th><th>冷 sync</th><th>热 sync</th><th>crepe.create</th><th>建树</th><th>挂 DOM</th></tr>
+      ${r.rows.map((x) => `<tr><td>${x.error ? x.error : ''}</td><td>${x.error ? '—' : x.coldSyncMs}</td>`
+        + `<td>${x.error ? '—' : x.warmSyncMs}</td><td>${x.error ? '—' : (x.boot?.crepeCreateMs ?? '—')}</td>`
+        + `<td>${x.error ? '—' : (x.boot?.bootPhases?.seg?.EditorStateReady ?? '—')}</td>`
+        + `<td>${x.error ? '—' : (x.boot?.bootPhases?.seg?.EditorViewReady ?? '—')}</td></tr>`).join('')}
+      <tr><th>中位数</th><th>${r.coldSyncMs}</th><th>${r.warmSyncMs}</th><th>${r.crepeCreateMs ?? '—'}</th>`
+    + `<th>${r.parseMs ?? '—'}</th><th>${r.viewMs ?? '—'}</th></tr>
+    </table>
+    <p>nodeView 计数：${JSON.stringify(r.nodeViews)}</p>
+    ${bootHtml(r.boots, r.missing)}`).join('');
+  html += good.length < runs.length
+    ? `<p class="sum">有 ${runs.length - good.length} 个尺寸整档失败：${runs.filter((r) => r.error).map((r) => `${r.label}=${r.error}`).join(' / ')}</p>` : '';
+
+  document.getElementById('out').innerHTML = html;
+  document.getElementById('sum').textContent = good.map((r) => `${r.chars}字符/${r.blocks}块 → create ${r.crepeCreateMs}ms（建树 ${r.parseMs} / 挂 DOM ${r.viewMs}）`).join(' · ')
+    || '全部尺寸失败，未出数';
+  document.title = `coldpath ${good[good.length - 1]?.coldSyncMs ?? 'fail'}`;
 })();
+
+/** crepe.create() 的阶段归因：外部预处理段 + Milkdown 生命周期分段 */
+function bootHtml(boots, missing = []) {
+  if (!boots.length) return '<p class="sum">未采到 boot 事件，开档归因未执行</p>';
+  const medOf = (pick) => med(boots.map(pick).filter(num));
+  const createMs = medOf((b) => b.crepeCreateMs);
+
+  const pre = [...new Set(boots.flatMap((b) => Object.keys(b.bootSections || {})))]
+    .map((name) => ({ name, ms: medOf((b) => b.bootSections?.[name]), group: 'create 之前' }))
+    .filter((x) => num(x.ms));
+  const phase = [...new Set(boots.flatMap((b) => Object.keys(b.bootPhases?.seg || {})))]
+    .map((name) => ({ name, ms: medOf((b) => b.bootPhases?.seg?.[name]), at: medOf((b) => b.bootPhases?.at?.[name]), group: 'create 之内' }))
+    .filter((x) => num(x.ms));
+  const rows = [...pre, ...phase].sort((a, b) => b.ms - a.ms);
+  const total = [...pre.map((x) => x.ms), createMs].filter(num).reduce((a, b) => a + b, 0);
+
+  return `<table>
+  <tr><th>段</th><th>位置</th><th>ms</th><th>占开档</th><th>累计（create 内）</th></tr>
+  ${rows.map((x) => `<tr><td>${x.name}</td><td>${x.group}</td><td>${x.ms}</td>`
+    + `<td>${total ? ((x.ms / total) * 100).toFixed(0) + '%' : '—'}</td>`
+    + `<td>${x.at ?? '—'}</td></tr>`).join('')}
+  <tr><th>crepe.create 合计</th><th>—</th><th>${createMs ?? '—'}</th><th>${total ? ((createMs / total) * 100).toFixed(0) + '%' : '—'}</th><th>${medOf((b) => b.bootPhases?.totalMs) ?? '—'}</th></tr>
+  </table>
+  <p>阶段观察者自检：${missing.length ? `<strong>未派发</strong>：${missing.join(' / ')}（这几段没有数据，不是 0）` : '10 个生命周期阶段全部派发'}`
+    + ` · 渐进=${medOf((b) => b.progressive)}`
+    + ` · create 内合计 ${medOf((b) => b.bootPhases?.totalMs)}ms vs crepeCreateMs ${createMs}ms（差值 = await 让出的空隙）</p>`;
+}
 </script>
 </body>
 </html>
