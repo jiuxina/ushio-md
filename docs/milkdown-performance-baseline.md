@@ -388,6 +388,29 @@ profile 包 `--dart-define=MILKDOWN_URL_STAMP=bootphase`，logcat 核对加载�
 - 两次采样绝对值差 14%（42.3s → 48.3s）是 §5.9 的连装退化，**不要拿绝对值当基线**；本轮结论只用比例。
 - 插桩本身不改行为：冷启动后截图核对标题/段落/行内代码/链接/任务列表勾选框渲染全部正常。
 
+### 5.14 新判据当场抓到一个用户可见缺陷：切档后 HTML 块一片空白（2026-10-19）
+
+为 A（HTML 块改真节点）先立的门禁 `web/milkdown/tools/html-roundtrip.html` 有四项断言：
+① 输出里不出现 ```` ```html-block ````伪围栏；② 每段 HTML 原文逐字出现在输出里；
+③ 为 HTML 块创建的 `.cm-editor` 数为 0；④ **切档之后** overlay 项仍然建得起来。
+负例（单行 `<hr>`、围栏内的 HTML 示例、行内 `<b>`）用来防止「把 HTML 一律当块」这种过度修正——三条负例本来就 PASS，所以 6/9 的 FAIL 不是因为判据写得过严。
+
+跑第一遍时 ④ 就是红的，而且原因不在断言本身：
+
+- `.milkdown` **每次切档都被重建**（实测 `md1 !== md2`）。
+- `ensureHtmlOverlay()` 用 `htmlOverlayContainer.parentNode` 判存活——旧容器仍挂在**已脱离文档的旧 `.milkdown`** 上，`parentNode` 非空 ⇒ 判定「还在」⇒ overlay 项全写进游离子树。
+- `startHtmlBlockObserver()` 更直接：`if (htmlBlockObserver) return` ⇒ 观察者永远监听着第一个 `.milkdown`，切档后隐藏规则完全失效。
+- 用户可见结果：打开带 HTML 块的文档 A 正常，再打开文档 B，**B 里每个 HTML 块的位置都是一片空白**（伪块被隐藏、overlay 在游离子树里）。
+- 一开始的归因是错的：`.cm-line` 数与 `.cm-content` 字数（实测 3–5 行 / 20–83 字）证明 HTML 原文取得到，不是「CodeMirror 虚拟渲染捞不到内容」。是探针列（`source`）把这条排除掉的。
+
+修法：两处都改成「按当前 `.milkdown` 重新认领」——overlay 容器判 `isConnected && parentNode === 当前 .milkdown`，不满足就把**同一个**容器重新 append 过去（保留已有项）；观察者记住 `observedEl`，目标换了就 `disconnect()` 后重新 `observe`，rAF 回调改为每次现取 `app.querySelector('.milkdown')`。
+
+改后：④ 全部转绿（`1 → 1 → 1 → 1`、`2 → 2 → 2 → 2`），① 与 ③ 仍红（正是 A-2 的目标），
+`overlay-oracle.html` 九项仍 PASS，`style-baseline` 指纹仍是 **1294618094**（未变）。
+
+**这条的价值不在修了什么，而在证明「门禁必须先于改动」**：A-2 要动的就是这套 overlay 机器，
+若先改实现再补判据，这个既有缺陷会被算到新改动头上，或者被新代码顺手掩盖而永远查不出来。
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。

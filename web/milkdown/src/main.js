@@ -953,15 +953,22 @@ const injectHtmlBlockHideStyle = () => {
 };
 
 const ensureHtmlOverlay = () => {
-  if (htmlOverlayContainer && htmlOverlayContainer.parentNode) return htmlOverlayContainer;
   const milkdownEl = app.querySelector('.milkdown');
   if (!milkdownEl) return null;
+  // .milkdown 会在切档时被重建。旧实现只判 parentNode，缓存的容器仍挂在
+  // 已脱离文档的旧 .milkdown 上，于是第二次打开带 HTML 块的文档时，overlay 项
+  // 全被写进游离子树——用户看到的是那块位置一片空白。必须按「是否还在文档里、
+  // 且父级是不是当前这个 .milkdown」来判定，并把同一个容器重新收养过去。
+  if (htmlOverlayContainer && htmlOverlayContainer.isConnected
+    && htmlOverlayContainer.parentNode === milkdownEl) return htmlOverlayContainer;
   // Make .milkdown a positioning context
   milkdownEl.style.position = 'relative';
-  // Create overlay as a CHILD of .milkdown but OUTSIDE .ProseMirror
-  htmlOverlayContainer = document.createElement('div');
-  htmlOverlayContainer.id = 'ushio-html-overlay';
-  htmlOverlayContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:10;';
+  if (!htmlOverlayContainer) {
+    // Create overlay as a CHILD of .milkdown but OUTSIDE .ProseMirror
+    htmlOverlayContainer = document.createElement('div');
+    htmlOverlayContainer.id = 'ushio-html-overlay';
+    htmlOverlayContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:10;';
+  }
   milkdownEl.appendChild(htmlOverlayContainer);
   return htmlOverlayContainer;
 };
@@ -994,44 +1001,58 @@ const hideHtmlBlockCodeNode = (block) => {
  * Start a MutationObserver on .milkdown to continuously hide html-block code blocks.
  * This is needed because ProseMirror re-renders NodeViews, which recreates the
  * code block wrapper elements and strips previously applied inline styles/classes.
+ *
+ * .milkdown 本身会在切档时被重建，所以观察者不能「建一次就完事」：目标元素换了就必须
+ * 重新 observe，否则隐藏规则只作用在游离子树上，新文档的 HTML 块会露出源码。
  */
 let htmlBlockObserver = null;
-const startHtmlBlockObserver = () => {
-  if (htmlBlockObserver) return;
+let htmlBlockObservedEl = null;
+let htmlBlockHideRafId = null;
+
+const hideAllHtmlBlockNodes = () => {
   const milkdownEl = app.querySelector('.milkdown');
   if (!milkdownEl) return;
-
-  // Initial pass: hide any existing html-block code blocks already in the DOM
   milkdownEl.querySelectorAll('.milkdown-code-block').forEach(hideHtmlBlockCodeNode);
+};
 
-  let rafId = null;
-  const scheduleHidePass = () => {
-    if (rafId != null) return;
-    rafId = requestAnimationFrame(() => {
-      rafId = null;
-      milkdownEl.querySelectorAll('.milkdown-code-block').forEach(hideHtmlBlockCodeNode);
-    });
-  };
-
-  htmlBlockObserver = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === 'attributes') {
-        const targetBlock = mutation.target instanceof HTMLElement
-          ? mutation.target.closest('.milkdown-code-block')
-          : null;
-        hideHtmlBlockCodeNode(targetBlock);
-        scheduleHidePass();
-        continue;
-      }
-      for (const node of mutation.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
-        if (node.classList?.contains('milkdown-code-block')) {
-          hideHtmlBlockCodeNode(node);
-        }
-        node.querySelectorAll?.('.milkdown-code-block').forEach(hideHtmlBlockCodeNode);
-      }
-    }
+const scheduleHtmlBlockHidePass = () => {
+  if (htmlBlockHideRafId != null) return;
+  htmlBlockHideRafId = requestAnimationFrame(() => {
+    htmlBlockHideRafId = null;
+    hideAllHtmlBlockNodes();
   });
+};
+
+const startHtmlBlockObserver = () => {
+  const milkdownEl = app.querySelector('.milkdown');
+  if (!milkdownEl) return;
+  if (htmlBlockObserver && htmlBlockObservedEl === milkdownEl && milkdownEl.isConnected) return;
+  if (!htmlBlockObserver) {
+    htmlBlockObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') {
+          const targetBlock = mutation.target instanceof HTMLElement
+            ? mutation.target.closest('.milkdown-code-block')
+            : null;
+          hideHtmlBlockCodeNode(targetBlock);
+          scheduleHtmlBlockHidePass();
+          continue;
+        }
+        for (const node of mutation.addedNodes) {
+          if (!(node instanceof HTMLElement)) continue;
+          if (node.classList?.contains('milkdown-code-block')) {
+            hideHtmlBlockCodeNode(node);
+          }
+          node.querySelectorAll?.('.milkdown-code-block').forEach(hideHtmlBlockCodeNode);
+        }
+      }
+    });
+  } else {
+    htmlBlockObserver.disconnect();
+  }
+  htmlBlockObservedEl = milkdownEl;
+  // Initial pass: hide any html-block code blocks already in this container
+  hideAllHtmlBlockNodes();
   htmlBlockObserver.observe(milkdownEl, {
     childList: true,
     subtree: true,
