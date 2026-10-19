@@ -283,6 +283,33 @@ swiftshader AVD 的渲染比真机慢 2–3×，但 `create()`/`syncRenderedDom`
 
 设备口径注意（§5.9）：以上是桌面 Chromium 数字；换算到这台 AVD 约 ×8.9，即冷路径收尾从 ~2.2s 降到 ~0.56s，但**设备侧未复测**，不作为结论。
 
+### 5.11 ⚠ profile 构建会一直供缓存里的旧产物（作废本文件部分设备数字）
+
+复测 §5.10 的设备侧结论时发现：logcat 里 WebView 加载的是 `index-Bsxs16xy.js`（Phase 0 最初那个插桩版本），而仓库产物已是 `index-CIjc1Glo.js`。
+
+根因在 `lib/widgets/milkdown_webview_editor.dart` 的 `buildMilkdownRuntimeUrl`：
+
+```dart
+final stamp = kDebugMode ? _debugUrlStamp : AppConstants.appVersion;
+```
+
+**profile / release 走的是版本号**，而整个验证过程中 `1.6.8+4104` 从未变过；资源响应又带 `max-age=31536000, immutable`，于是换产物不换版本号时，WebView 的 HTTP 缓存会一直供旧 bundle。也就是说 `?v=` **在 profile 下根本不是 cache-buster**。
+
+**因此本文档以下设备数字全部作废**（它们测的都是 Phase-0 那份旧代码）：§5.4 表格里「真机 sync 1288 → 1455.7 → 1493.6ms，桌面收益没落到真机」、§5.7 的同一组对比、以及「activeHints 改 O(1) 后 204.7 → 182.9ms 基本没变」——那些对比里的"改后"根本没跑到改后的代码。
+
+用新加的 `--dart-define=MILKDOWN_URL_STAMP=<任意串>` 绕开缓存后重测（同一会话背靠背，n=3，50,004 字符 / 1359 块）：
+
+| 真机冷路径 | 修复前（Phase-0 bundle） | 修复后（含 §5.4 + hints + box-sizing + 读写分批） |
+| --- | --- | --- |
+| `syncRenderedDom` | 1198.7 / 1288 / 1455.7 / 1493.6ms | **549 / ~700 / 757.1ms** |
+| 收尾合计 | 1521.7 / 1686.8 / 1743.9ms | **778.6ms** |
+| `activeHints` | 179.4 / 204.7 / 182.9ms | 180.3 / 325.5ms |
+
+两组 sync 区间不重叠 ⇒ **真机约 2×**（桌面 4×，差额合理归因于 §5.9 记录的设备退化）。
+`activeHints` 在扫描已改 O(1) 的情况下仍占 180–325ms，**印证 §5.7 提出的假设**：那段时间是 sync 写完样式后的强制布局回算被记在 hints 名下，不是被删掉的那次 `querySelectorAll`。
+
+规矩补充：**任何设备侧验证 JS/渲染改动，必须先确认 logcat 里加载的 bundle 文件名与仓库一致**（`grep -o 'index-.*\.js' <log>`），否则测的是缓存里的旧代码。
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。

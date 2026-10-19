@@ -174,8 +174,17 @@ Future<MilkdownAssetServer?> _startMilkdownServer({
 /// 调试构建按进程取一个时间戳：既能避开旧缓存，又让预热视图与编辑器命中同一 URL。
 final String _debugUrlStamp = DateTime.now().microsecondsSinceEpoch.toString();
 
+/// profile/release 构建下 [AppConstants.appVersion] 是不变的，于是「换了产物但没换
+/// 版本号」时 WebView 的 immutable 缓存会继续供旧 bundle——验证渲染改动时必须能
+/// 显式绕开。发布流程不受影响（版本号本来就会变）。
+const String _urlStampOverride = String.fromEnvironment('MILKDOWN_URL_STAMP');
+
 String buildMilkdownRuntimeUrl(MilkdownAssetServer server) {
-  final stamp = kDebugMode ? _debugUrlStamp : AppConstants.appVersion;
+  final stamp = kDebugMode
+      ? _debugUrlStamp
+      : (_urlStampOverride.isEmpty
+          ? AppConstants.appVersion
+          : '${AppConstants.appVersion}-$_urlStampOverride');
   return 'http://localhost:${server.port}/index.html?v=$stamp';
 }
 
