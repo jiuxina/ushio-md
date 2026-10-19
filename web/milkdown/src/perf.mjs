@@ -110,6 +110,35 @@ const mapTimings = (timings) => {
   return out;
 };
 
+/**
+ * 分段打点器：在一长串同步工作之间依次 mark，得到每段耗时。
+ * 用打点而不是逐个包闭包，是为了不改动被测量代码本身的结构。
+ */
+export const perfStartSections = () => {
+  const marks = [];
+  let last = perfNow();
+  return {
+    mark: (name) => {
+      const t = perfNow();
+      marks.push([name, Math.round((t - last) * 100) / 100]);
+      last = t;
+    },
+    report: () => {
+      const out = {};
+      for (const [name, ms] of marks) out[name] = ms;
+      return out;
+    },
+  };
+};
+
+let lastSections = { sections: {}, sizes: {} };
+
+export const perfSetSections = (sections, sizes = {}) => {
+  lastSections = { sections, sizes, at: Math.round(perfNow()) };
+};
+
+export const perfSections = () => lastSections;
+
 /** 里程碑事件（boot / firstPaint / fullResync 等）。 */
 export const perfRecordEvent = (name, details = {}) => {
   if (!state.enabled) return;

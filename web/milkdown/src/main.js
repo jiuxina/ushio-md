@@ -110,10 +110,13 @@ import {
   perfRecordChain,
   perfRecordSettle,
   perfRecordEvent,
+  perfSetSections,
+  perfSections,
   perfDump,
   perfSetEnabled,
   perfSnapshot,
   perfObserveFrames,
+  perfStartSections,
 } from './perf.mjs';
 
 const app = document.getElementById('app');
@@ -1042,101 +1045,118 @@ const renderHtmlBlockCodeNodes = (root) => {
 
   const milkdownEl = root.closest('.milkdown') || app.querySelector('.milkdown');
   if (!milkdownEl) return;
+
+  /**
+   * 读写分批。旧实现是「读某块矩形 → 写它的占位高 → 读下一块矩形」，每次写都会
+   * 让后续读触发整篇重排：6 个 HTML 块就把 1300 块的文档强制布局十几遍，实测占
+   * 冷路径收尾的 85%（212.5ms / 251.2ms）。改成 读-读-读 → 写-写 → 一次读高 → 写高，
+   * 整轮只触发两次布局。
+   */
+
+  // ---- 1) 只读：几何与内容，中间不写任何东西 ----
   const milkdownRect = milkdownEl.getBoundingClientRect();
-
-  const allBlocks = root.querySelectorAll('.milkdown-code-block');
+  const planned = [];
   let htmlBlockIndex = 0;
-
-  allBlocks.forEach((block) => {
+  root.querySelectorAll('.milkdown-code-block').forEach((block) => {
     if (!(block instanceof HTMLElement)) return;
-
     if (!isHtmlBlockCodeNode(block)) return;
+    const idx = htmlBlockIndex;
+    htmlBlockIndex += 1;
 
-    hideHtmlBlockCodeNode(block);
-
-    // Read content
     const cmLines = block.querySelectorAll('.cm-line');
     let rawHtml;
     if (cmLines.length > 0) {
       rawHtml = Array.from(cmLines).map((line) => line.textContent || '').join('\n');
     } else {
-      const cmContent = block.querySelector('.cm-content');
-      rawHtml = cmContent?.textContent || '';
+      rawHtml = block.querySelector('.cm-content')?.textContent || '';
     }
-    if (!rawHtml.trim()) { htmlBlockIndex++; return; }
+    if (!rawHtml.trim()) return;
 
-    // Content hash to avoid unnecessary re-renders
-    const contentHash = rawHtml.length + ':' + rawHtml.substring(0, 200);
-    const idx = htmlBlockIndex;
-    htmlBlockIndex++;
-
-    // Calculate position relative to .milkdown container. getBoundingClientRect
-    // remains accurate with visibility:hidden, so the raw code never flashes.
     const blockRect = block.getBoundingClientRect();
-    const top = blockRect.top - milkdownRect.top + milkdownEl.scrollTop;
-    const left = blockRect.left - milkdownRect.left + milkdownEl.scrollLeft;
-    const width = blockRect.width;
+    planned.push({
+      block,
+      idx,
+      rawHtml,
+      contentHash: rawHtml.length + ':' + rawHtml.substring(0, 200),
+      top: blockRect.top - milkdownRect.top + milkdownEl.scrollTop,
+      left: blockRect.left - milkdownRect.left + milkdownEl.scrollLeft,
+      width: blockRect.width,
+    });
+  });
 
-    // Check if overlay item already exists for this index
-    let overlayItem = overlay.querySelector(`[data-html-block-index="${idx}"]`);
-    const needsUpdate = !overlayItem || htmlOverlayContentCache.get(idx) !== contentHash;
-
+  // ---- 2) 只写：建/更新 overlay 项与位置（此处不读高度）----
+  const activeIndices = new Set();
+  for (const item of planned) {
+    activeIndices.add(String(item.idx));
+    let overlayItem = overlay.querySelector(`[data-html-block-index="${item.idx}"]`);
+    const needsUpdate = !overlayItem || htmlOverlayContentCache.get(item.idx) !== item.contentHash;
     if (needsUpdate) {
       if (overlayItem) overlayItem.remove();
-
       const template = document.createElement('template');
-      template.innerHTML = rawHtml;
+      template.innerHTML = item.rawHtml;
       sanitizeHtmlFragment(template.content);
-
       overlayItem = document.createElement('div');
       overlayItem.className = 'ushio-html-block';
-      overlayItem.setAttribute('data-html-block-index', String(idx));
-      overlayItem.style.cssText = `position:absolute;top:${top}px;left:${left}px;width:${width}px;pointer-events:auto;`;
+      overlayItem.setAttribute('data-html-block-index', String(item.idx));
       overlayItem.append(template.content.cloneNode(true));
       overlay.appendChild(overlayItem);
-      htmlOverlayContentCache.set(idx, contentHash);
-    } else {
-      // Just update position
-      overlayItem.style.top = `${top}px`;
-      overlayItem.style.left = `${left}px`;
-      overlayItem.style.width = `${width}px`;
+      htmlOverlayContentCache.set(item.idx, item.contentHash);
     }
+    overlayItem.style.position = 'absolute';
+    overlayItem.style.pointerEvents = 'auto';
+    overlayItem.style.top = `${item.top}px`;
+    overlayItem.style.left = `${item.left}px`;
+    overlayItem.style.width = `${item.width}px`;
+    item.overlayItem = overlayItem;
+  }
 
-    // Measure the overlay's rendered height, then hide the code block with inline !important.
-    // Use the overlay height so the block reserves proper space in the document flow.
-    const overlayHeight = overlayItem.offsetHeight;
-    hideHtmlBlockCodeNode(block);
-    // 伪块自身带 padding/border，而 height 默认是 content-box：直接写 height 会让实际
-    // 占位高 = 渲染高 + padding，每个 HTML 块多出一截（实测 249.5 vs 252 = 2.5px/块），
-    // 并按块数累积成后续内容与 overlay 的位移。定成 border-box 让占位精确等于渲染高。
-    block.style.setProperty('box-sizing', 'border-box', 'important');
-    if (overlayHeight > 0) {
-      block.style.setProperty('height', `${overlayHeight}px`, 'important');
-      block.style.setProperty('min-height', `${overlayHeight}px`, 'important');
-      block.style.setProperty('max-height', `${overlayHeight}px`, 'important');
-    } else {
-      block.style.removeProperty('height');
-      block.style.removeProperty('min-height');
-      block.style.setProperty('max-height', '0', 'important');
-    }
-    block.style.setProperty('overflow', 'hidden', 'important');
+  // 删掉已不存在的块对应的 overlay 项
+  overlay.querySelectorAll('[data-html-block-index]').forEach((el) => {
+    if (!activeIndices.has(el.getAttribute('data-html-block-index'))) el.remove();
   });
+  for (const [key] of htmlOverlayContentCache) {
+    if (!activeIndices.has(String(key))) htmlOverlayContentCache.delete(key);
+  }
 
-  // Remove overlay items for blocks that no longer exist
-  const activeIndices = new Set();
-  let idx2 = 0;
-  allBlocks.forEach((block) => {
-    if (!(block instanceof HTMLElement)) return;
-    if (!isHtmlBlockCodeNode(block)) return;
-    activeIndices.add(String(idx2));
-    idx2++;
-  });
-  overlay.querySelectorAll('[data-html-block-index]').forEach((item) => {
-    if (!activeIndices.has(item.getAttribute('data-html-block-index'))) {
-      item.remove();
-      htmlOverlayContentCache.delete(Number(item.getAttribute('data-html-block-index')));
+  // ---- 3) 一次读：所有 overlay 项的渲染高度（整轮第二次布局）----
+  for (const item of planned) item.overlayHeight = item.overlayItem.offsetHeight;
+
+  // ---- 4) 只写：伪块占位高与隐藏标记 ----
+  for (const item of planned) {
+    hideHtmlBlockCodeNode(item.block);
+    // 伪块自身带 padding/border，而 height 默认 content-box：不定 border-box 的话
+    // 实际占位高 = 渲染高 + padding，每个 HTML 块多占一截并按块数累积。
+    item.block.style.setProperty('box-sizing', 'border-box', 'important');
+    if (item.overlayHeight > 0) {
+      item.block.style.setProperty('height', `${item.overlayHeight}px`, 'important');
+      item.block.style.setProperty('min-height', `${item.overlayHeight}px`, 'important');
+      item.block.style.setProperty('max-height', `${item.overlayHeight}px`, 'important');
+    } else {
+      item.block.style.removeProperty('height');
+      item.block.style.removeProperty('min-height');
+      item.block.style.setProperty('max-height', '0', 'important');
     }
-  });
+    item.block.style.setProperty('overflow', 'hidden', 'important');
+  }
+
+  /**
+   * ---- 5) 再读一次矩形、再写一次位置 ----
+   * 第 1 步读的矩形是「占位高还没写」时的几何；写完占位高后块的位置会变。
+   * 若留到下一次收尾再校正，就变成「两趟才收敛」，每次收尾都可能留一帧错位。
+   * 这里在同一轮内补一次 read→write：布局刷新仍是常数级（3 次而不是 2×块数）。
+   */
+  const milkdownRect2 = milkdownEl.getBoundingClientRect();
+  for (const item of planned) {
+    const r = item.block.getBoundingClientRect();
+    item.top = r.top - milkdownRect2.top + milkdownEl.scrollTop;
+    item.left = r.left - milkdownRect2.left + milkdownEl.scrollLeft;
+    item.width = r.width;
+  }
+  for (const item of planned) {
+    item.overlayItem.style.top = `${item.top}px`;
+    item.overlayItem.style.left = `${item.left}px`;
+    item.overlayItem.style.width = `${item.width}px`;
+  }
 };
 
 /**
@@ -1598,11 +1618,17 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
 
 
 const syncRenderedDom = () => {
+  // 分段打点：1.5 秒的冷路径收尾到底花在哪一段，只靠读代码已经猜错过一次。
+  const P = perfStartSections();
   const root = app.querySelector('.milkdown') || app;
   renderRawHtmlNodes(root);
+  P.mark('rawHtml');
   renderBlockHtmlGroups(root);
+  P.mark('blockHtmlGroups');
   renderHtmlBlockCodeNodes(root);
+  P.mark('htmlOverlay');
   const markdownImageSources = collectMarkdownImageSources(currentMarkdown);
+  P.mark('scanImages');
 
   // Debug: Log image matching info for troubleshooting
   const domImages = root.querySelectorAll('.ProseMirror img');
@@ -1699,6 +1725,7 @@ const syncRenderedDom = () => {
     }
   });
 
+  P.mark('imgPass');
   root.querySelectorAll('.ProseMirror a').forEach((anchor) => {
     if (anchor.closest('.milkdown-code-block .tools')) return;
     const rawHref = anchor.getAttribute('href') || '';
@@ -1710,6 +1737,7 @@ const syncRenderedDom = () => {
     }
   });
 
+  P.mark('anchorPass');
   const headingOutline = parseMarkdownOutline(currentMarkdown);
   const consumedOutlineIndexes = new Set();
   const headingIdMap = new Map(); // Track used heading IDs for uniqueness
@@ -1776,6 +1804,7 @@ const syncRenderedDom = () => {
     });
   });
 
+  P.mark('headingPass');
   root.querySelectorAll('.milkdown-table-block').forEach((block) => {
     applyHorizontalScrollClass(block);
     const table = block.querySelector('table');
@@ -1788,8 +1817,10 @@ const syncRenderedDom = () => {
     applyHorizontalScrollClass(block);
   });
 
+  P.mark('tablePrePass');
   const fenceLanguages = collectFenceLanguages(currentMarkdown);
   const docCodeLanguages = collectDocCodeLanguages();
+  P.mark('scanFences');
 
   // 不变量改成「DOM 代码块数 == 文档 code_block 数」（两者同为文档序）。
   // 旧实现拿 markdown 围栏数来比，内联代码与嵌套场景下会假报警。
@@ -1802,6 +1833,7 @@ const syncRenderedDom = () => {
     });
   }
 
+  P.mark('codeBlockQuery');
   root.querySelectorAll('.milkdown-code-block').forEach((block, codeBlockIndex) => {
     if (!(block instanceof HTMLElement)) return;
 
@@ -1903,16 +1935,23 @@ const syncRenderedDom = () => {
     }
   });
 
+  P.mark('codeBlockPass');
   attachHorizontalWheelScroll();
+  P.mark('wheelBind');
 
   root.querySelectorAll('input[type="checkbox"]').forEach((checkbox, index) => {
     checkbox.dataset.checkboxIndex = String(index);
     checkbox.setAttribute('tabindex', '-1');
   });
 
+  P.mark('checkboxPass');
   root.querySelectorAll('.ushio-code-actions-row').forEach((row) => {
     row.remove();
   });
+  P.mark('cleanup');
+  const sizes = perfSizes();
+  perfSetSections(P.report(), sizes);
+  perfRecordEvent('syncdetail', { ...P.report(), ...sizes });
 };
 
 const emitHistoryState = () => {
@@ -3967,6 +4006,7 @@ const onFlutterMessage = (message) => {
 window.__USHIO_PERF__ = {
   dump: perfDump,
   snapshot: perfSnapshot,
+  sections: perfSections,
   setEnabled: perfSetEnabled,
   // 诊断入口：syncRenderedDom 是同步的，隐藏标签里 rAF 不触发时也能手动跑一次，
   // 用于「DOM 指纹一致 + 更快」的重构验证闭环。
