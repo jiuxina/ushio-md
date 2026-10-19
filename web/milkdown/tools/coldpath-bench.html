@@ -74,9 +74,11 @@ async function oneIteration(iter) {
   const root = win.document.querySelector('.ProseMirror');
   const blocks = root ? root.childElementCount : -1;
   const coldSyncMs = win.__USHIO_PERF__.sync();      // 第一次 = 冷路径
+  const coldSections = win.__USHIO_PERF__.sections?.() || null;
   const warmSyncMs = win.__USHIO_PERF__.sync();      // 第二次 = 热路径，作对照
+  const warmSections = win.__USHIO_PERF__.sections?.() || null;
   frame.remove();
-  return { coldSyncMs, warmSyncMs, blocks, chars: md.length };
+  return { coldSyncMs, warmSyncMs, blocks, chars: md.length, coldSections, warmSections };
 }
 
 (async () => {
@@ -91,11 +93,25 @@ async function oneIteration(iter) {
   const med = (arr) => { const a = arr.slice().sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
   const colds = ok.map((r) => r.coldSyncMs);
   const warms = ok.map((r) => r.warmSyncMs);
+  const coldTotal = med(colds);
+  const sectionNames = [...new Set(ok.flatMap((r) => Object.keys(r.coldSections?.sections || {})))];
+  const bySection = sectionNames.map((name) => ({
+    name,
+    cold: med(ok.map((r) => r.coldSections?.sections?.[name]).filter((v) => typeof v === 'number')),
+    warm: med(ok.map((r) => r.warmSections?.sections?.[name]).filter((v) => typeof v === 'number')),
+  })).sort((a, b) => (b.cold ?? 0) - (a.cold ?? 0));
   document.getElementById('out').innerHTML = `<table>
     <tr><th>轮</th><th>冷 sync (ms)</th><th>热 sync (ms)</th><th>顶层块</th></tr>
     ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${r.error ? r.error : r.coldSyncMs}</td><td>${r.error ? '—' : r.warmSyncMs}</td><td>${r.error ? '—' : r.blocks}</td></tr>`).join('')}
     <tr><th>中位数</th><th>${med(colds)}</th><th>${med(warms)}</th><th>${ok[0]?.blocks ?? '—'}</th></tr>
-  </table>`;
+  </table>
+  <h2>冷路径分段归因（中位数，降序）</h2>
+  <table>
+    <tr><th>段</th><th>冷 (ms)</th><th>热 (ms)</th><th>占冷路径</th></tr>
+    ${bySection.map((x) => `<tr><td>${x.name}</td><td>${x.cold ?? '—'}</td><td>${x.warm ?? '—'}</td><td>${coldTotal ? ((x.cold / coldTotal) * 100).toFixed(0) + '%' : '—'}</td></tr>`).join('')}
+  </table>
+  <p>规模：${ok[0]?.coldSections?.sizes ? JSON.stringify(ok[0].coldSections.sizes) : '—'}</p>`;
+  document.getElementById('sum').textContent += ' · ' + bySection.slice(0, 4).map((x) => `${x.name} ${x.cold}ms`).join(' / ');
   document.getElementById('sum').textContent = `${SRC} · 冷路径中位数 ${med(colds)}ms · 样本 ${colds.join(' / ')}`;
   document.title = `coldpath ${med(colds)}`;
 })();
