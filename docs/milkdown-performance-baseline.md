@@ -366,6 +366,28 @@ final stamp = kDebugMode ? _debugUrlStamp : AppConstants.appVersion;
 虚报风险登记：本表在 `document.hidden=true` 的标签页里采（§5.3），分段值是同步工作耗时不受节流影响，
 但 `create` 合计里的异步尾巴会被 1s 定时器钳位放大 ⇒ **异步段数字只能当上界看**。
 
+### 5.13 同一分段在真机复现，且比例更悬殊（2026-10-19）
+
+profile 包 `--dart-define=MILKDOWN_URL_STAMP=bootphase`，logcat 核对加载的确实是 `index-Bn1dnKF5.js`（§5.11 的规矩）。
+文档 = `build/mdbench/PerfS.md`，50004 字符 / 1359 顶层块 / 预处理后 57166 字符，冷启动自动恢复上次文档，无需点按。
+两次可用采样（10 个阶段全部派发，`missing: []`）：
+
+| 段 | 采样 1 | 采样 2 |
+| --- | --- | --- |
+| `EditorStateReady` 建树 | 6101.8ms | 9136.6ms |
+| `EditorViewReady` 挂 DOM | **22487.5ms** | **25611.7ms** |
+| 挂 DOM / 建树 | **3.68×** | **2.80×** |
+| `crepe.create` 合计 | 42256.3ms | 48310.7ms |
+| await 空隙（合计 − 段内合计） | 13395.7ms | 13154.9ms |
+| create 之前（wrapHtml+preprocessImages+Crepe 构造+插件注册） | 150.8ms | 147.1ms |
+
+- **桌面上挂 DOM 只比建树贵 1.25×，真机是 2.8–3.7×**：nodeView（每块一个 CodeMirror 实例 + 一个 Vue app）在设备上的边际惩罚远大于解析，
+  §5.12 的结论在真机方向上被加强而不是抵消。
+- **await 空隙两次都是 ~13.2s（占 create 的 27–32%）**，绝对值比两段都稳定。这段时间不属于任何同步分段，
+  是 `new EditorView()` 之后各 CodeMirror 实例的异步语言装载与 `reconfigure` 重高亮尾巴。§5.12 已量到桌面代码块类型有 ~3.5ms/块的同类尾巴。
+- 两次采样绝对值差 14%（42.3s → 48.3s）是 §5.9 的连装退化，**不要拿绝对值当基线**；本轮结论只用比例。
+- 插桩本身不改行为：冷启动后截图核对标题/段落/行内代码/链接/任务列表勾选框渲染全部正常。
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。
