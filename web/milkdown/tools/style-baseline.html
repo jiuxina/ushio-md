@@ -87,6 +87,9 @@ async function boot() {
 (async () => {
   if (!(await boot())) { statusEl.textContent = '编辑器未能就绪'; return; }
   const win = frame.contentWindow;
+  // 代码块是懒挂载的；先把它们全部挂上再量计算样式，否则量到的是占位 <pre>。
+  win.__USHIO_PERF__.mountAllCodeBlocks?.();
+  await wait(400);
   // 跑三次收尾，让懒建的东西（语言框、overlay）都到位
   win.__USHIO_PERF__.sync();
   win.__USHIO_PERF__.sync();

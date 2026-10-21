@@ -544,6 +544,39 @@ A–D 四组判据都「sync 完立刻同步读」，所以从 §5.10 起一直�
 - 结论：下一步优化输入延迟应打 **overlay 的几何重算**（只在几何真正变化时重排、合并读写），
   而不是继续压字符串扫描；这与冷启动优化（代码块挂载）是两条独立的线。
 
+### 5.17 代码块 CodeMirror 延迟挂载：离屏不建（2026-10-21）
+
+Crepe 的 `CodeMirrorBlock` 在 NodeView 构造函数里就 `new EditorView(...)`，即使整块在屏幕外。
+`web/milkdown/src/lazy-code-block.mjs` 包了一层 NodeView：先用 `<pre>` 显示源码占位，
+满足任一条件才调用 Crepe 原来的节点工厂挂载——进入视口（`IntersectionObserver`，rootMargin 400px）、
+指针按下、或被 PM `selectNode`。挂载后所有 UI/交互（语言选择器、复制、编辑、搜索）仍由 Crepe 自己处理；
+包装层保持与真实 NodeView 相同的契约（无 `contentDOM`、`stopEvent` 恒真、`ignoreMutation` 恒真）。
+首屏另有一次性几何兜底：构造后等一拍按 `getBoundingClientRect` 挂载视口内的块，避免 IO 首个回调延迟。
+
+**桌面 A/B（`coldpath-bench.html?kinds=code&blocks=400&n=5`，402 顶层块 / 100 代码块；改前为 HEAD 构建）**
+
+| 指标 | 改前 | 改后 |
+| --- | --- | --- |
+| 建树 `EditorStateReady` | 160.0 ms | 201.8 ms |
+| 挂 DOM `EditorViewReady` | **476.2 ms** | **58.6 ms** |
+| `crepe.create` 合计 | **1058.5 ms** | **280.9 ms** |
+| 冷路径 sync | 37.4 ms | 11.5 ms |
+| `cm-editor` 实例 | 100 | **3** |
+
+挂 DOM −87.7%，create −73.5%；建树的 +26% 与改动无关（同文档、同解析路径），按噪声处理。
+
+**判据**：新增 `tools/codeblock-lazy.html` —— A 初始只挂载视口附近（12 块里 5 挂载/7 占位）、
+B 滚动到末尾后挂载（后台标签页里 IO 不派发，自报 SKIP，不算 PASS）、C 点按占位立即挂载、
+D 挂载后 CM 内容与语言选择器完好、E 序列化不因挂载而变。
+`style-baseline` 在测量前调用 `mountAllCodeBlocks()` 把所有块挂上，指纹仍为 **280916608**（零样式回归）；
+`html-roundtrip` 9/9、`overlay-oracle` 10/10、`init-gate` 3/3、`roundtrip-fidelity` 22/40 不变、`vitest` 27/27。
+`@milkdown/components` 改为直接依赖，lockfile 已同步（`npm ci` 可复现）。
+
+**设备状态说明**：本轮在同一 AVD 上第 4 次安装后冷启动 `crepe.create` = 41.5s（前一版 31.6s、首装 9.99s），
+是 §5.9 的连装退化，绝对值不可用于比较；文档渲染正常。计划中的冷重启复测因宿主休眠导致时钟跳跃、
+adb 反复掉线而未完成；**滚动触发的挂载没有真机视觉证据**（后台标签页 IO 不派发，adb 滑动在编辑态会变成选字），
+点按挂载与功能完好由判据 C/D/E 覆盖。若要在真机补验：冷启动后滚到章节 7/14，确认代码块出现行号与高亮。
+
 ## 6. 回归判定规则
 
 1. **通过**：所有核心指标均满足阈值。

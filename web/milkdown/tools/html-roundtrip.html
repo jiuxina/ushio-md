@@ -164,6 +164,10 @@ function probe(win) {
   for (const c of CASES) {
     win.__USHIO_PERF__.setDoc(c.doc);
     await wait(60);
+    // 代码块现在是懒挂载；本判据要数「为 HTML 块建了多少 CodeMirror」，
+    // 必须先把真实代码块全部挂上，否则 standaloneCm 会偏小、断言被放水。
+    win.__USHIO_PERF__.mountAllCodeBlocks?.();
+    await wait(150);
     // overlay 项是渲染收尾里建的；连打几次看它是否需要额外一趟才建立
     // （只是诊断，不参与 PASS/FAIL——几何正确性归 overlay-oracle.html 管）。
     const overlayPasses = [];

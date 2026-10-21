@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>代码块 CodeMirror 延迟挂载判据</title>
+<style>
+  body { font: 13px/1.55 system-ui, sans-serif; margin: 22px; color: #17202a; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  p.hint { color: #5b6b7b; margin: 0 0 14px; max-width: 1000px; }
+  table { border-collapse: collapse; margin: 10px 0; }
+  th, td { border: 1px solid #d5dde5; padding: 5px 10px; vertical-align: top; }
+  th { background: #f2f5f8; }
+  .pass { color: #14612e; font-weight: 600; }
+  .fail { color: #96141a; font-weight: 600; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-all; font: 11px/1.4 ui-monospace, Consolas, monospace; color: #5b6b7b; }
+  iframe { width: 880px; height: 260px; border: 1px solid #d5dde5; }
+</style>
+</head>
+<body>
+<h1>代码块延迟挂载 —— 离屏代码块不该先建 CodeMirror</h1>
+<p class="hint">
+  Crepe 的 CodeMirrorBlock 在 NodeView 构造函数里就建 CodeMirror + Vue。包装层先用 <code>&lt;pre&gt;</code>
+  占位，满足任一条件才调用 Crepe 原工厂挂载：进入视口（rootMargin 400px）、指针按下、或被选中。
+  本页断言：① 初始只挂载视口附近的块（离屏仍是占位）；② 滚动到末尾后该块被挂载；
+  ③ 点按占位块会立即挂载；④ 挂载后 CodeMirror 内容与源码一致、语言选择器存在；
+  ⑤ 无论挂载与否，序列化结果不变。
+</p>
+<p class="sum" id="sum">准备中…</p>
+<div id="out"></div>
+<iframe id="editor" src="/dist/index.html" title="被测编辑器"></iframe>
+
+<script type="module">
+// 后台标签页的原生定时器会被节流；等待走 MessageChannel。
+const waitChannel = new MessageChannel();
+let waitTick = null;
+waitChannel.port1.onmessage = () => { const t = waitTick; waitTick = null; if (t) t(); };
+const wait = (ms) => new Promise((resolve) => {
+  const t0 = performance.now();
+  const tick = () => {
+    if (performance.now() - t0 >= ms) resolve();
+    else { waitTick = tick; waitChannel.port2.postMessage(0); }
+  };
+  tick();
+});
+const statusEl = document.getElementById('sum');
+const outEl = document.getElementById('out');
+const frame = document.getElementById('editor');
+
+const CODE_BLOCKS = 12;
+const DOC = Array.from({ length: CODE_BLOCKS }, (_, i) => (
+  `段落 ${i + 1}。\n\n\`\`\`js\nconst a${i + 1} = ${i + 1};\n\`\`\`\n`
+)).join('\n');
+
+async function boot() {
+  for (let i = 0; i < 1200; i++) {
+    const bridge = frame.contentWindow.__USHIO_BRIDGE__;
+    if (bridge?.onFlutterMessage) {
+      bridge.onFlutterMessage({
+        v: 1, source: 'flutter', target: 'web', type: 'init_doc',
+        payload: { markdown: '# 预热\n\n占位段落。\n', readOnly: false, baseDirectory: '' },
+      });
+      for (let j = 0; j < 300; j++) {
+        if (frame.contentWindow.__USHIO_PERF__?.serialize?.()) return true;
+        await wait(50);
+      }
+      return false;
+    }
+    await wait(50);
+  }
+  return false;
+}
+
+const hosts = (win) => [...win.document.querySelectorAll('.ProseMirror > [data-ushio-codeblock-host]')];
+const isMounted = (host) => !host.hasAttribute('data-ushio-codeblock-lazy');
+const stats = (win) => {
+  const all = hosts(win);
+  return {
+    total: all.length,
+    mounted: all.filter(isMounted).length,
+    lazy: all.filter((h) => !isMounted(h)).length,
+    cm: win.document.querySelectorAll('.ProseMirror .cm-editor').length,
+    tools: win.document.querySelectorAll('.ProseMirror .milkdown-code-block .tools').length,
+  };
+};
+
+(async () => {
+  statusEl.textContent = '等待编辑器就绪…';
+  if (!(await boot())) { statusEl.textContent = '编辑器未能就绪，判据未执行'; return; }
+  const win = frame.contentWindow;
+  win.__USHIO_PERF__.setDoc(DOC);
+  // 等首屏几何兜底（后台标签页的 setTimeout 会被节流到 ~1s）与 listener debounce 跑完。
+  await wait(1800);
+
+  const initial = stats(win);
+  const serialized = win.__USHIO_PERF__.serialize();
+  const results = [];
+
+  results.push({
+    name: 'A 初始只挂载视口附近的块',
+    ok: initial.total === CODE_BLOCKS && initial.mounted >= 1 && initial.lazy >= 1 && initial.cm === initial.mounted,
+    detail: `块 ${initial.total}，已挂载 ${initial.mounted}，占位 ${initial.lazy}，cm-editor ${initial.cm}`,
+  });
+
+  // B：滚到最后一个代码块，它必须被挂载。
+  // 页面在后台标签里时 IntersectionObserver 不派发（没有渲染更新），此项无法判定；
+  // 自报 SKIP 而不是冒充 PASS——真机/前台运行必须看到 PASS。
+  const last = hosts(win).at(-1);
+  last?.scrollIntoView({ block: 'end' });
+  await wait(900);
+  const afterScroll = stats(win);
+  const bOk = Boolean(last) && isMounted(last) && afterScroll.mounted > initial.mounted;
+  results.push({
+    name: 'B 滚动到末尾后该块被挂载',
+    ok: bOk,
+    skipped: !bOk && document.hidden,
+    detail: document.hidden && !bOk
+      ? '页面不可见，IntersectionObserver 不触发；该项在真机/前台运行必须 PASS'
+      : `已挂载 ${initial.mounted} → ${afterScroll.mounted}，末尾块挂载=${Boolean(last) && isMounted(last)}`,
+  });
+
+  // C：点按一个仍未挂载的占位块，应立即挂载。
+  const lazyHost = hosts(win).find((h) => !isMounted(h));
+  let clickedMount = false;
+  if (lazyHost) {
+    lazyHost.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    await wait(500);
+    clickedMount = isMounted(lazyHost) && Boolean(lazyHost.querySelector('.cm-editor'));
+  }
+  results.push({
+    name: 'C 点按占位块立即挂载',
+    ok: Boolean(lazyHost) && clickedMount,
+    detail: lazyHost ? `点按后挂载=${clickedMount}` : '没有剩余占位块，无法执行',
+  });
+
+  // D：挂载后的 CodeMirror 内容与源码一致，且语言选择器存在。
+  const mountedHost = hosts(win).find(isMounted);
+  const cmText = mountedHost?.querySelector('.cm-content')?.textContent || '';
+  const hasTools = Boolean(mountedHost?.querySelector('.tools'));
+  results.push({
+    name: 'D 挂载后内容与功能完好',
+    ok: /const a\d+ = \d+;/.test(cmText) && hasTools,
+    detail: `CM 文本匹配=${/const a\d+ = \d+;/.test(cmText)}，语言选择器=${hasTools}`,
+  });
+
+  // E：挂载与否都不改变序列化。
+  const after = win.__USHIO_PERF__.serialize();
+  results.push({
+    name: 'E 序列化结果不因挂载而变',
+    ok: after === serialized && /const a12 = 12;/.test(after),
+    detail: after === serialized ? '一致' : '不一致',
+  });
+
+  const executed = results.filter((r) => !r.skipped);
+  const allOk = executed.every((r) => r.ok);
+  const skipped = results.length - executed.length;
+  statusEl.innerHTML = `结论：<span class="${allOk ? 'pass' : 'fail'}">${allOk ? `PASS${skipped ? `（${skipped} 项 SKIP）` : ''}` : `FAIL（${executed.filter((r) => !r.ok).length}/${executed.length}）`}</span>`
+    + ' · 判据：离屏不挂载 / 进视口或点按才挂载 / 挂载后内容与功能完好 / 序列化不变';
+  const esc = (s) => String(s).replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
+  outEl.innerHTML = `<table><tr><th>用例</th><th>结果</th><th>细节</th></tr>
+    ${results.map((r) => `<tr><td>${esc(r.name)}</td><td class="${r.skipped ? '' : (r.ok ? 'pass' : 'fail')}">${r.skipped ? 'SKIP' : (r.ok ? 'PASS' : 'FAIL')}</td><td>${esc(r.detail)}</td></tr>`).join('')}
+  </table><pre>${esc(serialized)}</pre>`;
+  document.title = `codeblock-lazy ${allOk ? 'PASS' : 'FAIL'}`;
+})();
+</script>
+</body>
+</html>

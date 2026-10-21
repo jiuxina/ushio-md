@@ -26,6 +26,7 @@
     "@codemirror/lang-xml": "^6.1.0",
     "@codemirror/lang-yaml": "^6.1.2",
     "@codemirror/language": "^6.12.2",
+    "@milkdown/components": "7.19.1",
     "@milkdown/core": "7.19.1",
     "@milkdown/crepe": "^7.19.1",
     "@milkdown/plugin-automd": "7.19.1",

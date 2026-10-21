@@ -108,6 +108,7 @@ import {
   ushioListItemSchema,
   ushioOrderedListSchema,
 } from './md-fidelity.mjs';
+import { lazyCodeBlockView, mountAllLazyCodeBlocks } from './lazy-code-block.mjs';
 import {
   LOCAL_FILE_SCHEME,
   toAbsoluteLocalPath,
@@ -2832,6 +2833,8 @@ const createEditor = async () => {
     // 覆盖同名 schema：修 round-trip 改写（图片 alt、列表紧凑度与起始号）。
     // Crepe 的特性在构造函数里就注册完了，这里的后注册才会生效。
     .use([ushioBulletListSchema, ushioOrderedListSchema, ushioListItemSchema, ushioImageBlockSchema])
+    // 代码块先进 <pre> 占位，进入视口/被点按才建 Crepe 的 CodeMirror 节点视图。
+    .use(lazyCodeBlockView)
     .use(highlight)
     .use(math)
     .use(cursor)
@@ -4120,6 +4123,8 @@ window.__USHIO_PERF__ = {
     return Math.round((perfNow() - t0) * 100) / 100;
   },
   setDoc: (markdown) => setMarkdown(markdown, { forceRender: true }),
+  // 判据用：样式/计数门禁需要所有代码块进入真实形态，否则懒加载会把断言放水。
+  mountAllCodeBlocks: () => mountAllLazyCodeBlocks(),
   // 判据用：区分「没排内容变更」与「排了但被定时器节流还没发」。
   contentState: () => ({
     initializing: initializingEditor,
