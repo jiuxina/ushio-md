@@ -168,6 +168,18 @@
 - **15+ 处 magic timeout**：15s 首渲染、1500ms init 闸门、25ms×100 轮询、3s 服务器、12s 预热硬超时、800ms settle、8s/5s preload、2000ms suppress TTL、120ms 图片重试退避、350ms 合并、150ms 搜索、800ms blur fallback、10s 分享加载……
 - **1.5s init 闸门有数据丢失风险**：`initializingEditor` 为真时 `scheduleContentChange` 被跳过（`:2968/2979`），而它由 `setTimeout(endEditorInitialization, 1500)` 兜底解除（`:2348`）。打开文档后 1.5 秒内的编辑能否落盘，取决于 capture 阶段 `keydown` 是否先于 `markdownUpdated`——**这条不变式没有测试覆盖**。
 
+  **2026-10-21 实测：风险比登记的更大，且已修。** 新判据 `web/milkdown/tools/init-gate-oracle.html`
+  把被测产物放进 `srcdoc`，在它执行前注入一个 ≤2s 走 MessageChannel 的 `setTimeout`
+  （后台标签页的原生定时器会被节流到分钟级，不换掉就复现不出 200ms 的 listener debounce），
+  并装 bridge 桩记录 `on_content_change`。测出的机制是：`setDoc` 走 `replaceAll(..., flush=true)`
+  **重建 EditorState**，listener 的 `state.init` 把 `prevDoc` 直接设成新文档 ⇒ **根本没有初始回波**；
+  而 `isApplyingFromFlutter` 与 1.5s 闸门都没被清掉。结果不是「1.5 秒内的编辑可能丢」，
+  而是**打开文档后的第一笔编辑一定丢**（勾选框、工具栏命令、键盘输入都一样），第二笔才会发。
+  修法：flush 路径在 `replaceAll` 后立刻 `isApplyingFromFlutter = false; endEditorInitialization()`。
+  判据 A（闸门结束后命令）/ B（闸门内 100ms 命令）/ C（只打开不编辑）由 **FAIL / FAIL / PASS** 变为 **3/3 PASS**；
+  同时 `html-roundtrip` 9/9、`overlay-oracle` 10/10、`style-baseline` 280916608、`vitest` 27/27 不变，
+  `roundtrip-fidelity` 仍为 22/40（已知的语义等价清单，无新增回退）。
+
 ### 4.4 已知留开的正确性问题
 
 Milkdown 序列化改写原文（`-`→`*`、插空行、图片 alt 变成 `1.00`）在 `ANDROID_FULL_FUNCTION_TEST_2026_08_10.md:84` 标注「确认是否为产品可接受」——**至今未定性**。这不是 bug 级别，是**数据损坏级别**：编辑器会在用户没要求时改用户的内容。

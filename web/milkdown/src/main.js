@@ -2250,6 +2250,13 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
     emitDebug('[JS] setMarkdown: calling editorInstance.action(replaceAll)');
     const perfFull0 = perfNow();
     editorInstance.action(replaceAll(preprocessedMarkdown, forceRender));
+    if (forceRender) {
+      // flush=true 会重建 EditorState：listener 的 state.init 以新文档为 prevDoc，
+      // 因此不会有「初始回波」需要吞。继续挂着 applyingFromFlutter 与 1.5s 闸门，
+      // 只会把用户的第一笔编辑（尤其是勾选框/工具栏命令）静默丢掉。
+      isApplyingFromFlutter = false;
+      endEditorInitialization();
+    }
     perfRecordEvent('setdoc', {
       replaceAllMs: perfNow() - perfFull0,
       chars: preprocessedMarkdown.length,
@@ -4113,6 +4120,14 @@ window.__USHIO_PERF__ = {
     return Math.round((perfNow() - t0) * 100) / 100;
   },
   setDoc: (markdown) => setMarkdown(markdown, { forceRender: true }),
+  // 判据用：区分「没排内容变更」与「排了但被定时器节流还没发」。
+  contentState: () => ({
+    initializing: initializingEditor,
+    applyingFromFlutter: isApplyingFromFlutter,
+    readOnly: currentReadOnly,
+    pending: pendingContentMarkdown != null,
+    progressive: progressiveRenderPending,
+  }),
   setAppendRender: (on) => { appendRenderEnabled = Boolean(on); },
   // 诊断用：把阈值设成 0 强制走渐进路径、设成极大值强制走整篇一次替换，
   // 这样能在同一份文档上比较「分片追加解析」与「整篇解析」的产物是否一致。

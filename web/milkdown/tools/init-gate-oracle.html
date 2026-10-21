@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>1.5s init 闸门数据丢失判据</title>
+<style>
+  body { font: 13px/1.55 system-ui, sans-serif; margin: 22px; color: #17202a; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  p.hint { color: #5b6b7b; margin: 0 0 14px; max-width: 1000px; }
+  table { border-collapse: collapse; margin: 10px 0; }
+  th, td { border: 1px solid #d5dde5; padding: 5px 10px; vertical-align: top; }
+  th { background: #f2f5f8; }
+  .pass { color: #14612e; font-weight: 600; }
+  .fail { color: #96141a; font-weight: 600; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-all; font: 11px/1.4 ui-monospace, Consolas, monospace; color: #5b6b7b; }
+  iframe { width: 880px; height: 240px; border: 1px solid #d5dde5; }
+</style>
+</head>
+<body>
+<h1>init 闸门数据丢失判据 —— 打开后 1.5 秒内的非键盘编辑必须传到 Flutter</h1>
+<p class="hint">
+  打开文档时 <code>markEditorInitializing()</code> 置起 1.5 秒闸门，期间 <code>markdownUpdated</code>
+  跳过 <code>scheduleContentChange</code>，用来吞掉初始渲染的回声。键盘输入有捕获监听提前解除闸门，
+  但<strong>勾选框、工具栏命令</strong>没有 keydown：若发生在闸门内，内容变更就永远不发给 Flutter
+  （Dart 只认 <code>on_content_change</code>）。本页把被测产物放进 <code>srcdoc</code>，
+  在它执行前注入一个 ≤2s 走 MessageChannel 的 <code>setTimeout</code>——后台标签页的原生定时器
+  会被节流到分钟级，不换掉就复现不出「闸门内 200ms 的 listener debounce」这个真实时序。
+  同时装 bridge 桩记录所有消息。
+</p>
+<p class="sum" id="sum">准备中…</p>
+<div id="out"></div>
+<iframe id="editor" title="被测编辑器"></iframe>
+
+<script type="module">
+// 父页面本身也在后台标签里，原生 setTimeout 会被节流；同样走 MessageChannel。
+const waitChannel = new MessageChannel();
+let waitTick = null;
+waitChannel.port1.onmessage = () => { const t = waitTick; waitTick = null; if (t) t(); };
+const wait = (ms) => new Promise((resolve) => {
+  const t0 = performance.now();
+  const tick = () => {
+    if (performance.now() - t0 >= ms) resolve();
+    else { waitTick = tick; waitChannel.port2.postMessage(0); }
+  };
+  tick();
+});
+const statusEl = document.getElementById('sum');
+const outEl = document.getElementById('out');
+const frame = document.getElementById('editor');
+
+const OVERRIDE = `<script>
+(() => {
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  const nativeClearTimeout = window.clearTimeout.bind(window);
+  const channels = new Map();
+  let seq = 1000000;
+  window.setTimeout = function (fn, ms, ...args) {
+    const delay = Number(ms);
+    if (typeof fn !== 'function' || !Number.isFinite(delay) || delay < 0 || delay > 2000) {
+      return nativeSetTimeout(fn, ms, ...args);
+    }
+    const id = ++seq;
+    const t0 = performance.now();
+    const channel = new MessageChannel();
+    const tick = () => {
+      if (!channels.has(id)) return;
+      if (performance.now() - t0 >= delay) {
+        channels.delete(id);
+        try { fn(...args); } catch (err) { console.error(err); }
+      } else {
+        channel.port2.postMessage(0);
+      }
+    };
+    channel.port1.onmessage = tick;
+    channels.set(id, channel);
+    // setTimeout 必须异步：即使 delay=0 也不能在同一个任务里直接调用。
+    channel.port2.postMessage(0);
+    return id;
+  };
+  window.clearTimeout = function (id) {
+    if (channels.has(id)) {
+      const channel = channels.get(id);
+      channel.port1.close();
+      channel.port2.close();
+      channels.delete(id);
+      return;
+    }
+    nativeClearTimeout(id);
+  };
+  window.__MSGS = [];
+  window.flutter_inappwebview = {
+    callHandler: (_name, msg) => { window.__MSGS.push(msg); return Promise.resolve(); },
+  };
+})();
+<\/script>`;
+
+async function loadApp() {
+  const html = await (await fetch('/dist/index.html', { cache: 'no-store' })).text();
+  frame.srcdoc = html.replace('<head>', `<head><base href="/dist/">${OVERRIDE}`);
+  for (let i = 0; i < 600; i++) {
+    const bridge = frame.contentWindow.__USHIO_BRIDGE__;
+    if (bridge?.onFlutterMessage) {
+      bridge.onFlutterMessage({
+        v: 1, source: 'flutter', target: 'web', type: 'init_doc',
+        payload: { markdown: '# 预热\n\n占位段落。\n', readOnly: false, baseDirectory: '' },
+      });
+      for (let j = 0; j < 300; j++) {
+        if (frame.contentWindow.__USHIO_PERF__?.serialize?.()) return true;
+        await wait(50);
+      }
+      return false;
+    }
+    await wait(50);
+  }
+  return false;
+}
+
+const contentChanges = (win) => win.__MSGS
+  .filter((m) => m?.type === 'on_content_change')
+  .map((m) => m.payload?.markdown || '');
+
+(async () => {
+  statusEl.textContent = '加载被测产物…';
+  if (!(await loadApp())) { statusEl.textContent = '编辑器未能就绪，判据未执行'; return; }
+  const win = frame.contentWindow;
+  if (!win.__USHIO_PERF__?.execCmd) { statusEl.textContent = '缺 execCmd 诊断入口，判据未执行'; return; }
+
+  const results = [];
+
+  // A：控制组。等过 1.5s 闸门，用工具栏命令插分隔线，必须发出一条内容变更。
+  win.__MSGS.length = 0;
+  win.__USHIO_PERF__.setDoc('# A\n\n控制组段落。\n');
+  await wait(2000);
+  win.__USHIO_PERF__.execCmd('insert_hr');
+  await wait(900);
+  const aMsgs = contentChanges(win);
+  const aInserted = (win.__USHIO_PERF__.serialize() || '').includes('***');
+  results.push({ name: 'A 控制组：闸门结束后工具栏命令', ok: aInserted && aMsgs.length > 0, detail: `插入=${aInserted}；消息=${aMsgs.length}` });
+
+  // B：风险组。打开后 100ms（闸门内、无键盘事件）用同一条非键盘路径插分隔线。
+  win.__MSGS.length = 0;
+  win.__USHIO_PERF__.setDoc('# B\n\n风险组段落。\n');
+  await wait(100);
+  win.__USHIO_PERF__.execCmd('insert_hr');
+  await wait(1200);
+  const bMsgs = contentChanges(win);
+  const bInserted = (win.__USHIO_PERF__.serialize() || '').includes('***');
+  results.push({ name: 'B 风险组：闸门内的工具栏命令', ok: bInserted && bMsgs.length > 0, detail: `插入=${bInserted}；消息=${bMsgs.length}${bMsgs.length ? '' : '（编辑不会传到 Flutter ⇒ 保存会写回旧内容）'}` });
+
+  // C：只打开不编辑，不能产生任何内容变更（否则一打开就标脏）。
+  win.__MSGS.length = 0;
+  win.__USHIO_PERF__.setDoc('# C\n\n无编辑段落。\n');
+  await wait(2000);
+  const cMsgs = contentChanges(win);
+  results.push({ name: 'C 无假脏：只打开不编辑', ok: cMsgs.length === 0, detail: `消息=${cMsgs.length}` });
+
+  const allOk = results.every((r) => r.ok);
+  statusEl.innerHTML = `结论：<span class="${allOk ? 'pass' : 'fail'}">${allOk ? 'PASS' : `FAIL（${results.filter((r) => !r.ok).length}/${results.length}）`}</span>`
+    + ' · 判据：闸门内的非键盘编辑必须发出一条 on_content_change；只打开不编辑必须零条';
+  const esc = (s) => String(s).replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
+  outEl.innerHTML = `<table><tr><th>用例</th><th>结果</th><th>细节</th><th>序列化输出</th></tr>
+    ${results.map((r) => `<tr><td>${esc(r.name)}</td><td class="${r.ok ? 'pass' : 'fail'}">${r.ok ? 'PASS' : 'FAIL'}</td><td>${esc(r.detail)}</td><td><pre>${esc(win.__USHIO_PERF__.serialize() || '')}</pre></td></tr>`).join('')}
+  </table>`;
+  document.title = `init-gate ${allOk ? 'PASS' : 'FAIL'}`;
+})();
+</script>
+</body>
+</html>
