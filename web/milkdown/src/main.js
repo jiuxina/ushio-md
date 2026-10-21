@@ -16,7 +16,7 @@ import { cursor } from '@milkdown/plugin-cursor';
 import { emojiAttr, emojiSchema, remarkEmojiPlugin } from '@milkdown/plugin-emoji';
 import { highlight, highlightPluginConfig } from '@milkdown/plugin-highlight';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
-import { history, redoCommand, undoCommand } from '@milkdown/plugin-history';
+import { redoCommand, undoCommand } from '@milkdown/plugin-history';
 import { redoDepth, undoDepth } from '@milkdown/prose/history';
 import { math } from '@milkdown/plugin-math';
 import { upload, uploadConfig } from '@milkdown/plugin-upload';

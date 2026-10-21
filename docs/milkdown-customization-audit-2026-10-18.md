@@ -238,6 +238,12 @@ Milkdown 序列化改写原文（`-`→`*`、插空行、图片 alt 变成 `1.00
 
 **附带清理（无风险，随时可做）**：删掉未使用的 vendored `milkdown/`（931 文件）或改成 git submodule；删掉 27 个零调用便捷方法；删掉 `main.js` 里 4 个 import 后从未使用的官方插件（clipboard / indent / trailing / history）；把 3 处 `console.warn` 调试残留（`:1964/2150`）、`RUNTIME_BUILD_TAG`（`:233`）和 13 个 `debug-*.mjs` 一次性调试脚本移出仓库。
 
+**2026-10-21 核查结果**：仓库当前只跟踪 376 个文件，vendored `milkdown/` 与 13 个 `debug-*.mjs` **都已经不在**；
+`clipboard` / `indent` / `trailing` 不是 main.js 的 import，而是 Crepe 构造器内部 `.use(...)` 的依赖，不能从 package.json 删；
+逐文件扫描命名 import 后，真正未使用的只剩 `history`（`redoCommand` / `undoCommand` 仍在用），已删除。
+`RUNTIME_BUILD_TAG` 仍用于 logcat 核对实际加载的 bundle（§5.11 的规矩），两条 `console.warn` 是 DOM 不变量的告警，
+三者都属于有效诊断而非调试残留，保留。构建与 `vitest` 27/27 通过，未改变产物行为。
+
 ---
 
 ## 七、动手前必须补的测量
