@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>Markdown 原样 round-trip 判据</title>
+<style>
+  body { font: 13px/1.55 system-ui, sans-serif; margin: 22px; color: #17202a; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  p.hint { color: #5b6b7b; margin: 0 0 14px; max-width: 1000px; }
+  table { border-collapse: collapse; margin: 10px 0; }
+  th, td { border: 1px solid #d5dde5; padding: 4px 9px; vertical-align: top; }
+  th { background: #f2f5f8; }
+  td.name { white-space: nowrap; font-weight: 600; }
+  .pass { color: #14612e; font-weight: 600; }
+  .fail { color: #96141a; font-weight: 600; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-all; font: 11px/1.4 ui-monospace, Consolas, monospace; color: #5b6b7b; }
+  pre.diff { color: #96141a; }
+  iframe { width: 880px; height: 260px; border: 1px solid #d5dde5; }
+</style>
+</head>
+<body>
+<h1>Markdown 原样 round-trip —— 打开再保存，用户的文件不该被改写</h1>
+<p class="hint">
+  编辑器把 markdown 解析成 ProseMirror 文档、再序列化回来。只要这两步不是互逆的，
+  用户「什么都没改」地打开再保存，文件就已经变了。设备/文档里已登记过 <code>-</code> 变 <code>*</code>、
+  插空行、图片 alt 被改写等现象，但从未逐条定性。
+  本页把每种语法单独喂进去，<strong>不做任何编辑</strong>，直接比对序列化结果与原文是否<strong>逐字节相等</strong>。
+  FAIL 只说明「不保真」，是修还是接受为产品策略由人判断；这里的职责是把清单钉死，防止变化被忽略。
+</p>
+<p class="sum" id="sum">准备中…</p>
+<div id="out"></div>
+<iframe id="editor" src="/dist/index.html" title="被测编辑器"></iframe>
+
+<script type="module">
+// 页面在后台标签里时 setTimeout 会被节流到秒级，判据会卡死。
+// MessageChannel 不受页面可见性节流，用它做「不阻塞事件循环」的等待。
+const waitChannel = new MessageChannel();
+let waitTick = null;
+waitChannel.port1.onmessage = () => { const t = waitTick; waitTick = null; if (t) t(); };
+const wait = (ms) => new Promise((resolve) => {
+  const t0 = performance.now();
+  const tick = () => {
+    if (performance.now() - t0 >= ms) resolve();
+    else { waitTick = tick; waitChannel.port2.postMessage(0); }
+  };
+  tick();
+});
+const statusEl = document.getElementById('sum');
+const outEl = document.getElementById('out');
+const frame = document.getElementById('editor');
+
+const CASES = [
+  { name: '无序列表 -', doc: '- a\n- b\n' },
+  { name: '无序列表 +', doc: '+ a\n+ b\n' },
+  { name: '无序列表 *', doc: '* a\n* b\n' },
+  { name: '有序列表 1.', doc: '1. a\n2. b\n' },
+  { name: '有序列表 1)（非默认）', doc: '1) a\n2) b\n' },
+  { name: '有序列表起始号 3.', doc: '3. a\n4. b\n' },
+  { name: '任务列表', doc: '- [ ] a\n- [x] b\n' },
+  { name: '松散列表（块间空行）', doc: '- a\n\n- b\n' },
+  { name: '嵌套列表', doc: '- a\n  - b\n    - c\n' },
+  { name: '强调 _x_ / __x__', doc: '这是 _斜体_ 与 __粗体__。\n' },
+  { name: '强调 *x* / **x**', doc: '这是 *斜体* 与 **粗体**。\n' },
+  { name: '强调 ***x***', doc: '这是 ***粗斜***。\n' },
+  { name: '标题 ATX 闭合井号', doc: '## 标题 ##\n' },
+  { name: '标题 Setext ===', doc: '标题\n===\n' },
+  { name: '围栏 ``` 带语言', doc: '```js\nconst a = 1;\n```\n' },
+  { name: '围栏 ~~~ 带语言', doc: '~~~js\nconst a = 1;\n~~~\n' },
+  { name: '围栏 无语言', doc: '```\nplain\n```\n' },
+  { name: '缩进代码块（四空格）', doc: '    indented code\n' },
+  { name: '表格 带对齐', doc: '| a | b |\n|:--|--:|\n| 1 | 2 |\n' },
+  { name: '表格 无外侧竖线', doc: 'a | b\n--- | ---\n1 | 2\n' },
+  { name: '硬换行（两空格）', doc: '第一行  \n第二行\n' },
+  { name: '硬换行（反斜杠）', doc: '第一行\\\n第二行\n' },
+  { name: '图片 alt + title', doc: '![说明文字](pic.png "标题")\n' },
+  { name: '图片 alt 为数字', doc: '![1.00](pic.png)\n' },
+  { name: '链接 title', doc: '[文字](https://example.com "标题")\n' },
+  { name: '引用链接', doc: '[文字][ref]\n\n[ref]: https://example.com\n' },
+  { name: '链接尖括号', doc: '<https://example.com>\n' },
+  { name: '引用块', doc: '> 引用一\n> 引用二\n' },
+  { name: '分隔线 ***', doc: '***\n' },
+  { name: '分隔线 ---', doc: '---\n' },
+  { name: '行内 HTML', doc: '这是 <b>粗体</b> 与 <code>x</code> 的段落。\n' },
+  { name: 'HTML 块（无空行）', doc: '<div>\n<p>x</p>\n</div>\n' },
+  { name: 'HTML 块（块内空行）', doc: '<div>\n<p>a</p>\n\n<p>b</p>\n</div>\n' },
+  { name: '转义字符', doc: '\\*不是强调\\* 与 \\[不是链接\\]\n' },
+  { name: 'Frontmatter', doc: '---\ntitle: x\n---\n\n正文\n' },
+  { name: '行尾空格（非硬换行）', doc: '段落带两个尾随空格  \n\n下一段\n' },
+  { name: '中文与 emoji', doc: '中文 😀 与全角标点，。！\n' },
+  { name: '行内数学', doc: '公式 $x^2$ 行内。\n' },
+  { name: '块级数学', doc: '$$\nx^2\n$$\n' },
+  { name: '多重空行（三连换行）', doc: '第一段\n\n\n第二段\n' },
+];
+
+async function boot() {
+  for (let i = 0; i < 1200; i++) {
+    const bridge = frame.contentWindow.__USHIO_BRIDGE__;
+    if (bridge?.onFlutterMessage) {
+      bridge.onFlutterMessage({
+        v: 1, source: 'flutter', target: 'web', type: 'init_doc',
+        payload: { markdown: '# 预热\n\n占位段落。\n', readOnly: false, baseDirectory: '' },
+      });
+      return true;
+    }
+    await wait(50);
+  }
+  return false;
+}
+
+const escapeCtx = (s) => JSON.stringify(s.length > 90 ? s.slice(0, 90) + '…' : s);
+
+function firstDiff(a, b) {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    if (a[i] !== b[i]) {
+      const line = a.slice(0, i).split('\n').length;
+      const col = i - a.lastIndexOf('\n', i - 1);
+      return { index: i, line, col, input: escapeCtx(a.slice(Math.max(0, i - 30), i + 40)), output: escapeCtx(b.slice(Math.max(0, i - 30), i + 40)) };
+    }
+  }
+  if (a.length !== b.length) {
+    return { index: n, line: a.slice(0, n).split('\n').length, col: -1, input: `长度 ${a.length}`, output: `长度 ${b.length}（尾部差 ${JSON.stringify(b.slice(n))}）` };
+  }
+  return null;
+}
+
+(async () => {
+  statusEl.textContent = '等待编辑器就绪…';
+  if (!(await boot())) { statusEl.textContent = '编辑器未能就绪，判据未执行'; return; }
+  const win = frame.contentWindow;
+  for (let i = 0; i < 200 && !win.__USHIO_PERF__?.serialize; i++) await wait(50);
+  if (!win.__USHIO_PERF__?.serialize) { statusEl.textContent = '缺 serialize 诊断入口，判据未执行'; return; }
+  // boot 只等到 bridge；createEditor 是异步的，第一条 setDoc 会在 editorInstance 为空时被丢掉。
+  for (let i = 0; i < 300; i++) {
+    if (win.__USHIO_PERF__.serialize()) break;
+    await wait(50);
+  }
+
+  const results = [];
+  for (const c of CASES) {
+    // setMarkdown 对小文档是同步 replaceAll；留一拍给渲染/插件收尾再序列化。
+    win.__USHIO_PERF__.setDoc(c.doc);
+    await wait(80);
+    const out = win.__USHIO_PERF__.serialize();
+    const diff = firstDiff(c.doc, out);
+    results.push({ ...c, out, diff, ok: diff === null });
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  statusEl.innerHTML = `结论：<span class="${failed.length ? 'fail' : 'pass'}">${failed.length ? `FAIL（${failed.length}/${results.length} 条不保真）` : 'PASS（全部逐字节一致）'}</span>`
+    + ' · 判据：打开后不做任何编辑，序列化结果必须与原文逐字节相等';
+
+  const esc = (s) => String(s).replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
+  const row = (r) => `<tr>
+      <td class="name">${esc(r.name)}</td>
+      <td class="${r.ok ? 'pass' : 'fail'}">${r.ok ? 'PASS' : 'FAIL'}</td>
+      <td>${r.diff ? `${r.diff.line}:${r.diff.col}` : '—'}</td>
+      <td><pre>${esc(r.diff ? r.diff.input : '')}${r.diff ? '\n≠\n' : ''}${esc(r.diff ? r.diff.output : '')}</pre></td>
+      <td><pre>${esc(r.out)}</pre></td>
+    </tr>`;
+  outEl.innerHTML = `<table>
+    <tr><th>用例</th><th>结果</th><th>首个差异（行:列）</th><th>差异上下文（原文 ≠ 输出）</th><th>序列化输出</th></tr>
+    ${results.filter((r) => !r.ok).map(row).join('')}
+    ${failed.length ? '' : results.map(row).join('')}
+  </table>`;
+  document.title = `roundtrip ${failed.length ? 'FAIL' : 'PASS'} ${results.length - failed.length}/${results.length}`;
+})();
+</script>
+</body>
+</html>

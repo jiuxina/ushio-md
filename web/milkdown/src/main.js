@@ -102,6 +102,13 @@ import {
   ushioHtmlBlockSchema,
 } from './html-block-node.mjs';
 import {
+  splitFrontmatter,
+  ushioBulletListSchema,
+  ushioImageBlockSchema,
+  ushioListItemSchema,
+  ushioOrderedListSchema,
+} from './md-fidelity.mjs';
+import {
   LOCAL_FILE_SCHEME,
   toAbsoluteLocalPath,
   buildLocalFileProxyUrl,
@@ -133,6 +140,9 @@ let bridgeSeq = 0;
 let editorInstance = null;
 let crepeInstance = null;
 let currentMarkdown = '';
+// YAML frontmatter 不是 CommonMark，解析器会把它拆成分隔线+标题；解析前剥离、
+// 内容回传时原样接回，用户文件里的头部就不会被改写。
+let currentFrontmatter = '';
 let currentBaseDirectory = '';
 // NOTE: currentReadOnly is only true for offscreen screenshot-rendering instances
 // (see file_actions.dart _shareAsImageDirectly). Users never see a read-only UI.
@@ -1416,8 +1426,8 @@ const flushContentChange = () => {
 const scheduleContentChange = (markdown, { mode = 'full' } = {}) => {
   // Validate input to prevent runtime errors
   if (markdown == null || typeof markdown !== 'string') return;
-  
-  pendingContentMarkdown = markdown;
+
+  pendingContentMarkdown = currentFrontmatter ? `${currentFrontmatter}${markdown}` : markdown;
   pendingContentMode = mode;
   if (contentChangeTimerId != null) {
     clearTimeout(contentChangeTimerId);
@@ -2143,7 +2153,9 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
   emitDebug(`[JS] setMarkdown: len=${markdown?.length}, forceRender=${forceRender}`);
   markEditorInitializing();
   const rawMarkdown = typeof markdown === 'string' ? markdown : '';
-  const nextMarkdown = rawMarkdown;
+  const { frontmatter, body } = splitFrontmatter(rawMarkdown);
+  currentFrontmatter = frontmatter;
+  const nextMarkdown = body;
   emitDebug(`[JS] setMarkdown: nextMarkdown === currentMarkdown: ${nextMarkdown === currentMarkdown}`);
   // Skip equality check if forceRender is true (needed when switching documents)
   if (!forceRender && nextMarkdown === currentMarkdown) {
@@ -2810,6 +2822,9 @@ const createEditor = async () => {
     .use(automd)
     .use([emojiAttr, remarkEmojiPlugin, emojiSchema])
     .use([remarkHtmlBlockFence, ushioHtmlBlockSchema])
+    // 覆盖同名 schema：修 round-trip 改写（图片 alt、列表紧凑度与起始号）。
+    // Crepe 的特性在构造函数里就注册完了，这里的后注册才会生效。
+    .use([ushioBulletListSchema, ushioOrderedListSchema, ushioListItemSchema, ushioImageBlockSchema])
     .use(highlight)
     .use(math)
     .use(cursor)
@@ -4135,9 +4150,11 @@ window.__USHIO_PERF__ = {
       return true;
     });
   },
-  serialize: () => (editorInstance
-    ? editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc))
-    : ''),
+  serialize: () => {
+    if (!editorInstance) return '';
+    const body = editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc));
+    return currentFrontmatter ? `${currentFrontmatter}${body}` : body;
+  },
 };
 
 window.__USHIO_BRIDGE__ = {
