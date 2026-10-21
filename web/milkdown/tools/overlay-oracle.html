@@ -171,6 +171,14 @@ const offBy = (list) => (list.length
     : -1;
   const notGluedAfterDelete = afterDelete.items.filter((it) => it.blockTop === null || Math.abs(it.top - it.blockTop) > 2);
 
+  // ---- E：ProseMirror 会在 sync 返回之后异步重渲染节点，把占位高连同内联样式一起抹掉。
+  // A–D 全是「sync 完立刻同步读」，看不到这一拍；必须等过去再量一次稳态，
+  // 否则高度退回源码 <pre> 的自然高度、渲染内容较矮的块下方会多出一截空白。
+  await wait(450);
+  const settled = snapshot(win);
+  const settledHeight = settled.items.filter((it) => it.blockHeight !== null && Math.abs(it.blockHeight - it.height) > 1.5);
+  const settledGlue = settled.items.filter((it) => it.blockTop === null || Math.abs(it.top - it.blockTop) > 2);
+
   const checks = [
     { name: 'A 收敛：逐趟几何与节点身份不变', ok: drift.length === 0, detail: drift.length ? `${drift.length} 处逐趟变化` : `${PASSES} 趟一致` },
     { name: 'B1 占位高 == 渲染高', ok: heightMismatch.length === 0, detail: heightMismatch.length ? heightMismatch.map((x) => `${x.blockHeight}/${x.height}`).slice(0, 3).join(' ') : `一致（${last.items[0]?.blockHeight}/${last.items[0]?.height}）` },
@@ -181,6 +189,7 @@ const offBy = (list) => (list.length
     { name: 'D1 删掉中间块后 overlay 数量正确', ok: deleted && afterDelete.count === BLOCKS - 1, detail: `删除${deleted ? '成功' : '失败'}；期望 ${BLOCKS - 1} 个，实际 ${afterDelete.count} 个（伪块 ${afterDelete.blockCount} 个）` },
     { name: 'D2 删掉中间块后内容不错位', ok: misAssigned === 0, detail: misAssigned === -1 ? `数量就不对，无法逐位比对：${gotMarks.join('|')}` : `顺序正确 ${gotMarks.join(' ')}` },
     { name: 'D3 删掉中间块后仍贴着自己的块', ok: notGluedAfterDelete.length === 0, detail: notGluedAfterDelete.length ? `${notGluedAfterDelete.length} 个偏离（最大 ${offBy(notGluedAfterDelete)}px）` : '全部贴合' },
+    { name: 'E 异步重渲染后占位仍精确', ok: settled.count === afterDelete.count && settledHeight.length === 0 && settledGlue.length === 0, detail: settled.count !== afterDelete.count ? `项数 ${afterDelete.count}->${settled.count}` : (settledHeight.length || settledGlue.length ? `高度偏差 ${settledHeight.length} 个、位置偏差 ${settledGlue.length} 个` : `450ms 后 ${settled.count} 项仍逐项贴合`) },
   ];
   const allOk = checks.every((c) => c.ok) && inserted;
 

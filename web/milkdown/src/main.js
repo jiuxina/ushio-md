@@ -907,6 +907,10 @@ const renderRawHtmlNodes = (root) => {
 let htmlBlockHideStyleInjected = false;
 let htmlOverlayContainer = null;
 const htmlOverlayContentCache = new Map(); // blockIndex -> contentHash
+// ProseMirror 会在收尾之后异步重渲染节点，把占位高连同其它内联样式一起抹掉；
+// 观察者重建隐藏样式时按内容哈希把高度补回去，否则占位高退回源码 <pre> 的自然高度，
+// 渲染内容较矮的 HTML 块下方就多出一截空白。按内容而不是序号记，块被重排也不会错配。
+const htmlBlockPlaceholderHeights = new Map(); // contentHash -> px
 
 const getHtmlBlockLanguage = (block) => {
   if (!(block instanceof HTMLElement)) return '';
@@ -979,6 +983,18 @@ const ensureHtmlOverlay = () => {
   return htmlOverlayContainer;
 };
 
+const getHtmlBlockRawText = (block) => {
+  const cmLines = block.querySelectorAll('.cm-line');
+  if (cmLines.length > 0) {
+    return Array.from(cmLines).map((line) => line.textContent || '').join('\n');
+  }
+  return block.querySelector(`pre[data-language="${HTML_BLOCK_LANGUAGE}"]`)?.textContent
+    || block.querySelector('.cm-content')?.textContent
+    || '';
+};
+
+const htmlBlockSourceKey = (rawHtml) => rawHtml.length + ':' + rawHtml.substring(0, 200);
+
 /**
  * Hide a .milkdown-code-block element that contains html-block content.
  * Uses inline !important styles to override any CSS that ProseMirror may reset.
@@ -1001,6 +1017,13 @@ const hideHtmlBlockCodeNode = (block) => {
   setImportantStyleIfNeeded(block, 'overflow', 'hidden');
   setImportantStyleIfNeeded(block, 'opacity', '0');
   setImportantStyleIfNeeded(block, 'pointer-events', 'none');
+  const height = htmlBlockPlaceholderHeights.get(htmlBlockSourceKey(getHtmlBlockRawText(block)));
+  if (height > 0) {
+    setImportantStyleIfNeeded(block, 'box-sizing', 'border-box');
+    setImportantStyleIfNeeded(block, 'height', `${height}px`);
+    setImportantStyleIfNeeded(block, 'min-height', `${height}px`);
+    setImportantStyleIfNeeded(block, 'max-height', `${height}px`);
+  }
 };
 
 /**
@@ -1093,16 +1116,7 @@ const renderHtmlBlockCodeNodes = (root) => {
     const idx = htmlBlockIndex;
     htmlBlockIndex += 1;
 
-    const cmLines = block.querySelectorAll('.cm-line');
-    let rawHtml;
-    if (cmLines.length > 0) {
-      rawHtml = Array.from(cmLines).map((line) => line.textContent || '').join('\n');
-    } else {
-      // HTML 块现在是真节点（没有 CodeMirror），原文直接渲染在槽内的 <pre> 上。
-      rawHtml = block.querySelector(`pre[data-language="${HTML_BLOCK_LANGUAGE}"]`)?.textContent
-        || block.querySelector('.cm-content')?.textContent
-        || '';
-    }
+    const rawHtml = getHtmlBlockRawText(block);
     if (!rawHtml.trim()) return;
 
     const blockRect = block.getBoundingClientRect();
@@ -1110,7 +1124,7 @@ const renderHtmlBlockCodeNodes = (root) => {
       block,
       idx,
       rawHtml,
-      contentHash: rawHtml.length + ':' + rawHtml.substring(0, 200),
+      contentHash: htmlBlockSourceKey(rawHtml),
       top: blockRect.top - milkdownRect.top + milkdownEl.scrollTop,
       left: blockRect.left - milkdownRect.left + milkdownEl.scrollLeft,
       width: blockRect.width,
@@ -1161,6 +1175,7 @@ const renderHtmlBlockCodeNodes = (root) => {
     // 实际占位高 = 渲染高 + padding，每个 HTML 块多占一截并按块数累积。
     item.block.style.setProperty('box-sizing', 'border-box', 'important');
     if (item.overlayHeight > 0) {
+      htmlBlockPlaceholderHeights.set(item.contentHash, item.overlayHeight);
       item.block.style.setProperty('height', `${item.overlayHeight}px`, 'important');
       item.block.style.setProperty('min-height', `${item.overlayHeight}px`, 'important');
       item.block.style.setProperty('max-height', `${item.overlayHeight}px`, 'important');
@@ -1189,6 +1204,12 @@ const renderHtmlBlockCodeNodes = (root) => {
     item.overlayItem.style.top = `${item.top}px`;
     item.overlayItem.style.left = `${item.left}px`;
     item.overlayItem.style.width = `${item.width}px`;
+  }
+
+  // 高度缓存只服务当前文档里还存在的块，否则连续打开文档会无限累积。
+  const liveKeys = new Set(planned.map((item) => item.contentHash));
+  for (const key of htmlBlockPlaceholderHeights.keys()) {
+    if (!liveKeys.has(key)) htmlBlockPlaceholderHeights.delete(key);
   }
 };
 
