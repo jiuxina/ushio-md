@@ -407,9 +407,69 @@ profile 包 `--dart-define=MILKDOWN_URL_STAMP=bootphase`，logcat 核对加载�
 
 改后：④ 全部转绿（`1 → 1 → 1 → 1`、`2 → 2 → 2 → 2`），① 与 ③ 仍红（正是 A-2 的目标），
 `overlay-oracle.html` 九项仍 PASS，`style-baseline` 指纹仍是 **1294618094**（未变）。
+（该指纹在 A-2 落地后按设计发生变更，逐项归因见 §5.15。）
 
 **这条的价值不在修了什么，而在证明「门禁必须先于改动」**：A-2 要动的就是这套 overlay 机器，
 若先改实现再补判据，这个既有缺陷会被算到新改动头上，或者被新代码顺手掩盖而永远查不出来。
+
+### 5.15 A-2：HTML 块改真节点，挂 DOM 惩罚从 +4.26ms/块降到 +0.03ms/块（2026-10-21）
+
+§5.12/§5.13 已证明 `crepe.create()` 的大头是挂 DOM，而 HTML 块在其中最重：它被
+`wrapHtmlBlocksInCodeFence` 包成伪代码块，拿到一个**完整的 CodeMirror + Vue 实例**，随后整个 DOM 被隐藏、
+内容改由 overlay 显示。A-2 把它换成真正的原子节点（`web/milkdown/src/html-block-node.mjs`）：
+
+- `remarkHtmlBlockFence`：把 mdast 的 `code`（lang=`html-block`）就地改写成私有类型 `ushioHtmlBlock`；
+  走私有类型而不是抢占 `code`，是因为解析器按**注册顺序首个匹配**分派，自定义节点抢不过 commonmark 的 `code_block`。
+- `ushioHtmlBlockSchema`：`atom, group:'block'`，属性 `value` 存原文；`toMarkdown` 直接回写 mdast `html`。
+- `toDOM` **刻意保持** `div.milkdown-code-block[data-ushio-html-block-slot] > pre[data-language=html-block]`
+  这套形状，让既有 overlay 机器（隐藏、取原文、量高、定位）一行不改；`data-ushio-html-block-slot`
+  用于把它和真正的代码块区分开。
+
+**判据（同一份 bundle，全部通过）**
+
+- `html-roundtrip.html` **9/9 PASS**：输出无伪围栏、HTML 原文逐字保留、HTML 块带来的 `.cm-editor` 数为 0、
+  切档后 overlay 仍建立；三条负例（单行 `<hr>`、真围栏内的 HTML、行内 `<b>`）保持不接管。
+- `overlay-oracle.html` **九项 PASS**，含 A 收敛、B1 占位高 == 渲染高（293/292.69）、D1–D3
+  **文档中间删除 HTML 块**后数量/内容/贴合全部正确——Phase 5 最后一项覆盖由此关闭。
+- `npx vitest run` **27/27 PASS**。
+- 文件里已存在的旧 ```` ```html-block ```` 围栏仍能正确解析渲染（幂等用例），下次保存时按原文写回，
+  **不会再向用户的 .md 写入伪围栏**。
+
+**样式基线按设计重新锚定**：`style-baseline` 指纹 **1294618094 → 280916608**。这不是放过，而是逐项归因后重锚：
+
+- 12 个真实代码块：分组哈希 **2971102492 与改前完全一致**，逐块哈希也逐一相同 ⇒ 代码块样式零回归。
+- 6 个 HTML 块：块级计算样式（display/position/padding-top/visibility/opacity/几何全为隐藏态）与改前相同，
+  变的是 `.tools` / `.language-picker` / `.language-button` 三个子元素从「存在但隐藏」变成 `null`——
+  这正是「不再建 CodeMirror」的直接结果。
+
+**同机同时段 A/B（桌面 Chromium，N=5 中位数，402 个顶层块，其中 100 个是 HTML 块；plain 作对照）**
+
+| 段 | plain 改前 → 改后 | html 改前 → 改后 |
+| --- | --- | --- |
+| 建树（EditorStateReady） | 113.9 → 120.9 ms | 149.8 → 123.1 ms |
+| 挂 DOM（EditorViewReady） | 39.9 → 39.6 ms | **466.2 → 42.9 ms** |
+| crepe.create 合计 | 167.6 → 170.8 ms | **687.7 → 177.6 ms** |
+| 冷路径 sync | 5.7 → 5.3 ms | 44.1 → 29.9 ms |
+| HTML 块持有的 `.cm-editor` | — | **100 → 0** |
+
+plain 两次相差 ≤4%，可视为噪声；据此归一：
+
+- 挂 DOM 的 HTML 边际惩罚 **+4.26 ms/块 → +0.03 ms/块**（约 1/140）。
+- `crepe.create` 的 HTML 边际惩罚 **+5.20 ms/块 → +0.07 ms/块**。
+- 冷路径 sync 仍比 plain 多 **+0.25 ms/块**（38.4 → 24.6 ms/100 块）——这部分没有消失也不该消失：
+  它是在 overlay 里真正解析并排版 HTML 的成本，属于有效工作。
+- 自检行里 html 的 `codeBlock=100` 是**刻意的**（槽复用该类名接住 overlay 机器）；`codeMirror=0` 才是本轮的断言。
+
+真机本轮**未测**（未装包），因此这里只有桌面数字；按 §5.13 设备上挂 DOM 的比例更大（2.8–3.7×），
+该收益在设备上应被放大，但这是推断，不是实测。
+
+**顺手修掉两条会掩盖真问题的假告警**
+
+- 代码块不变量改为 `.milkdown-code-block:not([data-ushio-html-block-slot])`：槽复用类名却不对应 `code_block`，
+  否则 A-2 一落地这条不变量就永久报警。
+- 图片不变量排除 `.ProseMirror-separator`：文档以非文本块结尾时 ProseMirror 会塞一个无 `src` 的
+  `<img class="ProseMirror-separator">`，旧代码把它当图片，导致「图片数不匹配」在没有任何图片的文档上也会触发。
+  该假告警**先于 A-2 存在**，本轮用运行时探针确认后才改。
 
 ## 6. 回归判定规则
 

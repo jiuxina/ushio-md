@@ -96,6 +96,12 @@ import {
   findAppendSplitPoints,
 } from './markdown-scans.mjs';
 import {
+  HTML_BLOCK_LANGUAGE,
+  HTML_BLOCK_NODE,
+  remarkHtmlBlockFence,
+  ushioHtmlBlockSchema,
+} from './html-block-node.mjs';
+import {
   LOCAL_FILE_SCHEME,
   toAbsoluteLocalPath,
   buildLocalFileProxyUrl,
@@ -1092,7 +1098,10 @@ const renderHtmlBlockCodeNodes = (root) => {
     if (cmLines.length > 0) {
       rawHtml = Array.from(cmLines).map((line) => line.textContent || '').join('\n');
     } else {
-      rawHtml = block.querySelector('.cm-content')?.textContent || '';
+      // HTML 块现在是真节点（没有 CodeMirror），原文直接渲染在槽内的 <pre> 上。
+      rawHtml = block.querySelector(`pre[data-language="${HTML_BLOCK_LANGUAGE}"]`)?.textContent
+        || block.querySelector('.cm-content')?.textContent
+        || '';
     }
     if (!rawHtml.trim()) return;
 
@@ -1654,8 +1663,9 @@ const syncRenderedDom = () => {
   const markdownImageSources = collectMarkdownImageSources(currentMarkdown);
   P.mark('scanImages');
 
-  // Debug: Log image matching info for troubleshooting
-  const domImages = root.querySelectorAll('.ProseMirror img');
+  // 末尾不是文本块时 ProseMirror 会塞一个无 src 的 <img class="ProseMirror-separator">，
+  // 它既不是文档里的图片、也不该参与下面按序取源，单独排除掉才能让这条不变量只报真问题。
+  const domImages = root.querySelectorAll('.ProseMirror img:not(.ProseMirror-separator)');
   if (domImages.length !== markdownImageSources.length) {
     console.warn('[syncRenderedDom] Image count mismatch:', {
       domCount: domImages.length,
@@ -1670,7 +1680,7 @@ const syncRenderedDom = () => {
     });
   }
 
-  root.querySelectorAll('.ProseMirror img').forEach((img, imageIndex) => {
+  root.querySelectorAll('.ProseMirror img:not(.ProseMirror-separator)').forEach((img, imageIndex) => {
     const rawSrc = img.getAttribute('src') || '';
 
     // If already a custom scheme URL, just set up event handlers and data attributes
@@ -1846,9 +1856,12 @@ const syncRenderedDom = () => {
   const docCodeLanguages = collectDocCodeLanguages();
   P.mark('scanFences');
 
-  // 不变量改成「DOM 代码块数 == 文档 code_block 数」（两者同为文档序）。
+  // 不变量：「DOM 代码块数 == 文档 code_block 数」（两者同为文档序）。
   // 旧实现拿 markdown 围栏数来比，内联代码与嵌套场景下会假报警。
-  const domCodeBlocks = root.querySelectorAll('.milkdown-code-block');
+  // HTML 块槽刻意复用 milkdown-code-block 这个类名好让 overlay 机器不用改，
+  // 但它的节点类型不是 code_block、也不走下面的 codeBlockPass，所以两边都要排除，
+  // 否则这条不变量会被自己的实现细节刷成永久告警。
+  const domCodeBlocks = root.querySelectorAll('.milkdown-code-block:not([data-ushio-html-block-slot])');
   if (docCodeLanguages && domCodeBlocks.length !== docCodeLanguages.length) {
     console.warn('[syncRenderedDom] Code block count mismatch:', {
       domCount: domCodeBlocks.length,
@@ -1858,7 +1871,7 @@ const syncRenderedDom = () => {
   }
 
   P.mark('codeBlockQuery');
-  root.querySelectorAll('.milkdown-code-block').forEach((block, codeBlockIndex) => {
+  root.querySelectorAll('.milkdown-code-block:not([data-ushio-html-block-slot])').forEach((block, codeBlockIndex) => {
     if (!(block instanceof HTMLElement)) return;
 
     // Skip html-block code blocks — they are rendered as HTML and hidden by injected CSS
@@ -2775,6 +2788,7 @@ const createEditor = async () => {
     })
     .use(automd)
     .use([emojiAttr, remarkEmojiPlugin, emojiSchema])
+    .use([remarkHtmlBlockFence, ushioHtmlBlockSchema])
     .use(highlight)
     .use(math)
     .use(cursor)
@@ -4086,8 +4100,9 @@ window.__USHIO_PERF__ = {
       let found = null;
       view.state.doc.descendants((node, pos) => {
         if (found) return false;
-        if (node.type.name === 'code_block'
-          && String(node.attrs?.language || '').toLowerCase() === 'html-block') {
+        if (node.type.name === HTML_BLOCK_NODE
+          || (node.type.name === 'code_block'
+            && String(node.attrs?.language || '').toLowerCase() === HTML_BLOCK_LANGUAGE)) {
           k += 1;
           if (k === n) found = { pos, size: node.nodeSize };
           return false;
