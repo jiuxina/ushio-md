@@ -145,6 +145,9 @@ let currentMarkdown = '';
 // YAML frontmatter 不是 CommonMark，解析器会把它拆成分隔线+标题；解析前剥离、
 // 内容回传时原样接回，用户文件里的头部就不会被改写。
 let currentFrontmatter = '';
+// 原文是未编辑时的唯一输出：序列化器会把 marker/空白规范化，没编辑过就不该让它们落盘。
+let sourceMarkdownBody = '';
+let documentEdited = false;
 let currentBaseDirectory = '';
 // NOTE: currentReadOnly is only true for offscreen screenshot-rendering instances
 // (see file_actions.dart _shareAsImageDirectly). Users never see a read-only UI.
@@ -2164,6 +2167,8 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
   const rawMarkdown = typeof markdown === 'string' ? markdown : '';
   const { frontmatter, body } = splitFrontmatter(rawMarkdown);
   currentFrontmatter = frontmatter;
+  sourceMarkdownBody = body;
+  documentEdited = false;
   const nextMarkdown = body;
   emitDebug(`[JS] setMarkdown: nextMarkdown === currentMarkdown: ${nextMarkdown === currentMarkdown}`);
   // Skip equality check if forceRender is true (needed when switching documents)
@@ -2786,6 +2791,7 @@ const createEditor = async () => {
           const perfRebuild0 = perfNow();
           currentMarkdown = renderReadyMarkdown;
           if (!currentReadOnly && !isApplyingFromFlutter && !initializingEditor) {
+            documentEdited = true;
             scheduleContentChange(sanitizedMarkdown, { mode: 'code_sanitized' });
           }
           isApplyingFromFlutter = true;
@@ -2820,6 +2826,7 @@ const createEditor = async () => {
           fullRebuild: 0,
         }, perfSizes());
         if (!isApplyingFromFlutter && !initializingEditor) {
+          documentEdited = true;
           scheduleContentChange(sanitizedMarkdown);
         }
         if (!progressiveRenderPending) {
@@ -4074,6 +4081,8 @@ const onFlutterMessage = (message) => {
     // 不经过 setMarkdown，所以 frontmatter 必须在这里拆，否则会被当成内容解析并回写成 ***。
     const { frontmatter, body } = splitFrontmatter(markdown);
     currentFrontmatter = frontmatter;
+    sourceMarkdownBody = body;
+    documentEdited = false;
     // Always update and render, even if markdown appears the same
     // (needed when switching between documents)
     currentMarkdown = body;
@@ -4184,6 +4193,10 @@ window.__USHIO_PERF__ = {
   },
   serialize: () => {
     if (!editorInstance) return '';
+    // 未编辑：原文即输出。Serializer 的 marker/空白规范化不该出现在「打开再保存」里。
+    if (!documentEdited) {
+      return currentFrontmatter ? `${currentFrontmatter}${sourceMarkdownBody}` : sourceMarkdownBody;
+    }
     const rawBody = editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc));
     const body = normalizeTrailingNewline(deproxyImageUrlsInMarkdown(rawBody, currentBaseDirectory));
     return normalizeTrailingNewline(currentFrontmatter ? `${currentFrontmatter}${body}` : body);

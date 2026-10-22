@@ -729,6 +729,12 @@ class _EditorScreenState extends State<EditorScreen>
     final l10n = AppLocalizations.of(context)!;
     if (_isSaving) return;
 
+    // 没有任何编辑就不碰文件：打开再保存必须逐字节保持原样。
+    // 一旦写盘，换行归一化和增量合并的回波都可能改写用户的文件。
+    if (!_isModified && _pendingMilkdownMarkdown == null) {
+      return;
+    }
+
     // 保存前先应用尚未执行的增量合并，避免保存到过期内容。
     _flushPendingMilkdownMerge();
 
