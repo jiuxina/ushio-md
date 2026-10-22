@@ -133,14 +133,29 @@ describe('路径与图片预处理等价（baseDirectory 由形参注入）', ()
     legacy.setCurrentBaseDirectory('');
   });
 
-  it('preprocessImageUrlsInMarkdown 一致', () => {
+  it('preprocessImageUrlsInMarkdown 一致（带 title 图片除外，见下一条）', () => {
     const docs = [...Object.values(synthetic), ...realDocs.map((d) => d.text)];
+    // 2026-10-22 起 title 不再被旧正则吞进 URL（真机数据损坏修复），
+    // 这是有意与搬迁前实现不同；含这类图片的文档由下一条单独断言。
+    const titledImage = /!\[[^\]]*]\([^)\n]*\s+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\))\)/;
     for (const base of ['', '/Documents/notes', 'F:\\xm\\docs']) {
       legacy.setCurrentBaseDirectory(base);
       for (const text of docs) {
+        if (titledImage.test(text)) continue;
         expect(preprocessImageUrlsInMarkdown(text, base)).toBe(legacy.preprocessImageUrlsInMarkdown(text));
       }
     }
+    legacy.setCurrentBaseDirectory('');
+  });
+
+  it('带 title 的图片是有意改变：旧实现把 title 并进 URL，新实现保留', () => {
+    const base = '/Documents/notes';
+    const text = '![a](pic.png "t")';
+    legacy.setCurrentBaseDirectory(base);
+    expect(legacy.preprocessImageUrlsInMarkdown(text)).toContain(encodeURIComponent('pic.png "t"'));
+    expect(preprocessImageUrlsInMarkdown(text, base)).toBe(
+      `![a](${LOCAL_FILE_SCHEME}://local?path=${encodeURIComponent('/Documents/notes/pic.png')} "t")`,
+    );
     legacy.setCurrentBaseDirectory('');
   });
 
