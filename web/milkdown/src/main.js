@@ -114,6 +114,7 @@ import {
   toAbsoluteLocalPath,
   buildLocalFileProxyUrl,
   preprocessImageUrlsInMarkdown,
+  deproxyImageUrlsInMarkdown,
 } from './local-path.mjs';
 import {
   perfNow,
@@ -1412,9 +1413,16 @@ const customUploadHandler = async (files, schema) => {
   }
 };
 
+// remark-stringify 在「文档以列表结尾」时会补一个空行；用户文件通常只有一个结尾换行。
+const normalizeTrailingNewline = (markdown) => (
+  typeof markdown === 'string' && markdown ? markdown.replace(/\n+$/, '\n') : markdown
+);
+
 const flushContentChange = () => {
   if (pendingContentMarkdown == null) return;
-  const markdown = pendingContentMarkdown;
+  const markdown = normalizeTrailingNewline(
+    deproxyImageUrlsInMarkdown(pendingContentMarkdown, currentBaseDirectory),
+  );
   const mode = pendingContentMode || 'full';
   pendingContentMarkdown = null;
   pendingContentMode = 'full';
@@ -4062,9 +4070,13 @@ const onFlutterMessage = (message) => {
     const markdown =
       typeof payload.markdown === 'string' ? payload.markdown : '';
     emitDebug(`[JS] init_doc: markdown length=${markdown.length}, editorInstance=${!!editorInstance}`);
+    // 首篇文档到达时编辑器通常还没建：createEditor() 直接拿 currentMarkdown 做 defaultValue，
+    // 不经过 setMarkdown，所以 frontmatter 必须在这里拆，否则会被当成内容解析并回写成 ***。
+    const { frontmatter, body } = splitFrontmatter(markdown);
+    currentFrontmatter = frontmatter;
     // Always update and render, even if markdown appears the same
     // (needed when switching between documents)
-    currentMarkdown = markdown;
+    currentMarkdown = body;
     if (editorInstance) {
       crepeInstance?.setReadonly?.(currentReadOnly);
       emitDebug('[JS] init_doc: calling setMarkdown with forceRender=true');
@@ -4172,8 +4184,9 @@ window.__USHIO_PERF__ = {
   },
   serialize: () => {
     if (!editorInstance) return '';
-    const body = editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc));
-    return currentFrontmatter ? `${currentFrontmatter}${body}` : body;
+    const rawBody = editorInstance.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc));
+    const body = normalizeTrailingNewline(deproxyImageUrlsInMarkdown(rawBody, currentBaseDirectory));
+    return normalizeTrailingNewline(currentFrontmatter ? `${currentFrontmatter}${body}` : body);
   },
 };
 

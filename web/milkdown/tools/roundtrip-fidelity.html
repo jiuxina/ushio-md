@@ -30,6 +30,10 @@
 <p class="sum" id="sum">准备中…</p>
 <div id="out"></div>
 <iframe id="editor" src="/dist/index.html" title="被测编辑器"></iframe>
+<script>
+  // index.html 声明了 immutable 缓存，固定 URL 会让判据悄悄跑旧 bundle。每次加戳。
+  document.getElementById('editor').src = `/dist/index.html?gate=${Date.now()}`;
+</script>
 
 <script type="module">
 // 页面在后台标签里时 setTimeout 会被节流到秒级，判据会卡死。
@@ -145,6 +149,25 @@ function firstDiff(a, b) {
     const diff = firstDiff(c.doc, out);
     results.push({ ...c, out, diff, ok: diff === null });
   }
+
+  // App 打开文档时会带 baseDirectory，相对图片在渲染前被改写成代理 URL。
+  // 之前的用例都以空 baseDirectory 运行，漏掉了「代理 URL 写不回原文」的真机缺陷。
+  const baseDoc = '# 图\n\n![说明文字](pic.png "图片标题")\n';
+  win.__USHIO_BRIDGE__.onFlutterMessage({
+    v: 1, source: 'flutter', target: 'web', type: 'init_doc',
+    payload: { markdown: baseDoc, readOnly: false, baseDirectory: '/Documents/notes' },
+  });
+  await wait(600);
+  const baseOut = win.__USHIO_PERF__.serialize();
+  const renderedImg = win.document.querySelector('.ProseMirror img')?.getAttribute('src') || '';
+  const imgOk = renderedImg.startsWith('ushio-local-file://') && !renderedImg.includes('%22');
+  const baseDiff = firstDiff(baseDoc, baseOut);
+  results.push({
+    name: 'baseDirectory 相对图片（App 真实路径）',
+    out: `${baseOut}\n[img src] ${renderedImg}`,
+    diff: baseDiff || (imgOk ? null : { line: -1, col: -1, input: 'src 应为纯代理 URL', output: renderedImg }),
+    ok: baseDiff === null && imgOk,
+  });
 
   const failed = results.filter((r) => !r.ok);
   statusEl.innerHTML = `结论：<span class="${failed.length ? 'fail' : 'pass'}">${failed.length ? `FAIL（${failed.length}/${results.length} 条不保真）` : 'PASS（全部逐字节一致）'}</span>`

@@ -201,8 +201,17 @@ Milkdown 序列化改写原文（`-`→`*`、插空行、图片 alt 变成 `1.00
 连续空行合并为一条、非硬换行的行尾空格删除。
 这些都不改变渲染语义；要保留它们需要存原始 token（marker/围栏字符/空白），代价远大于收益。
 
-判据现状：**22/40 逐字节一致**，其余 18 条全部落在上述接受清单内。改后同时通过
+判据现状：**22/40 逐字节一致**（2026-10-22 真机复验后为 23/41，见下），其余 18 条全部落在上述接受清单内。改后同时通过
 `html-roundtrip` 9/9、`overlay-oracle` 10/10、`style-baseline` 指纹 280916608 不变、`vitest` 27/27。
+
+**2026-10-22 真机复验（第 1 项）**：在 AVD 上用真实 release 包走「打开 → 在 Milkdown 里插一个字符 → 保存」，发现三处桌面判据覆盖不到的缺陷，均已修复：
+
+- **首开路径绕过 frontmatter 拆分**：`init_doc` 到达时编辑器通常尚未创建，`ensureEditor() → createEditor()` 直接拿 `currentMarkdown` 做 `defaultValue`，不经过 `setMarkdown`。桌面判据走 `setDoc`（编辑器已存在）所以显示 PASS，真机上 frontmatter 仍被渲染成 `***` + 列表。现在 `init_doc` 在赋值前先 `splitFrontmatter`。
+- **相对图片的代理 URL 不可逆**：带 `baseDirectory` 时 `![说明文字](pic.png "图片标题")` 被改写成 `ushio-local-file://…` 仅用于渲染，序列化没有反向映射；旧正则还把 `"图片标题"` 当成路径的一部分，导致图片加载失败、标题丢失、落盘路径被永久改写。现在正则只替换目标并保留 title，出口用 `deproxyImageUrlsInMarkdown` 还原相对路径。
+- **列表结尾多一个空行**：remark-stringify 会给以列表结尾的文档补空行；输出端统一为一个结尾换行。
+
+真机证据：打开 587 B 的 `0RtFidelity.md`，在标题插入 `Y` 后保存，落盘 594 B；diff 只有 `# 保真测试 → # 保Y真测试` 与表格对齐空格（已接受项）。frontmatter、`3.` 起始号、任务/松散列表、HTML 块、图片行（含 alt/title/相对路径）全部逐字节不变。判据新增 `baseDirectory` 用例，并给 iframe 加缓存戳（`index.html` 的 immutable 缓存曾让判据悄悄跑旧 bundle）；现为 **23/41** 逐字节一致，18 条均落在语义等价清单（新增一条：多余的 `\]` 转义被去掉）。以列表结尾的文档未再做真机复测，该场景由判据覆盖。
+
 另外 `plugin-math` 官方已 deprecated 仍在用（`gap-analysis.md:40,86`）；搜索关闭后键盘进不了 WebView 仍待真机（`QA_REPORT:77,147`）；高亮当前行 overlay 偏差从 16 放大到 72（`ISSUE_FIX_VERIFICATION_2026_10_16.md:171`）。
 
 ---

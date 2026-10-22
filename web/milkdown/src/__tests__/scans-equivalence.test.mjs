@@ -31,6 +31,7 @@ import {
   toAbsoluteLocalPath,
   buildLocalFileProxyUrl,
   preprocessImageUrlsInMarkdown,
+  deproxyImageUrlsInMarkdown,
   LOCAL_FILE_SCHEME,
 } from '../local-path.mjs';
 
@@ -255,5 +256,28 @@ describe('记录当前语义（回归哨兵，非等价性）', () => {
 
   it('语料规模足以代表真实文档', () => {
     expect(realDocs.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('图片路径代理可逆（2026-10-22 真机发现）', () => {
+  const base = '/Documents/notes';
+
+  it('title 不进入代理 URL', () => {
+    const out = preprocessImageUrlsInMarkdown('![说明文字](pic.png "图片标题")', base);
+    expect(out).toBe(
+      `![说明文字](${LOCAL_FILE_SCHEME}://local?path=${encodeURIComponent('/Documents/notes/pic.png')} "图片标题")`,
+    );
+  });
+
+  it('代理 URL 在序列化出口还原为相对路径（含 title）', () => {
+    const input = '![说明文字](images/pic.png "图片标题")\n';
+    expect(deproxyImageUrlsInMarkdown(preprocessImageUrlsInMarkdown(input, base), base)).toBe(input);
+  });
+
+  it('围栏内的图片不参与代理，也不参与还原', () => {
+    const input = '```\n![a](pic.png "t")\n```\n';
+    expect(preprocessImageUrlsInMarkdown(input, base)).toBe(input);
+    const proxied = `\`\`\`\n![a](${LOCAL_FILE_SCHEME}://local?path=${encodeURIComponent('/Documents/notes/pic.png')})\n\`\`\`\n`;
+    expect(deproxyImageUrlsInMarkdown(proxied, base)).toBe(proxied);
   });
 });
