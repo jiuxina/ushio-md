@@ -3,6 +3,8 @@ package com.ushiomd
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterShellArgs
+import android.os.Build
 import io.flutter.plugin.common.MethodChannel
 import android.content.Intent
 import android.content.ComponentName
@@ -11,6 +13,22 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 class MainActivity: FlutterActivity() {
+
+    /**
+     * 在 Android 10（API 29）及以下的设备上关闭 Impeller 渲染后端。
+     *
+     * 这些设备的 GPU 驱动（鸿蒙设备尤其明显，见 issue #121）在 Impeller 上会出现
+     * 启动后一直白屏 / 黑屏：窗口底色正常，但第一帧内容永远画不出来。
+     * 对这些机型回退到 Skia 渲染；Android 11+ 仍然使用 Impeller。
+     */
+    override fun getFlutterShellArgs(): FlutterShellArgs {
+        val args = super.getFlutterShellArgs()
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) {
+            return args
+        }
+        return FlutterShellArgs(arrayOf(*args.toArray(), "--enable-impeller=false"))
+    }
+
     private val INSTALL_CHANNEL = "com.ushiomd/install"
     private val ICON_CHANNEL = "com.ushiomd/app_icon"
 
