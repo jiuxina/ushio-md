@@ -70,14 +70,30 @@ void main() async {
     });
   }
 
-  // 初始化"我的文件"工作区（创建 Ushio-MD 目录）
+  // 以下初始化都在 runApp() 之前执行。只要其中任何一步抛出异常而没有被捕获，
+  // main() 就会提前退出，用户看到的就是一块永远不动的启动页（浅色白、深色黑）。
+  // Android 10 / 鸿蒙设备上曾因此直接白屏，所以每一步都必须兜住异常：
+  // 失败只记录日志，仍然继续启动，让用户至少能进到界面。
   final myFilesService = MyFilesService();
-  await myFilesService.initWorkspace();
+  try {
+    // 初始化"我的文件"工作区（创建 Ushio-MD 目录）
+    await myFilesService.initWorkspace();
+  } catch (e, s) {
+    debugPrint('main: 初始化工作区失败，已跳过: $e\n$s');
+  }
 
-  // 加载已安装的自定义字体（包括远程下载的内置字体）
-  await FontService.loadAllCustomFonts();
+  try {
+    // 加载已安装的自定义字体（包括远程下载的内置字体）
+    await FontService.loadAllCustomFonts();
+  } catch (e, s) {
+    debugPrint('main: 加载自定义字体失败，已跳过: $e\n$s');
+  }
 
-  await LiquidGlassWidgets.initialize();
+  try {
+    await LiquidGlassWidgets.initialize();
+  } catch (e, s) {
+    debugPrint('main: 液态玻璃着色器初始化失败，已跳过: $e\n$s');
+  }
 
   // 用平台真实版本号覆盖硬编码默认值，避免更新检查/关于页的版本漂移
   try {
