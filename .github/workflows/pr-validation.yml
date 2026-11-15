@@ -1,0 +1,75 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-validation:
+    name: Flutter tests and Android build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+
+      - name: Restore locked dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze changed application code and workspace regressions
+        run: >-
+          flutter analyze --no-pub
+          lib/main.dart
+          lib/services/my_files_service.dart
+          lib/screens/main/tabs/my_files_tab.dart
+          lib/screens/settings/storage_settings_screen.dart
+          lib/screens/settings/about_screen.dart
+          lib/services/file_service.dart
+          lib/providers/file_provider.dart
+          test/services/my_files_service_test.dart
+          test/screens/main/my_files_tab_test.dart
+
+      - name: Run Flutter tests
+        run: flutter test --no-pub --timeout 60s --coverage
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-test-coverage
+          path: coverage/lcov.info
+          if-no-files-found: error
+
+      - name: Build release APK
+        run: flutter build apk --release --no-pub
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error

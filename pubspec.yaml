@@ -104,6 +104,7 @@ dev_dependencies:
   # App icon generator
   flutter_launcher_icons: ^0.14.2
   mocktail: ^1.0.4
+  path_provider_platform_interface: ^2.1.2
 
 flutter_launcher_icons:
   android: true
