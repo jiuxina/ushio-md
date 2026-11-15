@@ -133,35 +133,90 @@ class MyFilesService {
     }
 
     final workspaceName = getWorkspaceName();
+    final candidates = <String>[];
 
-    // 如果用户设置了自定义基础路径，使用自定义路径
+    // 1) 用户自定义的基础路径优先
     final customBasePath = _settingsProvider?.customWorkspaceBasePath;
     if (customBasePath != null && customBasePath.isNotEmpty) {
-      _workspacePath = '$customBasePath${Platform.pathSeparator}$workspaceName';
-      return _workspacePath!;
+      candidates.add('$customBasePath${Platform.pathSeparator}$workspaceName');
     }
 
-    // 否则使用平台默认的文档目录
+    // 2) 平台默认的文档目录
     final documentsDir = await _getDefaultDocumentsDirectory();
-    if (documentsDir == null) {
+    if (documentsDir != null) {
+      candidates.add(
+        '${documentsDir.path}${Platform.pathSeparator}$workspaceName',
+      );
+    }
+
+    // 3) 兜底：应用私有目录。分区存储下这里一定可写，用户虽然不方便
+    //    用文件管理器翻，但总比建不了文件强。
+    try {
+      final privateDir = await getApplicationDocumentsDirectory();
+      candidates.add(
+        '${privateDir.path}${Platform.pathSeparator}$workspaceName',
+      );
+    } catch (e) {
+      appDebugLog('MyFilesService: 无法获取应用私有目录: $e');
+    }
+
+    if (candidates.isEmpty) {
       throw Exception('无法获取文档目录');
     }
 
-    _workspacePath =
-        '${documentsDir.path}${Platform.pathSeparator}$workspaceName';
+    // 权限 API 报 granted 不代表真能写：Android 10 的分区存储会把公共
+    // 根目录的写入挡成 EACCES（errno 13），所以这里必须实测一次。
+    for (var i = 0; i < candidates.length; i++) {
+      final candidate = candidates[i];
+      if (await _ensureWritable(candidate)) {
+        _workspacePath = candidate;
+        if (i > 0) {
+          appDebugLog('MyFilesService: 首选工作区不可写，改用 $candidate');
+        }
+        return candidate;
+      }
+    }
+
+    // 理论上到不了这里；真到了也按首选路径返回，让上层照常报错。
+    _workspacePath = candidates.first;
     return _workspacePath!;
+  }
+
+  /// 确保目录存在且真的可写
+  ///
+  /// 只把目录建出来是不够的：目录可能建得出来、文件却写不进去，
+  /// 而 `Permission.storage` 依旧显示已授予。
+  Future<bool> _ensureWritable(String dirPath) async {
+    try {
+      final dir = Directory(dirPath);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      final probe = File('$dirPath${Platform.pathSeparator}.ushio_write_probe');
+      await probe.writeAsString('probe', flush: true);
+      await probe.delete();
+      return true;
+    } catch (e) {
+      appDebugLog('MyFilesService: 目录不可写 $dirPath: $e');
+      return false;
+    }
   }
 
   /// 初始化工作区
   ///
-  /// 首次启动时调用，确保工作区目录存在
+  /// 首次启动时调用，确保工作区目录存在。建目录失败不往上抛，
+  /// 否则启动流程会整条卡住。
   Future<void> initWorkspace() async {
-    final path = await getWorkspacePath();
-    final dir = Directory(path);
+    try {
+      final path = await getWorkspacePath();
+      final dir = Directory(path);
 
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-      appDebugLog('MyFilesService: 创建工作区目录 $path');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+        appDebugLog('MyFilesService: 创建工作区目录 $path');
+      }
+    } catch (e, s) {
+      appDebugLog('MyFilesService: 初始化工作区失败: $e\n$s');
     }
   }
 
