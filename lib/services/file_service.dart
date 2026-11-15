@@ -108,6 +108,8 @@ class FileService {
 
     // 移除控制字符 (0x00-0x1F)
     sanitized = sanitized.replaceAll(RegExp(r'[\x00-\x1f]'), '');
+    // 去掉首点之前识别只有扩展名、没有文件主体的输入。
+    final hasOnlyMarkdownExtension = sanitized.toLowerCase() == '.md';
 
     // 处理 Windows 保留名
     const reservedNames = [
@@ -156,7 +158,7 @@ class FileService {
     }
 
     // 空文件名使用默认值
-    if (sanitized.isEmpty || sanitized == '.md') {
+    if (sanitized.isEmpty || hasOnlyMarkdownExtension) {
       sanitized = '$defaultName.md';
     }
 

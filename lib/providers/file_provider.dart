@@ -284,16 +284,22 @@ class FileProvider extends ChangeNotifier {
   /// [path] 文件的绝对路径
   ///
   /// 如果文件已存在，会移动到列表首位
+  /// 已失效的路径会从历史及验证缓存中移除。
   /// 列表最多保存 20 个文件
   Future<void> addToRecentFiles(String path) async {
+    final exists = await File(path).exists();
     _recentFiles.remove(path); // 移除已存在的（确保不重复）
-    _recentFiles.insert(0, path); // 添加到首位
     _validatedRecentFiles.remove(path);
-    _validatedRecentFiles.insert(0, path);
+    if (exists) {
+      _recentFiles.insert(0, path); // 添加到首位
+      _validatedRecentFiles.insert(0, path);
+    }
 
     // 限制最大数量
     if (_recentFiles.length > 20) {
       _recentFiles = _recentFiles.sublist(0, 20);
+    }
+    if (_validatedRecentFiles.length > 20) {
       _validatedRecentFiles = _validatedRecentFiles.sublist(0, 20);
     }
 
