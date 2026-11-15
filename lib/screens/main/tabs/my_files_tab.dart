@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/file_provider.dart';
 import '../../../utils/debug_log.dart';
@@ -19,7 +16,8 @@ class MyFilesTab extends StatefulWidget {
   State<MyFilesTab> createState() => _MyFilesTabState();
 }
 
-class _MyFilesTabState extends State<MyFilesTab> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+class _MyFilesTabState extends State<MyFilesTab>
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   final MyFilesService _myFilesService = MyFilesService();
   String? _rootPath;
 
@@ -65,36 +63,22 @@ class _MyFilesTabState extends State<MyFilesTab> with AutomaticKeepAliveClientMi
     final settings = context.read<SettingsProvider>();
     _myFilesService.setSettingsProvider(settings);
 
-    String? path;
-    Object? failure;
     try {
       await _myFilesService.initWorkspace();
-      path = await _myFilesService.getWorkspacePath();
+      final path = await _myFilesService.getWorkspacePath();
+      if (!mounted) return;
+      setState(() {
+        _rootPath = path;
+        _initError = null;
+      });
     } catch (e) {
-      failure = e;
       appDebugLog('MyFilesTab: 初始化工作区失败: $e');
+      if (!mounted) return;
+      setState(() {
+        _rootPath = null;
+        _initError = '$e';
+      });
     }
-    if (!mounted) return;
-
-    if (path == null) {
-      // 连工作区都拿不到时不能一直转圈，退到应用私有目录，
-      // 至少让用户能新建和编辑文件。
-      try {
-        final privateDir = await getApplicationDocumentsDirectory();
-        final fallback =
-            '${privateDir.path}${Platform.pathSeparator}${_myFilesService.getWorkspaceName()}';
-        await Directory(fallback).create(recursive: true);
-        path = fallback;
-      } catch (e) {
-        appDebugLog('MyFilesTab: 回退应用私有目录也失败: $e');
-      }
-    }
-    if (!mounted) return;
-
-    setState(() {
-      _rootPath = path;
-      _initError = path == null ? '$failure' : null;
-    });
   }
 
   /// 刷新浏览器页面
@@ -105,7 +89,7 @@ class _MyFilesTabState extends State<MyFilesTab> with AutomaticKeepAliveClientMi
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    
+
     if (_rootPath == null) {
       if (_initError == null) {
         return const Center(child: CircularProgressIndicator());
@@ -116,10 +100,7 @@ class _MyFilesTabState extends State<MyFilesTab> with AutomaticKeepAliveClientMi
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '无法打开文件目录\n$_initError',
-                textAlign: TextAlign.center,
-              ),
+              Text('无法打开文件目录\n$_initError', textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () {

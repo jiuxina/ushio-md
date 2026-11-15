@@ -25,6 +25,7 @@ class StorageSettingsScreen extends StatefulWidget {
 class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   final MyFilesService _myFilesService = MyFilesService();
   String _workspacePath = '';
+  String? _workspacePathError;
 
   @override
   void initState() {
@@ -39,9 +40,21 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   }
 
   Future<void> _loadWorkspacePath() async {
-    final path = await _myFilesService.getWorkspacePath();
-    if (mounted) {
-      setState(() => _workspacePath = path);
+    try {
+      final path = await _myFilesService.getWorkspacePath();
+      if (mounted) {
+        setState(() {
+          _workspacePath = path;
+          _workspacePathError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _workspacePath = '';
+          _workspacePathError = '$e';
+        });
+      }
     }
   }
 
@@ -174,7 +187,10 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _workspacePath.isEmpty ? l10n.loading : _workspacePath,
+                    _workspacePathError ??
+                        (_workspacePath.isEmpty
+                            ? l10n.loading
+                            : _workspacePath),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -353,6 +369,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     AppLocalizations l10n,
   ) {
     final controller = TextEditingController(text: settings.workspaceName);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -435,7 +452,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               // 重新加载工作区路径
               await _loadWorkspacePath();
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                scaffoldMessenger.showSnackBar(
                   SnackBar(
                     content: Row(
                       children: [
@@ -463,10 +480,17 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     // 使用 MyFilesService 获取正确的默认工作区路径
     // 这样可以确保显示的默认路径与实际使用的路径一致
-    final defaultPath = await _myFilesService.getWorkspacePath();
-
+    var defaultPath = _workspacePath;
+    if (defaultPath.isEmpty) {
+      try {
+        defaultPath = await _myFilesService.getWorkspacePath();
+      } catch (e) {
+        defaultPath = settings.customWorkspaceBasePath ?? '';
+      }
+    }
     final controller = TextEditingController(
       text: settings.customWorkspaceBasePath ?? '',
     );
@@ -574,7 +598,7 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
               _myFilesService.setSettingsProvider(settings);
               await _loadWorkspacePath();
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                scaffoldMessenger.showSnackBar(
                   SnackBar(
                     content: Row(
                       children: [

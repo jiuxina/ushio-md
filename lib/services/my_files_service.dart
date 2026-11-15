@@ -7,14 +7,12 @@
 // - 路径检查（判断文件是否在工作区内）
 //
 // Android 存储策略：
-// - Android 10 (API 29) 及以上使用 SAF（Storage Access Framework）
-// - 引导用户授权 Documents 目录，确保持久访问
+// - 优先使用公共 Documents 目录
+// - 受权限或分区存储限制时，回退到应用私有目录
 // ============================================================================
 
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../providers/settings_provider.dart';
 import 'file_service.dart';
 import '../utils/debug_log.dart';
@@ -82,7 +80,7 @@ class MyFilesService {
     // 例如：/storage/emulated/0/Android/data/com.ushiomd/files
     // 提取：/storage/emulated/0
     final pathParts = externalDir.path.split(Platform.pathSeparator);
-    
+
     // 查找 Android 目录的位置
     int androidIndex = -1;
     for (int i = 0; i < pathParts.length; i++) {
@@ -95,7 +93,9 @@ class MyFilesService {
     String storageRoot;
     if (androidIndex > 0) {
       // 提取 Android 目录之前的路径作为存储根路径
-      storageRoot = pathParts.sublist(0, androidIndex).join(Platform.pathSeparator);
+      storageRoot = pathParts
+          .sublist(0, androidIndex)
+          .join(Platform.pathSeparator);
     } else {
       // 回退：尝试常见路径
       storageRoot = '/storage/emulated/0';
@@ -133,53 +133,39 @@ class MyFilesService {
     }
 
     final workspaceName = getWorkspaceName();
-    final candidates = <String>[];
-
-    // 1) 用户自定义的基础路径优先
     final customBasePath = _settingsProvider?.customWorkspaceBasePath;
-    if (customBasePath != null && customBasePath.isNotEmpty) {
-      candidates.add('$customBasePath${Platform.pathSeparator}$workspaceName');
-    }
+    // 按优先级逐个解析；可用的自定义目录不依赖任何系统目录查询。
+    final sources = <Future<Directory?> Function()>[
+      if (customBasePath != null && customBasePath.isNotEmpty)
+        () async => Directory(customBasePath),
+      _getDefaultDocumentsDirectory,
+      getApplicationDocumentsDirectory,
+    ];
+    final checkedPaths = <String>{};
 
-    // 2) 平台默认的文档目录
-    final documentsDir = await _getDefaultDocumentsDirectory();
-    if (documentsDir != null) {
-      candidates.add(
-        '${documentsDir.path}${Platform.pathSeparator}$workspaceName',
-      );
-    }
+    for (final resolveDirectory in sources) {
+      try {
+        final baseDirectory = await resolveDirectory();
+        if (baseDirectory == null) continue;
+        final candidate =
+            '${baseDirectory.path}${Platform.pathSeparator}$workspaceName';
+        if (!checkedPaths.add(candidate)) continue;
 
-    // 3) 兜底：应用私有目录。分区存储下这里一定可写，用户虽然不方便
-    //    用文件管理器翻，但总比建不了文件强。
-    try {
-      final privateDir = await getApplicationDocumentsDirectory();
-      candidates.add(
-        '${privateDir.path}${Platform.pathSeparator}$workspaceName',
-      );
-    } catch (e) {
-      appDebugLog('MyFilesService: 无法获取应用私有目录: $e');
-    }
-
-    if (candidates.isEmpty) {
-      throw Exception('无法获取文档目录');
-    }
-
-    // 权限 API 报 granted 不代表真能写：Android 10 的分区存储会把公共
-    // 根目录的写入挡成 EACCES（errno 13），所以这里必须实测一次。
-    for (var i = 0; i < candidates.length; i++) {
-      final candidate = candidates[i];
-      if (await _ensureWritable(candidate)) {
-        _workspacePath = candidate;
-        if (i > 0) {
-          appDebugLog('MyFilesService: 首选工作区不可写，改用 $candidate');
+        // granted 不代表真正可写；只缓存通过实际文件写入检查的目录。
+        if (await _ensureWritable(candidate)) {
+          _workspacePath = candidate;
+          return candidate;
         }
-        return candidate;
+      } catch (e, s) {
+        // 一个目录来源失败不能阻断后续私有目录等回退选项。
+        appDebugLog('MyFilesService: 工作区候选目录不可用: $e\n$s');
       }
     }
 
-    // 理论上到不了这里；真到了也按首选路径返回，让上层照常报错。
-    _workspacePath = candidates.first;
-    return _workspacePath!;
+    throw FileSystemException(
+      '无法打开可写的工作区，请检查存储权限和可用空间后重试。',
+      checkedPaths.join(', '),
+    );
   }
 
   /// 确保目录存在且真的可写
@@ -187,37 +173,37 @@ class MyFilesService {
   /// 只把目录建出来是不够的：目录可能建得出来、文件却写不进去，
   /// 而 `Permission.storage` 依旧显示已授予。
   Future<bool> _ensureWritable(String dirPath) async {
+    Directory? probeDirectory;
     try {
       final dir = Directory(dirPath);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      final probe = File('$dirPath${Platform.pathSeparator}.ushio_write_probe');
+      await dir.create(recursive: true);
+      // 服务实例可以并发初始化同一目录，探针必须由每次调用独占。
+      probeDirectory = await dir.createTemp('.ushio_write_probe_');
+      final probe = File(
+        '${probeDirectory.path}${Platform.pathSeparator}probe',
+      );
       await probe.writeAsString('probe', flush: true);
-      await probe.delete();
       return true;
     } catch (e) {
       appDebugLog('MyFilesService: 目录不可写 $dirPath: $e');
       return false;
+    } finally {
+      if (probeDirectory != null) {
+        try {
+          await probeDirectory.delete(recursive: true);
+        } catch (e) {
+          // 清理失败不改变已验证的写入能力，也不触碰其他调用的探针。
+          appDebugLog('MyFilesService: 清理工作区写入探针失败: $e');
+        }
+      }
     }
   }
 
   /// 初始化工作区
   ///
-  /// 首次启动时调用，确保工作区目录存在。建目录失败不往上抛，
-  /// 否则启动流程会整条卡住。
+  /// 确保工作区可写。失败交给启动入口或文件页决定如何恢复。
   Future<void> initWorkspace() async {
-    try {
-      final path = await getWorkspacePath();
-      final dir = Directory(path);
-
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-        appDebugLog('MyFilesService: 创建工作区目录 $path');
-      }
-    } catch (e, s) {
-      appDebugLog('MyFilesService: 初始化工作区失败: $e\n$s');
-    }
+    await getWorkspacePath();
   }
 
   /// 检查文件是否在工作区内
@@ -229,12 +215,20 @@ class MyFilesService {
   /// - 规范化路径，防止 `../` 遍历
   /// - 检查绝对路径是否以工作区路径开头
   Future<bool> isInWorkspace(String filePath) async {
-    final workspacePath = await getWorkspacePath();
-    
+    late final String workspacePath;
+    try {
+      workspacePath = await getWorkspacePath();
+    } catch (e) {
+      // Workspaces can be unavailable while an external file remains readable.
+      // Classify it as external so the caller can still offer read-only access.
+      appDebugLog('MyFilesService: 工作区不可用，按外部文件处理: $e');
+      return false;
+    }
+
     // 规范化路径，防止路径遍历攻击
     String normalizedFilePath;
     String normalizedWorkspacePath;
-    
+
     try {
       normalizedFilePath = File(filePath).absolute.path;
       normalizedWorkspacePath = File(workspacePath).absolute.path;
@@ -242,29 +236,32 @@ class MyFilesService {
       appDebugLog('MyFilesService: 路径规范化失败: $e');
       return false;
     }
-    
+
     // 检查路径是否以工作区路径开头
     // 使用规范化比较，防止大小写差异（Windows）
     final isWindows = Platform.isWindows;
-    final filePathCheck = isWindows ? normalizedFilePath.toLowerCase() : normalizedFilePath;
-    final workspacePathCheck = isWindows ? normalizedWorkspacePath.toLowerCase() : normalizedWorkspacePath;
-    
+    final filePathCheck = isWindows
+        ? normalizedFilePath.toLowerCase()
+        : normalizedFilePath;
+    final workspacePathCheck = isWindows
+        ? normalizedWorkspacePath.toLowerCase()
+        : normalizedWorkspacePath;
+
     if (!filePathCheck.startsWith(workspacePathCheck)) {
       return false;
     }
-    
+
     // 检查路径遍历攻击 (例如: /workspace/../secret)
     try {
       // 解析符号链接获取真实路径
       final realFile = File(normalizedFilePath);
-      final realWorkspace = Directory(normalizedWorkspacePath);
-      
+
       // 确保文件和工作区都存在
       if (!await realFile.exists()) {
         // 文件不存在，只检查路径
         return filePathCheck.startsWith(workspacePathCheck);
       }
-      
+
       // 获取真实路径（解析符号链接）
       String realFilePath;
       try {
@@ -273,8 +270,10 @@ class MyFilesService {
         // 无法解析符号链接，使用规范路径
         realFilePath = normalizedFilePath;
       }
-      
-      final realFilePathCheck = isWindows ? realFilePath.toLowerCase() : realFilePath;
+
+      final realFilePathCheck = isWindows
+          ? realFilePath.toLowerCase()
+          : realFilePath;
       return realFilePathCheck.startsWith(workspacePathCheck);
     } catch (e) {
       appDebugLog('MyFilesService: 路径安全检查失败: $e');
