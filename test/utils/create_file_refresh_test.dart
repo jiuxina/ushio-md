@@ -41,14 +41,16 @@ void main() {
       SharedPreferences.setMockInitialValues({});
 
       fileService = MockFileService();
-      // 不落盘：真实文件 IO 要等 runAsync，会让断言抢在创建流程完成之前跑掉。
+      // FileProvider verifies the created file before adding it to recent history.
       when(() => fileService.createFile(any(), any())).thenAnswer((
         invocation,
       ) async {
         final directory = invocation.positionalArguments[0] as String;
         final name = invocation.positionalArguments[1] as String;
+        final path = '$directory${Platform.pathSeparator}$name';
+        File(path).writeAsStringSync('# $name\n\n');
         return MarkdownFile(
-          path: '$directory${Platform.pathSeparator}$name',
+          path: path,
           name: name,
           content: '# $name\n\n',
           lastModified: DateTime.now(),
@@ -115,6 +117,10 @@ void main() {
       await tester.enterText(find.byType(TextField).last, 'note');
       await tester.pumpAndSettle();
       await tester.tap(find.text('创建'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
       await tester.pumpAndSettle();
 
       return refreshCount;

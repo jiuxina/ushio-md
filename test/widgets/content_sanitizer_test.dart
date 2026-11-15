@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('_ContentSanitizer.sanitizeMarkdown', () {
     late _ContentSanitizer sanitizer;
-    
+
     setUp(() {
       sanitizer = _ContentSanitizer();
     });
@@ -76,19 +76,31 @@ Normal text
 
   group('_ContentSanitizer.sanitizeUrl', () {
     late _ContentSanitizer sanitizer;
-    
+
     setUp(() {
       sanitizer = _ContentSanitizer();
     });
 
     test('允许 http/https URL', () {
-      expect(sanitizer.sanitizeUrl('https://example.com'), equals('https://example.com'));
-      expect(sanitizer.sanitizeUrl('http://example.com'), equals('http://example.com'));
+      expect(
+        sanitizer.sanitizeUrl('https://example.com'),
+        equals('https://example.com'),
+      );
+      expect(
+        sanitizer.sanitizeUrl('http://example.com'),
+        equals('http://example.com'),
+      );
     });
 
     test('允许 mailto/tel 协议', () {
-      expect(sanitizer.sanitizeUrl('mailto:test@example.com'), equals('mailto:test@example.com'));
-      expect(sanitizer.sanitizeUrl('tel:+1234567890'), equals('tel:+1234567890'));
+      expect(
+        sanitizer.sanitizeUrl('mailto:test@example.com'),
+        equals('mailto:test@example.com'),
+      );
+      expect(
+        sanitizer.sanitizeUrl('tel:+1234567890'),
+        equals('tel:+1234567890'),
+      );
     });
 
     test('允许相对路径', () {
@@ -109,21 +121,12 @@ Normal text
     });
 
     test('阻止 javascript: 协议', () {
-      expect(
-        sanitizer.sanitizeUrl('javascript:alert(1)'),
-        equals('#blocked'),
-      );
-      expect(
-        sanitizer.sanitizeUrl('JAVASCRIPT:alert(1)'),
-        equals('#blocked'),
-      );
+      expect(sanitizer.sanitizeUrl('javascript:alert(1)'), equals('#blocked'));
+      expect(sanitizer.sanitizeUrl('JAVASCRIPT:alert(1)'), equals('#blocked'));
     });
 
     test('阻止 vbscript: 协议', () {
-      expect(
-        sanitizer.sanitizeUrl('vbscript:msgbox(1)'),
-        equals('#blocked'),
-      );
+      expect(sanitizer.sanitizeUrl('vbscript:msgbox(1)'), equals('#blocked'));
     });
 
     test('阻止危险的 data: URI', () {
@@ -136,18 +139,24 @@ Normal text
 
   group('_ContentSanitizer.containsDangerousContent', () {
     late _ContentSanitizer sanitizer;
-    
+
     setUp(() {
       sanitizer = _ContentSanitizer();
     });
 
     test('检测正常内容为安全', () {
       expect(sanitizer.containsDangerousContent('# Hello\n\nWorld'), isFalse);
-      expect(sanitizer.containsDangerousContent('[link](https://example.com)'), isFalse);
+      expect(
+        sanitizer.containsDangerousContent('[link](https://example.com)'),
+        isFalse,
+      );
     });
 
     test('检测 script 标签', () {
-      expect(sanitizer.containsDangerousContent('<script>alert(1)</script>'), isTrue);
+      expect(
+        sanitizer.containsDangerousContent('<script>alert(1)</script>'),
+        isTrue,
+      );
     });
 
     test('检测事件处理器', () {
@@ -167,54 +176,64 @@ class _ContentSanitizer {
     r'<\s*(script|iframe|object|embed|form|input|button|meta|link|style|base)[^>]*>',
     caseSensitive: false,
   );
-  
+
   static final RegExp _dangerousAttributes = RegExp(
-    r'\s(on\w+)\s*=\s*["\'][^"\']*["\']',
+    r'''\s(on\w+)\s*=\s*["'][^"']*["']''',
     caseSensitive: false,
   );
-  
+
   static final RegExp _javascriptProtocol = RegExp(
-    r'(href|src|action)\s*=\s*["\']?\s*javascript:',
+    r'''(href|src|action)\s*=\s*["']?\s*javascript:''',
     caseSensitive: false,
   );
-  
+
   String sanitizeMarkdown(String markdown) {
     var sanitized = markdown;
     sanitized = sanitized.replaceAll(_dangerousTags, '');
     sanitized = sanitized.replaceAllMapped(_dangerousAttributes, (m) => '');
     sanitized = sanitized.replaceAllMapped(
       _javascriptProtocol,
-      (m) => m.group(0)!.replaceFirst(RegExp(r'javascript:', caseSensitive: false), '#'),
+      (m) => m
+          .group(0)!
+          .replaceFirst(RegExp(r'javascript:', caseSensitive: false), '#'),
     );
     return sanitized;
   }
-  
+
   String sanitizeUrl(String url) {
     final trimmed = url.trim();
-    const allowedProtocols = ['http://', 'https://', 'ftp://', 'mailto:', 'tel:'];
-    
+    const allowedProtocols = [
+      'http://',
+      'https://',
+      'ftp://',
+      'mailto:',
+      'tel:',
+    ];
+
     for (final proto in allowedProtocols) {
       if (trimmed.toLowerCase().startsWith(proto)) return trimmed;
     }
-    
-    if (trimmed.startsWith('/') || trimmed.startsWith('#') || trimmed.startsWith('?')) {
+
+    if (trimmed.startsWith('/') ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('?')) {
       return trimmed;
     }
-    
+
     if (trimmed.toLowerCase().startsWith('data:image/')) return trimmed;
-    
+
     if (trimmed.toLowerCase().startsWith('javascript:') ||
         trimmed.toLowerCase().startsWith('vbscript:') ||
         trimmed.toLowerCase().startsWith('data:text/html')) {
       return '#blocked';
     }
-    
+
     return trimmed;
   }
-  
+
   bool containsDangerousContent(String content) {
     return _dangerousTags.hasMatch(content) ||
-           _dangerousAttributes.hasMatch(content) ||
-           _javascriptProtocol.hasMatch(content);
+        _dangerousAttributes.hasMatch(content) ||
+        _javascriptProtocol.hasMatch(content);
   }
 }

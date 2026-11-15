@@ -4,7 +4,11 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:mdreader/l10n/app_localizations.dart';
+import 'package:mdreader/utils/app_style.dart';
 import 'package:provider/provider.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,9 +17,47 @@ import 'package:mdreader/screens/editor_screen.dart';
 import 'package:mdreader/providers/settings_provider.dart';
 import 'package:mdreader/providers/file_provider.dart';
 import 'package:mdreader/services/file_service.dart';
+import 'package:mdreader/widgets/milkdown_webview_editor.dart';
 
 // Mock Classes
 class MockFileService extends Mock implements FileService {}
+
+class _TestWebViewPlatform extends InAppWebViewPlatform {
+  @override
+  PlatformInAppWebViewController createPlatformInAppWebViewControllerStatic() =>
+      _TestWebViewController(
+        const PlatformInAppWebViewControllerCreationParams(id: -1),
+      );
+
+  @override
+  PlatformInAppWebViewWidget createPlatformInAppWebViewWidget(
+    PlatformInAppWebViewWidgetCreationParams params,
+  ) => _TestWebViewWidget(params);
+}
+
+class _TestWebViewWidget extends PlatformInAppWebViewWidget {
+  _TestWebViewWidget(super.params) : super.implementation();
+
+  @override
+  Widget build(BuildContext context) =>
+      const SizedBox.expand(key: ValueKey('test-inappwebview'));
+
+  @override
+  T controllerFromPlatform<T>(PlatformInAppWebViewController controller) =>
+      throw UnsupportedError(
+        'Native controllers are outside this widget test.',
+      );
+
+  @override
+  void dispose() {}
+}
+
+class _TestWebViewController extends PlatformInAppWebViewController {
+  _TestWebViewController(super.params) : super.implementation();
+
+  @override
+  Future<void> setWebContentsDebuggingEnabled(bool debuggingEnabled) async {}
+}
 
 class FakePathProviderPlatform extends PathProviderPlatform {
   final String _tempPath;
@@ -29,6 +71,10 @@ class FakePathProviderPlatform extends PathProviderPlatform {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  final originalPaths = PathProviderPlatform.instance;
+  final originalWebViews = InAppWebViewPlatform.instance;
+
   group('EditorScreen UI Tests', () {
     late MockFileService mockFileService;
     late Directory tempDir;
@@ -42,6 +88,12 @@ void main() {
       tempDir = await Directory.systemTemp.createTemp('editor_test');
       PathProviderPlatform.instance = FakePathProviderPlatform(tempDir.path);
       SharedPreferences.setMockInitialValues({}); // Empty prefs
+      InAppWebViewPlatform.instance = _TestWebViewPlatform();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('window_manager'),
+            (call) async => call.method == 'isMaximized' ? false : null,
+          );
 
       // 2. Setup Service Mocks
       mockFileService = MockFileService();
@@ -56,82 +108,93 @@ void main() {
 
       // 3. Initialize Providers
       settingsProvider = SettingsProvider();
-      // Initialize settings if needed (though defaults are usually fine)
-
       fileProvider = FileProvider(fileService: mockFileService);
-
-      // PluginProvider initialize might be needed if Editor checks plugins immediately
-      // But EditorScreen uses getters like getEditorExtensions which return empty if not init.
     });
 
     tearDown(() {
-      try {
-        if (tempDir.existsSync()) {
-          tempDir.deleteSync(recursive: true);
-        }
-      } catch (_) {}
+      PathProviderPlatform.instance = originalPaths;
+      if (originalWebViews != null) {
+        InAppWebViewPlatform.instance = originalWebViews;
+      }
+      settingsProvider.dispose();
+      fileProvider.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('window_manager'),
+            null,
+          );
     });
+
+    Widget editorApp(String filePath) {
+      final scheme = ColorScheme.fromSeed(seedColor: Colors.blue);
+      return MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: settingsProvider),
+          ChangeNotifierProvider.value(value: fileProvider),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: ThemeData(
+            colorScheme: scheme,
+            extensions: [
+              AppStyleTheme.resolve(
+                brightness: Brightness.light,
+                colorScheme: scheme,
+                backgroundColor: scheme.surface,
+                textSecondary: scheme.onSurfaceVariant,
+                buttonStyleMode: AppButtonStyleMode.classic,
+                cardOpacity: 1,
+              ),
+            ],
+          ),
+          home: EditorScreen(filePath: filePath),
+        ),
+      );
+    }
 
     testWidgets('EditorScreen should load and display content', (
       WidgetTester tester,
     ) async {
+      await tester.runAsync(warmUpMilkdownWebAssets);
       final sep = Platform.pathSeparator;
       final filePath = '${sep}test${sep}note.md';
 
-      await tester.pumpWidget(
-        MultiProvider(
-          providers: [
-            ChangeNotifierProvider.value(value: settingsProvider),
-            ChangeNotifierProvider.value(value: fileProvider),
-          ],
-          child: MaterialApp(home: EditorScreen(filePath: filePath)),
-        ),
-      );
-
-      // Verify Loading State
-      // Initially _isLoading is true.
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-
-      // Wait for Future (_loadFile) to complete
-      await tester.pumpAndSettle();
+      await tester.pumpWidget(editorApp(filePath));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       // Verify Content
       // Editor now uses WebView for markdown rendering; text content lives inside
       // the WebView and is not part of the Flutter widget tree, so we verify the
       // header (file name) instead of the rendered markdown text.
-      expect(find.text('note'), findsOneWidget);
+      expect(find.byKey(const ValueKey('test-inappwebview')), findsOneWidget);
+      verify(() => mockFileService.readFile(filePath)).called(1);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
     });
 
     testWidgets('EditorScreen should switch to Edit mode', (
       WidgetTester tester,
     ) async {
+      await tester.runAsync(warmUpMilkdownWebAssets);
       final sep = Platform.pathSeparator;
       final filePath = '${sep}test${sep}note.md';
 
-      await tester.pumpWidget(
-        MultiProvider(
-          providers: [
-            ChangeNotifierProvider.value(value: settingsProvider),
-            ChangeNotifierProvider.value(value: fileProvider),
-          ],
-          child: MaterialApp(home: EditorScreen(filePath: filePath)),
-        ),
-      );
-      await tester.pumpAndSettle();
+      await tester.pumpWidget(editorApp(filePath));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-      // Find Mode Selector (usually in Header or Toolbar)
-      // Depending on UI implementation. _buildModeSelector passes 'preview'/'edit'.
-      // Icons.edit or text "编辑"?
-      // Let's assume there is an IconButton with Edit icon or SegmentedControl.
-      // Need to check EditorScreen logic for mode switch UI.
-      // Since looking at code is expensive, let's just dump widget tree if we fail?
-      // Or verify TextField is present when mode changes.
+      await tester.tap(find.byIcon(Icons.edit));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-      // Currently defaulting to Preview.
-      // Let's check if there's an edit button.
-      // Common UI: an IconButton with Icons.edit_note or similar.
-
-      // For now, simple content loading test is enough for "First Step".
+      final editor = tester.widget<TextField>(find.byType(TextField));
+      expect(editor.controller!.text, '# Hello World');
+      expect(find.byIcon(Icons.visibility), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
     });
   });
 }

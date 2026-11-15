@@ -27,8 +27,8 @@ class _ToggleHarnessState extends State<_ToggleHarness> {
           setState(() => _index = index);
         },
         items: const [
-          SlidingSegmentItem(icon: Icons.description, label: 'File'),
-          SlidingSegmentItem(icon: Icons.folder, label: 'Folder'),
+          SlidingSegmentItem(icon: Icons.description, semanticLabel: 'File'),
+          SlidingSegmentItem(icon: Icons.folder, semanticLabel: 'Folder'),
         ],
       ),
     );
@@ -61,8 +61,15 @@ void main() {
   testWidgets('渲染两个选项且滑块对准选中项', (tester) async {
     await pumpToggle(tester, selectedIndex: 0);
 
-    expect(find.text('File'), findsOneWidget);
-    expect(find.text('Folder'), findsOneWidget);
+    expect(find.byIcon(Icons.description), findsOneWidget);
+    expect(find.byIcon(Icons.folder), findsOneWidget);
+    final fileSemantics = tester.widget<Semantics>(
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.label == 'File',
+      ),
+    );
+    expect(fileSemantics.properties.button, isTrue);
+    expect(fileSemantics.properties.selected, isTrue);
 
     final pillFinder = find.byKey(const ValueKey('sliding_segment_pill'));
     final toggleRect = tester.getRect(find.byType(SlidingSegmentToggle));
@@ -80,7 +87,7 @@ void main() {
     int? changed;
     await pumpToggle(tester, selectedIndex: 0, onChanged: (i) => changed = i);
 
-    await tester.tap(find.text('Folder'));
+    await tester.tap(find.byIcon(Icons.folder));
     await tester.pump();
 
     expect(changed, 1);
@@ -123,8 +130,14 @@ void main() {
                 selectedIndex: 0,
                 onChanged: (_) {},
                 items: const [
-                  SlidingSegmentItem(icon: Icons.description, label: 'File'),
-                  SlidingSegmentItem(icon: Icons.folder, label: 'Folder'),
+                  SlidingSegmentItem(
+                    icon: Icons.description,
+                    semanticLabel: 'File',
+                  ),
+                  SlidingSegmentItem(
+                    icon: Icons.folder,
+                    semanticLabel: 'Folder',
+                  ),
                 ],
               ),
             ],
@@ -134,10 +147,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('File'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('sliding_segment_pill')),
-      findsOneWidget,
-    );
+    expect(find.byIcon(Icons.description), findsOneWidget);
+    expect(find.byKey(const ValueKey('sliding_segment_pill')), findsOneWidget);
   });
 }

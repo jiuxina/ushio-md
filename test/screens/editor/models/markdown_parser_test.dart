@@ -3,7 +3,7 @@
 // ============================================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ushio_md/screens/editor/models/markdown_parser.dart';
+import 'package:mdreader/screens/editor/models/markdown_parser.dart';
 
 void main() {
   group('parseMarkdownBlocks', () {
@@ -48,10 +48,12 @@ Text after table''';
 
       final blocks = parseMarkdownBlocks(text);
 
-      expect(blocks.length, equals(2));
+      expect(blocks.length, equals(3));
       expect(blocks[0].isMultiLine, isTrue);
       expect(blocks[0].content, contains('| Header'));
-      expect(blocks[1].content, equals('Text after table'));
+      expect(blocks[1].content, isEmpty);
+      expect(blocks[2].content, equals('Text after table'));
+      expect(blocks.map((block) => block.content).join('\n'), text);
     });
 
     test('parses blockquotes as blocks', () {
@@ -64,9 +66,12 @@ Normal text''';
 
       final blocks = parseMarkdownBlocks(text);
 
-      expect(blocks.length, equals(2));
+      expect(blocks.length, equals(3));
       expect(blocks[0].isMultiLine, isTrue);
       expect(blocks[0].content, contains('> Quote'));
+      expect(blocks[1].content, isEmpty);
+      expect(blocks[2].content, 'Normal text');
+      expect(blocks.map((block) => block.content).join('\n'), text);
     });
 
     test('parses nested lists as multi-line blocks', () {
@@ -160,7 +165,10 @@ Normal text''';
     });
 
     test('removes special characters', () {
-      expect(slugifyHeading('Hello! @World# \$Test'), equals('hello-world-test'));
+      expect(
+        slugifyHeading('Hello! @World# \$Test'),
+        equals('hello-world-test'),
+      );
     });
 
     test('removes leading numbers with separators', () {

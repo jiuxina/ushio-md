@@ -3,8 +3,10 @@
 // ============================================================================
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ushio_md/screens/editor/editor_shortcuts.dart';
+import 'package:mdreader/screens/editor/editor_shortcuts.dart';
+import 'package:mdreader/widgets/markdown_toolbar.dart';
 
 void main() {
   group('EditorShortcuts', () {
@@ -125,7 +127,9 @@ void main() {
         );
 
         expect(
-          bindings.containsKey(const SingleActivator(LogicalKeyboardKey.escape)),
+          bindings.containsKey(
+            const SingleActivator(LogicalKeyboardKey.escape),
+          ),
           isTrue,
         );
         expect(
@@ -133,8 +137,9 @@ void main() {
           isTrue,
         );
         expect(
-          bindings.containsKey(
-            const SingleActivator(LogicalKeyboardKey.f3, shift: true),
+          bindings.keys.whereType<SingleActivator>().any(
+            (activator) =>
+                activator.trigger == LogicalKeyboardKey.f3 && activator.shift,
           ),
           isTrue,
         );
@@ -157,7 +162,6 @@ void main() {
     });
 
     test('callbacks are invokable', () {
-      var actionCalled = false;
       MarkdownToolbarAction? capturedAction;
 
       final bindings = buildShortcutBindings(
@@ -166,19 +170,20 @@ void main() {
         onRedo: () {},
         onSearch: () {},
         onApplyAction: (action) {
-          actionCalled = true;
           capturedAction = action;
         },
       );
 
-      // Find a binding and invoke it
-      final boldBinding = bindings.entries.firstWhere(
-        (e) => e.key.toString().contains('KeyB'),
-        orElse: () => bindings.entries.first,
-      );
+      final boldBinding = bindings.entries.singleWhere((entry) {
+        final activator = entry.key;
+        return activator is SingleActivator &&
+            activator.trigger == LogicalKeyboardKey.keyB &&
+            activator.control == !EditorShortcuts.isMac &&
+            activator.meta == EditorShortcuts.isMac;
+      }).value;
 
-      boldBinding.value();
-      expect(actionCalled, isTrue);
+      boldBinding();
+      expect(capturedAction, MarkdownToolbarAction.bold);
     });
   });
 
