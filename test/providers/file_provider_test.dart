@@ -22,14 +22,16 @@ void main() {
     setUp(() async {
       // 准备临时目录和文件，因为 FileProvider 会检查文件是否存在
       tempDir = await Directory.systemTemp.createTemp('mdreader_test');
-      
+
       // Mock SharedPreferences
       SharedPreferences.setMockInitialValues({});
-      
+
       // Mock FileService
       mockFileService = MockFileService();
-      when(() => mockFileService.hasPermissions()).thenAnswer((_) async => true);
-      
+      when(
+        () => mockFileService.hasPermissions(),
+      ).thenAnswer((_) async => true);
+
       provider = FileProvider(fileService: mockFileService);
     });
 
@@ -55,12 +57,12 @@ void main() {
 
     test('addToRecentFiles 应添加文件并持久化', () async {
       final path = await createTempFile('test.md');
-      
+
       await provider.addToRecentFiles(path);
-      
+
       expect(provider.recentFiles.length, 1);
       expect(provider.recentFiles.first, path);
-      
+
       // 验证 SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getStringList('recent_files'), [path]);
@@ -69,27 +71,60 @@ void main() {
     test('getters 应过滤不存在的文件', () async {
       final path = await createTempFile('exists.md');
       final nonExistentPath = '${tempDir.path}/non_existent.md';
-      
-      // 手动注入（绕过 addToRecentFiles）或使用 addToRecentFiles 然后删除文件
+
       await provider.addToRecentFiles(path);
-      await provider.addToRecentFiles(nonExistentPath); // 添加时未检查存在性？
-      // FileProvider.addToRecentFiles 并不检查文件是否存在，只是添加路径。
-      // 但是 getter 会过滤。
-      
-      // 此时 _recentFiles 包含两个路径
-      // 但 recentFiles getter 应该只返回存在的那个
-      expect(provider.recentFiles, contains(path));
-      expect(provider.recentFiles, isNot(contains(nonExistentPath)));
+      await provider.addToRecentFiles(nonExistentPath);
+
+      expect(provider.recentFiles, [path]);
+    });
+
+    test('再次访问现有文件时立即移到首位且不重复', () async {
+      final first = await createTempFile('first.md');
+      final second = await createTempFile('second.md');
+      await provider.addToRecentFiles(first);
+      await provider.addToRecentFiles(second);
+
+      await provider.addToRecentFiles(first);
+
+      expect(provider.recentFiles, [first, second]);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('recent_files'), [first, second]);
+    });
+
+    test('重新添加已经移走的文件时移除失效缓存', () async {
+      final path = await createTempFile('moved.md');
+      await provider.addToRecentFiles(path);
+      await File(path).rename('${tempDir.path}/renamed.md');
+
+      await provider.addToRecentFiles(path);
+
+      expect(provider.recentFiles, isEmpty);
+    });
+
+    test('无效历史路径不会污染有效缓存或破坏数量上限', () async {
+      final path = await createTempFile('exists.md');
+      await provider.addToRecentFiles(path);
+      for (var i = 0; i < 25; i++) {
+        await provider.addToRecentFiles('${tempDir.path}/missing-$i.md');
+      }
+      await provider.addToRecentFiles(path);
+
+      expect(provider.recentFiles, [path]);
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getStringList('recent_files')!.length,
+        lessThanOrEqualTo(20),
+      );
     });
 
     test('togglePinFile 应切换置顶状态', () async {
       final path = await createTempFile('pinned.md');
-      
+
       // Pin
       await provider.togglePinFile(path);
       expect(provider.pinnedFiles, contains(path));
       expect(provider.isFilePinned(path), true);
-      
+
       // Unpin
       await provider.togglePinFile(path);
       expect(provider.pinnedFiles, isNot(contains(path)));
@@ -146,17 +181,18 @@ void main() {
         lastModified: DateTime.now(),
         size: 100,
       );
-      
-      when(() => mockFileService.listMarkdownFiles(path))
-          .thenAnswer((_) async => [file]);
-          
+
+      when(
+        () => mockFileService.listMarkdownFiles(path),
+      ).thenAnswer((_) async => [file]);
+
       await provider.setDirectory(path);
-      
+
       expect(provider.isLoading, false);
       expect(provider.currentDirectory, path);
       expect(provider.files.length, 1);
       expect(provider.files.first, file);
-      
+
       verify(() => mockFileService.listMarkdownFiles(path)).called(1);
     });
   });

@@ -10,20 +10,43 @@ void main() {
     group('正常文件名', () {
       test('保留有效的文件名', () {
         expect(FileService.sanitizeFileName('test.md'), equals('test.md'));
-        expect(FileService.sanitizeFileName('my-file.md'), equals('my-file.md'));
+        expect(
+          FileService.sanitizeFileName('my-file.md'),
+          equals('my-file.md'),
+        );
         expect(FileService.sanitizeFileName('文件名.md'), equals('文件名.md'));
-        expect(FileService.sanitizeFileName('test_file.md'), equals('test_file.md'));
+        expect(
+          FileService.sanitizeFileName('test_file.md'),
+          equals('test_file.md'),
+        );
       });
 
-      test('自动添加 .md 扩展名', () {
+      test('不为通用文件名自动添加扩展名', () {
         final result = FileService.sanitizeFileName('test');
-        expect(result, equals('test.md'));
+        expect(result, equals('test'));
+        expect(FileService.ensureMarkdownExtension(result), equals('test.md'));
       });
 
       test('处理空文件名', () {
         expect(FileService.sanitizeFileName(''), equals('untitled.md'));
         expect(FileService.sanitizeFileName('   '), equals('untitled.md'));
         expect(FileService.sanitizeFileName('.md'), equals('untitled.md'));
+      });
+
+      test('仅有 Markdown 扩展名时使用默认名称', () {
+        for (final name in [
+          '.md',
+          '.MD',
+          '  .Md  ',
+          'folder/.md',
+          r'folder\.MD',
+        ]) {
+          expect(
+            FileService.sanitizeFileName(name, defaultName: 'document'),
+            equals('document.md'),
+            reason: '缺少文件主体的 $name 应使用默认名称',
+          );
+        }
       });
     });
 
@@ -39,7 +62,7 @@ void main() {
         );
         expect(
           FileService.sanitizeFileName('test|"*.md'),
-          equals('test__.md'),
+          equals('test___.md'),
         );
       });
 
@@ -82,7 +105,7 @@ void main() {
     group('Windows 保留名', () {
       test('CON 添加前缀', () {
         expect(FileService.sanitizeFileName('CON.md'), equals('_CON.md'));
-        expect(FileService.sanitizeFileName('CON'), equals('_CON.md'));
+        expect(FileService.sanitizeFileName('CON'), equals('_CON'));
       });
 
       test('PRN 添加前缀', () {
@@ -150,11 +173,17 @@ void main() {
       test('处理首尾空格和点', () {
         expect(FileService.sanitizeFileName('  test.md  '), equals('test.md'));
         expect(FileService.sanitizeFileName('.test.md.'), equals('test.md'));
-        expect(FileService.sanitizeFileName('...test...md...'), equals('test...md'));
+        expect(
+          FileService.sanitizeFileName('...test...md...'),
+          equals('test...md'),
+        );
       });
 
       test('处理多个点', () {
-        expect(FileService.sanitizeFileName('test.file.name.md'), equals('test.file.name.md'));
+        expect(
+          FileService.sanitizeFileName('test.file.name.md'),
+          equals('test.file.name.md'),
+        );
       });
 
       test('自定义默认名', () {
@@ -194,11 +223,15 @@ void main() {
       expect(FileService.isFileTooLarge(0), isFalse);
       expect(FileService.isFileTooLarge(1024), isFalse);
       expect(FileService.isFileTooLarge(1024 * 1024), isFalse); // 1 MB
-      expect(FileService.isFileTooLarge(10 * 1024 * 1024 - 1), isFalse); // 10 MB - 1
+      expect(FileService.isFileTooLarge(FileService.maxFileSize - 1), isFalse);
+    });
+
+    test('恰好达到最大允许值不超限', () {
+      expect(FileService.isFileTooLarge(FileService.maxFileSize), isFalse);
     });
 
     test('大文件超限', () {
-      expect(FileService.isFileTooLarge(10 * 1024 * 1024), isTrue); // 10 MB
+      expect(FileService.isFileTooLarge(FileService.maxFileSize + 1), isTrue);
       expect(FileService.isFileTooLarge(20 * 1024 * 1024), isTrue); // 20 MB
       expect(FileService.isFileTooLarge(100 * 1024 * 1024), isTrue); // 100 MB
     });
