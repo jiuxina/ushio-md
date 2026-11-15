@@ -173,6 +173,22 @@ void main() {
     });
 
     test(
+      'treats files as external when the workspace is unavailable',
+      () async {
+        final documents = await blockedBase('blocked-documents');
+        paths.documents = (_) async => documents;
+        final readableFile = File(p.join(fixture.path, 'external.md'));
+        await readableFile.writeAsString('# External document');
+
+        expect(
+          await serviceFor(null).isInWorkspace(readableFile.path),
+          isFalse,
+        );
+        expect(await readableFile.readAsString(), '# External document');
+      },
+    );
+
+    test(
       'initialization propagates a failure so the UI can offer retry',
       () async {
         final documents = await blockedBase('blocked-documents');
