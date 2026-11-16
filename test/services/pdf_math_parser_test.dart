@@ -81,5 +81,27 @@ void main() {
       final document = PdfMathDocument.parse(source);
       expect(document.restoreSource(document.markdown), source);
     });
+
+    test('keeps prices literal while accepting digit-led formulas', () {
+      const source = r'Prices $5 and $10, but math $5$ and $10x$ works.';
+      final document = PdfMathDocument.parse(source);
+
+      expect(
+        document.expressions.values.map((expression) => expression.tex),
+        ['5', '10x'],
+      );
+      expect(document.restoreSource(document.markdown), source);
+    });
+
+    test('does not consume another opener after an invalid closer', () {
+      const source = r'Unclosed $x + later $y_i$ and $2z$.';
+      final document = PdfMathDocument.parse(source);
+
+      expect(
+        document.expressions.values.map((expression) => expression.tex),
+        ['y_i', '2z'],
+      );
+      expect(document.restoreSource(document.markdown), source);
+    });
   });
 }
