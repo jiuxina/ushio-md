@@ -30,6 +30,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const statusEl = document.getElementById('sum');
 const outEl = document.getElementById('out');
 const frame = document.getElementById('editor');
+frame.src = new URLSearchParams(location.search).get('editor') || frame.src;
 
 const seed = (() => {
   let md = '# 样式基线\n\n';

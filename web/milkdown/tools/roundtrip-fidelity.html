@@ -53,6 +53,7 @@ const wait = (ms) => new Promise((resolve) => {
 const statusEl = document.getElementById('sum');
 const outEl = document.getElementById('out');
 const frame = document.getElementById('editor');
+frame.src = new URLSearchParams(location.search).get('editor') || frame.src;
 
 const CASES = [
   { name: '无序列表 -', doc: '- a\n- b\n' },

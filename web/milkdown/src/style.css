@@ -17,6 +17,7 @@
   --milkdown-line-height: 1.7;
   --ushio-keyboard-inset: 0px;
   --ushio-header-height: 0px;
+  --ushio-toolbar-height: 0px;
   --ushio-viewport-height: 100vh;
 }
 
@@ -47,7 +48,7 @@ body {
   padding: 16px;
   /* 头部是压在 WebView 上的覆盖层，第一行必须从它下面开始排 */
   padding-top: calc(16px + var(--ushio-header-height, 0px));
-  padding-bottom: calc(16px + var(--ushio-keyboard-inset));
+  padding-bottom: calc(16px + var(--ushio-keyboard-inset) + var(--ushio-toolbar-height));
 }
 
 .milkdown {
@@ -102,6 +103,11 @@ body {
   padding: 0;
   outline: none;
   caret-color: var(--milkdown-color-primary);
+}
+
+/* #app owns the initial gap; heading/paragraph theme margins must not add a second one. */
+.milkdown .ProseMirror > :first-child {
+  margin-top: 0 !important;
 }
 
 /* Render Milkdown's inline hardbreak (soft newline) as a real line break */

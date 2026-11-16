@@ -110,7 +110,8 @@
       const switchMessageCount = messages.filter((message) => message.type === 'on_content_change').length;
       await wait(600);
       check('切档后不接收上一文档防抖内容',
-        messages.filter((message) => message.type === 'on_content_change').length === switchMessageCount);
+        messages.filter((message) => message.type === 'on_content_change').length === switchMessageCount,
+        JSON.stringify(messages.filter((message) => message.type === 'on_content_change').slice(switchMessageCount)));
       check('切档后保持新文档原字节', perf.serialize() === untouched, perf.serialize());
       document.title = 'editor-runtime-oracle PASS';
     } catch (error) {

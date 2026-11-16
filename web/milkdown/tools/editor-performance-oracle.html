@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>editor-performance-oracle RUNNING</title>
+  <style>
+    body { font: 13px/1.4 system-ui, sans-serif; margin: 8px; }
+    pre { height: 200px; overflow: auto; white-space: pre-wrap; }
+    .frames { display: flex; gap: 8px; }
+    iframe { width: 740px; height: 700px; border: 1px solid #aaa; }
+    body.worker iframe { width: 700px; height: 600px; }
+    body.worker pre { height: 30px; }
+  </style>
+</head>
+<body>
+  <h2 id="label">修复前后合成文档性能采样</h2>
+  <pre id="result">运行中…</pre>
+  <div class="frames" id="frames"></div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const result = document.querySelector('#result');
+    const frames = document.querySelector('#frames');
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const until = async (predicate, label, timeout = 25_000) => {
+      const deadline = performance.now() + timeout;
+      while (!predicate()) {
+        if (performance.now() >= deadline) throw new Error(`Timeout: ${label}`);
+        await wait(20);
+      }
+    };
+    const fixture = (lines) => {
+      const chunks = ['# 固定合成文档', ''];
+      let section = 0;
+      while (chunks.length < lines) {
+        section++;
+        chunks.push(`## 章节 ${section}`, '',
+          '中文正文用于测量稳定的渲染时间、输入响应与内容正确性，不包含用户数据。', '',
+          `- [ ] 待办 ${section}`, `- [x] 完成 ${section}`, '');
+        if (section % 3 === 0) chunks.push('```js', `const value${section} = ${section};`, '```', '');
+        if (section % 4 === 0) chunks.push(`<div><p>合成卡片 ${section}</p></div>`, '');
+      }
+      return chunks.join('\n');
+    };
+    const documents = Object.entries({ S: 300, M: 1200, L: 3200 })
+      .map(([size, lines]) => ({ size, markdown: fixture(lines) }));
+    const summarize = (samples) => {
+      const metrics = ['ttiMs', 'inputPaintMs', 'settleMs'];
+      const summary = [];
+      for (const size of ['S', 'M', 'L']) {
+        for (const mode of ['newEditor', 'reusedEditor']) {
+          const group = samples.filter((sample) => sample.size === size && sample.mode === mode);
+          const row = { size, mode, n: group.length, chars: group[0]?.chars };
+          for (const metric of metrics) {
+            const values = group.map((sample) => sample[metric]).sort((a, b) => a - b);
+            row[metric] = {
+              p50: values[Math.floor(values.length * .5)],
+              p95: values[Math.min(values.length - 1, Math.floor(values.length * .95))],
+            };
+          }
+          summary.push(row);
+        }
+      }
+      return summary;
+    };
+    if (params.has('worker')) {
+      document.body.className = 'worker';
+      document.querySelector('#label').textContent = params.get('label') || 'worker';
+      const samples = [];
+      let child;
+      let messages;
+      let timings;
+      const createEditor = async () => {
+        child?.remove();
+        messages = [];
+        timings = [];
+        child = document.createElement('iframe');
+        child.src = '../index.html';
+        frames.replaceChildren(child);
+        await until(() => child.contentWindow.__USHIO_BRIDGE__, 'bridge ready');
+        const win = child.contentWindow;
+        win.flutter_inappwebview = {
+          callHandler: async (_handler, message) => {
+            messages.push({ ...message, observedAt: performance.now() });
+            return { ok: true };
+          },
+        };
+        const log = win.console.log.bind(win.console);
+        win.console.log = (...args) => {
+          const value = args[0];
+          if (typeof value === 'string' && value.startsWith('USHIO_PERF ')) {
+            try { timings.push(JSON.parse(value.slice(11))); } catch {}
+          }
+          log(...args);
+        };
+      };
+      const measure = async ({ size, markdown }, mode, iteration) => {
+        if (document.hidden || child.contentWindow.document.hidden) throw new Error('Hidden document cannot provide frame timings');
+        const win = child.contentWindow;
+        const perf = win.__USHIO_PERF__;
+        messages.length = 0;
+        timings.length = 0;
+        const start = performance.now();
+        win.__USHIO_BRIDGE__.onFlutterMessage({
+          type: 'init_doc', payload: { markdown, readOnly: false },
+        });
+        await until(() => messages.some((message) => message.type === 'on_render_complete'), 'document rendered');
+        const ttiMs = messages.find((message) => message.type === 'on_render_complete').observedAt - start;
+        await until(() => {
+          const state = perf.contentState();
+          return !state.initializing && !state.applyingFromFlutter;
+        }, 'initialization settled');
+        const paragraph = win.document.querySelector('.ProseMirror p');
+        const editor = paragraph.closest('.ProseMirror');
+        editor.focus();
+        const range = win.document.createRange();
+        range.selectNodeContents(paragraph);
+        range.collapse(false);
+        const selection = win.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        timings.length = 0;
+        const inputStart = performance.now();
+        editor.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+        win.document.execCommand('insertText', false, 'x');
+        await new Promise((resolve) => win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
+        const inputPaintMs = performance.now() - inputStart;
+        await until(() => timings.some((timing) => timing.ev === 'chain'), 'input content listener');
+        await until(() => timings.some((timing) => timing.ev === 'settle' && timing.geometryOnly !== 1), 'input settle');
+        const settleMs = timings.filter((timing) => timing.ev === 'settle' && timing.geometryOnly !== 1)
+          .reduce((total, timing) => total + timing.settleTotalMs, 0);
+        const serialized = perf.serialize();
+        if (!serialized.includes('用户数据。x') || !serialized.includes('合成卡片')) {
+          throw new Error('Input or non-text content did not survive rendering');
+        }
+        const sample = {
+          size, mode, iteration, chars: markdown.length,
+          ttiMs: Math.round(ttiMs * 100) / 100,
+          inputPaintMs: Math.round(inputPaintMs * 100) / 100,
+          settleMs: Math.round(settleMs * 100) / 100,
+          visible: !document.hidden && !win.document.hidden,
+        };
+        samples.push(sample);
+        result.textContent = `${size} ${mode} ${iteration + 1}/5`;
+      };
+      addEventListener('message', async (event) => {
+        if (event.source !== parent || event.data?.type !== 'start') return;
+        try {
+          for (const document of documents) {
+            for (let iteration = 0; iteration < 5; iteration++) {
+              await createEditor();
+              await measure(document, 'newEditor', iteration);
+            }
+            for (let iteration = 0; iteration < 5; iteration++) {
+              await measure(document, 'reusedEditor', iteration);
+            }
+          }
+          parent.postMessage({ type: 'results', label: params.get('label'), samples, summary: summarize(samples) }, '*');
+        } catch (error) {
+          parent.postMessage({ type: 'results', label: params.get('label'), error: String(error?.stack || error), samples }, '*');
+        }
+      });
+      parent.postMessage({ type: 'ready', label: params.get('label') }, '*');
+    } else {
+      const labels = ['before', 'after'];
+      const workers = new Map();
+      const completed = [];
+      for (const label of labels) {
+        const frame = document.createElement('iframe');
+        const base = label === 'before' ? (params.get('baseline') || 'http://127.0.0.1:4175') : location.origin;
+        frame.src = `${base}/tools/editor-performance-oracle.html?worker=1&label=${label}`;
+        workers.set(label, frame);
+        frames.append(frame);
+      }
+      addEventListener('message', (event) => {
+        const label = event.data?.label;
+        if (!workers.has(label) || event.source !== workers.get(label).contentWindow) return;
+        if (event.data.type === 'ready' && label === 'before') {
+          workers.get('before').contentWindow.postMessage({ type: 'start' }, '*');
+        }
+        if (event.data.type !== 'results') return;
+        completed.push(event.data);
+        result.textContent = JSON.stringify(completed, null, 2);
+        if (event.data.error) {
+          document.title = 'editor-performance-oracle FAIL';
+          return;
+        }
+        if (label === 'before') workers.get('after').contentWindow.postMessage({ type: 'start' }, '*');
+        else document.title = 'editor-performance-oracle PASS';
+      });
+    }
+  </script>
+</body>
+</html>

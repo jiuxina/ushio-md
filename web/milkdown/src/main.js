@@ -76,6 +76,7 @@ import { nord } from '@milkdown/theme-nord';
 import { $prose, replaceAll } from '@milkdown/utils';
 // CodeMirror themes for code block syntax highlighting
 import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorView as CodeMirrorView } from '@codemirror/view';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
 import { nord as nordTheme } from '@uiw/codemirror-theme-nord';
 import { material } from '@uiw/codemirror-theme-material';
@@ -109,6 +110,14 @@ import {
   ushioOrderedListSchema,
 } from './md-fidelity.mjs';
 import { lazyCodeBlockView, mountAllLazyCodeBlocks } from './lazy-code-block.mjs';
+import {
+  createContentChangeBuffer,
+  createRenderScheduler,
+  getCaretViewport,
+  selectEntireDocument,
+  shouldRevealCaret,
+  updateStyleProperty,
+} from './editor-runtime.mjs';
 import {
   LOCAL_FILE_SCHEME,
   toAbsoluteLocalPath,
@@ -148,6 +157,10 @@ let currentFrontmatter = '';
 // 原文是未编辑时的唯一输出：序列化器会把 marker/空白规范化，没编辑过就不该让它们落盘。
 let sourceMarkdownBody = '';
 let documentEdited = false;
+let userEditArmed = false;
+let contentRevision = 0;
+let publishedContentRevision = 0;
+let pendingContentRevision = 0;
 let currentBaseDirectory = '';
 // NOTE: currentReadOnly is only true for offscreen screenshot-rendering instances
 // (see file_actions.dart _shareAsImageDirectly). Users never see a read-only UI.
@@ -204,9 +217,6 @@ const calculateAdaptiveDebounceMs = (markdownLength) => {
   if (markdownLength < 50000) return 150;
   return 300;
 };
-let contentChangeTimerId = null;
-let pendingContentMarkdown = null;
-let pendingContentMode = 'full';
 let uploadFailureCount = 0;
 let uploadFailureWindowStart = Date.now();
 let searchHighlightRanges = [];
@@ -230,6 +240,12 @@ const searchHighlightProsePlugin = $prose(() => {
     state: {
       init: () => DecorationSet.empty,
       apply: (transaction, decorationSet) => {
+        if (transaction.docChanged && userEditArmed && !currentReadOnly
+          && transaction.getMeta('addToHistory') !== false
+          && !initializingEditor && !isApplyingFromFlutter) {
+          documentEdited = true;
+          contentRevision += 1;
+        }
         const meta = transaction.getMeta(searchHighlightPluginKey);
         if (meta) return meta;
         return decorationSet.map(transaction.mapping, transaction.doc);
@@ -421,26 +437,21 @@ const applyTheme = (payload) => {
 const updateViewportMetrics = () => {
   const root = document.documentElement;
   const vv = window.visualViewport;
-  if (!vv) {
-    root.style.setProperty('--ushio-viewport-height', `${window.innerHeight}px`);
-    root.style.setProperty('--ushio-keyboard-inset', `${flutterKeyboardInsetPx}px`);
-    root.style.setProperty('--ushio-header-height', `${flutterHeaderHeightPx}px`);
-    lastKeyboardInsetPx = flutterKeyboardInsetPx;
-    return;
-  }
-  const viewportHeight = Math.max(0, vv.height);
+  const viewportHeight = Math.max(0, vv?.height ?? window.innerHeight);
   const keyboardInset = Math.max(
     0,
-    window.innerHeight - (vv.height + vv.offsetTop),
+    window.innerHeight - (viewportHeight + (vv?.offsetTop || 0)),
     flutterKeyboardInsetPx,
   );
-  root.style.setProperty('--ushio-viewport-height', `${viewportHeight}px`);
-  root.style.setProperty('--ushio-keyboard-inset', `${keyboardInset}px`);
-  root.style.setProperty('--ushio-header-height', `${flutterHeaderHeightPx}px`);
-  const keyboardInsetIncreased = keyboardInset > lastKeyboardInsetPx + 2;
+  updateStyleProperty(root.style, '--ushio-viewport-height', `${viewportHeight}px`);
+  updateStyleProperty(root.style, '--ushio-keyboard-inset', `${keyboardInset}px`);
+  updateStyleProperty(root.style, '--ushio-header-height', `${flutterHeaderHeightPx}px`);
+  const toolbarChanged = updateStyleProperty(
+    root.style, '--ushio-toolbar-height', `${flutterToolbarHeightPx}px`,
+  );
+  const keyboardChanged = Math.abs(keyboardInset - lastKeyboardInsetPx) > 2;
   lastKeyboardInsetPx = keyboardInset;
-  if (keyboardInset > 0 && keyboardInsetIncreased) {
-    // 键盘弹出时，强制执行滚动（不受抑制机制影响）
+  if (keyboardInset > 0 && (keyboardChanged || toolbarChanged)) {
     forceCaretIntoUpperViewport();
   }
 };
@@ -475,14 +486,18 @@ const getMilkdownFontSize = () => {
   return cachedFontSizePx;
 };
 
-const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => {
+const ensureCaretInUpperViewport = ({ force = false } = {}) => {
   if (currentReadOnly) return;
-  // Skip viewport sync during IME composition to prevent janky animations
-  if (!allowDuringComposition && isComposing) return;
-  if (Date.now() < editorTouchScrollSuppressUntil || Date.now() < viewportScrollSuppressUntil) return;
-  if (Date.now() - lastEditorInteractionAt > 1200) return;
   const active = document.activeElement instanceof Element ? document.activeElement : null;
-  if (!active?.closest('.ProseMirror')) return;
+  if (!shouldRevealCaret({
+    focused: Boolean(active?.closest('.ProseMirror')),
+    composing: isComposing,
+    now: Date.now(),
+    lastInteractionAt: lastEditorInteractionAt,
+    force,
+  })) return;
+  if (!force && (Date.now() < editorTouchScrollSuppressUntil
+    || Date.now() < viewportScrollSuppressUntil)) return;
 
   const selection = window.getSelection();
   const anchorNode = selection?.anchorNode ?? null;
@@ -519,22 +534,21 @@ const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => 
   if (!Number.isFinite(currentTop)) return;
 
   const fontSize = getMilkdownFontSize();
-  const lineHeight = fontSize * 1.5; // 与Flutter端保持一致
+  const lineHeight = fontSize * (
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--milkdown-line-height'))
+    || 1.7
+  );
 
   const layoutHeight = window.innerHeight || viewportHeight;
   const keyboardInset = getKeyboardInset();
-  // 键盘只能扣一次：浏览器自己缩了视口的场合（iOS、桌面软键盘）vv.height 已经
-  // 不含键盘，adjustNothing 下的 Android 则仍是整窗高度，得由我们自己扣。
-  const viewportExcludesKeyboard = layoutHeight - viewportHeight >= keyboardInset - 1;
-  const visibleHeight = viewportExcludesKeyboard ? viewportHeight : layoutHeight - keyboardInset;
-
-  // 工具栏和头部是 Flutter 画在 WebView 之上的覆盖层，只有推过来的数可信
-  const toolbarHeight = flutterToolbarHeightPx > 0 ? flutterToolbarHeightPx : 56;
-  const headerHeight = flutterHeaderHeightPx > 0 ? flutterHeaderHeightPx : 0;
-
-  // 光标要落在的区间：头部以下、工具栏与键盘以上。
-  const caretMargin = lineHeight * 0.5;
-  const usableTop = headerHeight + caretMargin;
+  const viewport = getCaretViewport({
+    layoutHeight,
+    viewportHeight,
+    keyboardInset,
+    toolbarHeight: flutterToolbarHeightPx,
+    headerHeight: flutterHeaderHeightPx,
+    lineHeight,
+  });
 
   const scroller = document.scrollingElement || document.documentElement || document.body;
   const scrollTop = scroller.scrollTop ?? window.pageYOffset ?? 0;
@@ -545,14 +559,13 @@ const ensureCaretInUpperViewport = ({ allowDuringComposition = false } = {}) => 
   const caretLineBottom = Number.isFinite(caretBottom)
     ? caretBottom
     : currentTop + lineHeight;
-  const lineBottomLimit = visibleHeight - toolbarHeight - caretMargin;
 
   // 只补到刚好回到区间内：多退少退都会让下一次输入又判定成越界，来回拉扯
   let delta = 0;
-  if (caretLineBottom > lineBottomLimit) {
-    delta = caretLineBottom - lineBottomLimit;
-  } else if (currentTop < usableTop) {
-    delta = currentTop - usableTop;
+  if (caretLineBottom > viewport.bottom) {
+    delta = caretLineBottom - viewport.bottom;
+  } else if (currentTop < viewport.top) {
+    delta = currentTop - viewport.top;
   }
 
   if (Math.abs(delta) >= 4) {
@@ -598,7 +611,7 @@ const forceCaretIntoUpperViewport = () => {
   forceCaretRafId = requestAnimationFrame(() => {
     forceCaretRafId = null;
     const c0 = perfNow();
-    ensureCaretInUpperViewport({ allowDuringComposition: true });
+    ensureCaretInUpperViewport({ force: true });
     perfNoteCaret(perfNow() - c0);
   });
 };
@@ -1164,11 +1177,11 @@ const renderHtmlBlockCodeNodes = (root) => {
       overlay.appendChild(overlayItem);
       htmlOverlayContentCache.set(item.idx, item.contentHash);
     }
-    overlayItem.style.position = 'absolute';
-    overlayItem.style.pointerEvents = 'auto';
-    overlayItem.style.top = `${item.top}px`;
-    overlayItem.style.left = `${item.left}px`;
-    overlayItem.style.width = `${item.width}px`;
+    updateStyleProperty(overlayItem.style, 'position', 'absolute');
+    updateStyleProperty(overlayItem.style, 'pointer-events', 'auto');
+    updateStyleProperty(overlayItem.style, 'top', `${item.top}px`);
+    updateStyleProperty(overlayItem.style, 'left', `${item.left}px`);
+    updateStyleProperty(overlayItem.style, 'width', `${item.width}px`);
     item.overlayItem = overlayItem;
   }
 
@@ -1188,18 +1201,18 @@ const renderHtmlBlockCodeNodes = (root) => {
     hideHtmlBlockCodeNode(item.block);
     // 伪块自身带 padding/border，而 height 默认 content-box：不定 border-box 的话
     // 实际占位高 = 渲染高 + padding，每个 HTML 块多占一截并按块数累积。
-    item.block.style.setProperty('box-sizing', 'border-box', 'important');
+    setImportantStyleIfNeeded(item.block, 'box-sizing', 'border-box');
     if (item.overlayHeight > 0) {
       htmlBlockPlaceholderHeights.set(item.contentHash, item.overlayHeight);
-      item.block.style.setProperty('height', `${item.overlayHeight}px`, 'important');
-      item.block.style.setProperty('min-height', `${item.overlayHeight}px`, 'important');
-      item.block.style.setProperty('max-height', `${item.overlayHeight}px`, 'important');
+      setImportantStyleIfNeeded(item.block, 'height', `${item.overlayHeight}px`);
+      setImportantStyleIfNeeded(item.block, 'min-height', `${item.overlayHeight}px`);
+      setImportantStyleIfNeeded(item.block, 'max-height', `${item.overlayHeight}px`);
     } else {
       item.block.style.removeProperty('height');
       item.block.style.removeProperty('min-height');
-      item.block.style.setProperty('max-height', '0', 'important');
+      setImportantStyleIfNeeded(item.block, 'max-height', '0px');
     }
-    item.block.style.setProperty('overflow', 'hidden', 'important');
+    setImportantStyleIfNeeded(item.block, 'overflow', 'hidden');
   }
 
   /**
@@ -1216,9 +1229,9 @@ const renderHtmlBlockCodeNodes = (root) => {
     item.width = r.width;
   }
   for (const item of planned) {
-    item.overlayItem.style.top = `${item.top}px`;
-    item.overlayItem.style.left = `${item.left}px`;
-    item.overlayItem.style.width = `${item.width}px`;
+    updateStyleProperty(item.overlayItem.style, 'top', `${item.top}px`);
+    updateStyleProperty(item.overlayItem.style, 'left', `${item.left}px`);
+    updateStyleProperty(item.overlayItem.style, 'width', `${item.width}px`);
   }
 
   // 高度缓存只服务当前文档里还存在的块，否则连续打开文档会无限累积。
@@ -1421,35 +1434,45 @@ const normalizeTrailingNewline = (markdown) => (
   typeof markdown === 'string' && markdown ? markdown.replace(/\n+$/, '\n') : markdown
 );
 
-const flushContentChange = () => {
-  if (pendingContentMarkdown == null) return;
-  const markdown = normalizeTrailingNewline(
-    deproxyImageUrlsInMarkdown(pendingContentMarkdown, currentBaseDirectory),
-  );
-  const mode = pendingContentMode || 'full';
-  pendingContentMarkdown = null;
-  pendingContentMode = 'full';
-  emit('on_content_change', {
-    mode,
-    markdown,
-  });
-};
+const contentChangeBuffer = createContentChangeBuffer({
+  normalize: (markdown) => normalizeTrailingNewline(
+    deproxyImageUrlsInMarkdown(markdown, currentBaseDirectory),
+  ),
+  delayFor: calculateAdaptiveDebounceMs,
+  emit: (change) => {
+    publishedContentRevision = pendingContentRevision;
+    emit('on_content_change', change);
+  },
+});
+
+const flushContentChange = () => contentChangeBuffer.flush();
 
 const scheduleContentChange = (markdown, { mode = 'full' } = {}) => {
-  // Validate input to prevent runtime errors
   if (markdown == null || typeof markdown !== 'string') return;
+  if (contentRevision <= publishedContentRevision) return;
+  pendingContentRevision = contentRevision;
+  contentChangeBuffer.schedule(
+    currentFrontmatter ? `${currentFrontmatter}${markdown}` : markdown, mode,
+  );
+};
 
-  pendingContentMarkdown = currentFrontmatter ? `${currentFrontmatter}${markdown}` : markdown;
-  pendingContentMode = mode;
-  if (contentChangeTimerId != null) {
-    clearTimeout(contentChangeTimerId);
+const takePendingContentChange = () => {
+  if (currentReadOnly || !editorInstance) return null;
+  // Milkdown itself debounces markdownUpdated for 200ms, before our own debounce.
+  // Serialize the actual state here so leaving immediately after an input cannot lose it.
+  if (contentRevision > publishedContentRevision) {
+    const rawBody = editorInstance.action((ctx) => (
+      ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc)
+    ));
+    const body = stripGhostCodeLanguageMarkers(rawBody);
+    const markdown = normalizeTrailingNewline(deproxyImageUrlsInMarkdown(
+      currentFrontmatter ? `${currentFrontmatter}${body}` : body, currentBaseDirectory,
+    ));
+    contentChangeBuffer.cancel();
+    publishedContentRevision = contentRevision;
+    return markdown;
   }
-  // Use adaptive debounce based on file size
-  const debounceMs = calculateAdaptiveDebounceMs(markdown.length);
-  contentChangeTimerId = setTimeout(() => {
-    contentChangeTimerId = null;
-    flushContentChange();
-  }, debounceMs);
+  return contentChangeBuffer.take()?.markdown ?? null;
 };
 
 // Phase 0 度量用：O(1) 规模读数，避免测量本身改变被测量的成本
@@ -1522,32 +1545,6 @@ const ensureCustomLanguageTrigger = (tools) => {
   input.spellcheck = false;
   tools.append(input);
   return input;
-};
-
-/**
- * 一次文档走查取全部 code_block 的语言（文档序）。
- * 旧实现对每个代码块都跑一次 editorInstance.action + view.posAtDOM + doc.resolve，
- * 等于把 O(代码块数) 次 ProseMirror 反查塞进渲染收尾里。
- */
-const collectDocCodeLanguages = () => {
-  if (!editorInstance) return null;
-  try {
-    return editorInstance.action((ctx) => {
-      const view = ctx.get(editorViewCtx);
-      const languages = [];
-      const walk = (node) => {
-        if (node.type.name === 'code_block') {
-          languages.push(typeof node.attrs?.language === 'string' ? node.attrs.language : '');
-          return;
-        }
-        node.forEach((child) => walk(child));
-      };
-      view.state.doc.forEach((child) => walk(child));
-      return languages;
-    });
-  } catch (_) {
-    return null;
-  }
 };
 
 const resolveCodeBlockLanguage = (codeBlock, docLanguage = '', fallback = '') => {
@@ -1625,6 +1622,7 @@ const emitCodeLanguageUiDebug = (kind, payload = {}) => {
 };
 
 const setCodeBlockLanguage = (codeBlock, language) => {
+  userEditArmed = true;
   if (!editorInstance || !codeBlock) return false;
   let ok = false;
   const nextLanguage = normalizeCodeLanguage(language);
@@ -1693,10 +1691,71 @@ const updateCodeLanguageButtonLabel = (codeBlock, language) => {
 };
 
 
-const syncRenderedDom = () => {
+const codeBlockPresentationCache = new WeakMap();
+let lastCodeNodeList = [];
+let lastCodeLanguages = null;
+let lastCodeFenceLanguages = [];
+let lastCodeDomList = [];
+const sameItems = (left, right) => left.length === right.length
+  && left.every((item, index) => item === right[index]);
+const collectCodePresentation = (root) => {
+  if (!editorInstance) return { changed: true, languages: null, fences: [], blocks: [] };
+  const nodes = editorInstance.action((ctx) => {
+    const found = [];
+    ctx.get(editorViewCtx).state.doc.descendants((node) => {
+      if (node.type.name !== 'code_block') return true;
+      found.push(node);
+      return false;
+    });
+    return found;
+  });
+  const blocks = [...root.querySelectorAll(
+    '.milkdown-code-block:not([data-ushio-html-block-slot])',
+  )];
+  const changed = !sameItems(nodes, lastCodeNodeList) || !sameItems(blocks, lastCodeDomList);
+  if (changed) {
+    lastCodeNodeList = nodes;
+    lastCodeDomList = blocks;
+    lastCodeLanguages = nodes.map((node) => (
+      typeof node.attrs?.language === 'string' ? node.attrs.language : ''
+    ));
+    lastCodeFenceLanguages = collectFenceLanguages(currentMarkdown);
+  }
+  return { changed, languages: lastCodeLanguages, fences: lastCodeFenceLanguages, blocks };
+};
+let observedRenderRoot = null;
+let renderResizeObserver = null;
+let previousRenderWidth = 0;
+let previousRenderHeight = 0;
+const presentedCodeStyles = new WeakMap();
+const presentationStyleKey = (element) => element.style.cssText;
+
+const observeRenderGeometry = (root) => {
+  if (observedRenderRoot === root || typeof ResizeObserver === 'undefined') return;
+  renderResizeObserver?.disconnect();
+  observedRenderRoot = root;
+  previousRenderWidth = 0;
+  previousRenderHeight = 0;
+  renderResizeObserver = new ResizeObserver((entries) => {
+    const rect = entries[0]?.contentRect;
+    if (!rect) return;
+    if (rect.width === previousRenderWidth && rect.height === previousRenderHeight) return;
+    previousRenderWidth = rect.width;
+    previousRenderHeight = rect.height;
+    renderScheduler.schedule({ geometry: true });
+  });
+  renderResizeObserver.observe(root);
+};
+
+const syncRenderedDom = ({ content = true } = {}) => {
   // 分段打点：1.5 秒的冷路径收尾到底花在哪一段，只靠读代码已经猜错过一次。
   const P = perfStartSections();
   const root = app.querySelector('.milkdown') || app;
+  observeRenderGeometry(root);
+  if (!content) {
+    renderHtmlBlockCodeNodes(root);
+    return;
+  }
   renderRawHtmlNodes(root);
   P.mark('rawHtml');
   renderBlockHtmlGroups(root);
@@ -1895,8 +1954,9 @@ const syncRenderedDom = () => {
   });
 
   P.mark('tablePrePass');
-  const fenceLanguages = collectFenceLanguages(currentMarkdown);
-  const docCodeLanguages = collectDocCodeLanguages();
+  const codePresentation = collectCodePresentation(root);
+  const fenceLanguages = codePresentation.fences;
+  const docCodeLanguages = codePresentation.languages;
   P.mark('scanFences');
 
   // 不变量：「DOM 代码块数 == 文档 code_block 数」（两者同为文档序）。
@@ -1904,7 +1964,7 @@ const syncRenderedDom = () => {
   // HTML 块槽刻意复用 milkdown-code-block 这个类名好让 overlay 机器不用改，
   // 但它的节点类型不是 code_block、也不走下面的 codeBlockPass，所以两边都要排除，
   // 否则这条不变量会被自己的实现细节刷成永久告警。
-  const domCodeBlocks = root.querySelectorAll('.milkdown-code-block:not([data-ushio-html-block-slot])');
+  const domCodeBlocks = codePresentation.blocks;
   if (docCodeLanguages && domCodeBlocks.length !== docCodeLanguages.length) {
     console.warn('[syncRenderedDom] Code block count mismatch:', {
       domCount: domCodeBlocks.length,
@@ -1914,8 +1974,13 @@ const syncRenderedDom = () => {
   }
 
   P.mark('codeBlockQuery');
-  root.querySelectorAll('.milkdown-code-block:not([data-ushio-html-block-slot])').forEach((block, codeBlockIndex) => {
+  codePresentation.blocks.forEach((block, codeBlockIndex) => {
     if (!(block instanceof HTMLElement)) return;
+    const previousPresentation = codeBlockPresentationCache.get(block);
+    if (!codePresentation.changed && previousPresentation?.styleNodes?.every(
+      (element) => element.isConnected
+        && presentedCodeStyles.get(element) === presentationStyleKey(element),
+    )) return;
 
     // Skip html-block code blocks — they are rendered as HTML and hidden by injected CSS
     if (isHtmlBlockCodeNode(block)) {
@@ -1923,41 +1988,18 @@ const syncRenderedDom = () => {
       return;
     }
 
-    // Style non-html-block code blocks for custom UI (tools positioning, etc.)
-    setImportantStyleIfNeeded(block, 'display', 'block');
-    setImportantStyleIfNeeded(block, 'position', 'relative');
-    setImportantStyleIfNeeded(block, 'overflow', 'visible');
-    setImportantStyleIfNeeded(block, 'padding-top', '8px');
-
     const tools = block.querySelector(':scope > .tools, .tools');
     if (!(tools instanceof HTMLElement)) return;
-    setImportantStyleIfNeeded(tools, 'position', 'absolute');
-    setImportantStyleIfNeeded(tools, 'left', 'auto');
-    setImportantStyleIfNeeded(tools, 'right', '8px');
-    setImportantStyleIfNeeded(tools, 'top', '8px');
-    setImportantStyleIfNeeded(tools, 'bottom', 'auto');
-    setImportantStyleIfNeeded(tools, 'transform', 'none');
-
-    const nativePicker = block.querySelector('.language-picker');
-    if (nativePicker instanceof HTMLElement) {
-      setImportantStyleIfNeeded(nativePicker, 'display', 'none');
-      setImportantStyleIfNeeded(nativePicker, 'visibility', 'hidden');
-      setImportantStyleIfNeeded(nativePicker, 'opacity', '0');
-      setImportantStyleIfNeeded(nativePicker, 'pointer-events', 'none');
-    }
-
-    const nativeLanguageButton = block.querySelector('.tools .language-button');
-    if (nativeLanguageButton instanceof HTMLElement) {
-      setImportantStyleIfNeeded(nativeLanguageButton, 'display', 'none');
-      setImportantStyleIfNeeded(nativeLanguageButton, 'visibility', 'hidden');
-      setImportantStyleIfNeeded(nativeLanguageButton, 'pointer-events', 'none');
-    }
-
     const languageButton = ensureCustomLanguageTrigger(tools);
     if (!(languageButton instanceof HTMLElement)) return;
-
-    languageButton.classList.remove('language-button');
-    languageButton.classList.add('ushio-language-input');
+    const nativePicker = block.querySelector('.language-picker');
+    const nativeLanguageButton = block.querySelector('.tools .language-button');
+    const styleNodes = [block, tools, languageButton, nativePicker, nativeLanguageButton].filter(
+      (element) => element instanceof HTMLElement,
+    );
+    const stylesUnchanged = styleNodes.every(
+      (element) => presentedCodeStyles.get(element) === presentationStyleKey(element),
+    );
 
     const currentLanguage = resolveCodeBlockLanguage(
       block,
@@ -1971,6 +2013,39 @@ const syncRenderedDom = () => {
       fenceLanguages[codeBlockIndex] ||
       ''
     ).trim();
+    const presentationKey = `${currentLanguage}\u0000${displayLanguage}`;
+    const cachedPresentation = codeBlockPresentationCache.get(block);
+    if (cachedPresentation?.key === presentationKey
+      && cachedPresentation.tools === tools
+      && cachedPresentation.input === languageButton
+      && stylesUnchanged) return;
+
+    // Unchanged nodes retain their presentation; a newly mounted/rebuilt node
+    // or a host style reset still receives the complete setup.
+    setImportantStyleIfNeeded(block, 'display', 'block');
+    setImportantStyleIfNeeded(block, 'position', 'relative');
+    setImportantStyleIfNeeded(block, 'overflow', 'visible');
+    setImportantStyleIfNeeded(block, 'padding-top', '8px');
+    setImportantStyleIfNeeded(tools, 'position', 'absolute');
+    setImportantStyleIfNeeded(tools, 'left', 'auto');
+    setImportantStyleIfNeeded(tools, 'right', '8px');
+    setImportantStyleIfNeeded(tools, 'top', '8px');
+    setImportantStyleIfNeeded(tools, 'bottom', 'auto');
+    setImportantStyleIfNeeded(tools, 'transform', 'none');
+
+    if (nativePicker instanceof HTMLElement) {
+      setImportantStyleIfNeeded(nativePicker, 'display', 'none');
+      setImportantStyleIfNeeded(nativePicker, 'visibility', 'hidden');
+      setImportantStyleIfNeeded(nativePicker, 'opacity', '0');
+      setImportantStyleIfNeeded(nativePicker, 'pointer-events', 'none');
+    }
+    if (nativeLanguageButton instanceof HTMLElement) {
+      setImportantStyleIfNeeded(nativeLanguageButton, 'display', 'none');
+      setImportantStyleIfNeeded(nativeLanguageButton, 'visibility', 'hidden');
+      setImportantStyleIfNeeded(nativeLanguageButton, 'pointer-events', 'none');
+    }
+    languageButton.classList.remove('language-button');
+    languageButton.classList.add('ushio-language-input');
     languageButton.dataset.displayLanguage = displayLanguage || formatCodeLanguageLabel(currentLanguage);
     updateCodeLanguageButtonLabel(block, currentLanguage);
 
@@ -2013,6 +2088,10 @@ const syncRenderedDom = () => {
       languageButton.addEventListener('blur', commit);
       languageButton.dataset.ushioLanguageBind = '1';
     }
+    codeBlockPresentationCache.set(block, {
+      key: presentationKey, tools, input: languageButton, styleNodes,
+    });
+    styleNodes.forEach((element) => presentedCodeStyles.set(element, presentationStyleKey(element)));
   });
 
   P.mark('codeBlockPass');
@@ -2088,18 +2167,20 @@ const emitFirstRenderReady = () => {
   });
 };
 
-const notifyRenderComplete = () => {
-  cancelProgressiveRender();
-  requestAnimationFrame(() => {
+const renderScheduler = createRenderScheduler({
+  requestFrame: (callback) => requestAnimationFrame(callback),
+  render: ({ content }) => {
     const s0 = perfNow();
-    syncRenderedDom();
+    syncRenderedDom({ content });
     const s1 = perfNow();
-    updateActiveMarkdownHints();
+    if (content) updateActiveMarkdownHints();
     const s2 = perfNow();
-    emitOutlineUpdate();
+    if (content) emitOutlineUpdate();
     const s3 = perfNow();
-    emit('on_render_complete', {});
-    emitHistoryState();
+    if (content) {
+      emit('on_render_complete', {});
+      emitHistoryState();
+    }
     const s4 = perfNow();
     perfRecordSettle({
       syncMs: s1 - s0,
@@ -2107,8 +2188,14 @@ const notifyRenderComplete = () => {
       outlineMs: s3 - s2,
       historyMs: s4 - s3,
       settleTotalMs: s4 - s0,
+      geometryOnly: content ? 0 : 1,
     }, perfSizes());
-  });
+  },
+});
+
+const notifyRenderComplete = () => {
+  cancelProgressiveRender();
+  renderScheduler.schedule({ content: true, geometry: true });
 };
 
 const endEditorInitialization = () => {
@@ -2169,6 +2256,7 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
   currentFrontmatter = frontmatter;
   sourceMarkdownBody = body;
   documentEdited = false;
+  userEditArmed = false;
   const nextMarkdown = body;
   emitDebug(`[JS] setMarkdown: nextMarkdown === currentMarkdown: ${nextMarkdown === currentMarkdown}`);
   // Skip equality check if forceRender is true (needed when switching documents)
@@ -2176,11 +2264,9 @@ const setMarkdown = (markdown, { emitContent = false, forceRender = false } = {}
     emitDebug('[JS] setMarkdown: skipping (same content)');
     return;
   }
-  if (contentChangeTimerId != null) {
-    clearTimeout(contentChangeTimerId);
-    contentChangeTimerId = null;
-  }
-  pendingContentMarkdown = null;
+  contentChangeBuffer.cancel();
+  contentRevision = 0;
+  publishedContentRevision = 0;
   currentMarkdown = nextMarkdown;
   if (!editorInstance) {
     emitDebug('[JS] setMarkdown: no editorInstance, returning');
@@ -2773,7 +2859,17 @@ const createEditor = async () => {
   crepe.editor
     .config(nord)
     .config((ctx) => {
+      // The upstream listener keeps its 200ms callback across EditorState
+      // replacement. A document switch can otherwise publish the old document
+      // after init_doc has installed the new one.
+      let listenerDocumentIsCurrent = true;
+      ctx.get(listenerCtx).updated((_ctx, doc) => {
+        listenerDocumentIsCurrent = Boolean(editorInstance?.action((current) => (
+          current.get(editorViewCtx).state.doc.eq(doc)
+        )));
+      });
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prev) => {
+        if (!listenerDocumentIsCurrent) return;
         if (initializingEditor) markEditorInitializing();
         if (markdown === prev) return;
         if (!isApplyingFromFlutter && !initializingEditor) {
@@ -2791,7 +2887,6 @@ const createEditor = async () => {
           const perfRebuild0 = perfNow();
           currentMarkdown = renderReadyMarkdown;
           if (!currentReadOnly && !isApplyingFromFlutter && !initializingEditor) {
-            documentEdited = true;
             scheduleContentChange(sanitizedMarkdown, { mode: 'code_sanitized' });
           }
           isApplyingFromFlutter = true;
@@ -2826,7 +2921,6 @@ const createEditor = async () => {
           fullRebuild: 0,
         }, perfSizes());
         if (!isApplyingFromFlutter && !initializingEditor) {
-          documentEdited = true;
           scheduleContentChange(sanitizedMarkdown);
         }
         if (!progressiveRenderPending) {
@@ -3477,6 +3571,24 @@ const collectCodeBlockLanguageDebugReport = () => {
 
 const executeCommand = (cmd, args = {}) => {
   const startedAt = Date.now();
+  // Flutter sends these before init_doc so the document's first layout is final.
+  if (cmd === 'set_keyboard_metrics') {
+    const keyboardInset = Number(args?.keyboardInset);
+    const toolbarHeight = Number(args?.toolbarHeight);
+    const headerHeight = Number(args?.headerHeight);
+    if (Number.isFinite(keyboardInset) && keyboardInset >= 0) {
+      flutterKeyboardInsetPx = keyboardInset;
+    }
+    if (Number.isFinite(toolbarHeight) && toolbarHeight >= 0) {
+      flutterToolbarHeightPx = toolbarHeight;
+    }
+    if (Number.isFinite(headerHeight) && headerHeight >= 0) {
+      flutterHeaderHeightPx = headerHeight;
+    }
+    updateViewportMetrics();
+    emitCmdResult(cmd, true, null, startedAt);
+    return;
+  }
   if (!editorInstance) {
     emitCmdResult(cmd, false, 'editor_not_ready', startedAt);
     return;
@@ -3484,6 +3596,9 @@ const executeCommand = (cmd, args = {}) => {
   if (currentReadOnly && cmd !== 'focus_editor' && cmd !== 'blur_editor' && cmd !== 'debug_codeblock_language_report' && cmd !== 'scroll_caret_into_view' && cmd !== 'set_keyboard_metrics' && cmd !== 'dump_perf' && cmd !== 'set_perf_probe') {
     emitCmdResult(cmd, false, 'readonly', startedAt);
     return;
+  }
+  if (/^(?:toggle_|insert_|table_|undo$|redo$|set_code_|set_heading|upload_images_result$)/.test(cmd)) {
+    userEditArmed = true;
   }
   try {
     if (cmd === 'dump_perf') {
@@ -3511,21 +3626,38 @@ const executeCommand = (cmd, args = {}) => {
       emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
-    if (cmd === 'set_keyboard_metrics') {
-      const keyboardInset = Number(args?.keyboardInset);
-      const toolbarHeight = Number(args?.toolbarHeight);
-      const headerHeight = Number(args?.headerHeight);
-      if (Number.isFinite(keyboardInset) && keyboardInset >= 0) {
-        flutterKeyboardInsetPx = keyboardInset;
+    if (cmd === 'select_all') {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+        || active instanceof HTMLSelectElement) {
+        emitCmdResult(cmd, false, 'independent_input', startedAt);
+        return;
       }
-      if (Number.isFinite(toolbarHeight) && toolbarHeight >= 0) {
-        flutterToolbarHeightPx = toolbarHeight;
-      }
-      if (Number.isFinite(headerHeight) && headerHeight >= 0) {
-        flutterHeaderHeightPx = headerHeight;
-      }
-      updateViewportMetrics();
-      emitCmdResult(cmd, true, null, startedAt);
+      const ok = editorInstance.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const codeMirror = active instanceof Element ? CodeMirrorView.findFromDOM(active) : null;
+        if (codeMirror) {
+          const host = codeMirror.dom.closest('.milkdown-code-block');
+          const codeText = codeMirror.state.doc.toString();
+          let changedCode = null;
+          view.state.doc.descendants((node, pos) => {
+            if (changedCode || node.type.name !== 'code_block') return !changedCode;
+            const nodeDom = view.nodeDOM(pos);
+            if (nodeDom instanceof Element && (nodeDom === host || nodeDom.contains(host))) {
+              if (node.textContent !== codeText) changedCode = { node, pos };
+              return false;
+            }
+            return true;
+          });
+          if (changedCode) {
+            view.dispatch(view.state.tr.insertText(
+              codeText, changedCode.pos + 1, changedCode.pos + changedCode.node.nodeSize - 1,
+            ));
+          }
+        }
+        return selectEntireDocument(view);
+      });
+      emitCmdResult(cmd, ok, ok ? null : 'not_applicable', startedAt);
       return;
     }
     if (cmd === 'scroll_caret_into_view') {
@@ -4049,7 +4181,32 @@ lockViewportZoom();
 window.addEventListener('resize', updateViewportMetrics);
 window.addEventListener('orientationchange', updateViewportMetrics);
 window.visualViewport?.addEventListener('resize', updateViewportMetrics);
+app.addEventListener('load', () => renderScheduler.schedule({ geometry: true }), true);
+document.fonts?.addEventListener('loadingdone', () => {
+  renderScheduler.schedule({ geometry: true });
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    const markdown = takePendingContentChange();
+    if (markdown != null) emit('on_content_change', { mode: 'full', markdown });
+  }
+});
+window.addEventListener('pagehide', () => {
+  const markdown = takePendingContentChange();
+  if (markdown != null) emit('on_content_change', { mode: 'full', markdown });
+});
 document.addEventListener('keydown', handleEditorShortcut, true);
+['beforeinput', 'input', 'paste', 'cut', 'compositionstart'].forEach((eventName) => {
+  app.addEventListener(eventName, (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('.ProseMirror') && !currentReadOnly) userEditArmed = true;
+  }, true);
+});
+app.addEventListener('pointerdown', (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest('input[type="checkbox"], .milkdown-list-item-block .label-wrapper')
+    && !currentReadOnly) userEditArmed = true;
+}, true);
 // Phase 0 度量：按键时刻用于算「按键→停顿收尾」的输入延迟
 document.addEventListener('keydown', perfMarkKeyDown, true);
 document.addEventListener('beforeinput', perfMarkKeyDown, true);
@@ -4083,6 +4240,10 @@ const onFlutterMessage = (message) => {
     currentFrontmatter = frontmatter;
     sourceMarkdownBody = body;
     documentEdited = false;
+    userEditArmed = false;
+    contentRevision = 0;
+    publishedContentRevision = 0;
+    contentChangeBuffer.cancel();
     // Always update and render, even if markdown appears the same
     // (needed when switching between documents)
     currentMarkdown = body;
@@ -4151,7 +4312,10 @@ window.__USHIO_PERF__ = {
     initializing: initializingEditor,
     applyingFromFlutter: isApplyingFromFlutter,
     readOnly: currentReadOnly,
-    pending: pendingContentMarkdown != null,
+    pending: contentChangeBuffer.pending || contentRevision > publishedContentRevision,
+    contentRevision,
+    publishedContentRevision,
+    edited: documentEdited,
     progressive: progressiveRenderPending,
   }),
   setAppendRender: (on) => { appendRenderEnabled = Boolean(on); },
@@ -4206,6 +4370,7 @@ window.__USHIO_PERF__ = {
 window.__USHIO_BRIDGE__ = {
   onFlutterMessage,
   emitDebug,
+  flushPendingChanges: takePendingContentChange,
 };
 
 // 通过 bridge handler 主动通知 Flutter「JS 已就绪」。
