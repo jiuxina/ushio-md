@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
 import '../../../widgets/app_surface.dart';
 import '../../../widgets/glass_header_button.dart';
@@ -19,6 +20,8 @@ class EditorHeader extends StatelessWidget {
   final VoidCallback? onMore;
   final bool isAutoSaving;
   final DateTime? lastSaveTime;
+  final bool isSourceMode;
+  final VoidCallback? onToggleMode;
 
   const EditorHeader({
     super.key,
@@ -34,6 +37,8 @@ class EditorHeader extends StatelessWidget {
     this.onMore,
     this.isAutoSaving = false,
     this.lastSaveTime,
+    this.isSourceMode = false,
+    this.onToggleMode,
   });
 
   String get _displayFileName =>
@@ -72,6 +77,16 @@ class EditorHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          if (onToggleMode != null) ...[
+            GlassHeaderButton(
+              icon: isSourceMode ? Icons.visibility : Icons.edit,
+              onPressed: onToggleMode,
+              tooltip: isSourceMode
+                  ? AppLocalizations.of(context)!.switchToPreview
+                  : AppLocalizations.of(context)!.switchToSource,
+            ),
+            const SizedBox(width: 8),
+          ],
           _buildSaveButton(context),
           if (canUndo || canRedo) ...[
             const SizedBox(width: 8),

@@ -199,40 +199,42 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     });
 
-    testWidgets('mode switch stays in the header with floating buttons hidden', (
-      tester,
-    ) async {
-      await settingsProvider.setFloatingButtonsMode('never');
-      await tester.runAsync(warmUpMilkdownWebAssets);
-      await tester.pumpWidget(editorApp('${tempDir.path}/header.md'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+    testWidgets(
+      'mode switch stays in the header with floating buttons hidden',
+      (tester) async {
+        await settingsProvider.setFloatingButtonsMode('never');
+        await tester.runAsync(warmUpMilkdownWebAssets);
+        await tester.pumpWidget(editorApp('${tempDir.path}/header.md'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
 
-      final toggle = find.descendant(
-        of: find.byType(EditorHeader),
-        matching: find.byIcon(Icons.edit),
-      );
-      expect(toggle, findsOneWidget);
-      await tester.tap(toggle);
-      await tester.pump();
-      expect(
-        find.descendant(
+        final toggle = find.descendant(
           of: find.byType(EditorHeader),
-          matching: find.byIcon(Icons.visibility),
-        ),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump(const Duration(milliseconds: 600));
-    });
+          matching: find.byIcon(Icons.edit),
+        );
+        expect(toggle, findsOneWidget);
+        await tester.tap(toggle);
+        await tester.pump();
+        expect(
+          find.descendant(
+            of: find.byType(EditorHeader),
+            matching: find.byIcon(Icons.visibility),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
 
     testWidgets('background saves immediately only when auto save is enabled', (
       tester,
     ) async {
       await settingsProvider.setAutoSave(true);
-      when(() => mockFileService.saveFile(any(), any()))
-          .thenAnswer((_) async {});
+      when(
+        () => mockFileService.saveFile(any(), any()),
+      ).thenAnswer((_) async {});
       await tester.runAsync(warmUpMilkdownWebAssets);
       final filePath = '${tempDir.path}/background.md';
       await tester.pumpWidget(editorApp(filePath));
@@ -247,9 +249,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
       await tester.pump();
-      verify(
-        () => mockFileService.saveFile(filePath, '最后输入的内容'),
-      ).called(1);
+      verify(() => mockFileService.saveFile(filePath, '最后输入的内容')).called(1);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -257,30 +257,36 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     });
 
-    testWidgets('background leaves manual edits unsaved when auto save is off', (
-      tester,
-    ) async {
-      await tester.runAsync(warmUpMilkdownWebAssets);
-      await tester.pumpWidget(editorApp('${tempDir.path}/manual.md'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.byIcon(Icons.edit));
-      await tester.pump();
-      await tester.enterText(find.byType(TextField), '手动保存');
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      await tester.pump();
-      verifyNever(() => mockFileService.saveFile(any(), any()));
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump(const Duration(milliseconds: 600));
-    });
+    testWidgets(
+      'background leaves manual edits unsaved when auto save is off',
+      (tester) async {
+        await tester.runAsync(warmUpMilkdownWebAssets);
+        await tester.pumpWidget(editorApp('${tempDir.path}/manual.md'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byIcon(Icons.edit));
+        await tester.pump();
+        await tester.enterText(find.byType(TextField), '手动保存');
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        await tester.pump();
+        verifyNever(() => mockFileService.saveFile(any(), any()));
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
 
     testWidgets('edits made during a save remain dirty after that save', (
       tester,
     ) async {
       final pendingSave = Completer<void>();
-      when(() => mockFileService.saveFile(any(), any()))
-          .thenAnswer((_) => pendingSave.future);
+      when(
+        () => mockFileService.saveFile(any(), any()),
+      ).thenAnswer((_) => pendingSave.future);
       await tester.runAsync(warmUpMilkdownWebAssets);
       final filePath = '${tempDir.path}/concurrent.md';
       await tester.pumpWidget(editorApp(filePath));
@@ -299,8 +305,10 @@ void main() {
       pendingSave.complete();
       await tester.pump();
       await tester.pump();
-      expect(tester.widget<EditorHeader>(find.byType(EditorHeader)).isModified,
-          isTrue);
+      expect(
+        tester.widget<EditorHeader>(find.byType(EditorHeader)).isModified,
+        isTrue,
+      );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
     });

@@ -105,8 +105,12 @@ class _EditorScreenState extends State<EditorScreen>
   /// 工具栏和头部又是压在它上面的 Flutter 覆盖层：这三段高度只有这里知道。
   void _pushPreviewOcclusion() {
     _previewWebViewController.setKeyboardMetrics(
-      keyboardInset: MediaQuery.viewInsetsOf(context).bottom,
-      toolbarHeight: MarkdownToolbar.heightFor(context),
+      keyboardInset:
+          View.of(context).viewInsets.bottom /
+          View.of(context).devicePixelRatio,
+      toolbarHeight: _isMilkdownEditorFocused || _editingBlockIndex != null
+          ? MarkdownToolbar.heightFor(context)
+          : 0,
       headerHeight: EditorHeader.reserveHeight,
     );
   }
@@ -138,6 +142,9 @@ class _EditorScreenState extends State<EditorScreen>
   bool _previewCanRedo = false;
   bool _hidePlatformViews = false;
   bool _isAppInBackground = false;
+  bool _allowExit = false;
+  Future<bool>? _saveInFlight;
+  Future<void>? _backgroundSaveInFlight;
   Timer? _autoSaveTimer;
   int? _highlightedLine;
   List<SearchMatch> _searchMatches = const [];
@@ -203,8 +210,9 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   /// 进入编辑态：冻结下发给预览的内容，并把 IME 从平台视图上摘下来。
-  void _enterEditMode() {
-    _flushPendingMilkdownMerge();
+  Future<void> _enterEditMode() async {
+    if (!await _tryFlushPendingEditorChanges()) return;
+    if (!mounted) return;
     _webViewMarkdownInEdit = _textController.text;
     unawaited(_previewWebViewController.execCmd('blur_editor'));
     unawaited(_previewWebViewController.clearFocus());
@@ -472,8 +480,10 @@ class _EditorScreenState extends State<EditorScreen>
     } else if (caretY > visibleBottom - predictiveBottomMargin) {
       // 光标即将进入底部遮挡区域，提前滚动
       _editScrollController.animateTo(
-        (caretY - viewportHeight + bottomOffset + predictiveBottomMargin)
-            .clamp(0.0, scrollPosition.maxScrollExtent),
+        (caretY - viewportHeight + bottomOffset + predictiveBottomMargin).clamp(
+          0.0,
+          scrollPosition.maxScrollExtent,
+        ),
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
       );
@@ -706,7 +716,7 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _autoSave() async {
     // 如果正在回退版本，跳过自动保存
     if (_isRestoringVersion) return;
-    if (_isModified && !_isSaving) {
+    if (context.read<SettingsProvider>().autoSave && !_isSaving) {
       setState(() => _isAutoSaving = true);
       await _saveFile(showSnackbar: false, isAutoSave: true);
       if (mounted) {
@@ -722,42 +732,84 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  Future<void> _saveFile({
+  Future<void> _flushPendingEditorChanges() async {
+    if (_mode == EditorMode.preview && _isMilkdownReady) {
+      final pending = await _previewWebViewController.flushPendingChanges();
+      if (!mounted) return;
+      if (pending != null) _handleMilkdownContentChange(pending);
+    }
+    _flushPendingMilkdownMerge();
+    if (_editingBlockIndex != null) _finishInlineEdit();
+  }
+
+  Future<bool> _tryFlushPendingEditorChanges() async {
+    try {
+      await _flushPendingEditorChanges();
+      return mounted;
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isModified = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(
+                context,
+              )!.saveFailedWithError(error.toString()),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _saveFile({
     bool showSnackbar = true,
     bool isAutoSave = false,
   }) async {
-    final l10n = AppLocalizations.of(context)!;
-    if (_isSaving) return;
-
-    // 没有任何编辑就不碰文件：打开再保存必须逐字节保持原样。
-    // 一旦写盘，换行归一化和增量合并的回波都可能改写用户的文件。
-    if (!_isModified && _pendingMilkdownMarkdown == null) {
-      return;
-    }
-
-    // 保存前先应用尚未执行的增量合并，避免保存到过期内容。
-    _flushPendingMilkdownMerge();
-
-    setState(() => _isSaving = true);
-
+    final current = _saveInFlight;
+    if (current != null) return current;
+    final operation = _performSave(
+      showSnackbar: showSnackbar,
+      isAutoSave: isAutoSave,
+    );
+    _saveInFlight = operation;
     try {
+      return await operation;
+    } finally {
+      _saveInFlight = null;
+    }
+  }
+
+  Future<bool> _performSave({
+    required bool showSnackbar,
+    required bool isAutoSave,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _isSaving = true);
+    try {
+      await _flushPendingEditorChanges();
+      if (!mounted) return false;
+      // A pristine document must retain its original bytes.
+      if (!_isModified) return true;
+      final snapshot = _textController.text;
       final fileService = context.read<FileProvider>().fileService;
       await fileService.saveFile(
         widget.filePath,
-        _normalizeLineEndings(_textController.text),
+        _normalizeLineEndings(snapshot),
       );
       if (mounted) {
-        // Update original markdown after successful save
-        // This resets the baseline for future incremental merges
-        _originalMarkdown = _textController.text;
+        _originalMarkdown = snapshot;
         setState(() {
-          _isModified = false;
+          _isModified =
+              _textController.text != snapshot ||
+              _pendingMilkdownMarkdown != null;
           _lastSaveTime = DateTime.now();
         });
       }
 
       // 创建版本快照（失败不影响保存成功状态）
-      _createVersionSnapshot();
+      _createVersionSnapshot(snapshot);
 
       if (showSnackbar && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -792,6 +844,7 @@ class _EditorScreenState extends State<EditorScreen>
           _triggerAutoSync();
         }
       }
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -811,10 +864,27 @@ class _EditorScreenState extends State<EditorScreen>
           ),
         );
       }
+      return false;
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
+  }
 
-    if (mounted) {
-      setState(() => _isSaving = false);
+  Future<void> _saveForBackground() async {
+    try {
+      do {
+        final success = await _saveFile(showSnackbar: false, isAutoSave: true);
+        if (!success || !mounted) return;
+        await _flushPendingEditorChanges();
+      } while (mounted &&
+          _isAppInBackground &&
+          context.read<SettingsProvider>().autoSave &&
+          _isModified);
+    } catch (error) {
+      appDebugLog('[EDITOR] Background content flush failed: $error');
+      if (mounted) setState(() => _isModified = true);
+    } finally {
+      _backgroundSaveInFlight = null;
     }
   }
 
@@ -881,10 +951,10 @@ class _EditorScreenState extends State<EditorScreen>
   // ==================== 版本历史 ====================
 
   /// 创建版本快照（后台执行，失败不影响保存状态）
-  void _createVersionSnapshot() {
+  void _createVersionSnapshot(String snapshot) {
     unawaited(
       _versionService
-          .createVersion(widget.filePath, _textController.text)
+          .createVersion(widget.filePath, snapshot)
           .then((version) {
             appDebugLog('[Version] 版本快照创建成功: v${version.versionNumber}');
           })
@@ -1075,6 +1145,7 @@ class _EditorScreenState extends State<EditorScreen>
         (v) => v.versionNumber == version.versionNumber - 1,
         orElse: () => version, // fallback，不应该发生
       );
+      if (!mounted) return;
 
       _diffOverlayEntry = showDiffViewOverlay(
         context: context,
@@ -1120,6 +1191,7 @@ class _EditorScreenState extends State<EditorScreen>
       ),
     );
 
+    if (!mounted) return;
     // 用户取消，重新显示 diff 覆盖层
     if (confirmed != true) {
       _diffOverlayEntry = showDiffViewOverlay(
@@ -1294,23 +1366,23 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   double _lastKeyboardInset = 0;
+  bool _metricsCallbackPending = false;
 
   @override
   void didChangeMetrics() {
     super.didChangeMetrics();
-    // 使用 WidgetsBinding.instance.scheduleFrameCallback 确保在帧更新后获取正确的键盘高度
-    WidgetsBinding.instance.scheduleFrameCallback((_) {
+    if (_metricsCallbackPending) return;
+    _metricsCallbackPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _metricsCallbackPending = false;
       if (!mounted) return;
-      final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+      final view = View.of(context);
+      final keyboardInset = view.viewInsets.bottom / view.devicePixelRatio;
       _pushPreviewOcclusion();
       // 键盘弹出时（高度增加），触发光标滚动
       if (keyboardInset > _lastKeyboardInset && keyboardInset > 0) {
         if (_mode == EditorMode.edit && _editFocusNode.hasFocus) {
           _scheduleEditScrollToCursor();
-        } else if (_mode == EditorMode.preview) {
-          // WebView 端在中文输入法组合期间会跳过常规光标同步，
-          // 这里在键盘弹出时显式通知 Milkdown 强制滚动到光标。
-          _previewWebViewController.forceCaretIntoView();
         }
       }
       _lastKeyboardInset = keyboardInset;
@@ -1319,9 +1391,19 @@ class _EditorScreenState extends State<EditorScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasInBackground = _isAppInBackground;
     _isAppInBackground =
         state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive;
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden;
+    if (_isAppInBackground &&
+        !wasInBackground &&
+        !_isLoading &&
+        !_isRestoringVersion &&
+        context.read<SettingsProvider>().autoSave &&
+        _backgroundSaveInFlight == null) {
+      _backgroundSaveInFlight = _saveForBackground();
+    }
 
     // 应用从后台恢复时，检查 inline edit 是否还需要收尾
     if (state == AppLifecycleState.resumed && _editingBlockIndex != null) {
@@ -1338,17 +1420,14 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<bool> _onWillPop() async {
     final l10n = AppLocalizations.of(context)!;
-    _flushPendingMilkdownMerge();
-    if (_editingBlockIndex != null) {
-      _finishInlineEdit();
-    }
+    if (!await _tryFlushPendingEditorChanges()) return false;
+    if (!mounted) return false;
     if (!_isModified) return true;
 
     // 检查是否启用了退出时自动保存
     final settings = context.read<SettingsProvider>();
     if (settings.saveOnExit) {
-      await _saveFile(showSnackbar: false);
-      return true;
+      return _saveLatestForExit(showSnackbar: false);
     }
 
     final result = await showDialog<String>(
@@ -1391,12 +1470,29 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     if (result == 'save') {
-      await _saveFile();
-      return true;
+      return _saveLatestForExit();
     } else if (result == 'discard') {
       return true;
     }
     return false;
+  }
+
+  Future<bool> _saveLatestForExit({bool showSnackbar = true}) async {
+    do {
+      if (!await _saveFile(showSnackbar: showSnackbar)) return false;
+      if (!await _tryFlushPendingEditorChanges()) return false;
+    } while (_isModified);
+    return true;
+  }
+
+  void _leaveEditor() {
+    if (!mounted) return;
+    setState(() => _allowExit = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _schedulePlatformViewTeardown();
+      Navigator.of(context).pop();
+    });
   }
 
   // ==================== 搜索功能 ====================
@@ -2118,6 +2214,13 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
     return MilkdownWebViewEditor(
+      initialHeaderHeight: EditorHeader.reserveHeight,
+      initialToolbarHeight: _isMilkdownEditorFocused
+          ? MarkdownToolbar.heightFor(context)
+          : 0,
+      initialKeyboardInset:
+          View.of(context).viewInsets.bottom /
+          View.of(context).devicePixelRatio,
       initialMarkdown: _mode == EditorMode.edit
           ? _webViewMarkdownInEdit
           : _textController.text,
@@ -2179,6 +2282,7 @@ class _EditorScreenState extends State<EditorScreen>
     final focused = payload['focused'] == true;
     if (!mounted || focused == _isMilkdownEditorFocused) return;
     setState(() => _isMilkdownEditorFocused = focused);
+    _pushPreviewOcclusion();
     // WebView 正常响应了 focus 变化，取消降级计时器
     if (!focused) _blurFallbackTimer?.cancel();
 
@@ -2317,21 +2421,21 @@ class _EditorScreenState extends State<EditorScreen>
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
     return PopScope(
-      canPop: !_isModified && !hasActiveEditingSurface,
+      canPop: _allowExit,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
           _schedulePlatformViewTeardown();
           return;
         }
         if (hasActiveEditingSurface) {
+          if (!await _tryFlushPendingEditorChanges()) return;
           await _collapseEditingState();
           return;
         }
         if (!didPop) {
           final shouldPop = await _onWillPop();
           if (shouldPop && context.mounted) {
-            _schedulePlatformViewTeardown();
-            Navigator.of(context).pop();
+            _leaveEditor();
           }
         }
       },
@@ -2602,16 +2706,13 @@ class _EditorScreenState extends State<EditorScreen>
                       _historyIndex >= 0 &&
                       _historyIndex < _editHistory.length - 1,
                   onBack: () async {
-                    if (_isModified) {
-                      final shouldPop = await _onWillPop();
-                      if (shouldPop && mounted) {
-                        Navigator.of(context).pop();
-                      }
-                    } else {
-                      Navigator.of(context).pop();
-                    }
+                    if (await _onWillPop() && mounted) _leaveEditor();
                   },
                   onSave: _saveFile,
+                  isSourceMode: _mode == EditorMode.edit,
+                  onToggleMode: _mode == EditorMode.edit
+                      ? _enterPreviewMode
+                      : _enterEditMode,
                   onMore: _showMoreMenu,
                 ),
               ),
@@ -2802,25 +2903,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     switch (_mode) {
       case EditorMode.edit:
-        final editBottom = safeBottom + 56.0 + 16.0;
-        return Positioned(
-          // -10 抵消 hitPadding 带来的外扩，保持按钮视觉位置不变
-          right: desktopRightInset - 10,
-          bottom: editBottom - 10,
-          child: showButtons
-              ? AnimatedScale(
-                  scale: 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  child: AnimatedFab(
-                    icon: Icons.visibility,
-                    color: Theme.of(context).colorScheme.primary,
-                    hitPadding: const EdgeInsets.all(10),
-                    onTap: _enterPreviewMode,
-                  ),
-                )
-              : const SizedBox.shrink(),
-        );
+        return const SizedBox.shrink();
       case EditorMode.preview:
         if (_editingBlockIndex != null) return const SizedBox.shrink();
         // 悬浮按钮列固定放在底部工具栏上方，避免遮挡“标题 1/标题 2”。
@@ -2837,13 +2920,6 @@ class _EditorScreenState extends State<EditorScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      AnimatedFab(
-                        icon: Icons.edit,
-                        color: Theme.of(context).colorScheme.tertiary,
-                        hitPadding: const EdgeInsets.all(10),
-                        onTap: _enterEditMode,
-                      ),
-                      const SizedBox(height: 0),
                       AnimatedFab(
                         icon: Icons.list,
                         color: Theme.of(context).colorScheme.primary,
@@ -3085,19 +3161,23 @@ class _EditorScreenState extends State<EditorScreen>
                   context,
                 ).showSnackBar(SnackBar(content: Text(l10n.generatingPdf)));
                 try {
-                  await ExportService.exportAndShareAsPdf(
+                  await _flushPendingEditorChanges();
+                  final success = await ExportService.exportAndShareAsPdf(
                     _textController.text,
                     widget.filePath
                         .split(Platform.pathSeparator)
                         .last
                         .replaceAll('.md', ''),
                   );
+                  if (!success) throw StateError('公式或文档渲染失败');
                 } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                  if (mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
                       SnackBar(
                         content: Text('PDF 导出失败: $e'),
-                        backgroundColor: Theme.of(context).colorScheme.error,
+                        backgroundColor: Theme.of(
+                          this.context,
+                        ).colorScheme.error,
                         behavior: SnackBarBehavior.floating,
                       ),
                     );

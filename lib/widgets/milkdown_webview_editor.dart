@@ -12,7 +12,6 @@ import 'package:mime/mime.dart';
 import '../models/milkdown_bridge.dart';
 import '../services/milkdown_asset_server.dart';
 import '../services/my_files_service.dart';
-import '../utils/constants.dart';
 import '../utils/debug_log.dart';
 import '../utils/app_style.dart';
 
@@ -30,6 +29,7 @@ const _defaultLineHeight = 1.6;
 /// `editor_not_ready`，但值已缓存在 `_lastKeyboardMetrics`，`on_ready` 与
 /// `onLoadStop` 都会补发，所以这条失败既无信息量也会自愈。
 bool isExpectedEditorCmdNoop(String cmd, String? reason) {
+  if (cmd == 'select_all' && reason == 'independent_input') return true;
   if ((cmd == 'undo' || cmd == 'redo') && reason == 'not_applicable') {
     return true;
   }
@@ -140,9 +140,6 @@ class _ContentSanitizer {
 MilkdownAssetServer? _warmServer;
 bool _isWarmingUp = false;
 Completer<void>? _warmupCompleter;
-const _localhostPortStart = 8080;
-const _localhostPortAttempts = 8;
-const _serverStartTimeout = Duration(seconds: 3);
 
 /// Starts a local Milkdown asset server, falling back to adjacent ports.
 ///
@@ -150,20 +147,12 @@ const _serverStartTimeout = Duration(seconds: 3);
 Future<MilkdownAssetServer?> _startMilkdownServer({
   String documentRoot = 'assets/milkdown_web',
 }) async {
-  for (var i = 0; i < _localhostPortAttempts; i++) {
-    final port = _localhostPortStart + i;
-    final server = MilkdownAssetServer(port: port, documentRoot: documentRoot);
-    try {
-      appDebugLog('[SERVER] Trying port $port...');
-      await server.start().timeout(_serverStartTimeout);
-      appDebugLog('[SERVER] Server started on port $port');
-      return server;
-    } catch (e) {
-      appDebugLog('[SERVER] Port $port unavailable: $e');
-    }
+  try {
+    return await MilkdownAssetServer.ensureSharedStarted();
+  } catch (error) {
+    appDebugLog('[SERVER] Shared asset server unavailable: $error');
+    return null;
   }
-  appDebugLog('[SERVER] All fallback ports failed');
-  return null;
 }
 
 /// 编辑器页面的运行时 URL（含缓存键）。
@@ -172,20 +161,10 @@ Future<MilkdownAssetServer?> _startMilkdownServer({
 /// HTTP 缓存与 V8 代码缓存因此能跨「打开文档」复用。此前每次都用微秒时间戳，等于每
 /// 打开一篇就把 ~2.8MB 资源重新拉取、重新解析、重新编译一遍。
 /// 调试构建按进程取一个时间戳：既能避开旧缓存，又让预热视图与编辑器命中同一 URL。
-final String _debugUrlStamp = DateTime.now().microsecondsSinceEpoch.toString();
 
-/// profile/release 构建下 [AppConstants.appVersion] 是不变的，于是「换了产物但没换
-/// 版本号」时 WebView 的 immutable 缓存会继续供旧 bundle——验证渲染改动时必须能
-/// 显式绕开。发布流程不受影响（版本号本来就会变）。
-const String _urlStampOverride = String.fromEnvironment('MILKDOWN_URL_STAMP');
-
+/// Shared with the formula export page, including its versioned cache key.
 String buildMilkdownRuntimeUrl(MilkdownAssetServer server) {
-  final stamp = kDebugMode
-      ? _debugUrlStamp
-      : (_urlStampOverride.isEmpty
-          ? AppConstants.appVersion
-          : '${AppConstants.appVersion}-$_urlStampOverride');
-  return 'http://localhost:${server.port}/index.html?v=$stamp';
+  return server.entryUri().toString();
 }
 
 /// 取得（必要时先拉起）资源服务器并返回编辑器 URL。
@@ -279,6 +258,32 @@ class MilkdownWebViewController {
     await _state?._sendExecCmd(cmd, args: args);
   }
 
+  /// Fetch pending input before the WebView is suspended or its mode changes.
+  /// Null means that the document has not changed since the last publication.
+  Future<String?> flushPendingChanges() async {
+    final controller = _webViewController;
+    if (controller == null) return null;
+    final result = await controller
+        .callAsyncJavaScript(
+          functionBody: '''
+        if (!window.__USHIO_BRIDGE__?.flushPendingChanges) {
+          throw new Error('Editor flush is unavailable');
+        }
+        return window.__USHIO_BRIDGE__.flushPendingChanges();
+      ''',
+        )
+        .timeout(const Duration(seconds: 2));
+    if (result?.error != null) {
+      throw StateError('Editor flush failed: ${result!.error}');
+    }
+    final value = result?.value;
+    if (value is String) {
+      _state?._lastSyncedMarkdown = value;
+      return value;
+    }
+    return null;
+  }
+
   Future<void> undo() => execCmd('undo');
   Future<void> redo() => execCmd('redo');
   Future<void> forceCaretIntoView() => execCmd('scroll_caret_into_view');
@@ -295,6 +300,7 @@ class MilkdownWebViewController {
       headerHeight: headerHeight,
     );
   }
+
   Future<void> toggleBold() => execCmd('toggle_bold');
   Future<void> toggleItalic() => execCmd('toggle_italic');
   Future<void> insertTable() => execCmd('insert_table');
@@ -469,6 +475,9 @@ class MilkdownWebViewEditor extends StatefulWidget {
   final String? baseDirectory;
   final String? codeBlockTheme;
   final Color? textColor;
+  final double initialHeaderHeight;
+  final double initialToolbarHeight;
+  final double initialKeyboardInset;
 
   const MilkdownWebViewEditor({
     super.key,
@@ -499,6 +508,9 @@ class MilkdownWebViewEditor extends StatefulWidget {
     this.baseDirectory,
     this.codeBlockTheme,
     this.textColor,
+    this.initialHeaderHeight = 0,
+    this.initialToolbarHeight = 0,
+    this.initialKeyboardInset = 0,
   });
 
   @override
@@ -659,6 +671,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
   @override
   void initState() {
     super.initState();
+    _lastKeyboardMetrics = {
+      'headerHeight': widget.initialHeaderHeight,
+      'toolbarHeight': widget.initialToolbarHeight,
+      'keyboardInset': widget.initialKeyboardInset,
+    };
     appDebugLog(
       '[WEBVIEW] initState called, initialMarkdown length: ${widget.initialMarkdown.length}',
     );
@@ -742,8 +759,6 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         '[WEBVIEW] Server started in ${stopwatch.elapsedMilliseconds}ms',
       );
       if (!mounted || _isDisposed) {
-        appDebugLog('[WEBVIEW] Widget unmounted or disposed, closing server');
-        await server.close();
         return;
       }
       setState(() {
@@ -874,6 +889,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       'toolbarHeight': toolbarHeight,
       'headerHeight': headerHeight,
     };
+    if (mapEquals(metrics, _lastKeyboardMetrics)) return;
     _lastKeyboardMetrics = metrics;
     await _sendExecCmd('set_keyboard_metrics', args: metrics);
   }
@@ -1460,14 +1476,7 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     _isDisposed = true;
     _firstRenderTimer?.cancel();
     widget.controller?._detach(this);
-    final server = _localhostServer;
     _localhostServer = null;
-    // Only close the server if it's NOT the warmup server (which is shared)
-    // The warmup server should remain running for reuse by other instances
-    if (server != null && !identical(server, _warmServer)) {
-      appDebugLog('[WEBVIEW] Closing non-warmup server');
-      server.close();
-    }
     super.dispose();
   }
 
@@ -1499,6 +1508,13 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
       children: [
         InAppWebView(
           key: webViewKey,
+          contextMenu: ContextMenu(
+            onContextMenuActionItemClicked: (item) {
+              if (item.id == 16908319 || item.id == 'selectAll:') {
+                unawaited(_sendExecCmd('select_all'));
+              }
+            },
+          ),
           initialUrlRequest: URLRequest(url: WebUri(_initialUrl!)),
           initialSettings: InAppWebViewSettings(
             transparentBackground: true,
@@ -1589,12 +1605,11 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
                 ''',
               );
             }
-            appDebugLog('[WEBVIEW] onLoadStop: calling _sendInitDoc()');
-            await _sendInitDoc();
-            openTrace('document handed to webview');
             appDebugLog('[WEBVIEW] onLoadStop: calling _sendTheme()');
             await _sendTheme();
             await _resendKeyboardMetrics();
+            await _sendInitDoc();
+            openTrace('document handed to webview');
             appDebugLog('[WEBVIEW] onLoadStop: done');
           },
           onLoadResourceWithCustomScheme: (controller, request) async {
