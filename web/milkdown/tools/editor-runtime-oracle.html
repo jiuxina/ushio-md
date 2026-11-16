@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>editor-runtime-oracle RUNNING</title>
+  <style>
+    body { margin: 24px; font: 14px/1.6 system-ui, sans-serif; }
+    iframe { width: 700px; height: 600px; border: 1px solid #aaa; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>编辑器即时保存、全选与初始布局判据</h1>
+  <pre id="result">运行中…</pre>
+  <iframe id="editor" src="../index.html" title="合成文档"></iframe>
+  <script type="module">
+    const frame = document.querySelector('#editor');
+    const result = document.querySelector('#result');
+    const rows = [];
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const check = (name, condition, detail = '') => {
+      rows.push({ name, passed: Boolean(condition), detail });
+      result.textContent = JSON.stringify(rows, null, 2);
+      if (!condition) throw new Error(`${name}: ${detail}`);
+    };
+    const selectEnd = (win, element) => {
+      (element.closest('.cm-content') || element.closest('.ProseMirror') || element).focus();
+      const range = win.document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      const selection = win.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    };
+    try {
+      const win = frame.contentWindow;
+      for (let attempt = 0; attempt < 300 && !win.__USHIO_BRIDGE__; attempt++) await wait(50);
+      if (!win.__USHIO_BRIDGE__) throw new Error('bridge not ready');
+      const messages = [];
+      win.flutter_inappwebview = {
+        callHandler: async (_handler, message) => { messages.push(message); return { ok: true }; },
+      };
+      const send = (type, payload) => win.__USHIO_BRIDGE__.onFlutterMessage({ type, payload });
+      send('exec_cmd', {
+        cmd: 'set_keyboard_metrics',
+        args: { keyboardInset: 0, toolbarHeight: 48, headerHeight: 56 },
+      });
+      check('遮挡尺寸在初始化前可设置',
+        win.getComputedStyle(win.document.documentElement).getPropertyValue('--ushio-header-height').trim() === '56px');
+      send('init_doc', {
+        markdown: '# 合成文档\n\n首段 before\n\n```js\nconst code = 1;\n```\n\n末段 after\n',
+        readOnly: false,
+      });
+      for (let attempt = 0; attempt < 300; attempt++) {
+        const state = win.__USHIO_PERF__?.contentState?.();
+        if (state && !state.initializing && !state.applyingFromFlutter
+          && win.document.querySelector('.ProseMirror p')) break;
+        await wait(50);
+      }
+      const perf = win.__USHIO_PERF__;
+      const bridge = win.__USHIO_BRIDGE__;
+      check('未编辑文档不生成保存内容', bridge.flushPendingChanges() === null);
+      const app = win.document.querySelector('#app');
+      check('首帧顶部只预留一次头部高度',
+        parseFloat(win.getComputedStyle(app).paddingTop) === 72,
+        win.getComputedStyle(app).paddingTop);
+      const paragraph = [...win.document.querySelectorAll('.ProseMirror p')]
+        .find((element) => element.textContent.includes('首段'));
+      selectEnd(win, paragraph);
+      win.document.execCommand('insertText', false, '即时末尾字符');
+      await wait(0); // Match the next platform-channel task, before Milkdown's 200ms listener.
+      const immediate = bridge.flushPendingChanges();
+      check('上游200ms监听器触发前取回最后输入', immediate?.includes('即时末尾字符'), immediate || 'null');
+      check('同一次输入不会被重复取出', bridge.flushPendingChanges() === null);
+      const before = messages.filter((message) => message.type === 'on_content_change').length;
+      await wait(600);
+      check('取回后不再发送过期防抖内容',
+        messages.filter((message) => message.type === 'on_content_change').length === before);
+
+      perf.mountAllCodeBlocks();
+      await wait(300);
+      const code = win.document.querySelector('.cm-content');
+      check('真实代码编辑器已挂载', Boolean(code));
+      selectEnd(win, code);
+      win.document.execCommand('insertText', false, ' finalCodeCharacters');
+      await wait(0);
+      const codeSnapshot = bridge.flushPendingChanges();
+      check('立即保存包含活动代码块最后输入',
+        codeSnapshot?.includes('finalCodeCharacters'), codeSnapshot || 'null');
+      send('exec_cmd', { cmd: 'select_all' });
+      win.document.execCommand('insertText', false, '整篇替换');
+      await wait(0);
+      const replaced = bridge.flushPendingChanges() || perf.serialize();
+      check('代码块内全选覆盖整篇文档',
+        replaced.trim().replace(/^#{1,6}\s+/, '') === '整篇替换', replaced);
+
+      const input = win.document.createElement('input');
+      input.value = '局部输入框';
+      app.append(input);
+      input.focus();
+      send('exec_cmd', { cmd: 'select_all' });
+      check('独立输入框保持自身焦点', win.document.activeElement === input);
+      input.remove();
+      const replacementParagraph = win.document.querySelector('.ProseMirror');
+      selectEnd(win, replacementParagraph);
+      win.document.execCommand('insertText', false, '旧文档尚未回传');
+      await wait(0);
+      const untouched = '*   unchanged B\n*   second B\n';
+      send('init_doc', { markdown: untouched, readOnly: false });
+      const switchMessageCount = messages.filter((message) => message.type === 'on_content_change').length;
+      await wait(600);
+      check('切档后不接收上一文档防抖内容',
+        messages.filter((message) => message.type === 'on_content_change').length === switchMessageCount);
+      check('切档后保持新文档原字节', perf.serialize() === untouched, perf.serialize());
+      document.title = 'editor-runtime-oracle PASS';
+    } catch (error) {
+      rows.push({ error: String(error?.stack || error) });
+      result.textContent = JSON.stringify(rows, null, 2);
+      document.title = 'editor-runtime-oracle FAIL';
+    }
+  </script>
+</body>
+</html>
