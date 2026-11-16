@@ -140,4 +140,68 @@ void main() {
     expect(result.failed.single.failure, BatchFileFailure.missing);
     expect(await file.exists(), isFalse);
   });
+
+  test('orphan destination history never attaches to a different document',
+      () async {
+    final root = await fixture();
+    final source = await Directory(p.join(root.path, 'source')).create();
+    final destination = await Directory(p.join(root.path, 'destination')).create();
+    final file = File(p.join(source.path, 'note.md'));
+    await file.writeAsString('new document without history');
+    final versions = VersionService();
+    await versions.createVersion(
+      p.join(destination.path, 'note.md'),
+      'unrelated previous document',
+    );
+
+    final result = await BatchFileService().move([file.path], destination.path);
+
+    expect(result.failed.single.failure, BatchFileFailure.destinationConflict);
+    expect(await file.exists(), isTrue);
+    expect(
+      await versions.getVersionContent(
+        p.join(destination.path, 'note.md'),
+        1,
+      ),
+      'unrelated previous document',
+    );
+  });
+
+  test('history destination failure rolls the document back to its source',
+      () async {
+    final root = await fixture();
+    final source = await Directory(p.join(root.path, 'source')).create();
+    final destination = await Directory(p.join(root.path, 'destination')).create();
+    final file = File(p.join(source.path, 'note.md'));
+    await file.writeAsString('retain current');
+    final versions = VersionService();
+    await versions.createVersion(file.path, 'retain history');
+    await File(p.join(destination.path, '.versions')).writeAsString('blocker');
+
+    final result = await BatchFileService().move([file.path], destination.path);
+
+    expect(result.failed.single.failure, BatchFileFailure.io);
+    expect(await file.readAsString(), 'retain current');
+    expect(await File(p.join(destination.path, 'note.md')).exists(), isFalse);
+    expect(await versions.getVersionContent(file.path, 1), 'retain history');
+  });
+
+  test('malformed version metadata leaves all source files untouched', () async {
+    final root = await fixture();
+    final folder = await Directory(p.join(root.path, 'folder')).create();
+    final destination = await Directory(p.join(root.path, 'destination')).create();
+    final file = File(p.join(folder.path, 'note.md'));
+    await file.writeAsString('retain document');
+    final versions = VersionService();
+    final history = await Directory(versions.getVersionsDir(file.path))
+        .create(recursive: true);
+    await File(p.join(history.path, 'metadata.json'))
+        .writeAsString('invalid metadata');
+
+    final result = await BatchFileService().move([folder.path], destination.path);
+
+    expect(result.failed.single.failure, BatchFileFailure.io);
+    expect(await file.readAsString(), 'retain document');
+    expect(await Directory(p.join(destination.path, 'folder')).exists(), isFalse);
+  });
 }
