@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'milkdown_asset_server.dart';
@@ -80,6 +81,7 @@ abstract class PdfMathRenderSession {
 
 class _HeadlessPdfMathRenderSession implements PdfMathRenderSession {
   static const _timeout = Duration(seconds: 15);
+  static const _startupTimeout = Duration(seconds: 45);
   // Render at 3x the CSS-to-PDF conversion for crisp formulas when printed.
   static const _pixelsPerPoint = 4.0;
 
@@ -90,9 +92,43 @@ class _HeadlessPdfMathRenderSession implements PdfMathRenderSession {
   static Future<PdfMathRenderSession> open() async {
     final session = _HeadlessPdfMathRenderSession();
     final ready = Completer<void>();
+    final watch = Stopwatch()..start();
+    Timer? readinessPoll;
+    var checking = false;
+    StateError? startupError;
+    var lastPhase = 'starting native view';
+    void trace(String phase) {
+      lastPhase = phase;
+      debugPrint('[PDF_MATH] ${watch.elapsedMilliseconds}ms $phase');
+    }
+
+    Future<void> checkReady() async {
+      final controller = session._controller;
+      if (checking ||
+          controller == null ||
+          ready.isCompleted ||
+          session._disposed) {
+        return;
+      }
+      checking = true;
+      try {
+        final available = await controller
+            .evaluateJavascript(source: 'Boolean(window.__USHIO_PDF_MATH__)')
+            .timeout(const Duration(seconds: 3));
+        if (available == true && !ready.isCompleted) {
+          trace('renderer ready');
+          ready.complete();
+        }
+      } catch (_) {
+        // Evaluation can race native page attachment; the next poll retries.
+      } finally {
+        checking = false;
+      }
+    }
+
     final server = await MilkdownAssetServer.ensureSharedStarted();
     session._webView = HeadlessInAppWebView(
-      initialSize: const Size(2200, 800),
+      initialSize: const Size(400, 200),
       initialUrlRequest: URLRequest(
         url: WebUri.uri(server.entryUri('pdf-math.html')),
       ),
@@ -103,37 +139,65 @@ class _HeadlessPdfMathRenderSession implements PdfMathRenderSession {
         supportZoom: false,
       ),
       onWebViewCreated: (controller) {
+        trace('native view created');
         session._controller = controller;
         controller.addJavaScriptHandler(
           handlerName: 'pdf_math_ready',
           callback: (_) {
-            if (!ready.isCompleted) ready.complete();
+            if (!ready.isCompleted) {
+              trace('renderer ready signal');
+              ready.complete();
+            }
             return null;
           },
         );
-      },
-      onLoadStop: (controller, _) async {
-        // Modules may finish before the platform installs the JS handler.
-        final available = await controller.evaluateJavascript(
-          source: 'Boolean(window.__USHIO_PDF_MATH__)',
+        unawaited(checkReady());
+        readinessPoll = Timer.periodic(
+          const Duration(milliseconds: 200),
+          (_) => unawaited(checkReady()),
         );
-        if (available == true && !ready.isCompleted) ready.complete();
+      },
+      onLoadStart: (_, _) => trace('page loading'),
+      onLoadStop: (_, _) {
+        trace('page loaded');
+        unawaited(checkReady());
       },
       onReceivedError: (_, request, error) {
         if (request.isForMainFrame == true && !ready.isCompleted) {
-          ready.completeError(StateError('Formula page: ${error.description}'));
+          startupError = StateError('Formula page: ${error.description}');
+          ready.complete();
+        }
+      },
+      onConsoleMessage: (_, message) {
+        if (message.messageLevel == ConsoleMessageLevel.ERROR) {
+          trace('renderer JavaScript error');
         }
       },
     );
     try {
-      await Future.wait<void>([
-        session._webView.run(),
-        ready.future,
-      ]).timeout(_timeout);
+      trace('native startup requested');
+      await session._webView.run().timeout(
+        _startupTimeout,
+        onTimeout: () => throw TimeoutException(
+          'Formula renderer native startup: $lastPhase',
+          _startupTimeout,
+        ),
+      );
+      trace('native startup complete');
+      await ready.future.timeout(
+        _startupTimeout,
+        onTimeout: () => throw TimeoutException(
+          'Formula renderer page startup: $lastPhase',
+          _startupTimeout,
+        ),
+      );
+      if (startupError != null) throw startupError!;
       return session;
     } catch (_) {
       await session.dispose();
       rethrow;
+    } finally {
+      readinessPoll?.cancel();
     }
   }
 
