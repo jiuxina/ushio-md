@@ -51,7 +51,9 @@ void main() {
     });
 
     test('keeps unmatched delimiters and escaped math closers intact', () {
-      const source = r'Unclosed $x; complete $a+\$b$ and \$10.';
+      const source = r'Unclosed $x'
+          '\n'
+          r'Complete $a+\$b$ and \$10.';
       final document = PdfMathDocument.parse(source);
 
       expect(document.restoreSource(document.markdown), source);
@@ -61,6 +63,23 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    test('keeps nested code fences and currency outside math', () {
+      const source = '  ```tex\n'
+          r'  $notMath$'
+          '\n  ```\n'
+          r'It costs $5 and $10. The formula is $x_i$.';
+      final document = PdfMathDocument.parse(source);
+
+      expect(document.expressions.values.single.tex, 'x_i');
+      expect(document.restoreSource(document.markdown), source);
+    });
+
+    test('generated markers cannot collide with the original text', () {
+      const source = '\uE000MATH0\uE001 literal and \$x\$.';
+      final document = PdfMathDocument.parse(source);
+      expect(document.restoreSource(document.markdown), source);
     });
   });
 }

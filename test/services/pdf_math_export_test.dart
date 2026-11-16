@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -23,9 +24,7 @@ class FakeMathSession implements PdfMathRenderSession {
     if (fail) throw StateError('screenshot failed');
     if (invalid) return null;
     return PdfMathImage(
-      png: base64Decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1sAAAAASUVORK5CYII=',
-      ),
+      png: _testPng(),
       widthPt: 24,
       heightPt: 12,
       baselinePt: 9,
@@ -34,6 +33,32 @@ class FakeMathSession implements PdfMathRenderSession {
 
   @override
   Future<void> dispose() async => disposed = true;
+}
+
+Uint8List _testPng() {
+  List<int> chunk(String type, List<int> data) {
+    final content = [...ascii.encode(type), ...data];
+    var crc = 0xffffffff;
+    for (final byte in content) {
+      crc ^= byte;
+      for (var bit = 0; bit < 8; bit++) {
+        crc = crc & 1 == 1 ? (crc >> 1) ^ 0xedb88320 : crc >> 1;
+      }
+    }
+    final length = ByteData(4)..setUint32(0, data.length);
+    final checksum = ByteData(4)..setUint32(0, crc ^ 0xffffffff);
+    return [
+      ...length.buffer.asUint8List(),
+      ...content,
+      ...checksum.buffer.asUint8List(),
+    ];
+  }
+  return Uint8List.fromList([
+    137, 80, 78, 71, 13, 10, 26, 10,
+    ...chunk('IHDR', [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]),
+    ...chunk('IDAT', ZLibEncoder().convert([0, 255, 255, 255, 255])),
+    ...chunk('IEND', []),
+  ]);
 }
 
 void main() {
