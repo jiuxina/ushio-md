@@ -250,6 +250,8 @@ void main() {
       verify(
         () => mockFileService.saveFile(filePath, '最后输入的内容'),
       ).called(1);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
@@ -299,6 +301,38 @@ void main() {
       await tester.pump();
       expect(tester.widget<EditorHeader>(find.byType(EditorHeader)).isModified,
           isTrue);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('save on exit writes edits made during an in-flight save', (
+      tester,
+    ) async {
+      await settingsProvider.setSaveOnExit(true);
+      final firstWrite = Completer<void>();
+      var writes = 0;
+      when(() => mockFileService.saveFile(any(), any())).thenAnswer((_) {
+        writes++;
+        return writes == 1 ? firstWrite.future : Future<void>.value();
+      });
+      await tester.runAsync(warmUpMilkdownWebAssets);
+      final filePath = '${tempDir.path}/exit.md';
+      await tester.pumpWidget(editorApp(filePath));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byIcon(Icons.edit));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'first');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.byIcon(Icons.save));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'latest');
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pump();
+      firstWrite.complete();
+      await tester.pump();
+      await tester.pump();
+      verify(() => mockFileService.saveFile(filePath, 'latest')).called(1);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
     });
