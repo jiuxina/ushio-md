@@ -9,14 +9,11 @@ void main() {
           r'$\sin\left(\dfrac{5\pi}{3}\right)=$, $x_i^2$.';
       final document = PdfMathDocument.parse(source);
 
-      expect(
-        document.expressions.values.map((expression) => expression.tex),
-        [
-          r'\sin(-30^\circ)=',
-          r'\sin\left(\dfrac{5\pi}{3}\right)=',
-          'x_i^2',
-        ],
-      );
+      expect(document.expressions.values.map((expression) => expression.tex), [
+        r'\sin(-30^\circ)=',
+        r'\sin\left(\dfrac{5\pi}{3}\right)=',
+        'x_i^2',
+      ]);
       expect(
         document.expressions.values.every(
           (expression) => !expression.displayMode,
@@ -37,7 +34,8 @@ void main() {
     });
 
     test('does not interpret escaped dollars or code as math', () {
-      const source = r'Price \$5; `$x_i$` and ``$y$``.'
+      const source =
+          r'Price \$5; `$x_i$` and ``$y$``.'
           '\n```tex\n'
           r'$z$'
           '\n```\n~~~tex\n'
@@ -51,7 +49,8 @@ void main() {
     });
 
     test('keeps unmatched delimiters and escaped math closers intact', () {
-      const source = r'Unclosed $x'
+      const source =
+          r'Unclosed $x'
           '\n'
           r'Complete $a+\$b$ and \$10.';
       final document = PdfMathDocument.parse(source);
@@ -66,7 +65,8 @@ void main() {
     });
 
     test('keeps nested code fences and currency outside math', () {
-      const source = '  ```tex\n'
+      const source =
+          '  ```tex\n'
           r'  $notMath$'
           '\n  ```\n'
           r'It costs $5 and $10. The formula is $x_i$.';
@@ -86,10 +86,10 @@ void main() {
       const source = r'Prices $5 and $10, but math $5$ and $10x$ works.';
       final document = PdfMathDocument.parse(source);
 
-      expect(
-        document.expressions.values.map((expression) => expression.tex),
-        ['5', '10x'],
-      );
+      expect(document.expressions.values.map((expression) => expression.tex), [
+        '5',
+        '10x',
+      ]);
       expect(document.restoreSource(document.markdown), source);
     });
 
@@ -97,10 +97,10 @@ void main() {
       const source = r'Unclosed $x + later $y_i$ and $2z$.';
       final document = PdfMathDocument.parse(source);
 
-      expect(
-        document.expressions.values.map((expression) => expression.tex),
-        ['y_i', '2z'],
-      );
+      expect(document.expressions.values.map((expression) => expression.tex), [
+        'y_i',
+        '2z',
+      ]);
       expect(document.restoreSource(document.markdown), source);
     });
   });

@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:mime/mime.dart';
 
+import '../utils/constants.dart';
+
 /// 为编辑器 WebView 提供 `assets/milkdown_web/` 下的静态资源。
 ///
 /// 取代 flutter_inappwebview 自带的 `InAppLocalhostServer`，因为后者：
@@ -17,6 +19,64 @@ import 'package:mime/mime.dart';
 /// index.html 的 URL 带应用版本，所以同一版本内可以安全地永久缓存。
 class MilkdownAssetServer {
   MilkdownAssetServer({required this.port, required this.documentRoot});
+
+  static MilkdownAssetServer? _sharedServer;
+  static Future<MilkdownAssetServer>? _sharedStart;
+  static final String _debugStamp = DateTime.now().microsecondsSinceEpoch
+      .toString();
+  static const String _stampOverride = String.fromEnvironment(
+    'MILKDOWN_URL_STAMP',
+  );
+
+  /// Editor warmup and formula export share one local asset server.
+  static Future<MilkdownAssetServer> ensureSharedStarted() {
+    final running = _sharedServer;
+    if (running != null && running.isRunning) return Future.value(running);
+    return _sharedStart ??= _startShared();
+  }
+
+  static Future<MilkdownAssetServer> _startShared() async {
+    try {
+      for (var offset = 0; offset < 8; offset++) {
+        final server = MilkdownAssetServer(
+          port: 8080 + offset,
+          documentRoot: 'assets/milkdown_web',
+        );
+        try {
+          await server.start();
+          _sharedServer = server;
+          return server;
+        } on SocketException {
+          // An unrelated process can occupy the preferred localhost port.
+        }
+      }
+      throw const SocketException('No Milkdown asset server port available');
+    } finally {
+      _sharedStart = null;
+    }
+  }
+
+  Uri entryUri([String entry = 'index.html']) {
+    if (!RegExp(r'^[\w.-]+\.html$').hasMatch(entry) || entry.contains('..')) {
+      throw ArgumentError.value(
+        entry,
+        'entry',
+        'Expected a flat HTML filename',
+      );
+    }
+    final stamp = kDebugMode
+        ? _debugStamp
+        : (_stampOverride.isEmpty
+              ? AppConstants.appVersion
+              : '${AppConstants.appVersion}-$_stampOverride');
+    return Uri(
+      scheme: 'http',
+      host: 'localhost',
+      port: port,
+      path: '/$entry',
+      queryParameters: {'v': stamp},
+    );
+  }
 
   final int port;
   final String documentRoot;

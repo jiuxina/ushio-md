@@ -31,7 +31,13 @@ export default defineConfig({
   plugins: [katexWoff2Only()],
   build: {
     target: 'es2020',
-    cssCodeSplit: false,
+    cssCodeSplit: true,
+    rollupOptions: {
+      input: {
+        editor: fileURLToPath(new URL('./index.html', import.meta.url)),
+        pdfMath: fileURLToPath(new URL('./pdf-math.html', import.meta.url)),
+      },
+    },
     // 全部资源平铺在 dist 根目录：Flutter 的 assets/milkdown_web/ 声明不递归，
     // 且本地服务器按 documentRoot + path 直接映射。
     assetsDir: '',
