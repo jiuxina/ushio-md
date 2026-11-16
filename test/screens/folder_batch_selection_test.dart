@@ -12,8 +12,14 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('selection supports invert, filtering and cancellation',
-      (tester) async {
+  testWidgets('selection supports invert, filtering and cancellation', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(320, 640)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     final provider = FileProvider();
     final settings = SettingsProvider();
@@ -30,37 +36,40 @@ void main() {
       await Directory(p.join(folder.path, 'nested')).create();
     });
     final scheme = ColorScheme.fromSeed(seedColor: Colors.blue);
-    await tester.pumpWidget(MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: provider),
-        ChangeNotifierProvider.value(value: settings),
-      ],
-      child: MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        locale: const Locale('zh'),
-        theme: ThemeData(
-          colorScheme: scheme,
-          extensions: [
-            AppStyleTheme.resolve(
-              brightness: Brightness.light,
-              colorScheme: scheme,
-              backgroundColor: scheme.surface,
-              textSecondary: scheme.onSurfaceVariant,
-              buttonStyleMode: AppButtonStyleMode.classic,
-              cardOpacity: 1,
-            ),
-          ],
-        ),
-        home: FolderBrowserScreen(
-          folderPath: folder.path,
-          showBackButton: false,
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: provider),
+          ChangeNotifierProvider.value(value: settings),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('zh'),
+          theme: ThemeData(
+            colorScheme: scheme,
+            extensions: [
+              AppStyleTheme.resolve(
+                brightness: Brightness.light,
+                colorScheme: scheme,
+                backgroundColor: scheme.surface,
+                textSecondary: scheme.onSurfaceVariant,
+                buttonStyleMode: AppButtonStyleMode.classic,
+                cardOpacity: 1,
+              ),
+            ],
+          ),
+          home: FolderBrowserScreen(
+            folderPath: folder.path,
+            showBackButton: false,
+          ),
         ),
       ),
-    ));
+    );
     for (var attempt = 0; attempt < 100; attempt++) {
       await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)));
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
       await tester.pump(const Duration(milliseconds: 10));
       if (find.text('alpha.md').evaluate().isNotEmpty) break;
     }
@@ -80,6 +89,37 @@ void main() {
       tester.widgetList<Checkbox>(find.byType(Checkbox)).where((c) => c.value!),
       hasLength(2),
     );
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(find.byType(Checkbox), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('select-items')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('select-all-items')));
+    await tester.pump();
+    expect(
+      tester.widgetList<Checkbox>(find.byType(Checkbox)).where((c) => c.value!),
+      hasLength(3),
+    );
+    await tester.tap(find.byKey(const ValueKey('invert-selection')));
+    await tester.pump();
+    expect(
+      tester.widgetList<Checkbox>(find.byType(Checkbox)).where((c) => c.value!),
+      isEmpty,
+    );
+    await tester.tap(find.text('beta.md'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('delete-selected-items')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(
+      await tester.runAsync(
+        () => File(p.join(folder.path, 'beta.md')).exists(),
+      ),
+      isTrue,
+    );
     await tester.tap(find.byKey(const ValueKey('selection-search')));
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'alpha');
@@ -89,6 +129,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('cancel-selection')));
     await tester.pump();
     expect(find.byType(Checkbox), findsNothing);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

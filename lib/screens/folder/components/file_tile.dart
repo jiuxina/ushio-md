@@ -16,6 +16,10 @@ class FileTile extends StatelessWidget {
   final bool isDraggable;
   final int? index;
   final FileSource source;
+  final bool selectionMode;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback? onSelectionToggle;
 
   const FileTile({
     super.key,
@@ -24,6 +28,10 @@ class FileTile extends StatelessWidget {
     this.isDraggable = false,
     this.index,
     this.source = FileSource.myFiles,
+    this.selectionMode = false,
+    this.selected = false,
+    this.enabled = true,
+    this.onSelectionToggle,
   });
 
   @override
@@ -106,6 +114,11 @@ class FileTile extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(tileRadius),
             onTap: () async {
+              if (!enabled) return;
+              if (selectionMode) {
+                onSelectionToggle?.call();
+                return;
+              }
               debugPrint(
                 '[FileTile] onTap: isFile=$isFile, type=${entity.runtimeType}, path=${entity.path}',
               );
@@ -120,7 +133,7 @@ class FileTile extends StatelessWidget {
                   if (source != FileSource.history) {
                     await fileProvider.addToRecentFiles(entity.path);
                   }
-
+                  if (!navigationContext.mounted) return;
                   await EditorNavigationHelper.openEditor(
                     navigationContext,
                     entity.path,
@@ -140,13 +153,27 @@ class FileTile extends StatelessWidget {
                 );
               }
             },
-            onSecondaryTapDown: isDesktop ? (_) => showEntityActions() : null,
-            onLongPress: showEntityActions,
+            onSecondaryTapDown: enabled && !selectionMode && isDesktop
+                ? (_) => showEntityActions()
+                : null,
+            onLongPress: enabled
+                ? selectionMode
+                      ? onSelectionToggle
+                      : showEntityActions
+                : null,
             child: Padding(
               padding: ResponsiveLayout.listTilePadding(context),
               child: Row(
                 children: [
-                  _buildIcon(context, isFile, isImage, isPinned),
+                  if (selectionMode)
+                    Checkbox(
+                      value: selected,
+                      onChanged: enabled
+                          ? (_) => onSelectionToggle?.call()
+                          : null,
+                    )
+                  else
+                    _buildIcon(context, isFile, isImage, isPinned),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -171,7 +198,9 @@ class FileTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (isDraggable && index != null)
+                  if (selectionMode)
+                    const SizedBox.shrink()
+                  else if (isDraggable && index != null)
                     ReorderableDelayedDragStartListener(
                       index: index!,
                       child: Container(

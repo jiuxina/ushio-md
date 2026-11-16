@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/file_provider.dart';
+import '../providers/settings_provider.dart';
 import '../models/file_sort_option.dart';
 import '../services/folder_sort_service.dart';
 import '../services/file_service.dart';
+import '../services/batch_file_service.dart';
+import '../utils/file_path_changes.dart';
 import '../utils/app_style.dart';
 import '../utils/file_actions.dart';
 import '../widgets/empty_state.dart';
@@ -46,6 +50,9 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
   List<FileSystemEntity> _entities = [];
   String? _error;
   FileSortOption _sortOption = FileSortOption.nameAsc;
+  bool _isSelecting = false;
+  bool _isBatchBusy = false;
+  final Set<String> _selectedPaths = <String>{};
 
   /// 刷新文件列表（公开方法，供外部调用）
   void refresh() {
@@ -90,9 +97,13 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
       }
 
       final entities = await dir.list().toList();
-      debugPrint('[FolderBrowser] _loadFiles: dir=${widget.folderPath}, entityCount=${entities.length}');
+      debugPrint(
+        '[FolderBrowser] _loadFiles: dir=${widget.folderPath}, entityCount=${entities.length}',
+      );
       for (final e in entities) {
-        debugPrint('[FolderBrowser]   entity: type=${e.runtimeType}, isDir=${e is Directory}, isFile=${e is File}, path=${e.path}');
+        debugPrint(
+          '[FolderBrowser]   entity: type=${e.runtimeType}, isDir=${e is Directory}, isFile=${e is File}, path=${e.path}',
+        );
       }
       _entities = entities.where((e) {
         final name = e.path.split(Platform.pathSeparator).last;
@@ -107,6 +118,10 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
         return false;
       }).toList();
+      final visiblePaths = _filteredFiles
+          .map((e) => normalizedFilePath(e.path))
+          .toSet();
+      _selectedPaths.removeWhere((path) => !visiblePaths.contains(path));
 
       _sortFiles();
     } catch (e) {
@@ -243,6 +258,188 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
     }).toList();
   }
 
+  void _toggleSelectionMode() {
+    if (_isBatchBusy) return;
+    setState(() {
+      _isSelecting = !_isSelecting;
+      if (!_isSelecting) _selectedPaths.clear();
+    });
+  }
+
+  void _toggleSelection(FileSystemEntity entity) {
+    if (_isBatchBusy) return;
+    final path = normalizedFilePath(entity.path);
+    setState(() {
+      if (!_selectedPaths.add(path)) _selectedPaths.remove(path);
+    });
+  }
+
+  void _selectAllVisible() {
+    setState(() {
+      _selectedPaths
+        ..clear()
+        ..addAll(_filteredFiles.map((e) => normalizedFilePath(e.path)));
+    });
+  }
+
+  void _invertVisibleSelection() {
+    final visible = _filteredFiles
+        .map((e) => normalizedFilePath(e.path))
+        .toSet();
+    setState(() {
+      for (final path in visible) {
+        if (!_selectedPaths.add(path)) _selectedPaths.remove(path);
+      }
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selectedPaths.isEmpty || _isBatchBusy) return;
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _isBatchBusy = true);
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.deleteSelectedItems),
+          content: Text(l10n.deleteSelectedConfirmation(_selectedPaths.length)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.delete),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      await _runBatch(
+        (service, paths) => service.delete(paths),
+        alreadyBusy: true,
+      );
+    } finally {
+      if (mounted) setState(() => _isBatchBusy = false);
+    }
+  }
+
+  Future<void> _moveSelected() async {
+    if (_selectedPaths.isEmpty || _isBatchBusy) return;
+    setState(() => _isBatchBusy = true);
+    try {
+      final destination = await context.read<FileProvider>().pickDirectory();
+      if (destination == null || !mounted) return;
+      await _runBatch(
+        (service, paths) => service.move(paths, destination),
+        alreadyBusy: true,
+      );
+    } catch (error) {
+      _showBatchError(error);
+    } finally {
+      if (mounted) setState(() => _isBatchBusy = false);
+    }
+  }
+
+  Future<void> _runBatch(
+    Future<BatchFileResult> Function(BatchFileService, List<String>)
+    operation, {
+    bool alreadyBusy = false,
+  }) async {
+    if (!alreadyBusy) setState(() => _isBatchBusy = true);
+    final provider = context.read<FileProvider>();
+    final settings = context.read<SettingsProvider?>();
+    final paths = _selectedPaths.toList();
+    try {
+      final result = await operation(
+        BatchFileService(fileService: provider.fileService),
+        paths,
+      );
+      Object? metadataError;
+      try {
+        await provider.applyFilePathChanges(result.pathChanges);
+      } catch (error) {
+        metadataError = error;
+      }
+      try {
+        await settings?.applyFilePathChanges(result.pathChanges);
+      } catch (error) {
+        metadataError ??= error;
+      }
+      if (!mounted) return;
+      setState(() {
+        _selectedPaths
+          ..clear()
+          ..addAll(result.failed.map((item) => item.sourcePath));
+        if (_selectedPaths.isEmpty) _isSelecting = false;
+      });
+      await _loadFiles();
+      _showBatchSummary(result);
+      if (metadataError != null) _showBatchError(metadataError);
+    } catch (error) {
+      _showBatchError(error);
+    } finally {
+      if (mounted) setState(() => _isBatchBusy = false);
+    }
+  }
+
+  void _showBatchError(Object error) {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${l10n.batchOperationFailed}: $error')),
+    );
+  }
+
+  void _showBatchSummary(BatchFileResult result) {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.batchOperationSummary(
+            result.succeeded.length,
+            result.failed.length,
+          ),
+        ),
+      ),
+    );
+    if (result.failed.isNotEmpty) {
+      unawaited(
+        showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(l10n.batchOperationFailed),
+            content: SingleChildScrollView(
+              child: Text(
+                result.failed
+                    .map((item) {
+                      final reason = switch (item.failure) {
+                        BatchFileFailure.destinationConflict =>
+                          l10n.destinationConflict,
+                        BatchFileFailure.invalidDestination =>
+                          l10n.invalidMoveDestination,
+                        BatchFileFailure.missing => l10n.missingFileItem,
+                        _ => item.details ?? l10n.batchOperationFailed,
+                      };
+                      return '${item.sourcePath}\n$reason';
+                    })
+                    .join('\n\n'),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(l10n.confirm),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   void _showNewItemMenu() {
     final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
@@ -372,7 +569,12 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
               });
             },
             searchController: _searchController,
-            onSearchChanged: (value) => setState(() {}),
+            onSearchChanged: (value) => setState(() {
+              final visible = _filteredFiles
+                  .map((entity) => normalizedFilePath(entity.path))
+                  .toSet();
+              _selectedPaths.removeWhere((path) => !visible.contains(path));
+            }),
             sortOption: _sortOption,
             onSortChanged: (option) async {
               setState(() => _sortOption = option);
@@ -389,22 +591,43 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
               _loadFiles();
             },
             onNewItem: _showNewItemMenu,
+            isSelecting: _isSelecting,
+            isBusy: _isBatchBusy,
+            selectedCount: _selectedPaths.length,
+            onSelectionToggle: _toggleSelectionMode,
+            onSelectAll: _selectAllVisible,
+            onInvertSelection: _invertVisibleSelection,
+            onDeleteSelected: _deleteSelected,
+            onMoveSelected: _moveSelected,
           ),
           Expanded(child: _buildContent()),
         ],
       ),
     );
 
+    final guardedContent = PopScope(
+      canPop: !_isSelecting && !_isBatchBusy,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isSelecting && !_isBatchBusy) _toggleSelectionMode();
+      },
+      child: content,
+    );
     if (!widget.showBackButton) {
       // Tab mode: no own background – the parent AppBackground provides it.
-      return Scaffold(backgroundColor: Colors.transparent, body: content);
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: guardedContent,
+      );
     }
 
     // Standalone (pushed) mode: wrap with AppBackground so the screen has a
     // consistent background when opened as a subfolder navigation target.
     return AppBackground(
       wrapWithSafeArea: false,
-      child: Scaffold(backgroundColor: Colors.transparent, body: content),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: guardedContent,
+      ),
     );
   }
 
@@ -444,7 +667,7 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
     // 始终使用 ReorderableListView 以支持拖拽排序 (如果处于非自定义排序，拖拽后会自动切换到自定义)
     // 只有在搜索时禁用拖拽(? 搜索结果通常不建议拖拽排序，因为索引不对应)
-    if (_isSearching && _searchController.text.isNotEmpty) {
+    if (_isSelecting || (_isSearching && _searchController.text.isNotEmpty)) {
       return RefreshIndicator(
         onRefresh: _loadFiles,
         child: _wrapFileList(
@@ -461,6 +684,12 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
                     onRefresh: _loadFiles,
                     isDraggable: false,
                     source: FileSource.myFiles,
+                    selectionMode: _isSelecting,
+                    selected: _selectedPaths.contains(
+                      normalizedFilePath(entity.path),
+                    ),
+                    enabled: !_isBatchBusy,
+                    onSelectionToggle: () => _toggleSelection(entity),
                   ),
               ],
             ),
@@ -518,6 +747,12 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
                 isDraggable: true, // 总是显示拖拽手柄
                 index: index, // 传递 index 给 ReorderableDragStartListener
                 source: FileSource.myFiles,
+                selectionMode: _isSelecting,
+                selected: _selectedPaths.contains(
+                  normalizedFilePath(entity.path),
+                ),
+                enabled: !_isBatchBusy,
+                onSelectionToggle: () => _toggleSelection(entity),
               ),
             );
           },

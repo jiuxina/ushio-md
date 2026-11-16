@@ -21,6 +21,14 @@ class FolderBrowserHeader extends StatelessWidget {
   final bool showImages;
   final VoidCallback onImageToggle;
   final VoidCallback onNewItem;
+  final bool isSelecting;
+  final bool isBusy;
+  final int selectedCount;
+  final VoidCallback? onSelectionToggle;
+  final VoidCallback? onSelectAll;
+  final VoidCallback? onInvertSelection;
+  final VoidCallback? onDeleteSelected;
+  final VoidCallback? onMoveSelected;
 
   const FolderBrowserHeader({
     super.key,
@@ -36,10 +44,27 @@ class FolderBrowserHeader extends StatelessWidget {
     required this.showImages,
     required this.onImageToggle,
     required this.onNewItem,
+    this.isSelecting = false,
+    this.isBusy = false,
+    this.selectedCount = 0,
+    this.onSelectionToggle,
+    this.onSelectAll,
+    this.onInvertSelection,
+    this.onDeleteSelected,
+    this.onMoveSelected,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (isSelecting) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSelectionHeader(context),
+          if (isSearching) _buildSearchHeader(context),
+        ],
+      );
+    }
     if (isSearching) {
       return _buildSearchHeader(context);
     }
@@ -55,56 +80,138 @@ class FolderBrowserHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
         child: Row(
           children: [
-          if (onBack != null)
-            GlassHeaderButton(
-              icon: Icons.arrow_back,
-              onPressed: onBack,
-              iconColor: Theme.of(context).colorScheme.primary,
-            )
-          else
+            if (onBack != null)
+              GlassHeaderButton(
+                icon: Icons.arrow_back,
+                onPressed: onBack,
+                iconColor: Theme.of(context).colorScheme.primary,
+              )
+            else
+              const SizedBox(width: 8),
             const SizedBox(width: 8),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  folderName,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    folderName,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    l10n.fileCount(fileCount),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GlassHeaderButton(icon: Icons.search, onPressed: onSearchToggle),
+            const SizedBox(width: 4),
+            if (onSelectionToggle != null) ...[
+              GlassHeaderButton(
+                key: const ValueKey('select-items'),
+                icon: Icons.checklist,
+                tooltip: l10n.selectItems,
+                onPressed: onSelectionToggle,
+              ),
+              const SizedBox(width: 4),
+            ],
+            GlassHeaderButton(
+              icon: showImages ? Icons.image : Icons.image_outlined,
+              onPressed: onImageToggle,
+              isActive: showImages,
+            ),
+            const SizedBox(width: 4),
+            GlassHeaderButton(
+              icon: Icons.sort,
+              onPressed: () => _showSortMenu(context),
+            ),
+            const SizedBox(width: 4),
+            GlassHeaderButton(icon: Icons.add, onPressed: onNewItem),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectionHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                key: const ValueKey('cancel-selection'),
+                tooltip: l10n.cancel,
+                onPressed: isBusy ? null : onSelectionToggle,
+                icon: const Icon(Icons.close),
+              ),
+              Expanded(
+                child: Text(
+                  l10n.selectedItemCount(selectedCount),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-                Text(
-                  l10n.fileCount(fileCount),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
+              ),
+              if (isBusy)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                )
+              else
+                IconButton(
+                  key: const ValueKey('selection-search'),
+                  tooltip: l10n.searchFiles,
+                  onPressed: onSearchToggle,
+                  icon: const Icon(Icons.search),
                 ),
-              ],
-            ),
+            ],
           ),
-          GlassHeaderButton(
-            icon: Icons.search,
-            onPressed: onSearchToggle,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                key: const ValueKey('select-all-items'),
+                tooltip: l10n.selectAllItems,
+                onPressed: isBusy ? null : onSelectAll,
+                icon: const Icon(Icons.select_all),
+              ),
+              IconButton(
+                key: const ValueKey('invert-selection'),
+                tooltip: l10n.invertSelection,
+                onPressed: isBusy ? null : onInvertSelection,
+                icon: const Icon(Icons.flip_to_back),
+              ),
+              IconButton(
+                key: const ValueKey('move-selected-items'),
+                tooltip: l10n.moveSelectedItems,
+                onPressed: isBusy || selectedCount == 0 ? null : onMoveSelected,
+                icon: const Icon(Icons.drive_file_move_outline),
+              ),
+              IconButton(
+                key: const ValueKey('delete-selected-items'),
+                tooltip: l10n.deleteSelectedItems,
+                onPressed: isBusy || selectedCount == 0
+                    ? null
+                    : onDeleteSelected,
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          GlassHeaderButton(
-            icon: showImages ? Icons.image : Icons.image_outlined,
-            onPressed: onImageToggle,
-            isActive: showImages,
-          ),
-          const SizedBox(width: 4),
-          GlassHeaderButton(
-            icon: Icons.sort,
-            onPressed: () => _showSortMenu(context),
-          ),
-          const SizedBox(width: 4),
-          GlassHeaderButton(icon: Icons.add, onPressed: onNewItem),
         ],
       ),
-    ),
     );
   }
 
@@ -119,51 +226,52 @@ class FolderBrowserHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
         child: Row(
           children: [
-          GlassHeaderButton(
-            icon: Icons.arrow_back,
-            onPressed: onSearchToggle,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: AppSurface(
-              borderRadius: BorderRadius.circular(12),
-              height: 44,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
-              prominent: appStyle.useBorderlessButtons,
-              border: appStyle.useBorderlessButtons
-                  ? null
-                  : Border.all(
-                      color: Theme.of(
-                        context,
-                      ).dividerColor.withValues(alpha: 0.5),
+            GlassHeaderButton(
+              icon: Icons.arrow_back,
+              onPressed: onSearchToggle,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppSurface(
+                borderRadius: BorderRadius.circular(12),
+                height: 44,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
+                prominent: appStyle.useBorderlessButtons,
+                border: appStyle.useBorderlessButtons
+                    ? null
+                    : Border.all(
+                        color: Theme.of(
+                          context,
+                        ).dividerColor.withValues(alpha: 0.5),
+                      ),
+                child: TextField(
+                  enabled: !isBusy,
+                  controller: searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: l10n.searchFiles,
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: colorScheme.outline,
                     ),
-              child: TextField(
-                controller: searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: l10n.searchFiles,
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    size: 20,
-                    color: colorScheme.outline,
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
                   ),
-                  prefixIconConstraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
-                  ),
+                  onChanged: onSearchChanged,
                 ),
-                onChanged: onSearchChanged,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 

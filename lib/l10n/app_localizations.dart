@@ -2192,6 +2192,90 @@ abstract class AppLocalizations {
   /// **'「{fontName}」下载完成'**
   String fontDownloadSuccess(String fontName);
 
+  /// No description provided for @selectItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择项目'**
+  String get selectItems;
+
+  /// No description provided for @selectedItemCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择 {count} 项'**
+  String selectedItemCount(int count);
+
+  /// No description provided for @selectAllItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'全选'**
+  String get selectAllItems;
+
+  /// No description provided for @invertSelection.
+  ///
+  /// In zh, this message translates to:
+  /// **'反选'**
+  String get invertSelection;
+
+  /// No description provided for @moveSelectedItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'移动'**
+  String get moveSelectedItems;
+
+  /// No description provided for @deleteSelectedItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get deleteSelectedItems;
+
+  /// No description provided for @deleteSelectedConfirmation.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除所选的 {count} 项？此操作不可撤销。'**
+  String deleteSelectedConfirmation(int count);
+
+  /// No description provided for @batchOperationSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'成功 {succeeded} 项，失败 {failed} 项'**
+  String batchOperationSummary(int succeeded, int failed);
+
+  /// No description provided for @batchOperationFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分项目未完成'**
+  String get batchOperationFailed;
+
+  /// No description provided for @destinationConflict.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标已存在同名项目或版本历史'**
+  String get destinationConflict;
+
+  /// No description provided for @invalidMoveDestination.
+  ///
+  /// In zh, this message translates to:
+  /// **'不能移动到自身或子目录'**
+  String get invalidMoveDestination;
+
+  /// No description provided for @missingFileItem.
+  ///
+  /// In zh, this message translates to:
+  /// **'项目或目标文件夹不存在'**
+  String get missingFileItem;
+
+  /// No description provided for @switchToSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换到源码编辑'**
+  String get switchToSource;
+
+  /// No description provided for @switchToPreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换到渲染编辑'**
+  String get switchToPreview;
+
   /// 字体下载失败消息
   ///
   /// In zh, this message translates to:

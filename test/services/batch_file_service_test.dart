@@ -284,7 +284,9 @@ void main() {
     final versions = VersionService();
     await versions.createVersion(document.path, 'document history remains');
 
-    final result = await BatchFileService().move([image.path], destination.path);
+    final result = await BatchFileService().move([
+      image.path,
+    ], destination.path);
 
     expect(result.failed, isEmpty);
     expect(await document.readAsString(), 'document remains');
@@ -300,28 +302,32 @@ void main() {
     );
   });
 
-  test('moving an image ignores unrelated destination document history',
-      () async {
-    final root = await fixture();
-    final source = await Directory(p.join(root.path, 'source')).create();
-    final destination = await Directory(
-      p.join(root.path, 'destination'),
-    ).create();
-    final image = File(p.join(source.path, 'note.png'));
-    await image.writeAsBytes([137, 80, 78, 71]);
-    final versions = VersionService();
-    final document = p.join(destination.path, 'note.md');
-    await versions.createVersion(document, 'unrelated destination history');
+  test(
+    'moving an image ignores unrelated destination document history',
+    () async {
+      final root = await fixture();
+      final source = await Directory(p.join(root.path, 'source')).create();
+      final destination = await Directory(
+        p.join(root.path, 'destination'),
+      ).create();
+      final image = File(p.join(source.path, 'note.png'));
+      await image.writeAsBytes([137, 80, 78, 71]);
+      final versions = VersionService();
+      final document = p.join(destination.path, 'note.md');
+      await versions.createVersion(document, 'unrelated destination history');
 
-    final result = await BatchFileService().move([image.path], destination.path);
+      final result = await BatchFileService().move([
+        image.path,
+      ], destination.path);
 
-    expect(result.failed, isEmpty);
-    expect(await File(p.join(destination.path, 'note.png')).exists(), isTrue);
-    expect(
-      await versions.getVersionContent(document, 1),
-      'unrelated destination history',
-    );
-  });
+      expect(result.failed, isEmpty);
+      expect(await File(p.join(destination.path, 'note.png')).exists(), isTrue);
+      expect(
+        await versions.getVersionContent(document, 1),
+        'unrelated destination history',
+      );
+    },
+  );
 
   test('moving a document leaves foreign same-stem history in place', () async {
     final root = await fixture();
@@ -336,7 +342,9 @@ void main() {
     final versions = VersionService();
     await versions.createVersion(first.path, 'first history');
 
-    final result = await BatchFileService().move([second.path], destination.path);
+    final result = await BatchFileService().move([
+      second.path,
+    ], destination.path);
 
     expect(result.failed, isEmpty);
     expect(await first.readAsString(), 'first document');
@@ -348,4 +356,40 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'moving a document rejects histories shared by different documents',
+    () async {
+      final root = await fixture();
+      final source = await Directory(p.join(root.path, 'source')).create();
+      final destination = await Directory(
+        p.join(root.path, 'destination'),
+      ).create();
+      final first = File(p.join(source.path, 'note.md'));
+      final second = File(p.join(source.path, 'note.markdown'));
+      await first.writeAsString('first document');
+      await second.writeAsString('second document');
+      final versions = VersionService();
+      await versions.createVersion(first.path, 'first history');
+      await versions.createVersion(second.path, 'second history');
+
+      final result = await BatchFileService().move([
+        first.path,
+      ], destination.path);
+
+      expect(result.failed, hasLength(1));
+      expect(await first.readAsString(), 'first document');
+      expect(await second.readAsString(), 'second document');
+      final history = await versions.getVersionHistory(first.path);
+      expect(history.map((entry) => entry.filePath).toSet(), {
+        first.path,
+        second.path,
+      });
+      expect(await versions.getVersionContent(first.path, 1), 'first history');
+      expect(
+        await versions.getVersionContent(second.path, 2),
+        'second history',
+      );
+    },
+  );
 }

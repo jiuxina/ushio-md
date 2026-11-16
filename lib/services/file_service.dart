@@ -17,6 +17,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/markdown_file.dart';
 import '../utils/debug_log.dart';
+import '../utils/file_path_changes.dart';
 
 /// 文件过大异常
 class FileTooLargeException implements Exception {
@@ -715,6 +716,11 @@ class FileService {
   /// 清除所有缓存（用于内存压力时）
   static void clearAllCache() {
     _contentCache.clear();
+  }
+
+  /// Drop both the item and cached descendants after a move or batch delete.
+  void invalidatePathCache(String path) {
+    _contentCache.removeWhere((key, _) => isPathWithin(key, path));
   }
 
   // ==================== 常用路径 ====================

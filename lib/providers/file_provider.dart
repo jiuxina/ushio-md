@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/markdown_file.dart';
 import '../services/file_service.dart';
+import '../utils/file_path_changes.dart' as paths;
 
 /// 文件状态提供者
 ///
@@ -554,6 +555,50 @@ class FileProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Synchronize persisted references after a completed batch filesystem change.
+  ///
+  /// Reads the latest persisted lists because paths may already have moved
+  /// before this provider has performed its initial existence validation.
+  Future<void> applyFilePathChanges(Map<String, String?> changes) async {
+    if (changes.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    List<String> remap(String key) => (prefs.getStringList(key) ?? [])
+        .map((path) => paths.applyFilePathChanges(path, changes))
+        .whereType<String>()
+        .toSet()
+        .toList();
+    _recentFiles = remap('recent_files');
+    _recentFolders = remap('recent_folders');
+    _pinnedFiles = remap('pinned_files');
+    _pinnedFolders = remap('pinned_folders');
+    _validatedRecentFiles = List.of(_recentFiles);
+    _validatedRecentFolders = List.of(_recentFolders);
+    _validatedPinnedFiles = List.of(_pinnedFiles);
+    _validatedPinnedFolders = List.of(_pinnedFolders);
+    await prefs.setStringList('recent_files', _recentFiles);
+    await prefs.setStringList('recent_folders', _recentFolders);
+    await prefs.setStringList('pinned_files', _pinnedFiles);
+    await prefs.setStringList('pinned_folders', _pinnedFolders);
+    final current = _currentDirectory;
+    if (current != null) {
+      _currentDirectory = paths.applyFilePathChanges(current, changes);
+    }
+    _files = [
+      for (final file in _files)
+        if (paths.applyFilePathChanges(file.path, changes)
+            case final String path)
+          MarkdownFile(
+            path: path,
+            name: File(path).uri.pathSegments.last,
+            content: file.content,
+            lastModified: file.lastModified,
+            size: file.size,
+            isModified: file.isModified,
+          ),
+    ];
+    notifyListeners();
   }
 
   /// 获取常用路径列表

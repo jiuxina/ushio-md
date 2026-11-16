@@ -1105,6 +1105,54 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get selectItems => '选择项目';
+
+  @override
+  String selectedItemCount(int count) {
+    return '已选择 $count 项';
+  }
+
+  @override
+  String get selectAllItems => '全选';
+
+  @override
+  String get invertSelection => '反选';
+
+  @override
+  String get moveSelectedItems => '移动';
+
+  @override
+  String get deleteSelectedItems => '删除';
+
+  @override
+  String deleteSelectedConfirmation(int count) {
+    return '删除所选的 $count 项？此操作不可撤销。';
+  }
+
+  @override
+  String batchOperationSummary(int succeeded, int failed) {
+    return '成功 $succeeded 项，失败 $failed 项';
+  }
+
+  @override
+  String get batchOperationFailed => '部分项目未完成';
+
+  @override
+  String get destinationConflict => '目标已存在同名项目或版本历史';
+
+  @override
+  String get invalidMoveDestination => '不能移动到自身或子目录';
+
+  @override
+  String get missingFileItem => '项目或目标文件夹不存在';
+
+  @override
+  String get switchToSource => '切换到源码编辑';
+
+  @override
+  String get switchToPreview => '切换到渲染编辑';
+
+  @override
   String fontDownloadFailed(String fontName) {
     return '「$fontName」下载失败，请检查网络';
   }

@@ -1146,6 +1146,56 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get selectItems => 'Select items';
+
+  @override
+  String selectedItemCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get selectAllItems => 'Select all';
+
+  @override
+  String get invertSelection => 'Invert selection';
+
+  @override
+  String get moveSelectedItems => 'Move';
+
+  @override
+  String get deleteSelectedItems => 'Delete';
+
+  @override
+  String deleteSelectedConfirmation(int count) {
+    return 'Delete $count selected items? This cannot be undone.';
+  }
+
+  @override
+  String batchOperationSummary(int succeeded, int failed) {
+    return '$succeeded succeeded, $failed failed';
+  }
+
+  @override
+  String get batchOperationFailed => 'Some items could not be processed';
+
+  @override
+  String get destinationConflict =>
+      'An item or version history already exists at the destination';
+
+  @override
+  String get invalidMoveDestination =>
+      'Cannot move into itself or a descendant';
+
+  @override
+  String get missingFileItem => 'The item or destination folder does not exist';
+
+  @override
+  String get switchToSource => 'Switch to source editing';
+
+  @override
+  String get switchToPreview => 'Switch to rendered editing';
+
+  @override
   String fontDownloadFailed(String fontName) {
     return 'Failed to download \"$fontName\". Please check your network.';
   }

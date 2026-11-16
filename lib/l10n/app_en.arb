@@ -899,6 +899,32 @@
       }
     }
   },
+  "selectItems": "Select items",
+  "selectedItemCount": "{count} selected",
+  "@selectedItemCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "selectAllItems": "Select all",
+  "invertSelection": "Invert selection",
+  "moveSelectedItems": "Move",
+  "deleteSelectedItems": "Delete",
+  "deleteSelectedConfirmation": "Delete {count} selected items? This cannot be undone.",
+  "@deleteSelectedConfirmation": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "batchOperationSummary": "{succeeded} succeeded, {failed} failed",
+  "@batchOperationSummary": {
+    "placeholders": {
+      "succeeded": { "type": "int" },
+      "failed": { "type": "int" }
+    }
+  },
+  "batchOperationFailed": "Some items could not be processed",
+  "destinationConflict": "An item or version history already exists at the destination",
+  "invalidMoveDestination": "Cannot move into itself or a descendant",
+  "missingFileItem": "The item or destination folder does not exist",
+  "switchToSource": "Switch to source editing",
+  "switchToPreview": "Switch to rendered editing",
   "fontDownloadFailed": "Failed to download \"{fontName}\". Please check your network.",
   "@fontDownloadFailed": {
     "description": "Font download failed message",

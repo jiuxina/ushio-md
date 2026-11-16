@@ -22,6 +22,7 @@ import '../utils/app_style.dart';
 import '../utils/platform_adapter.dart';
 import '../utils/debug_log.dart';
 import '../utils/theme_tones.dart';
+import '../utils/file_path_changes.dart' as paths;
 import 'dart:convert';
 
 /// 设置状态提供者
@@ -1114,6 +1115,23 @@ class SettingsProvider extends ChangeNotifier {
       final prefs = await _getPrefs();
       await prefs.remove('last_opened_file_path');
     }
+  }
+
+  /// Keep startup restoration consistent with a completed file move/delete.
+  Future<void> applyFilePathChanges(Map<String, String?> changes) async {
+    final previous = _lastOpenedFilePath;
+    if (previous == null || changes.isEmpty) return;
+    final next = paths.applyFilePathChanges(previous, changes);
+    if (next == previous) return;
+    _pendingPersist.remove('last_opened_file_path');
+    _lastOpenedFilePath = next;
+    final prefs = await _getPrefs();
+    if (next == null) {
+      await prefs.remove('last_opened_file_path');
+    } else {
+      await prefs.setString('last_opened_file_path', next);
+    }
+    notifyListeners();
   }
 
   /// 设置默认目录

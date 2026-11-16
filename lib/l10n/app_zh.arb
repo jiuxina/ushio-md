@@ -1263,6 +1263,32 @@
       }
     }
   },
+  "selectItems": "选择项目",
+  "selectedItemCount": "已选择 {count} 项",
+  "@selectedItemCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "selectAllItems": "全选",
+  "invertSelection": "反选",
+  "moveSelectedItems": "移动",
+  "deleteSelectedItems": "删除",
+  "deleteSelectedConfirmation": "删除所选的 {count} 项？此操作不可撤销。",
+  "@deleteSelectedConfirmation": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "batchOperationSummary": "成功 {succeeded} 项，失败 {failed} 项",
+  "@batchOperationSummary": {
+    "placeholders": {
+      "succeeded": { "type": "int" },
+      "failed": { "type": "int" }
+    }
+  },
+  "batchOperationFailed": "部分项目未完成",
+  "destinationConflict": "目标已存在同名项目或版本历史",
+  "invalidMoveDestination": "不能移动到自身或子目录",
+  "missingFileItem": "项目或目标文件夹不存在",
+  "switchToSource": "切换到源码编辑",
+  "switchToPreview": "切换到渲染编辑",
   "fontDownloadFailed": "「{fontName}」下载失败，请检查网络",
   "@fontDownloadFailed": {
     "description": "字体下载失败消息",
