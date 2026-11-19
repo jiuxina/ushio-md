@@ -160,7 +160,6 @@ class MyApp extends StatelessWidget {
       child: Selector<SettingsProvider, ThemeInputs>(
         selector: (_, settings) => ThemeInputs.from(settings),
         builder: (context, inputs, child) {
-
           return MaterialApp(
             title: AppConstants.appName,
             debugShowCheckedModeBanner: false, // 隐藏调试标识
@@ -323,6 +322,15 @@ class MyApp extends StatelessWidget {
       );
     }
 
+    final modalPalette = appStyle.resolveSurface(
+      ThemeData(
+        brightness: brightness,
+        colorScheme: effectiveColorScheme,
+        textTheme: TextTheme(bodyMedium: TextStyle(color: textColor)),
+      ),
+      role: SurfaceRole.modal,
+    );
+
     final pageTransitionsTheme = PageTransitionsTheme(
       builders: {
         TargetPlatform.android: const FadeForwardsPageTransitionsBuilder(),
@@ -399,7 +407,8 @@ class MyApp extends StatelessWidget {
             ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
+        style:
+            OutlinedButton.styleFrom(
               foregroundColor: appStyle.useBorderlessButtons
                   ? textColor
                   : isGlass
@@ -432,7 +441,8 @@ class MyApp extends StatelessWidget {
             ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
+        style:
+            ElevatedButton.styleFrom(
               foregroundColor: isGlass ? textColor : buttonForeground,
               backgroundColor: isGlass ? Colors.transparent : buttonBackground,
               elevation: appStyle.useBorderlessButtons ? 4 : 0,
@@ -459,14 +469,14 @@ class MyApp extends StatelessWidget {
             ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
+        style:
+            TextButton.styleFrom(
               foregroundColor: appStyle.useBorderlessButtons
                   ? textColor
                   : isGlass
                   ? textColor
                   : colorScheme.primary,
-              backgroundColor:
-                  appStyle.useBorderlessButtons
+              backgroundColor: appStyle.useBorderlessButtons
                   ? appStyle.strongSurface
                   : null,
               shape: RoundedRectangleBorder(
@@ -486,10 +496,10 @@ class MyApp extends StatelessWidget {
             ),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(
+        style:
+            IconButton.styleFrom(
               foregroundColor: appStyle.iconColor,
-              backgroundColor:
-                  appStyle.useBorderlessButtons
+              backgroundColor: appStyle.useBorderlessButtons
                   ? appStyle.strongSurface
                   : null,
               shape: RoundedRectangleBorder(
@@ -533,17 +543,25 @@ class MyApp extends StatelessWidget {
         thickness: 1,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: appStyle.scaledSurfaceColor(
-          effectiveColorScheme,
-          alpha: 0.95,
+        backgroundColor: modalPalette.surface,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: modalPalette.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
+        ),
+        contentTextStyle: TextStyle(
+          color: modalPalette.onSurface,
+          fontSize: 15,
+          height: 1.5,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: appStyle.scaledSurfaceColor(
-          effectiveColorScheme,
-          alpha: 0.95,
-        ),
+        backgroundColor: modalPalette.surface,
+        modalBackgroundColor: modalPalette.surface,
+        surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),

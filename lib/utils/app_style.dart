@@ -2,6 +2,10 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'readable_surface.dart';
+
+export 'readable_surface.dart' show ReadableSurfacePalette, SurfaceRole;
+
 /// 应用按钮风格模式。
 enum AppButtonStyleMode { classic, softShadow, liquidGlass }
 
@@ -41,6 +45,28 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
       buttonStyleMode != AppButtonStyleMode.classic;
 
   bool get useLiquidGlass => buttonStyleMode == AppButtonStyleMode.liquidGlass;
+
+  /// Resolve the content layer separately from the decorative glass layer.
+  ReadableSurfacePalette resolveSurface(
+    ThemeData theme, {
+    SurfaceRole role = SurfaceRole.card,
+    Color? color,
+  }) {
+    return ReadableSurfacePalette.resolve(
+      role: role,
+      base: color ?? customCardColor ?? theme.colorScheme.surface,
+      opacity: useLiquidGlass ? cardSurface.a : cardOpacity,
+      brightness: theme.brightness,
+      foreground:
+          theme.textTheme.bodyMedium?.color ?? theme.colorScheme.onSurface,
+      secondaryForeground: theme.colorScheme.onSurfaceVariant,
+      primary: theme.colorScheme.primary,
+      error: theme.colorScheme.error,
+      icon: iconColor,
+      mutedIcon: mutedIconColor,
+      outline: theme.colorScheme.outline,
+    );
+  }
 
   static AppStyleTheme resolve({
     required Brightness brightness,
@@ -156,9 +182,7 @@ class AppStyleTheme extends ThemeExtension<AppStyleTheme> {
 
   Color optionBackground(BuildContext context, {required bool selected}) {
     if (selected) {
-      return Theme.of(context).colorScheme.primary.withValues(
-        alpha: useBorderlessButtons ? 0.12 : 0.10,
-      );
+      return Theme.of(context).colorScheme.primaryContainer;
     }
     return useBorderlessButtons ? strongSurface : Colors.transparent;
   }

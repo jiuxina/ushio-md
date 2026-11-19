@@ -7,11 +7,13 @@ import '../utils/app_style.dart';
 class LiquidGlassCard extends StatelessWidget {
   final Widget child;
   final BorderRadius? borderRadius;
+  final ReadableSurfacePalette? palette;
 
   const LiquidGlassCard({
     super.key,
     required this.child,
     this.borderRadius,
+    this.palette,
   });
 
   @override
@@ -26,7 +28,12 @@ class LiquidGlassCard extends StatelessWidget {
 
     return GlassContainer(
       shape: LiquidRoundedSuperellipse(borderRadius: radius.topLeft.x),
-      child: child,
+      child: palette == null
+          ? child
+          : ClipRRect(
+              borderRadius: radius,
+              child: ColoredBox(color: palette!.surface, child: child),
+            ),
     );
   }
 }

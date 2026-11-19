@@ -9,17 +9,25 @@ class SettingsSection extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.children,
-  });
+  }) : childrenBuilder = null;
+
+  const SettingsSection.builder({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.childrenBuilder,
+  }) : children = const [];
 
   final String title;
   final IconData icon;
   final List<Widget> children;
+  final List<Widget> Function(BuildContext)? childrenBuilder;
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return AppSurface.builder(
       padding: const EdgeInsets.all(16),
-      child: Column(
+      builder: (context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -30,16 +38,17 @@ class SettingsSection extends StatelessWidget {
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          ...children,
+          ...?childrenBuilder?.call(context),
+          if (childrenBuilder == null) ...children,
         ],
       ),
     );
