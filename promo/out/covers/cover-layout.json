@@ -1,0 +1,178 @@
+{
+  "covers": [
+    {
+      "aspect": "16:9",
+      "size": [
+        1920,
+        1080
+      ],
+      "master_size": [
+        3840,
+        2160
+      ],
+      "headline": "以个性化为“卖点”的MD编辑器",
+      "headline_lines": [
+        "以个性化为",
+        "“卖点”的",
+        "MD编辑器"
+      ],
+      "brand": "汐",
+      "category": "Markdown Editor",
+      "style": "pastel pink/lavender, supplied saluting character on the right, large three-line headline on the left",
+      "sources": [
+        "promo/cover-assets/ushio-portrait.png",
+        "sample/cover.png",
+        "app.png"
+      ],
+      "character_bounds_at_master_size": [
+        2020,
+        410,
+        3840,
+        2230
+      ],
+      "type_bounds_at_master_size": [
+        [
+          432,
+          168,
+          556,
+          294
+        ],
+        [
+          440,
+          304,
+          1300,
+          400
+        ],
+        [
+          240,
+          576,
+          1940,
+          1032
+        ],
+        [
+          240,
+          576,
+          1940,
+          1032
+        ],
+        [
+          240,
+          1112,
+          1520,
+          1458
+        ],
+        [
+          240,
+          1112,
+          1520,
+          1458
+        ],
+        [
+          240,
+          1656,
+          1480,
+          2000
+        ],
+        [
+          240,
+          1656,
+          1480,
+          2000
+        ]
+      ],
+      "outputs": [
+        "汐-宣传封面-16比9.png",
+        "汐-宣传封面-16比9.jpg",
+        "汐-宣传封面-16比9-高清.png",
+        "汐-宣传封面-16比9-缩略图.jpg"
+      ]
+    },
+    {
+      "aspect": "4:3",
+      "size": [
+        1600,
+        1200
+      ],
+      "master_size": [
+        3200,
+        2400
+      ],
+      "headline": "以个性化为“卖点”的MD编辑器",
+      "headline_lines": [
+        "以个性化为",
+        "“卖点”的",
+        "MD编辑器"
+      ],
+      "brand": "汐",
+      "category": "Markdown Editor",
+      "style": "pastel pink/lavender, supplied saluting character on the right, large three-line headline on the left",
+      "sources": [
+        "promo/cover-assets/ushio-portrait.png",
+        "sample/cover.png",
+        "app.png"
+      ],
+      "character_bounds_at_master_size": [
+        1580,
+        860,
+        3200,
+        2480
+      ],
+      "type_bounds_at_master_size": [
+        [
+          400,
+          196,
+          524,
+          322
+        ],
+        [
+          408,
+          332,
+          1268,
+          428
+        ],
+        [
+          208,
+          732,
+          1568,
+          1096
+        ],
+        [
+          208,
+          732,
+          1568,
+          1096
+        ],
+        [
+          208,
+          1392,
+          1268,
+          1678
+        ],
+        [
+          208,
+          1392,
+          1268,
+          1678
+        ],
+        [
+          208,
+          2052,
+          1248,
+          2340
+        ],
+        [
+          208,
+          2052,
+          1248,
+          2340
+        ]
+      ],
+      "outputs": [
+        "汐-宣传封面-4比3.png",
+        "汐-宣传封面-4比3.jpg",
+        "汐-宣传封面-4比3-高清.png",
+        "汐-宣传封面-4比3-缩略图.jpg"
+      ]
+    }
+  ]
+}
