@@ -12,39 +12,45 @@
 
 - `index.html`: 本地开发入口。
 - `src/main.js`: Milkdown 初始化与 Flutter bridge 逻辑。
-- `src/style.css`: 主题与基础排版样式。
+- `src/theme-palette.mjs`: 文档与界面浮层的颜色映射。
+- `src/style.css`: 主题、浮层和基础排版样式。
 - `vite.config.mjs`: 本地调试配置。
-- `dist/index.html`: 构建产物（单文件）。
+- 构建产物包含编辑器和 PDF 数学渲染两个 HTML 入口，以及独立的 JS、CSS 和字体资源，全部平铺在输出目录中。
 
-> 运行时产物当前同步放在 `assets/milkdown_web/` 目录下，由 Flutter `InAppLocalhostServer` 直接提供给 WebView 加载。
+> 运行时产物同步放在 `assets/milkdown_web/` 目录下，由 `MilkdownAssetServer` 提供给 WebView。必须同步整个构建目录，不能只复制 `index.html`。
 
-## 构建与同步（Phase A）
+## 构建与同步
 
-在 `web/milkdown/` 执行：
+在仓库根目录执行：
 
-```bash
-npm install
+```powershell
+.\scripts\sync_milkdown_web.bat
+```
+
+脚本使用 `npm ci` 安装 lockfile 中的依赖，构建到仓库 `build/` 下的独立目录，再调用 `sync_milkdown_assets.ps1` 将全部资源同步到运行时目录。旧运行时目录会移入回收站。
+
+只验证 Web 构建时，可在 `web/milkdown/` 执行：
+
+```powershell
+npm ci
 npm run build
 ```
 
-在仓库根目录同步产物（Windows）：
+## 浮层可读性
 
-```bat
-copy /Y web\milkdown\dist\index.html assets\milkdown_web\index.html
+文档使用 `surface`、`background`、`onSurface` 等原有颜色；应用界面浮层使用独立的 `overlay*` 颜色。链接预览、右键菜单、表格工具、Slash 菜单及图片/代码工具的衬底和前景由 Flutter 的模态表面配色生成，避免自定义正文色或卡片透明度让操作文字难以辨认。
+
+- `overlaySurface` 以 RGBA 传入，保留衬底透明度。
+- 主文字、说明、强调色、图标和描边各有独立颜色；选中/悬停使用配套的容器及前景色。
+- 缺少 `overlay*` 字段的旧调用方仍可使用 CSS 中的浅色/深色默认值。
+- 这些颜色只作用于界面控件，不改变文档正文、代码高亮、HTML 内容或导出的排版。
+- 浮层可用高度同时考虑浏览器可见区域与 Flutter 的键盘、顶部栏及工具栏遮挡；较长内容在剩余区域内滚动。
+
+验证颜色桥接的最小测试：
+
+```powershell
+node node_modules/vitest/vitest.mjs run src/__tests__/theme-palette.test.mjs
 ```
-
-推荐发布方式：
-
-```bat
-build_abi_release.bat
-```
-
-该脚本已内置：Node 检查 -> Web 构建 -> 产物同步 -> Flutter ABI release 打包。
-
-说明：
-
-- `vite-plugin-singlefile` 会将 JS/CSS 内联到 `dist/index.html`，产物可离线运行。
-- `assets/milkdown_web/` 当前仅需 `index.html` 一个运行时文件。
 
 ## 常见陷阱
 
@@ -53,7 +59,7 @@ build_abi_release.bat
 请按顺序检查：
 
 1. `npm run build` 是否成功。
-2. 是否已复制 `dist/index.html` 到 `assets/milkdown_web/index.html`。
+2. 是否已通过同步脚本更新 `assets/milkdown_web/` 的全部资源。
 3. 是否重新启动应用验证。
 
 ### 依赖安装不一致

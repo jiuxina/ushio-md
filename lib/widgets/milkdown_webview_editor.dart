@@ -14,6 +14,7 @@ import '../services/milkdown_asset_server.dart';
 import '../services/my_files_service.dart';
 import '../utils/debug_log.dart';
 import '../utils/app_style.dart';
+import 'app_modal.dart';
 
 typedef MilkdownBridgeMessageHandler = void Function(Map<String, dynamic> msg);
 typedef MilkdownCheckboxToggleHandler = void Function(int index, bool value);
@@ -822,6 +823,10 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
     final textColor = widget.textColor ?? colorScheme.onSurface;
     final shadowOpacity = brightness == Brightness.dark ? 0.12 : 0.08;
+    final overlay = theme.extension<AppStyleTheme>()!.resolveSurface(
+      theme,
+      role: SurfaceRole.modal,
+    );
 
     return ThemePalettePayload(
       mode: mode,
@@ -846,6 +851,17 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
         'onError': _toCssHex(colorScheme.onError),
         'outline': _toCssHex(colorScheme.outline),
         'shadow': _toCssRgba(colorScheme.shadow),
+        'overlaySurface': _toCssRgba(overlay.surface),
+        'overlayOnSurface': _toCssHex(overlay.onSurface),
+        'overlayOnSurfaceVariant': _toCssHex(overlay.onSurfaceVariant),
+        'overlayPrimary': _toCssHex(overlay.primary),
+        'overlayOnPrimary': _toCssHex(overlay.onPrimary),
+        'overlayPrimaryContainer': _toCssHex(overlay.primaryContainer),
+        'overlayOnPrimaryContainer': _toCssHex(overlay.onPrimaryContainer),
+        'overlayError': _toCssHex(overlay.error),
+        'overlayOutline': _toCssHex(overlay.outline),
+        'overlayIcon': _toCssHex(overlay.icon),
+        'overlayMutedIcon': _toCssHex(overlay.mutedIcon),
       },
       bodyFont: bodyFont,
       monoFont: monoFont,
@@ -1115,17 +1131,14 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
     final urlController = TextEditingController();
     final altController = TextEditingController();
     try {
-      return await showDialog<Map<String, String>>(
+      return await showAppDialog<Map<String, String>>(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
           title: Row(
             children: [
               Icon(Icons.link, color: context.appIconColor),
               const SizedBox(width: 12),
-              const Text('插入图片链接'),
+              const Expanded(child: Text('插入图片链接')),
             ],
           ),
           content: SingleChildScrollView(
@@ -1215,31 +1228,30 @@ class _MilkdownWebViewEditorState extends State<MilkdownWebViewEditor> {
 
   Future<String?> _chooseInsertImageSource() async {
     if (!mounted) return null;
-    return await showModalBottomSheet<String>(
+    return await showAppModalBottomSheet<String>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.link),
-              title: const Text('输入图片链接'),
-              subtitle: const Text('使用网络图片 URL'),
-              enabled: widget.enableInsertImageUrl,
-              onTap: () => Navigator.pop(context, 'url'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('从设备选择'),
-              subtitle: const Text('选择本地图片文件'),
-              enabled: widget.enableInsertImagePicker,
-              onTap: () => Navigator.pop(context, 'device'),
-            ),
-            const SizedBox(height: 8),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.link),
+                title: const Text('输入图片链接'),
+                subtitle: const Text('使用网络图片 URL'),
+                enabled: widget.enableInsertImageUrl,
+                onTap: () => Navigator.pop(context, 'url'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_open),
+                title: const Text('从设备选择'),
+                subtitle: const Text('选择本地图片文件'),
+                enabled: widget.enableInsertImagePicker,
+                onTap: () => Navigator.pop(context, 'device'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );

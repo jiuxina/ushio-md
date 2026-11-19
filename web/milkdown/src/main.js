@@ -84,6 +84,8 @@ import '@milkdown/crepe/theme/nord.css';
 import 'katex/dist/katex.min.css';
 import 'prismjs/themes/prism.css';
 import './style.css';
+import { applyThemeColors } from './theme-palette.mjs';
+import { clampOverlayPosition, getOverlayViewport } from './overlay-viewport.mjs';
 import {
   HTML_BLOCK_TAG_PATTERN,
   HTML_BLOCK_CLOSE_TAG_PATTERN,
@@ -357,33 +359,12 @@ const recordUploadFailure = (reason) => {
   });
 };
 
-const cssVarMap = {
-  primary: '--milkdown-color-primary',
-  onPrimary: '--milkdown-color-on-primary',
-  secondary: '--milkdown-color-secondary',
-  onSecondary: '--milkdown-color-on-secondary',
-  surface: '--milkdown-color-surface',
-  onSurface: '--milkdown-color-on-surface',
-  background: '--milkdown-color-background',
-  onBackground: '--milkdown-color-on-background',
-  error: '--milkdown-color-error',
-  onError: '--milkdown-color-on-error',
-  outline: '--milkdown-color-outline',
-  shadow: '--milkdown-color-shadow',
-};
-
 const applyTheme = (payload) => {
   if (!payload || typeof payload !== 'object') return;
   const root = document.documentElement;
 
   // Apply colors
-  if (payload.colors && typeof payload.colors === 'object') {
-    Object.entries(payload.colors).forEach(([k, v]) => {
-      const cssVar = cssVarMap[k];
-      if (!cssVar || typeof v !== 'string') return;
-      root.style.setProperty(cssVar, v);
-    });
-  }
+  applyThemeColors(root, payload.colors);
 
   // Apply font settings
   const font = payload.font;
@@ -449,6 +430,31 @@ const updateViewportMetrics = () => {
   const toolbarChanged = updateStyleProperty(
     root.style, '--ushio-toolbar-height', `${flutterToolbarHeightPx}px`,
   );
+  const overlayViewport = getOverlayViewport({
+    layoutHeight: window.innerHeight,
+    viewportHeight,
+    viewportOffsetTop: vv?.offsetTop ?? 0,
+    keyboardInset,
+    headerHeight: flutterHeaderHeightPx,
+    toolbarHeight: flutterToolbarHeightPx,
+  });
+  const overlayHeightChanged = updateStyleProperty(
+    root.style, '--ushio-overlay-available-height', `${overlayViewport.height}px`,
+  );
+  if (overlayHeightChanged) {
+    if (linkTooltipAnchor && linkTooltipElement?.dataset.show === 'true') {
+      showLinkTooltip(linkTooltipAnchor);
+    }
+    if (contextMenuElement?.dataset.show === 'true') {
+      positionOverlay(
+        contextMenuElement,
+        app.getBoundingClientRect(),
+        Number.parseFloat(contextMenuElement.style.left) || 0,
+        Number.parseFloat(contextMenuElement.style.top) || 0,
+      );
+    }
+    scheduleSyncTableFloatingUi();
+  }
   const keyboardChanged = Math.abs(keyboardInset - lastKeyboardInsetPx) > 2;
   lastKeyboardInsetPx = keyboardInset;
   if (keyboardInset > 0 && (keyboardChanged || toolbarChanged)) {
@@ -2492,21 +2498,19 @@ const showLinkTooltip = (anchor) => {
   const href = anchor.getAttribute('data-ushio-href') || anchor.getAttribute('href') || '';
   const preview = linkTooltipElement.querySelector('.ushio-link-tooltip-preview');
   if (preview) {
-    preview.textContent = href.length > 60 ? href.substring(0, 60) + '...' : href;
+    preview.textContent = href;
     preview.title = href;
   }
   const anchorRect = anchor.getBoundingClientRect();
   const appRect = app.getBoundingClientRect();
-  const tooltipWidth = 280;
-  let left = anchorRect.left - appRect.left;
-  let top = anchorRect.bottom - appRect.top + 8;
-  if (left + tooltipWidth > appRect.width - 8) {
-    left = appRect.width - tooltipWidth - 8;
-  }
-  if (left < 8) left = 8;
-  linkTooltipElement.style.left = `${Math.max(8, left)}px`;
-  linkTooltipElement.style.top = `${top}px`;
   linkTooltipElement.dataset.show = 'true';
+  const tooltipHeight = linkTooltipElement.offsetHeight;
+  const bounds = getOverlayBounds(appRect);
+  let top = anchorRect.bottom - appRect.top + 8;
+  if (top + tooltipHeight > bounds.bottom) {
+    top = anchorRect.top - appRect.top - tooltipHeight - 8;
+  }
+  positionOverlay(linkTooltipElement, appRect, anchorRect.left - appRect.left, top);
 };
 
 const buildTableFloatingButton = () => {
@@ -2522,6 +2526,7 @@ const buildTableFloatingButton = () => {
     if (!tableFloatingPanelElement) return;
     tableFloatingPanelElement.dataset.show =
       tableFloatingPanelElement.dataset.show === 'true' ? 'false' : 'true';
+    syncTableFloatingUi();
   });
   return button;
 };
@@ -2596,6 +2601,38 @@ const getKeyboardInset = () => {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 };
 
+const getOverlayBounds = (appRect) => {
+  const viewport = window.visualViewport;
+  const visible = getOverlayViewport({
+    layoutHeight: window.innerHeight,
+    viewportHeight: viewport?.height ?? window.innerHeight,
+    viewportOffsetTop: viewport?.offsetTop ?? 0,
+    keyboardInset: getKeyboardInset(),
+    headerHeight: flutterHeaderHeightPx,
+    toolbarHeight: flutterToolbarHeightPx,
+  });
+  const top = visible.top - appRect.top;
+  return {
+    left: 8,
+    right: appRect.width - 8,
+    top,
+    bottom: Math.max(top, Math.min(appRect.height - 8, visible.bottom - appRect.top)),
+  };
+};
+
+const positionOverlay = (element, appRect, left, top) => {
+  const position = clampOverlayPosition({
+    left,
+    top,
+    width: element.offsetWidth,
+    height: element.offsetHeight,
+    bounds: getOverlayBounds(appRect),
+  });
+  element.style.left = `${position.left}px`;
+  element.style.top = `${position.top}px`;
+  return position;
+};
+
 const updateTableFloatingUiPosition = (table) => {
   if (!tableFloatingButtonElement || !tableFloatingPanelElement) return;
   if (!table || currentReadOnly) {
@@ -2606,30 +2643,16 @@ const updateTableFloatingUiPosition = (table) => {
   const tableRect = table.getBoundingClientRect();
   const baseLeft = tableRect.left - appRect.left + 6;
   const baseTop = tableRect.top - appRect.top + 6;
-  const minMargin = 8;
-  const keyboardInset = getKeyboardInset();
-
-  const buttonWidth = tableFloatingButtonElement.offsetWidth || 72;
-  const buttonHeight = tableFloatingButtonElement.offsetHeight || 36;
-  const panelWidth = tableFloatingPanelElement.offsetWidth || 280;
-  const panelHeight = tableFloatingPanelElement.offsetHeight || 160;
-
-  const maxButtonLeft = Math.max(minMargin, appRect.width - buttonWidth - minMargin);
-  const maxButtonTop = Math.max(minMargin, appRect.height - keyboardInset - buttonHeight - minMargin);
-  const clampedButtonLeft = Math.min(Math.max(baseLeft, minMargin), maxButtonLeft);
-  const clampedButtonTop = Math.min(Math.max(baseTop, minMargin), maxButtonTop);
-
-  tableFloatingButtonElement.style.left = `${clampedButtonLeft}px`;
-  tableFloatingButtonElement.style.top = `${clampedButtonTop}px`;
   tableFloatingButtonElement.dataset.show = 'true';
-
-  const panelBaseTop = clampedButtonTop + buttonHeight + 8;
-  const maxPanelLeft = Math.max(minMargin, appRect.width - panelWidth - minMargin);
-  const maxPanelTop = Math.max(minMargin, appRect.height - keyboardInset - panelHeight - minMargin);
-  const clampedPanelLeft = Math.min(Math.max(clampedButtonLeft, minMargin), maxPanelLeft);
-  const clampedPanelTop = Math.min(Math.max(panelBaseTop, minMargin), maxPanelTop);
-  tableFloatingPanelElement.style.left = `${clampedPanelLeft}px`;
-  tableFloatingPanelElement.style.top = `${clampedPanelTop}px`;
+  const button = positionOverlay(tableFloatingButtonElement, appRect, baseLeft, baseTop);
+  if (tableFloatingPanelElement.dataset.show === 'true') {
+    positionOverlay(
+      tableFloatingPanelElement,
+      appRect,
+      button.left,
+      button.top + tableFloatingButtonElement.offsetHeight + 8,
+    );
+  }
 };
 
 const findCurrentTable = (sourceNode = null) => {
@@ -2727,18 +2750,7 @@ const showContextMenuAt = (clientX, clientY, target) => {
   updateContextMenuForTarget(target);
   contextMenuElement.dataset.show = 'true';
   const appRect = app.getBoundingClientRect();
-  const menuWidth = contextMenuElement.offsetWidth || 240;
-  const menuHeight = contextMenuElement.offsetHeight || 160;
-  const keyboardInset =
-    Number.parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue('--ushio-keyboard-inset'),
-    ) || 0;
-  const maxLeft = Math.max(8, appRect.width - menuWidth - 8);
-  const maxTop = Math.max(8, appRect.height - menuHeight - keyboardInset - 8);
-  const left = Math.max(8, Math.min(clientX - appRect.left, maxLeft));
-  const top = Math.max(8, Math.min(clientY - appRect.top, maxTop));
-  contextMenuElement.style.left = `${left}px`;
-  contextMenuElement.style.top = `${top}px`;
+  positionOverlay(contextMenuElement, appRect, clientX - appRect.left, clientY - appRect.top);
 };
 
 // 真机实测：全量 querySelectorAll 清属性在 1359 块的文档上每次收尾要 204.7ms，
