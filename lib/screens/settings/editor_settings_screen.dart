@@ -55,9 +55,11 @@ class EditorSettingsScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                _buildSection(l10n.paragraphSpacing, Icons.format_line_spacing, [
-                  _buildParagraphSpacingSlider(context, settings, l10n),
-                ]),
+                _buildSection(
+                  l10n.paragraphSpacing,
+                  Icons.format_line_spacing,
+                  [_buildParagraphSpacingSlider(context, settings, l10n)],
+                ),
 
                 const SizedBox(height: 16),
 
@@ -83,9 +85,17 @@ class EditorSettingsScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                _buildSection(l10n.permanentFloatingButtons, Icons.smart_button, [
-                  _buildPermanentFloatingButtonsToggle(context, settings, l10n),
-                ]),
+                _buildSection(
+                  l10n.permanentFloatingButtons,
+                  Icons.smart_button,
+                  [
+                    _buildPermanentFloatingButtonsToggle(
+                      context,
+                      settings,
+                      l10n,
+                    ),
+                  ],
+                ),
               ],
             );
           },
@@ -94,12 +104,12 @@ class EditorSettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSection(
-    String title,
-    IconData icon,
-    List<Widget> children,
-  ) {
-    return SettingsSection(title: title, icon: icon, children: children);
+  Widget _buildSection(String title, IconData icon, List<Widget> children) {
+    return Builder(
+      builder: (context) {
+        return SettingsSection(title: title, icon: icon, children: children);
+      },
+    );
   }
 
   Widget _buildFontSizeSlider(
@@ -107,27 +117,33 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
           children: [
-            Text(l10n.current(settings.fontSize.toInt())),
-            Text(
-              l10n.sampleText,
-              style: TextStyle(fontSize: settings.fontSize), // 限制示例最大大小以免溢出
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 16,
+              runSpacing: 12,
+              children: [
+                Text(l10n.current(settings.fontSize.toInt())),
+                Text(
+                  l10n.sampleText,
+                  style: TextStyle(fontSize: settings.fontSize), // 限制示例最大大小以免溢出
+                ),
+              ],
+            ),
+            Slider(
+              value: settings.fontSize,
+              min: 6,
+              max: 80,
+              divisions: 74,
+              label: '${settings.fontSize.toInt()}',
+              onChanged: (v) => settings.setFontSize(v),
             ),
           ],
-        ),
-        Slider(
-          value: settings.fontSize,
-          min: 6,
-          max: 80,
-          divisions: 74,
-          label: '${settings.fontSize.toInt()}',
-          onChanged: (v) => settings.setFontSize(v),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -136,31 +152,36 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.lineHeightDesc,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(settings.lineHeight.toStringAsFixed(1)),
+            Text(
+              l10n.lineHeightDesc,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [Text(settings.lineHeight.toStringAsFixed(1))],
+            ),
+            Slider(
+              value: settings.lineHeight,
+              min: 1.0,
+              max: 2.5,
+              divisions: 15,
+              label: settings.lineHeight.toStringAsFixed(1),
+              onChanged: (v) => settings.setLineHeight(v),
+            ),
           ],
-        ),
-        Slider(
-          value: settings.lineHeight,
-          min: 1.0,
-          max: 2.5,
-          divisions: 15,
-          label: settings.lineHeight.toStringAsFixed(1),
-          onChanged: (v) => settings.setLineHeight(v),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -169,31 +190,36 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.letterSpacingDesc,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(settings.letterSpacing.toStringAsFixed(1)),
+            Text(
+              l10n.letterSpacingDesc,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [Text(settings.letterSpacing.toStringAsFixed(1))],
+            ),
+            Slider(
+              value: settings.letterSpacing,
+              min: -2.0,
+              max: 10.0,
+              divisions: 60,
+              label: settings.letterSpacing.toStringAsFixed(1),
+              onChanged: (v) => settings.setLetterSpacing(v),
+            ),
           ],
-        ),
-        Slider(
-          value: settings.letterSpacing,
-          min: -2.0,
-          max: 10.0,
-          divisions: 60,
-          label: settings.letterSpacing.toStringAsFixed(1),
-          onChanged: (v) => settings.setLetterSpacing(v),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -202,31 +228,36 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.paragraphSpacingDesc,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.current(settings.paragraphSpacing.toInt())),
+            Text(
+              l10n.paragraphSpacingDesc,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [Text(l10n.current(settings.paragraphSpacing.toInt()))],
+            ),
+            Slider(
+              value: settings.paragraphSpacing,
+              min: 0,
+              max: 40,
+              divisions: 40,
+              label: '${settings.paragraphSpacing.toInt()}',
+              onChanged: (v) => settings.setParagraphSpacing(v),
+            ),
           ],
-        ),
-        Slider(
-          value: settings.paragraphSpacing,
-          min: 0,
-          max: 40,
-          divisions: 40,
-          label: '${settings.paragraphSpacing.toInt()}',
-          onChanged: (v) => settings.setParagraphSpacing(v),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -235,15 +266,22 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(l10n.enableAutoSave),
-        Switch(
-          value: settings.autoSave,
-          onChanged: (v) => settings.setAutoSave(v),
-        ),
-      ],
+    return Builder(
+      builder: (context) {
+        return Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            Text(l10n.enableAutoSave),
+            Switch(
+              value: settings.autoSave,
+              onChanged: (v) => settings.setAutoSave(v),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -252,27 +290,34 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.enableSaveOnExit),
-            Switch(
-              value: settings.saveOnExit,
-              onChanged: (v) => settings.setSaveOnExit(v),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                Text(l10n.enableSaveOnExit),
+                Switch(
+                  value: settings.saveOnExit,
+                  onChanged: (v) => settings.setSaveOnExit(v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.saveOnExitDesc,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          l10n.saveOnExitDesc,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -281,45 +326,52 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.permanentFloatingButtons),
-            DropdownButton<String>(
-              value: settings.floatingButtonsMode,
-              underline: const SizedBox(),
-              borderRadius: BorderRadius.circular(12),
-              items: [
-                DropdownMenuItem(
-                  value: 'auto',
-                  child: Text(l10n.floatingButtonsAuto),
-                ),
-                DropdownMenuItem(
-                  value: 'always',
-                  child: Text(l10n.floatingButtonsAlways),
-                ),
-                DropdownMenuItem(
-                  value: 'never',
-                  child: Text(l10n.floatingButtonsNever),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                Text(l10n.permanentFloatingButtons),
+                DropdownButton<String>(
+                  value: settings.floatingButtonsMode,
+                  underline: const SizedBox(),
+                  borderRadius: BorderRadius.circular(12),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'auto',
+                      child: Text(l10n.floatingButtonsAuto),
+                    ),
+                    DropdownMenuItem(
+                      value: 'always',
+                      child: Text(l10n.floatingButtonsAlways),
+                    ),
+                    DropdownMenuItem(
+                      value: 'never',
+                      child: Text(l10n.floatingButtonsNever),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) settings.setFloatingButtonsMode(value);
+                  },
                 ),
               ],
-              onChanged: (value) {
-                if (value != null) settings.setFloatingButtonsMode(value);
-              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _getFloatingButtonsModeDesc(settings.floatingButtonsMode, l10n),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _getFloatingButtonsModeDesc(settings.floatingButtonsMode, l10n),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -341,31 +393,38 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    final intervals = [15, 30, 60, 120, 180, 300, 600];
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(l10n.saveInterval),
-        DropdownButton<int>(
-          value: intervals.contains(settings.autoSaveInterval)
-              ? settings.autoSaveInterval
-              : 30, // 默认回退
-          underline: const SizedBox(),
-          borderRadius: BorderRadius.circular(12),
-          items: intervals.map((i) {
-            String label;
-            if (i < 60) {
-              label = '$i ${l10n.seconds}';
-            } else {
-              label = '${i ~/ 60} ${l10n.minutes}';
-            }
-            return DropdownMenuItem(value: i, child: Text(label));
-          }).toList(),
-          onChanged: (value) {
-            if (value != null) settings.setAutoSaveInterval(value);
-          },
-        ),
-      ],
+    return Builder(
+      builder: (context) {
+        final intervals = [15, 30, 60, 120, 180, 300, 600];
+        return Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            Text(l10n.saveInterval),
+            DropdownButton<int>(
+              value: intervals.contains(settings.autoSaveInterval)
+                  ? settings.autoSaveInterval
+                  : 30, // 默认回退
+              underline: const SizedBox(),
+              borderRadius: BorderRadius.circular(12),
+              items: intervals.map((i) {
+                String label;
+                if (i < 60) {
+                  label = '$i ${l10n.seconds}';
+                } else {
+                  label = '${i ~/ 60} ${l10n.minutes}';
+                }
+                return DropdownMenuItem(value: i, child: Text(label));
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) settings.setAutoSaveInterval(value);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -374,41 +433,48 @@ class EditorSettingsScreen extends StatelessWidget {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.startupRestoreLastDesc,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.onOpen),
-            DropdownButton<String>(
-              value: settings.startupBehavior,
-              underline: const SizedBox(),
-              borderRadius: BorderRadius.circular(12),
-              items: [
-                DropdownMenuItem(
-                  value: 'restore',
-                  child: Text(l10n.startupRestoreLast),
-                ),
-                DropdownMenuItem(
-                  value: 'blank',
-                  child: Text(l10n.startupShowBlank),
+            Text(
+              l10n.startupRestoreLastDesc,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                Text(l10n.onOpen),
+                DropdownButton<String>(
+                  value: settings.startupBehavior,
+                  underline: const SizedBox(),
+                  borderRadius: BorderRadius.circular(12),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'restore',
+                      child: Text(l10n.startupRestoreLast),
+                    ),
+                    DropdownMenuItem(
+                      value: 'blank',
+                      child: Text(l10n.startupShowBlank),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) settings.setStartupBehavior(value);
+                  },
                 ),
               ],
-              onChanged: (value) {
-                if (value != null) settings.setStartupBehavior(value);
-              },
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }

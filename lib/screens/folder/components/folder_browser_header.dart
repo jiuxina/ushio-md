@@ -6,6 +6,7 @@ import '../../../utils/app_style.dart';
 import '../../../utils/responsive_layout.dart';
 import '../../../widgets/app_surface.dart';
 import '../../../widgets/glass_header_button.dart';
+import '../../../widgets/app_modal.dart';
 
 class FolderBrowserHeader extends StatelessWidget {
   final String folderName;
@@ -73,68 +74,74 @@ class FolderBrowserHeader extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
-    return SizedBox(
-      height: isDesktop ? null : 56,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
-        child: Row(
-          children: [
-            if (onBack != null)
-              GlassHeaderButton(
-                icon: Icons.arrow_back,
-                onPressed: onBack,
-                iconColor: Theme.of(context).colorScheme.primary,
-              )
-            else
-              const SizedBox(width: 8),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    folderName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    l10n.fileCount(fileCount),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GlassHeaderButton(icon: Icons.search, onPressed: onSearchToggle),
-            const SizedBox(width: 4),
-            if (onSelectionToggle != null) ...[
-              GlassHeaderButton(
-                key: const ValueKey('select-items'),
-                icon: Icons.checklist,
-                tooltip: l10n.selectItems,
-                onPressed: onSelectionToggle,
-              ),
-              const SizedBox(width: 4),
-            ],
-            GlassHeaderButton(
-              icon: showImages ? Icons.image : Icons.image_outlined,
-              onPressed: onImageToggle,
-              isActive: showImages,
-            ),
-            const SizedBox(width: 4),
-            GlassHeaderButton(
-              icon: Icons.sort,
-              onPressed: () => _showSortMenu(context),
-            ),
-            const SizedBox(width: 4),
-            GlassHeaderButton(icon: Icons.add, onPressed: onNewItem),
-          ],
+    final title = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          folderName,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        Text(
+          l10n.fileCount(fileCount),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+    final navigation = [
+      if (onBack != null) ...[
+        GlassHeaderButton(icon: Icons.arrow_back, onPressed: onBack),
+        const SizedBox(width: 8),
+      ],
+      Expanded(child: title),
+    ];
+    final actions = Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        GlassHeaderButton(icon: Icons.search, onPressed: onSearchToggle),
+        if (onSelectionToggle != null)
+          GlassHeaderButton(
+            key: const ValueKey('select-items'),
+            icon: Icons.checklist,
+            tooltip: l10n.selectItems,
+            onPressed: onSelectionToggle,
+          ),
+        GlassHeaderButton(
+          icon: showImages ? Icons.image : Icons.image_outlined,
+          onPressed: onImageToggle,
+          isActive: showImages,
+        ),
+        GlassHeaderButton(
+          icon: Icons.sort,
+          onPressed: () => _showSortMenu(context),
+        ),
+        GlassHeaderButton(icon: Icons.add, onPressed: onNewItem),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 16, 4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600 ||
+              MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: navigation),
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: actions),
+              ],
+            );
+          }
+          return Row(
+            children: [...navigation, const SizedBox(width: 8), actions],
+          );
+        },
       ),
     );
   }
@@ -220,8 +227,9 @@ class FolderBrowserHeader extends StatelessWidget {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop = ResponsiveLayout.isDesktopWidth(context);
+    final fieldHeight = MediaQuery.textScalerOf(context).scale(14) * 1.5 + 28;
     return SizedBox(
-      height: isDesktop ? null : 56,
+      height: isDesktop ? null : fieldHeight + 12,
       child: Container(
         padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
         child: Row(
@@ -232,9 +240,9 @@ class FolderBrowserHeader extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: AppSurface(
+              child: AppSurface.builder(
                 borderRadius: BorderRadius.circular(12),
-                height: 44,
+                height: fieldHeight,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.5),
@@ -246,7 +254,7 @@ class FolderBrowserHeader extends StatelessWidget {
                           context,
                         ).dividerColor.withValues(alpha: 0.5),
                       ),
-                child: TextField(
+                builder: (context) => TextField(
                   enabled: !isBusy,
                   controller: searchController,
                   autofocus: true,
@@ -258,7 +266,7 @@ class FolderBrowserHeader extends StatelessWidget {
                     prefixIcon: Icon(
                       Icons.search,
                       size: 20,
-                      color: colorScheme.outline,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     prefixIconConstraints: const BoxConstraints(
                       minWidth: 28,
@@ -277,12 +285,12 @@ class FolderBrowserHeader extends StatelessWidget {
 
   void _showSortMenu(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Colors.transparent,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(24),
@@ -374,10 +382,10 @@ class FolderBrowserHeader extends StatelessWidget {
   ) {
     final isSelected = sortOption == option;
     final iconColor = isSelected
-        ? Theme.of(context).colorScheme.primary
+        ? Theme.of(context).colorScheme.onPrimaryContainer
         : context.appIconColor;
     final textColor = isSelected
-        ? Theme.of(context).colorScheme.primary
+        ? Theme.of(context).colorScheme.onPrimaryContainer
         : Theme.of(context).colorScheme.onSurface;
 
     return Material(
@@ -392,7 +400,7 @@ class FolderBrowserHeader extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: isSelected
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                ? Theme.of(context).colorScheme.primaryContainer
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),

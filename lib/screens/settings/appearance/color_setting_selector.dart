@@ -82,14 +82,15 @@ class ColorSettingSelector extends StatelessWidget {
         ),
         if (hasCustom) ...[
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
-              Expanded(
-                child: Text(
-                  customLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+              Text(
+                customLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               if (onClearCustom != null && clearLabel != null)
@@ -114,8 +115,8 @@ class ColorSettingSelector extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
@@ -165,8 +166,8 @@ class ColorSettingSelector extends StatelessWidget {
         onColorSelected: onCustomColorPicked,
       ),
       child: Container(
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,

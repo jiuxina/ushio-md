@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/document_version.dart';
-import '../../../widgets/outer_shadow.dart';
+import '../../../widgets/app_modal.dart';
+import '../../../widgets/app_surface.dart';
+import '../../../utils/app_style.dart';
 
 /// 版本历史覆盖层控制器
 ///
@@ -137,7 +139,7 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
   }
 
   void _showVersionActions(DocumentVersion version) {
-    showModalBottomSheet<void>(
+    showAppModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -172,9 +174,9 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     version.note,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -210,11 +212,12 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
 
   Future<void> _showEditNoteDialog(DocumentVersion version) async {
     final controller = TextEditingController(text: version.note);
-    final saved = await showDialog<bool>(
+    final saved = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final colorScheme = Theme.of(context).colorScheme;
         return AlertDialog(
+          scrollable: true,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -222,7 +225,7 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
             children: [
               Icon(Icons.edit_note, color: colorScheme.primary),
               const SizedBox(width: 8),
-              Text('编辑备注 · v${version.versionNumber}'),
+              Flexible(child: Text('编辑备注 · v${version.versionNumber}')),
             ],
           ),
           content: TextField(
@@ -276,11 +279,12 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
   }
 
   void _confirmDelete(DocumentVersion version) {
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       builder: (context) {
         final colorScheme = Theme.of(context).colorScheme;
         return AlertDialog(
+          scrollable: true,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -288,7 +292,7 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
             children: [
               Icon(Icons.warning_amber_rounded, color: colorScheme.error),
               const SizedBox(width: 8),
-              const Text('删除版本'),
+              const Flexible(child: Text('删除版本')),
             ],
           ),
           content: Text('确定要删除版本 v${version.versionNumber} 吗？\n此操作无法撤销。'),
@@ -344,26 +348,15 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
   }
 
   Widget _buildSheet(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
 
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: OuterShadow(
-        shadows: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
+      child: AppSurface.builder(
+        role: SurfaceRole.modal,
         borderRadius: BorderRadius.circular(20),
-        child: Container(
+        builder: (context) => Container(
           constraints: BoxConstraints(maxHeight: maxHeight),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(20),
-          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -382,12 +375,7 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primary.withValues(alpha: 0.1),
-            colorScheme.secondary.withValues(alpha: 0.05),
-          ],
-        ),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Row(
@@ -406,9 +394,9 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
                 if (!widget.isLoading && widget.errorMessage == null)
                   Text(
                     '${widget.versions.length} 个版本',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
               ],
             ),
@@ -478,16 +466,14 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
               Text(
                 '暂无版本历史',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 '保存文档时会自动创建版本快照',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.outline.withValues(alpha: 0.7),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -520,6 +506,10 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
   /// 构建"当前未保存修改"条目
   Widget _buildUnsavedChangesItem(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final statusColor = Theme.of(context)
+        .extension<AppStyleTheme>()!
+        .resolveSurface(Theme.of(context), role: SurfaceRole.modal)
+        .ensureForeground(colorScheme.tertiary);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -534,7 +524,7 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: colorScheme.tertiary.withValues(alpha: 0.08),
+              color: colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: colorScheme.tertiary.withValues(alpha: 0.3),
@@ -544,17 +534,16 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
             child: Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: colorScheme.tertiary.withValues(alpha: 0.1),
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    Icons.edit_note,
-                    color: colorScheme.tertiary,
-                    size: 20,
-                  ),
+                  child: Icon(Icons.edit_note, color: statusColor, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -565,24 +554,20 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
                         '当前未保存修改',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: colorScheme.tertiary,
+                          color: statusColor,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         '与最新版本对比',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.outline,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.compare_arrows,
-                  size: 20,
-                  color: colorScheme.tertiary,
-                ),
+                Icon(Icons.compare_arrows, size: 20, color: statusColor),
               ],
             ),
           ),
@@ -612,8 +597,8 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: isLatest
-                  ? colorScheme.primary.withValues(alpha: 0.08)
-                  : colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  ? colorScheme.primaryContainer
+                  : colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isLatest
@@ -625,23 +610,26 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
               children: [
                 // 版本号标识
                 Container(
-                  width: 40,
-                  height: 40,
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: isLatest
-                        ? colorScheme.primary.withValues(alpha: 0.15)
-                        : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                        ? colorScheme.primaryContainer
+                        : colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Center(
                     child: Text(
                       'v${version.versionNumber}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: isLatest
-                            ? colorScheme.primary
-                            : colorScheme.outline,
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -652,12 +640,20 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        runSpacing: 4,
                         children: [
                           Text(
                             '版本 ${version.versionNumber}',
                             style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: isLatest
+                                      ? colorScheme.onPrimaryContainer
+                                      : colorScheme.onSurface,
+                                ),
                           ),
                           if (isLatest) ...[
                             const SizedBox(width: 6),
@@ -667,17 +663,15 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color: colorScheme.primary.withValues(
-                                  alpha: 0.1,
-                                ),
+                                color: colorScheme.primaryContainer,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 '最新',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: colorScheme.primary,
+                                  color: colorScheme.onPrimaryContainer,
                                 ),
                               ),
                             ),
@@ -688,7 +682,17 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
                       Text(
                         version.formattedTimestamp,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.outline,
+                          color: isLatest
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        _formatFileSize(version.fileSize),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isLatest
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
                         ),
                       ),
                       if (version.note.isNotEmpty) ...[
@@ -698,21 +702,23 @@ class _VersionHistorySheetState extends State<VersionHistorySheet>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: colorScheme.onSurfaceVariant),
+                              ?.copyWith(
+                                color: isLatest
+                                    ? colorScheme.onPrimaryContainer
+                                    : colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ],
                     ],
                   ),
                 ),
-                // 文件大小
-                Text(
-                  _formatFileSize(version.fileSize),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: colorScheme.outline),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: isLatest
+                      ? colorScheme.onPrimaryContainer
+                      : colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right, size: 20, color: colorScheme.outline),
               ],
             ),
           ),

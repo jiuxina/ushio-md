@@ -20,6 +20,7 @@ import '../utils/responsive_layout.dart';
 import '../widgets/responsive_page_frame.dart';
 import 'folder/components/folder_browser_header.dart';
 import 'folder/components/file_tile.dart';
+import '../widgets/app_modal.dart';
 
 class FolderBrowserScreen extends StatefulWidget {
   final String folderPath;
@@ -298,9 +299,10 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isBatchBusy = true);
     try {
-      final confirmed = await showDialog<bool>(
+      final confirmed = await showAppDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+          scrollable: true,
           title: Text(l10n.deleteSelectedItems),
           content: Text(l10n.deleteSelectedConfirmation(_selectedPaths.length)),
           actions: [
@@ -407,9 +409,10 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
     );
     if (result.failed.isNotEmpty) {
       unawaited(
-        showDialog<void>(
+        showAppDialog<void>(
           context: context,
           builder: (dialogContext) => AlertDialog(
+            scrollable: true,
             title: Text(l10n.batchOperationFailed),
             content: SingleChildScrollView(
               child: Text(
@@ -442,12 +445,12 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
 
   void _showNewItemMenu() {
     final l10n = AppLocalizations.of(context);
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(sheetContext).colorScheme.surface,
+          color: Colors.transparent,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(24),
@@ -455,7 +458,10 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.note_add, color: Colors.blue),
+              leading: Icon(
+                Icons.note_add,
+                color: Theme.of(sheetContext).colorScheme.primary,
+              ),
               title: Text(l10n?.newMarkdown ?? 'New Markdown'),
               onTap: () {
                 Navigator.pop(sheetContext);
@@ -470,9 +476,9 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.create_new_folder,
-                color: Colors.orange,
+                color: Theme.of(sheetContext).colorScheme.primary,
               ),
               title: Text(l10n?.newFolder ?? 'New Folder'),
               onTap: () {
@@ -490,9 +496,10 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
     final l10n = AppLocalizations.of(context);
     // 简化的新建文件夹 Dialog，直接在当前目录
     final nameController = TextEditingController();
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(l10n?.createFolder ?? 'Create Folder'),
         content: TextField(
@@ -651,7 +658,7 @@ class FolderBrowserScreenState extends State<FolderBrowserScreen> {
       return Center(
         child: Text(
           '${l10n?.loadFailed ?? 'Load failed'}: $_error',
-          style: const TextStyle(color: Colors.red),
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
       );
     }

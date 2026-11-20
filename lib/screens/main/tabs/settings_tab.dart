@@ -137,7 +137,7 @@ class SettingsTab extends StatelessWidget {
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     final isDesktop = ResponsiveLayout.isDesktopWidth(context);
-    return AppSurface(
+    return AppSurface.builder(
       borderRadius: BorderRadius.circular(14),
       margin: const EdgeInsets.only(bottom: 8),
       color: appStyle.scaledSurfaceColor(
@@ -149,7 +149,7 @@ class SettingsTab extends StatelessWidget {
           : Border.all(
               color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
             ),
-      child: Material(
+      builder: (context) => Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -176,7 +176,7 @@ class SettingsTab extends StatelessWidget {
                 ),
                 Icon(
                   Icons.chevron_right,
-                  color: Theme.of(context).colorScheme.outline,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   size: 18,
                 ),
               ],

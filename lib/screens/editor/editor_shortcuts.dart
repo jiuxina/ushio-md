@@ -297,6 +297,7 @@ class ShortcutHelpDialog extends StatelessWidget {
     final categories = EditorShortcuts.getShortcutsByCategory();
 
     return AlertDialog(
+      scrollable: true,
       title: Row(
         children: [
           Container(
@@ -313,7 +314,7 @@ class ShortcutHelpDialog extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const Text('快捷键'),
+          const Flexible(child: Text('快捷键')),
         ],
       ),
       contentPadding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
@@ -355,10 +356,10 @@ class ShortcutHelpDialog extends StatelessWidget {
         ),
         ...shortcuts.map(
           (shortcut) => ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
+            minVerticalPadding: 8,
             title: Text(shortcut.name),
-            trailing: Container(
+            subtitle: Container(
+              margin: const EdgeInsets.only(top: 6),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -366,9 +367,11 @@ class ShortcutHelpDialog extends StatelessWidget {
               ),
               child: Text(
                 shortcut.keyCombination,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  height: 1.45,
+                ),
               ),
             ),
           ),

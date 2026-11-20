@@ -13,13 +13,13 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../utils/app_style.dart';
 import '../../../utils/constants.dart';
-import '../../../widgets/app_surface.dart';
 import '../../../widgets/settings_section.dart';
 import '../../../services/font_service.dart';
 import '../../../utils/image_accent.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../widgets/liquid_glass_card.dart';
 import '../../../widgets/outer_shadow.dart';
+import '../../../widgets/app_modal.dart';
 
 /// 外观设置共用方法 Mixin
 mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
@@ -91,7 +91,11 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
 
   /// 构建设置区块
   Widget buildSection(String title, IconData icon, List<Widget> children) {
-    return SettingsSection(title: title, icon: icon, children: children);
+    return Builder(
+      builder: (context) {
+        return SettingsSection(title: title, icon: icon, children: children);
+      },
+    );
   }
 
   /// 构建选项装饰
@@ -102,15 +106,23 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     Radius.circular(12),
   );
 
-  BoxDecoration buildOptionDecoration({required bool isSelected}) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return appStyle.surfaceDecoration(
+  BoxDecoration buildOptionDecoration(
+    BuildContext context, {
+    required bool isSelected,
+  }) {
+    final localStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    return localStyle.surfaceDecoration(
       borderRadius: optionRadius,
-      color: appStyle.optionBackground(context, selected: isSelected),
-      border: appStyle.useBorderlessButtons
+      color: Theme.of(context).extension<AppStyleTheme>()!.optionBackground(
+        context,
+        selected: isSelected,
+      ),
+      border: localStyle.useBorderlessButtons
           ? null
           : Border.all(
-              color: isSelected ? primary : appStyle.outlineColor,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                  : localStyle.outlineColor,
               width: isSelected ? 2 : 1,
             ),
     );
@@ -128,14 +140,18 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     required EdgeInsetsGeometry padding,
     required Widget child,
   }) {
-    return OuterShadow(
-      shadows: buildOptionOuterShadow(isSelected: isSelected),
-      borderRadius: optionRadius,
-      child: Container(
-        padding: padding,
-        decoration: buildOptionDecoration(isSelected: isSelected),
-        child: child,
-      ),
+    return Builder(
+      builder: (context) {
+        return OuterShadow(
+          shadows: buildOptionOuterShadow(isSelected: isSelected),
+          borderRadius: optionRadius,
+          child: Container(
+            padding: padding,
+            decoration: buildOptionDecoration(context, isSelected: isSelected),
+            child: child,
+          ),
+        );
+      },
     );
   }
 
@@ -146,37 +162,41 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     EdgeInsetsGeometry margin = EdgeInsets.zero,
     required Widget child,
   }) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final radius = BorderRadius.circular(12);
-    return Padding(
-      padding: margin,
-      child: OuterShadow(
-        shadows: appStyle.useBorderlessButtons
-            ? appStyle.surfaceShadow
-            : const [],
-        borderRadius: radius,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: padding,
-          decoration: BoxDecoration(
-            color: isSelected
-                ? primary.withValues(alpha: 0.1)
-                : (appStyle.useBorderlessButtons
-                      ? appStyle.strongSurface
-                      : Colors.transparent),
+    return Builder(
+      builder: (context) {
+        final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+        final radius = BorderRadius.circular(12);
+        return Padding(
+          padding: margin,
+          child: OuterShadow(
+            shadows: appStyle.useBorderlessButtons
+                ? appStyle.surfaceShadow
+                : const [],
             borderRadius: radius,
-            border: appStyle.useBorderlessButtons
-                ? null
-                : Border.all(
-                    color: isSelected
-                        ? primary
-                        : Theme.of(context).dividerColor,
-                    width: isSelected ? 2 : 1,
-                  ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: padding,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : (appStyle.useBorderlessButtons
+                          ? appStyle.strongSurface
+                          : Colors.transparent),
+                borderRadius: radius,
+                border: appStyle.useBorderlessButtons
+                    ? null
+                    : Border.all(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : Theme.of(context).dividerColor,
+                        width: isSelected ? 2 : 1,
+                      ),
+              ),
+              child: child,
+            ),
           ),
-          child: child,
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -185,35 +205,39 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Row(
-      children: [
-        Expanded(
-          child: buildThemeModeOption(
-            settings,
-            ThemeMode.system,
-            Icons.brightness_auto,
-            l10n.themeSystem,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: buildThemeModeOption(
-            settings,
-            ThemeMode.light,
-            Icons.light_mode,
-            l10n.themeLight,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: buildThemeModeOption(
-            settings,
-            ThemeMode.dark,
-            Icons.dark_mode,
-            l10n.themeDark,
-          ),
-        ),
-      ],
+    return Builder(
+      builder: (context) {
+        return Row(
+          children: [
+            Expanded(
+              child: buildThemeModeOption(
+                settings,
+                ThemeMode.system,
+                Icons.brightness_auto,
+                l10n.themeSystem,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: buildThemeModeOption(
+                settings,
+                ThemeMode.light,
+                Icons.light_mode,
+                l10n.themeLight,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: buildThemeModeOption(
+                settings,
+                ThemeMode.dark,
+                Icons.dark_mode,
+                l10n.themeDark,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -223,34 +247,40 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     IconData icon,
     String label,
   ) {
-    final isSelected = settings.themeMode == mode;
-    return GestureDetector(
-      onTap: () => settings.setThemeMode(mode),
-      child: optionCard(
-        isSelected: isSelected,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : context.appIconColor,
+    return Builder(
+      builder: (context) {
+        final isSelected = settings.themeMode == mode;
+        return GestureDetector(
+          onTap: () => settings.setThemeMode(mode),
+          child: optionCard(
+            isSelected: isSelected,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimaryContainer
+                      : context.appIconColor,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -259,27 +289,31 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    final currentLocale = settings.locale;
-    return Row(
-      children: [
-        Expanded(
-          child: buildLanguageOption(
-            settings,
-            const Locale('zh'),
-            l10n.languageZh,
-            currentLocale.languageCode == 'zh',
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: buildLanguageOption(
-            settings,
-            const Locale('en'),
-            l10n.languageEn,
-            currentLocale.languageCode == 'en',
-          ),
-        ),
-      ],
+    return Builder(
+      builder: (context) {
+        final currentLocale = settings.locale;
+        return Row(
+          children: [
+            Expanded(
+              child: buildLanguageOption(
+                settings,
+                const Locale('zh'),
+                l10n.languageZh,
+                currentLocale.languageCode == 'zh',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: buildLanguageOption(
+                settings,
+                const Locale('en'),
+                l10n.languageEn,
+                currentLocale.languageCode == 'en',
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -289,33 +323,39 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     String label,
     bool isSelected,
   ) {
-    return GestureDetector(
-      onTap: () => settings.setLocale(locale),
-      child: optionCard(
-        isSelected: isSelected,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          children: [
-            Icon(
-              isSelected ? Icons.check_circle : Icons.circle_outlined,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : context.appIconColor,
+    return Builder(
+      builder: (context) {
+        return GestureDetector(
+          onTap: () => settings.setLocale(locale),
+          child: optionCard(
+            isSelected: isSelected,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                Icon(
+                  isSelected ? Icons.check_circle : Icons.circle_outlined,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimaryContainer
+                      : context.appIconColor,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -324,50 +364,61 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    final options =
-        <({AppButtonStyleMode mode, IconData icon, String title, String desc})>[
-          (
-            mode: AppButtonStyleMode.classic,
-            icon: Icons.crop_square_rounded,
-            title: l10n.uiStyleClassic,
-            desc: l10n.uiStyleClassicDesc,
-          ),
-          (
-            mode: AppButtonStyleMode.softShadow,
-            icon: Icons.auto_awesome_rounded,
-            title: l10n.uiStyleSoftShadow,
-            desc: l10n.uiStyleSoftShadowDesc,
-          ),
-          (
-            mode: AppButtonStyleMode.liquidGlass,
-            icon: Icons.water_drop_outlined,
-            title: l10n.uiStyleLiquidGlass,
-            desc: l10n.uiStyleLiquidGlassDesc,
-          ),
-        ];
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            for (var i = 0; i < options.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              Expanded(child: _buildStyleTile(settings, options[i])),
-            ],
-          ],
-        ),
-        if (settings.buttonStyleMode == AppButtonStyleMode.liquidGlass &&
-            settings.cardOpacity < 0.55)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              l10n.uiStyleOpacityHint,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
+    return Builder(
+      builder: (context) {
+        final options =
+            <
+              ({
+                AppButtonStyleMode mode,
+                IconData icon,
+                String title,
+                String desc,
+              })
+            >[
+              (
+                mode: AppButtonStyleMode.classic,
+                icon: Icons.crop_square_rounded,
+                title: l10n.uiStyleClassic,
+                desc: l10n.uiStyleClassicDesc,
               ),
+              (
+                mode: AppButtonStyleMode.softShadow,
+                icon: Icons.auto_awesome_rounded,
+                title: l10n.uiStyleSoftShadow,
+                desc: l10n.uiStyleSoftShadowDesc,
+              ),
+              (
+                mode: AppButtonStyleMode.liquidGlass,
+                icon: Icons.water_drop_outlined,
+                title: l10n.uiStyleLiquidGlass,
+                desc: l10n.uiStyleLiquidGlassDesc,
+              ),
+            ];
+
+        return Column(
+          children: [
+            Row(
+              children: [
+                for (var i = 0; i < options.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(child: _buildStyleTile(settings, options[i])),
+                ],
+              ],
             ),
-          ),
-      ],
+            if (settings.buttonStyleMode == AppButtonStyleMode.liquidGlass &&
+                settings.cardOpacity < 0.55)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  l10n.uiStyleOpacityHint,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -376,56 +427,70 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     ({AppButtonStyleMode mode, IconData icon, String title, String desc})
     option,
   ) {
-    final isSelected = settings.buttonStyleMode == option.mode;
-    final primary = Theme.of(context).colorScheme.primary;
-    final surface = option.mode == AppButtonStyleMode.liquidGlass
-        ? appStyle.cardSurfaceColor(Theme.of(context).colorScheme)
-        : (option.mode == AppButtonStyleMode.softShadow &&
-                  appStyle.useBorderlessButtons
-              ? appStyle.strongSurface
-              : Theme.of(context).colorScheme.surface);
+    return Builder(
+      builder: (context) {
+        final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+        final isSelected = settings.buttonStyleMode == option.mode;
+        final primary = Theme.of(context).colorScheme.primary;
+        final surface = option.mode == AppButtonStyleMode.liquidGlass
+            ? appStyle.cardSurfaceColor(Theme.of(context).colorScheme)
+            : (option.mode == AppButtonStyleMode.softShadow &&
+                      appStyle.useBorderlessButtons
+                  ? appStyle.strongSurface
+                  : Theme.of(context).colorScheme.surface);
 
-    return Tooltip(
-      message: option.desc,
-      child: GestureDetector(
-        onTap: () => settings.setButtonStyleMode(option.mode),
-        child: optionCard(
-          isSelected: isSelected,
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+        return Tooltip(
+          message: option.desc,
+          child: GestureDetector(
+            onTap: () => settings.setButtonStyleMode(option.mode),
+            child: optionCard(
+              isSelected: isSelected,
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    option.icon,
-                    size: 18,
-                    color: isSelected ? primary : context.appIconColor,
+                  Row(
+                    children: [
+                      Icon(
+                        option.icon,
+                        size: 18,
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : context.appIconColor,
+                      ),
+                      const Spacer(),
+                      if (isSelected)
+                        Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimaryContainer,
+                        ),
+                    ],
                   ),
-                  const Spacer(),
-                  if (isSelected)
-                    Icon(Icons.check_circle, size: 16, color: primary),
+                  const SizedBox(height: 8),
+                  Text(
+                    option.title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 22,
+                    child: _buildStylePreview(option.mode, surface, primary),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                option.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? primary : null,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 22,
-                child: _buildStylePreview(option.mode, surface, primary),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -434,28 +499,31 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     Color surface,
     Color primary,
   ) {
-    if (mode == AppButtonStyleMode.liquidGlass) {
-      return LiquidGlassCard(
-        borderRadius: BorderRadius.circular(8),
-        child: AppSurface(
-          borderRadius: BorderRadius.circular(8),
-          color: surface,
-          child: const SizedBox.expand(),
-        ),
-      );
-    }
-    return Container(
-      width: double.infinity,
-      decoration: mode == AppButtonStyleMode.softShadow
-          ? BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(8),
-            )
-          : BoxDecoration(
-              color: primary,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: primary),
-            ),
+    return Builder(
+      builder: (context) {
+        if (mode == AppButtonStyleMode.liquidGlass) {
+          return LiquidGlassCard(
+            borderRadius: BorderRadius.circular(8),
+            palette: Theme.of(context)
+                .extension<AppStyleTheme>()!
+                .resolveSurface(Theme.of(context), color: surface),
+            child: const SizedBox.expand(),
+          );
+        }
+        return Container(
+          width: double.infinity,
+          decoration: mode == AppButtonStyleMode.softShadow
+              ? BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : BoxDecoration(
+                  color: primary,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: primary),
+                ),
+        );
+      },
     );
   }
 
@@ -467,25 +535,32 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     required int divisions,
     required ValueChanged<double> onChanged,
   }) {
-    final percent = '${(value * 100).round()}%';
-    return Row(
-      children: [
-        Text(label),
-        Expanded(
-          child: Slider(
-            value: value,
-            min: min,
-            max: 1.0,
-            divisions: divisions,
-            label: percent,
-            onChanged: onChanged,
-          ),
-        ),
-        SizedBox(
-          width: 44,
-          child: Text(percent, style: Theme.of(context).textTheme.bodySmall),
-        ),
-      ],
+    return Builder(
+      builder: (context) {
+        final percent = '${(value * 100).round()}%';
+        return Row(
+          children: [
+            Text(label),
+            Expanded(
+              child: Slider(
+                value: value,
+                min: min,
+                max: 1.0,
+                divisions: divisions,
+                label: percent,
+                onChanged: onChanged,
+              ),
+            ),
+            SizedBox(
+              width: 44,
+              child: Text(
+                percent,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -495,56 +570,61 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     required int selectedIndex,
     required ValueChanged<int> onSelect,
   }) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: 1.6,
-      children: List.generate(schemes.length, (index) {
-        final scheme = schemes[index];
-        final isSelected = selectedIndex == index;
-        return GestureDetector(
-          onTap: () => onSelect(index),
-          child: Container(
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).dividerColor,
-                width: isSelected ? 2 : 1,
+    return Builder(
+      builder: (context) {
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio:
+              1.6 / MediaQuery.textScalerOf(context).scale(1).clamp(1, 2),
+          children: List.generate(schemes.length, (index) {
+            final scheme = schemes[index];
+            final isSelected = selectedIndex == index;
+            return GestureDetector(
+              onTap: () => onSelect(index),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).dividerColor,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: scheme.background,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      scheme.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: scheme.text,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: scheme.background,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  scheme.name,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: scheme.text,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
-          ),
+            );
+          }),
         );
-      }),
+      },
     );
   }
 
@@ -556,251 +636,261 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     required List<DropdownMenuItem<String>> items,
     required ValueChanged<String?> onChanged,
   }) {
-    return Row(
-      children: [
-        Text(label),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DropdownButton<String>(
-            value: value,
-            isExpanded: true,
-            underline: const SizedBox(),
-            borderRadius: BorderRadius.circular(12),
-            items: items,
-            onChanged: onChanged,
-          ),
-        ),
-      ],
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label),
+            const SizedBox(height: 6),
+            DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              underline: const SizedBox(),
+              borderRadius: BorderRadius.circular(12),
+              items: items,
+              onChanged: onChanged,
+            ),
+          ],
+        );
+      },
     );
   }
 
   /// 构建字体选择器
   Widget buildFontSelector(SettingsProvider settings, AppLocalizations l10n) {
-    // 构建字体选项列表
-    final fontItems = <DropdownMenuItem<String>>[];
-    final seenFamilies = <String>{};
+    return Builder(
+      builder: (context) {
+        // 构建字体选项列表
+        final fontItems = <DropdownMenuItem<String>>[];
+        final seenFamilies = <String>{};
 
-    // 1. 添加预设字体
-    for (var font in AppConstants.availableFonts) {
-      if (seenFamilies.add(font.fontFamily)) {
-        fontItems.add(
-          DropdownMenuItem(
-            value: font.fontFamily,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 长字体名（如思源黑体 + 下载图标）在窄屏上会撑破下拉框，
-                // 这里必须可收缩并截断，否则 RenderFlex overflow。
-                Flexible(
-                  child: Text(font.name, overflow: TextOverflow.ellipsis),
-                ),
-                if (font.needDownload) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.cloud_download,
-                    size: 14,
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      }
-    }
-
-    // 2. 添加自定义字体
-    for (final font in _customFonts) {
-      // 自定义字体加载时使用的是 font.name 作为 family name
-      if (seenFamilies.add(font.name)) {
-        fontItems.add(
-          DropdownMenuItem(value: font.name, child: Text(font.name)),
-        );
-      }
-    }
-
-    // 确保当前选中的字体在列表中，如果不在（可能被删除），则回退到 System
-    String getValidFontFamily(String current) {
-      return seenFamilies.contains(current) ? current : 'System';
-    }
-
-    // 处理字体选择变更
-    Future<void> handleFontChange(
-      String? fontFamily,
-      Future<void> Function(String) setter,
-    ) async {
-      if (fontFamily == null) return;
-
-      // 检查是否是需要下载的内置字体
-      final fontOption = AppConstants.availableFonts.firstWhere(
-        (f) => f.fontFamily == fontFamily,
-        orElse: () => const FontOption(name: '', fontFamily: ''),
-      );
-
-      if (fontOption.needDownload) {
-        // 检查是否已下载
-        final isDownloaded = await FontService.isBuiltinFontDownloaded(
-          fontFamily,
-        );
-
-        if (!isDownloaded && mounted) {
-          // 显示下载确认对话框
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text(l10n.downloadFont),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.downloadFontConfirm(fontOption.name)),
-                  const SizedBox(height: 8),
-                  Text(
-                    fontOption.downloadDesc ?? '',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.downloadFontNote,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(l10n.cancel),
-                ),
-                FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  icon: const Icon(Icons.download, size: 18),
-                  label: Text(l10n.download),
-                ),
-              ],
-            ),
-          );
-
-          if (confirmed != true) return;
-
-          // 开始下载
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
+        // 1. 添加预设字体
+        for (var font in AppConstants.availableFonts) {
+          if (seenFamilies.add(font.fontFamily)) {
+            fontItems.add(
+              DropdownMenuItem(
+                value: font.fontFamily,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                    // 长字体名（如思源黑体 + 下载图标）在窄屏上会撑破下拉框，
+                    // 这里必须可收缩并截断，否则 RenderFlex overflow。
+                    Flexible(
+                      child: Text(font.name, overflow: TextOverflow.ellipsis),
                     ),
-                    const SizedBox(width: 12),
-                    Text(l10n.downloadingFont(fontOption.name)),
+                    if (font.needDownload) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.cloud_download,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ],
                   ],
-                ),
-                duration: const Duration(minutes: 5),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             );
           }
+        }
 
-          final result = await FontService.downloadBuiltinFont(fontFamily);
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).clearSnackBars();
-
-            if (result != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.fontDownloadSuccess(fontOption.name)),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              );
-              // 重新加载自定义字体列表
-              await _loadCustomFonts();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.fontDownloadFailed(fontOption.name)),
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              );
-              return;
-            }
+        // 2. 添加自定义字体
+        for (final font in _customFonts) {
+          // 自定义字体加载时使用的是 font.name 作为 family name
+          if (seenFamilies.add(font.name)) {
+            fontItems.add(
+              DropdownMenuItem(value: font.name, child: Text(font.name)),
+            );
           }
         }
-      }
 
-      await setter(fontFamily);
-    }
+        // 确保当前选中的字体在列表中，如果不在（可能被删除），则回退到 System
+        String getValidFontFamily(String current) {
+          return seenFamilies.contains(current) ? current : 'System';
+        }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildFontRow(
-          label: l10n.uiFont,
-          value: getValidFontFamily(settings.uiFontFamily),
-          items: fontItems,
-          onChanged: (value) =>
-              handleFontChange(value, settings.setUiFontFamily),
-        ),
-        const SizedBox(height: 12),
-        _buildFontRow(
-          label: l10n.editorFont,
-          value: getValidFontFamily(settings.editorFontFamily),
-          items: fontItems,
-          onChanged: (value) =>
-              handleFontChange(value, settings.setEditorFontFamily),
-        ),
-        const SizedBox(height: 12),
-        _buildFontRow(
-          label: l10n.customFont,
-          value: getValidFontFamily(settings.codeFontFamily),
-          items: fontItems,
-          onChanged: (value) =>
-              handleFontChange(value, settings.setCodeFontFamily),
-        ),
-        const SizedBox(height: 16),
-        // 安装自定义字体按钮
-        OutlinedButton.icon(
-          onPressed: _loadingFonts
-              ? null
-              : () async {
-                  final fontName = await FontService.installFontFromFile(
-                    context,
-                  );
-                  if (fontName != null) {
-                    await _loadCustomFonts();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${l10n.fontInstalled}: "$fontName"'),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+        // 处理字体选择变更
+        Future<void> handleFontChange(
+          String? fontFamily,
+          Future<void> Function(String) setter,
+        ) async {
+          if (fontFamily == null) return;
+
+          // 检查是否是需要下载的内置字体
+          final fontOption = AppConstants.availableFonts.firstWhere(
+            (f) => f.fontFamily == fontFamily,
+            orElse: () => const FontOption(name: '', fontFamily: ''),
+          );
+
+          if (fontOption.needDownload) {
+            // 检查是否已下载
+            final isDownloaded = await FontService.isBuiltinFontDownloaded(
+              fontFamily,
+            );
+
+            if (!isDownloaded && context.mounted) {
+              // 显示下载确认对话框
+              final confirmed = await showAppDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  scrollable: true,
+                  title: Text(l10n.downloadFont),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.downloadFontConfirm(fontOption.name)),
+                      const SizedBox(height: 8),
+                      Text(
+                        fontOption.downloadDesc ?? '',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n.downloadFontNote,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text(l10n.cancel),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      icon: const Icon(Icons.download, size: 18),
+                      label: Text(l10n.download),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed != true) return;
+
+              // 开始下载
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(l10n.downloadingFont(fontOption.name)),
+                      ],
+                    ),
+                    duration: const Duration(minutes: 5),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              }
+
+              final result = await FontService.downloadBuiltinFont(fontFamily);
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
+
+                if (result != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.fontDownloadSuccess(fontOption.name)),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                  // 重新加载自定义字体列表
+                  await _loadCustomFonts();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.fontDownloadFailed(fontOption.name)),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                  return;
+                }
+              }
+            }
+          }
+
+          await setter(fontFamily);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildFontRow(
+              label: l10n.uiFont,
+              value: getValidFontFamily(settings.uiFontFamily),
+              items: fontItems,
+              onChanged: (value) =>
+                  handleFontChange(value, settings.setUiFontFamily),
+            ),
+            const SizedBox(height: 12),
+            _buildFontRow(
+              label: l10n.editorFont,
+              value: getValidFontFamily(settings.editorFontFamily),
+              items: fontItems,
+              onChanged: (value) =>
+                  handleFontChange(value, settings.setEditorFontFamily),
+            ),
+            const SizedBox(height: 12),
+            _buildFontRow(
+              label: l10n.customFont,
+              value: getValidFontFamily(settings.codeFontFamily),
+              items: fontItems,
+              onChanged: (value) =>
+                  handleFontChange(value, settings.setCodeFontFamily),
+            ),
+            const SizedBox(height: 16),
+            // 安装自定义字体按钮
+            OutlinedButton.icon(
+              onPressed: _loadingFonts
+                  ? null
+                  : () async {
+                      final fontName = await FontService.installFontFromFile(
+                        context,
                       );
-                    }
-                  }
-                },
-          icon: const Icon(Icons.add),
-          label: Text(l10n.installFont),
-        ),
-      ],
+                      if (fontName != null) {
+                        await _loadCustomFonts();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${l10n.fontInstalled}: "$fontName"',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+              icon: const Icon(Icons.add),
+              label: Text(l10n.installFont),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -809,99 +899,106 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 2.5,
-          children: List.generate(AppConstants.codeBlockThemes.length, (index) {
-            final theme = AppConstants.codeBlockThemes[index];
-            final isSelected = settings.codeBlockThemeIndex == index;
-            // 获取本地化名称
-            String themeName;
-            switch (theme.name) {
-              case 'codeBlockThemeAuto':
-                themeName = l10n.codeBlockThemeAuto;
-                break;
-              case 'codeBlockThemeOneDark':
-                themeName = l10n.codeBlockThemeOneDark;
-                break;
-              case 'codeBlockThemeOneLight':
-                themeName = l10n.codeBlockThemeOneLight;
-                break;
-              case 'codeBlockThemeGithubDark':
-                themeName = l10n.codeBlockThemeGithubDark;
-                break;
-              case 'codeBlockThemeGithubLight':
-                themeName = l10n.codeBlockThemeGithubLight;
-                break;
-              case 'codeBlockThemeNord':
-                themeName = l10n.codeBlockThemeNord;
-                break;
-              case 'codeBlockThemeMaterial':
-                themeName = l10n.codeBlockThemeMaterial;
-                break;
-              default:
-                themeName = theme.name;
-            }
-            return GestureDetector(
-              onTap: () => settings.setCodeBlockThemeIndex(index),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.1)
-                      : Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).dividerColor,
-                    width: isSelected ? 2 : 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.code_rounded,
-                      size: 18,
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : context.appIconColor,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio:
+                  2.5 / MediaQuery.textScalerOf(context).scale(1).clamp(1, 2),
+              children: List.generate(AppConstants.codeBlockThemes.length, (
+                index,
+              ) {
+                final theme = AppConstants.codeBlockThemes[index];
+                final isSelected = settings.codeBlockThemeIndex == index;
+                // 获取本地化名称
+                String themeName;
+                switch (theme.name) {
+                  case 'codeBlockThemeAuto':
+                    themeName = l10n.codeBlockThemeAuto;
+                    break;
+                  case 'codeBlockThemeOneDark':
+                    themeName = l10n.codeBlockThemeOneDark;
+                    break;
+                  case 'codeBlockThemeOneLight':
+                    themeName = l10n.codeBlockThemeOneLight;
+                    break;
+                  case 'codeBlockThemeGithubDark':
+                    themeName = l10n.codeBlockThemeGithubDark;
+                    break;
+                  case 'codeBlockThemeGithubLight':
+                    themeName = l10n.codeBlockThemeGithubLight;
+                    break;
+                  case 'codeBlockThemeNord':
+                    themeName = l10n.codeBlockThemeNord;
+                    break;
+                  case 'codeBlockThemeMaterial':
+                    themeName = l10n.codeBlockThemeMaterial;
+                    break;
+                  default:
+                    themeName = theme.name;
+                }
+                return GestureDetector(
+                  onTap: () => settings.setCodeBlockThemeIndex(index),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        themeName,
-                        style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurface,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primaryContainer
+                          : Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : Theme.of(context).dividerColor,
+                        width: isSelected ? 2 : 1,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ),
-      ],
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.code_rounded,
+                          size: 18,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                              : context.appIconColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            themeName,
+                            style: TextStyle(
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isSelected
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -933,9 +1030,10 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     }
     if (!mounted || colors.isEmpty) return;
 
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text(l10n.accentFromImage),
         content: Wrap(
           spacing: 12,
@@ -954,7 +1052,9 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
                     color: color,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Theme.of(dialogContext).colorScheme.outline,
+                      color: Theme.of(
+                        dialogContext,
+                      ).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -990,10 +1090,11 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     final controller = TextEditingController(text: currentValue.toString());
     final l10n = AppLocalizations.of(context)!;
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
+          scrollable: true,
           title: Text(title),
           content: TextField(
             controller: controller,
@@ -1053,147 +1154,162 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 选择背景图片
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.background),
-            TextButton.icon(
-              onPressed: () => pickBackgroundImage(settings),
-              icon: const Icon(Icons.image, size: 18),
-              label: Text(l10n.selectImage),
+            // 选择背景图片
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Text(l10n.background),
+                TextButton.icon(
+                  onPressed: () => pickBackgroundImage(settings),
+                  icon: const Icon(Icons.image, size: 18),
+                  label: Text(l10n.selectImage),
+                ),
+              ],
             ),
-          ],
-        ),
-        if (settings.backgroundImagePath != null) ...[
-          const SizedBox(height: 8),
-          // 背景预览
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.file(
-              File(settings.backgroundImagePath!),
-              height: 100,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
+            if (settings.backgroundImagePath != null) ...[
+              const SizedBox(height: 8),
+              // 背景预览
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  File(settings.backgroundImagePath!),
                   height: 100,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(child: Text(l10n.clearImage)),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-          // 背景效果选择
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l10n.blurEffect),
-              Switch(
-                value: settings.backgroundEffect == 'blur',
-                onChanged: (value) {
-                  settings.setBackgroundEffect(value ? 'blur' : 'none');
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(l10n.brightness),
-              Expanded(
-                child: Slider(
-                  value: _pendingBackgroundBrightness,
-                  min: 0,
-                  max: 200,
-                  divisions: 200,
-                  label: '${_pendingBackgroundBrightness.round()}%',
-                  onChanged: (value) {
-                    setState(() {
-                      _pendingBackgroundBrightness = value;
-                    });
-                    settings.updateBackgroundBrightnessInMemory(value / 100);
-                    _backgroundBrightnessDebounce?.cancel();
-                    _backgroundBrightnessDebounce = Timer(
-                      const Duration(milliseconds: 300),
-                      () {
-                        settings.setBackgroundBrightness(value / 100);
-                      },
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(child: Text(l10n.clearImage)),
                     );
                   },
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  showNumberEditDialog(
-                    title: l10n.brightness,
-                    currentValue: _pendingBackgroundBrightness.round(),
-                    minValue: 0,
-                    maxValue: 200,
-                    onSaved: (value) {
-                      setState(() {
-                        _pendingBackgroundBrightness = value.toDouble();
-                      });
-                      settings.updateBackgroundBrightnessInMemory(value / 100);
-                      settings.setBackgroundBrightness(value / 100);
+              const SizedBox(height: 16),
+              // 背景效果选择
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(l10n.blurEffect),
+                  Switch(
+                    value: settings.backgroundEffect == 'blur',
+                    onChanged: (value) {
+                      settings.setBackgroundEffect(value ? 'blur' : 'none');
                     },
-                  );
-                },
-                child: SizedBox(
-                  width: 50,
-                  child: Text(
-                    '${_pendingBackgroundBrightness.round()}%',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      decoration: TextDecoration.underline,
-                      color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(l10n.brightness),
+                  Expanded(
+                    child: Slider(
+                      value: _pendingBackgroundBrightness,
+                      min: 0,
+                      max: 200,
+                      divisions: 200,
+                      label: '${_pendingBackgroundBrightness.round()}%',
+                      onChanged: (value) {
+                        setState(() {
+                          _pendingBackgroundBrightness = value;
+                        });
+                        settings.updateBackgroundBrightnessInMemory(
+                          value / 100,
+                        );
+                        _backgroundBrightnessDebounce?.cancel();
+                        _backgroundBrightnessDebounce = Timer(
+                          const Duration(milliseconds: 300),
+                          () {
+                            settings.setBackgroundBrightness(value / 100);
+                          },
+                        );
+                      },
                     ),
                   ),
+                  GestureDetector(
+                    onTap: () {
+                      showNumberEditDialog(
+                        title: l10n.brightness,
+                        currentValue: _pendingBackgroundBrightness.round(),
+                        minValue: 0,
+                        maxValue: 200,
+                        onSaved: (value) {
+                          setState(() {
+                            _pendingBackgroundBrightness = value.toDouble();
+                          });
+                          settings.updateBackgroundBrightnessInMemory(
+                            value / 100,
+                          );
+                          settings.setBackgroundBrightness(value / 100);
+                        },
+                      );
+                    },
+                    child: SizedBox(
+                      width: 50,
+                      child: Text(
+                        '${_pendingBackgroundBrightness.round()}%',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          decoration: TextDecoration.underline,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              // 模糊强度滑块
+              if (settings.backgroundEffect == 'blur') ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(l10n.blurStrength),
+                    Expanded(
+                      child: Slider(
+                        value: settings.backgroundBlur,
+                        min: 0,
+                        max: 100,
+                        divisions: 100,
+                        label: settings.backgroundBlur.round().toString(),
+                        onChanged: (value) => settings.setBackgroundBlur(value),
+                      ),
+                    ),
+                    Text('${settings.backgroundBlur.round()}'),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 8),
+              // 移除背景按钮
+              TextButton.icon(
+                onPressed: () => settings.setBackgroundImage(null),
+                icon: Icon(
+                  Icons.delete,
+                  color: Theme.of(context).colorScheme.error,
+                  size: 18,
+                ),
+                label: Text(
+                  l10n.clearBackground,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             ],
-          ),
-          // 模糊强度滑块
-          if (settings.backgroundEffect == 'blur') ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(l10n.blurStrength),
-                Expanded(
-                  child: Slider(
-                    value: settings.backgroundBlur,
-                    min: 0,
-                    max: 100,
-                    divisions: 100,
-                    label: settings.backgroundBlur.round().toString(),
-                    onChanged: (value) => settings.setBackgroundBlur(value),
-                  ),
-                ),
-                Text('${settings.backgroundBlur.round()}'),
-              ],
-            ),
           ],
-          const SizedBox(height: 8),
-          // 移除背景按钮
-          TextButton.icon(
-            onPressed: () => settings.setBackgroundImage(null),
-            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-            label: Text(
-              l10n.clearBackground,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
 
@@ -1202,147 +1318,160 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.editorBackground),
-            TextButton.icon(
-              onPressed: () => pickEditorBackgroundImage(settings),
-              icon: const Icon(Icons.image, size: 18),
-              label: Text(l10n.selectImage),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Text(l10n.editorBackground),
+                TextButton.icon(
+                  onPressed: () => pickEditorBackgroundImage(settings),
+                  icon: const Icon(Icons.image, size: 18),
+                  label: Text(l10n.selectImage),
+                ),
+              ],
             ),
-          ],
-        ),
-        if (settings.editorBackgroundImagePath != null) ...[
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.file(
-              File(settings.editorBackgroundImagePath!),
-              height: 100,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
+            if (settings.editorBackgroundImagePath != null) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  File(settings.editorBackgroundImagePath!),
                   height: 100,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(child: Text(l10n.clearImage)),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l10n.blurEffect),
-              Switch(
-                value: settings.editorBackgroundBlurEnabled,
-                onChanged: (value) {
-                  settings.setEditorBackgroundBlurEnabled(value);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(l10n.brightness),
-              Expanded(
-                child: Slider(
-                  value: _pendingEditorBackgroundBrightness,
-                  min: 0,
-                  max: 200,
-                  divisions: 200,
-                  label: '${_pendingEditorBackgroundBrightness.round()}%',
-                  onChanged: (value) {
-                    setState(() {
-                      _pendingEditorBackgroundBrightness = value;
-                    });
-                    settings.updateEditorBackgroundBrightnessInMemory(
-                      value / 100,
-                    );
-                    _editorBackgroundBrightnessDebounce?.cancel();
-                    _editorBackgroundBrightnessDebounce = Timer(
-                      const Duration(milliseconds: 300),
-                      () {
-                        settings.setEditorBackgroundBrightness(value / 100);
-                      },
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(child: Text(l10n.clearImage)),
                     );
                   },
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  showNumberEditDialog(
-                    title: l10n.brightness,
-                    currentValue: _pendingEditorBackgroundBrightness.round(),
-                    minValue: 0,
-                    maxValue: 200,
-                    onSaved: (value) {
-                      setState(() {
-                        _pendingEditorBackgroundBrightness = value.toDouble();
-                      });
-                      settings.updateEditorBackgroundBrightnessInMemory(
-                        value / 100,
-                      );
-                      settings.setEditorBackgroundBrightness(value / 100);
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(l10n.blurEffect),
+                  Switch(
+                    value: settings.editorBackgroundBlurEnabled,
+                    onChanged: (value) {
+                      settings.setEditorBackgroundBlurEnabled(value);
                     },
-                  );
-                },
-                child: SizedBox(
-                  width: 50,
-                  child: Text(
-                    '${_pendingEditorBackgroundBrightness.round()}%',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      decoration: TextDecoration.underline,
-                      color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(l10n.brightness),
+                  Expanded(
+                    child: Slider(
+                      value: _pendingEditorBackgroundBrightness,
+                      min: 0,
+                      max: 200,
+                      divisions: 200,
+                      label: '${_pendingEditorBackgroundBrightness.round()}%',
+                      onChanged: (value) {
+                        setState(() {
+                          _pendingEditorBackgroundBrightness = value;
+                        });
+                        settings.updateEditorBackgroundBrightnessInMemory(
+                          value / 100,
+                        );
+                        _editorBackgroundBrightnessDebounce?.cancel();
+                        _editorBackgroundBrightnessDebounce = Timer(
+                          const Duration(milliseconds: 300),
+                          () {
+                            settings.setEditorBackgroundBrightness(value / 100);
+                          },
+                        );
+                      },
                     ),
                   ),
+                  GestureDetector(
+                    onTap: () {
+                      showNumberEditDialog(
+                        title: l10n.brightness,
+                        currentValue: _pendingEditorBackgroundBrightness
+                            .round(),
+                        minValue: 0,
+                        maxValue: 200,
+                        onSaved: (value) {
+                          setState(() {
+                            _pendingEditorBackgroundBrightness = value
+                                .toDouble();
+                          });
+                          settings.updateEditorBackgroundBrightnessInMemory(
+                            value / 100,
+                          );
+                          settings.setEditorBackgroundBrightness(value / 100);
+                        },
+                      );
+                    },
+                    child: SizedBox(
+                      width: 50,
+                      child: Text(
+                        '${_pendingEditorBackgroundBrightness.round()}%',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          decoration: TextDecoration.underline,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (settings.editorBackgroundBlurEnabled) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(l10n.blurStrength),
+                    Expanded(
+                      child: Slider(
+                        value: settings.editorBackgroundBlur,
+                        min: 0,
+                        max: 100,
+                        divisions: 100,
+                        label: settings.editorBackgroundBlur.round().toString(),
+                        onChanged: (value) =>
+                            settings.setEditorBackgroundBlur(value),
+                      ),
+                    ),
+                    Text('${settings.editorBackgroundBlur.round()}'),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () => settings.setEditorBackgroundImage(null),
+                icon: Icon(
+                  Icons.delete,
+                  color: Theme.of(context).colorScheme.error,
+                  size: 18,
+                ),
+                label: Text(
+                  l10n.clearBackground,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             ],
-          ),
-          if (settings.editorBackgroundBlurEnabled) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(l10n.blurStrength),
-                Expanded(
-                  child: Slider(
-                    value: settings.editorBackgroundBlur,
-                    min: 0,
-                    max: 100,
-                    divisions: 100,
-                    label: settings.editorBackgroundBlur.round().toString(),
-                    onChanged: (value) =>
-                        settings.setEditorBackgroundBlur(value),
-                  ),
-                ),
-                Text('${settings.editorBackgroundBlur.round()}'),
-              ],
-            ),
           ],
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () => settings.setEditorBackgroundImage(null),
-            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-            label: Text(
-              l10n.clearBackground,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
 
@@ -1351,87 +1480,93 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    final options = [
-      {'index': 0, 'label': l10n.defaultIcon, 'asset': 'app.png'},
-      {'index': 1, 'label': l10n.icon2, 'asset': 'assets/icons/icon2.png'},
-    ];
+    return Builder(
+      builder: (context) {
+        final options = [
+          {'index': 0, 'label': l10n.defaultIcon, 'asset': 'app.png'},
+          {'index': 1, 'label': l10n.icon2, 'asset': 'assets/icons/icon2.png'},
+        ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.appIconSelectorHint,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.outline,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: options.map((opt) {
-            final idx = opt['index'] as int;
-            final isSelected = settings.appIconIndex == idx;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => _setAppIcon(settings, idx, l10n),
-                child: borderedOptionCard(
-                  isSelected: isSelected,
-                  margin: EdgeInsets.only(right: idx == 0 ? 8 : 0),
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.asset(
-                          opt['asset'] as String,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.image, size: 28),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.appIconSelectorHint,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: options.map((opt) {
+                final idx = opt['index'] as int;
+                final isSelected = settings.appIconIndex == idx;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => _setAppIcon(settings, idx, l10n),
+                    child: borderedOptionCard(
+                      isSelected: isSelected,
+                      margin: EdgeInsets.only(right: idx == 0 ? 8 : 0),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
                         children: [
-                          if (isSelected)
-                            Icon(
-                              Icons.check_circle,
-                              size: 14,
-                              color: Theme.of(context).colorScheme.primary,
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.asset(
+                              opt['asset'] as String,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.image, size: 28),
+                              ),
                             ),
-                          if (isSelected) const SizedBox(width: 4),
-                          Text(
-                            opt['label'] as String,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (isSelected)
+                                Icon(
+                                  Icons.check_circle,
+                                  size: 14,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              if (isSelected) const SizedBox(width: 4),
+                              Text(
+                                opt['label'] as String,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isSelected
+                                      ? Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimaryContainer
+                                      : Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
+                );
+              }).toList(),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1494,51 +1629,55 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.homeIconSelectorHint,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.outline,
-          ),
-        ),
-        const SizedBox(height: 12),
-        // 前三个选项（默认、icon2、隐藏）横排
-        Row(
+    return Builder(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _buildHomeIconOption(
-                settings,
-                'default',
-                l10n.defaultIcon,
-                icon: const AssetImage('app.png'),
+            Text(
+              l10n.homeIconSelectorHint,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildHomeIconOption(
-                settings,
-                'icon2',
-                l10n.icon2,
-                icon: const AssetImage('assets/icons/icon2.png'),
-              ),
+            const SizedBox(height: 12),
+            // 前三个选项（默认、icon2、隐藏）横排
+            Row(
+              children: [
+                Expanded(
+                  child: _buildHomeIconOption(
+                    settings,
+                    'default',
+                    l10n.defaultIcon,
+                    icon: const AssetImage('app.png'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildHomeIconOption(
+                    settings,
+                    'icon2',
+                    l10n.icon2,
+                    icon: const AssetImage('assets/icons/icon2.png'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildHomeIconOption(
+                    settings,
+                    'none',
+                    l10n.hidden,
+                    iconWidget: const Icon(Icons.hide_image_outlined, size: 32),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildHomeIconOption(
-                settings,
-                'none',
-                l10n.hidden,
-                iconWidget: const Icon(Icons.hide_image_outlined, size: 32),
-              ),
-            ),
+            const SizedBox(height: 8),
+            // 自定义选项占一行
+            _buildHomeIconCustomOption(settings, l10n),
           ],
-        ),
-        const SizedBox(height: 8),
-        // 自定义选项占一行
-        _buildHomeIconCustomOption(settings, l10n),
-      ],
+        );
+      },
     );
   }
 
@@ -1549,49 +1688,55 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     ImageProvider? icon,
     Widget? iconWidget,
   }) {
-    final isSelected = settings.homeIconMode == mode;
-    return GestureDetector(
-      onTap: () => settings.setHomeIconMode(mode),
-      child: borderedOptionCard(
-        isSelected: isSelected,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Column(
-          children: [
-            if (iconWidget != null)
-              iconWidget
-            else if (icon != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image(
-                  image: icon,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.image, size: 40),
+    return Builder(
+      builder: (context) {
+        final isSelected = settings.homeIconMode == mode;
+        return GestureDetector(
+          onTap: () => settings.setHomeIconMode(mode),
+          child: borderedOptionCard(
+            isSelected: isSelected,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Column(
+              children: [
+                if (iconWidget != null)
+                  iconWidget
+                else if (icon != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image(
+                      image: icon,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.image, size: 40),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
-              ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
+                if (isSelected)
+                  Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+              ],
             ),
-            if (isSelected)
-              Icon(
-                Icons.check_circle,
-                size: 14,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1599,82 +1744,84 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    final isSelected = settings.homeIconMode == 'custom';
-    final customPath = settings.homeIconCustomPath;
-    return GestureDetector(
-      onTap: () => _pickHomeCustomIcon(settings),
-      child: borderedOptionCard(
-        isSelected: isSelected,
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            if (isSelected && customPath != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  File(customPath),
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.broken_image, size: 40),
-                ),
-              )
-            else
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.add_photo_alternate_outlined,
-                  size: 24,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.customImage,
-                    style: TextStyle(
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurface,
+    return Builder(
+      builder: (context) {
+        final isSelected = settings.homeIconMode == 'custom';
+        final customPath = settings.homeIconCustomPath;
+        return GestureDetector(
+          onTap: () => _pickHomeCustomIcon(settings),
+          child: borderedOptionCard(
+            isSelected: isSelected,
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                if (isSelected && customPath != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(customPath),
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.broken_image, size: 40),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.add_photo_alternate_outlined,
+                      size: 24,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
-                  Text(
-                    isSelected && customPath != null
-                        ? customPath.split('/').last.split('\\').last
-                        : l10n.selectFromGallery,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.customImage,
+                        style: TextStyle(
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                              : Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        isSelected && customPath != null
+                            ? customPath.split('/').last.split('\\').last
+                            : l10n.selectFromGallery,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Icon(
+                  isSelected ? Icons.check_circle : Icons.chevron_right,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimaryContainer
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+              ],
             ),
-            Icon(
-              isSelected ? Icons.check_circle : Icons.chevron_right,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.outline,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1697,27 +1844,31 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     SettingsProvider settings,
     AppLocalizations l10n,
   ) {
-    final homeTitleText = settings.homeTitleText;
-    if (_homeTitleController.text != homeTitleText) {
-      _homeTitleController.value = TextEditingValue(
-        text: homeTitleText,
-        selection: TextSelection.collapsed(offset: homeTitleText.length),
-      );
-    }
-    return TextField(
-      controller: _homeTitleController,
-      decoration: InputDecoration(
-        hintText: l10n.homeTitleHint,
-        border: const OutlineInputBorder(),
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.clear),
-          onPressed: () {
-            _homeTitleController.clear();
-            settings.setHomeTitleText('');
-          },
-        ),
-      ),
-      onChanged: (value) => settings.setHomeTitleText(value),
+    return Builder(
+      builder: (context) {
+        final homeTitleText = settings.homeTitleText;
+        if (_homeTitleController.text != homeTitleText) {
+          _homeTitleController.value = TextEditingValue(
+            text: homeTitleText,
+            selection: TextSelection.collapsed(offset: homeTitleText.length),
+          );
+        }
+        return TextField(
+          controller: _homeTitleController,
+          decoration: InputDecoration(
+            hintText: l10n.homeTitleHint,
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _homeTitleController.clear();
+                settings.setHomeTitleText('');
+              },
+            ),
+          ),
+          onChanged: (value) => settings.setHomeTitleText(value),
+        );
+      },
     );
   }
 
@@ -1725,56 +1876,69 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     Color previewPrimary, {
     required double opacity,
   }) {
-    if (!appStyle.useLiquidGlass) {
-      return Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: Theme.of(
-            context,
-          ).colorScheme.surface.withValues(alpha: opacity),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-          border: appStyle.surfaceBorder(),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavPreviewIcon(
-              Icons.home_rounded,
-              selected: true,
-              primary: previewPrimary,
+    return Builder(
+      builder: (context) {
+        final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+        if (!appStyle.useLiquidGlass) {
+          return Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surface.withValues(alpha: opacity),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
+              border: appStyle.surfaceBorder(),
             ),
-            _buildNavPreviewIcon(
-              Icons.folder_special_rounded,
-              primary: previewPrimary,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavPreviewIcon(
+                  Icons.home_rounded,
+                  selected: true,
+                  primary: previewPrimary,
+                ),
+                _buildNavPreviewIcon(
+                  Icons.folder_special_rounded,
+                  primary: previewPrimary,
+                ),
+                _buildNavPreviewIcon(
+                  Icons.history_rounded,
+                  primary: previewPrimary,
+                ),
+                _buildNavPreviewIcon(
+                  Icons.settings_rounded,
+                  primary: previewPrimary,
+                ),
+              ],
             ),
-            _buildNavPreviewIcon(
-              Icons.history_rounded,
-              primary: previewPrimary,
+          );
+        }
+
+        return GlassTabBar.inline(
+          tabs: [
+            GlassTab(icon: Icon(Icons.home_rounded), semanticLabel: 'Home'),
+            GlassTab(
+              icon: Icon(Icons.folder_special_rounded),
+              semanticLabel: 'My Files',
             ),
-            _buildNavPreviewIcon(
-              Icons.settings_rounded,
-              primary: previewPrimary,
+            GlassTab(
+              icon: Icon(Icons.history_rounded),
+              semanticLabel: 'History',
+            ),
+            GlassTab(
+              icon: Icon(Icons.settings_rounded),
+              semanticLabel: 'Settings',
             ),
           ],
-        ),
-      );
-    }
-
-    return GlassTabBar.inline(
-      tabs: [
-        GlassTab(icon: Icon(Icons.home_rounded), semanticLabel: 'Home'),
-        GlassTab(
-          icon: Icon(Icons.folder_special_rounded),
-          semanticLabel: 'My Files',
-        ),
-        GlassTab(icon: Icon(Icons.history_rounded), semanticLabel: 'History'),
-        GlassTab(icon: Icon(Icons.settings_rounded), semanticLabel: 'Settings'),
-      ],
-      selectedIndex: 0,
-      onTabSelected: (_) {},
-      // 与真实导航栏（liquid_glass_capsule_tab_bar）一致，否则拖动滑块时预览毫无变化
-      settings: LiquidGlassSettings(visibility: opacity),
+          selectedIndex: 0,
+          onTabSelected: (_) {},
+          // 与真实导航栏（liquid_glass_capsule_tab_bar）一致，否则拖动滑块时预览毫无变化
+          settings: LiquidGlassSettings(visibility: opacity),
+        );
+      },
     );
   }
 
@@ -1783,24 +1947,28 @@ mixin AppearanceSettingsMixin<T extends StatefulWidget> on State<T> {
     bool selected = false,
     required Color primary,
   }) {
-    return Center(
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: selected
-              ? primary.withValues(alpha: 0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: selected
-              ? primary
-              : Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
+    return Builder(
+      builder: (context) {
+        return Center(
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: selected
+                  ? primary.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              size: 16,
+              color: selected
+                  ? primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        );
+      },
     );
   }
 }

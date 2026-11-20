@@ -89,7 +89,7 @@ class FileTile extends StatelessWidget {
       }
     }
 
-    return AppSurface(
+    return AppSurface.builder(
       borderRadius: BorderRadius.circular(tileRadius),
       margin: EdgeInsets.only(bottom: isDesktop ? 6 : 8),
       color: appStyle.scaledSurfaceColor(
@@ -107,7 +107,7 @@ class FileTile extends StatelessWidget {
                         : Colors.amber.withValues(alpha: 0.3))
                   : Theme.of(context).dividerColor.withValues(alpha: 0.5),
             ),
-      child: MouseRegion(
+      builder: (context) => MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Material(
           color: Colors.transparent,
@@ -182,7 +182,10 @@ class FileTile extends StatelessWidget {
                         Text(
                           name,
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -190,7 +193,9 @@ class FileTile extends StatelessWidget {
                           subtitle,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
-                                color: Theme.of(context).colorScheme.outline,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -207,14 +212,14 @@ class FileTile extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
                         child: Icon(
                           Icons.drag_handle,
-                          color: Theme.of(context).colorScheme.outline,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     )
                   else
                     Icon(
                       Icons.chevron_right,
-                      color: Theme.of(context).colorScheme.outline,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                 ],
               ),

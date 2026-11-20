@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../models/document_version.dart';
 import '../../../utils/line_diff_calculator.dart';
 import '../../../widgets/outer_shadow.dart';
+import '../../../widgets/app_surface.dart';
+import '../../../utils/app_style.dart';
 
 // ============================================================================
 // DiffViewOverlay — 行级 Diff 对比覆盖层
@@ -34,20 +36,27 @@ OverlayEntry showDiffViewOverlay({
   required void Function(DocumentVersion version) onRestore,
   required void Function(DocumentVersion version) onCreateNewDoc,
 }) {
+  final overlay = Overlay.of(context);
+  final inheritedThemes = InheritedTheme.capture(
+    from: context,
+    to: overlay.context,
+  );
   late OverlayEntry entry;
   entry = OverlayEntry(
-    builder: (context) => DiffViewOverlay(
-      oldVersion: oldVersion,
-      newVersion: newVersion,
-      oldContent: oldContent,
-      newContent: newContent,
-      // 回退到新版本 vk（不是旧版本 vk-1）
-      onRestore: () => onRestore(newVersion),
-      onCreateNewDoc: () => onCreateNewDoc(newVersion),
-      onClose: () => entry.remove(),
+    builder: (context) => inheritedThemes.wrap(
+      DiffViewOverlay(
+        oldVersion: oldVersion,
+        newVersion: newVersion,
+        oldContent: oldContent,
+        newContent: newContent,
+        // 回退到新版本 vk（不是旧版本 vk-1）
+        onRestore: () => onRestore(newVersion),
+        onCreateNewDoc: () => onCreateNewDoc(newVersion),
+        onClose: () => entry.remove(),
+      ),
     ),
   );
-  Overlay.of(context).insert(entry);
+  overlay.insert(entry);
   return entry;
 }
 
@@ -277,20 +286,35 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            // 顶部信息栏
-            _buildInfoBar(context),
-            const SizedBox(height: 8),
-            // Diff 统计栏
-            if (_diffResult != null) _buildStatsBar(context),
-            const SizedBox(height: 8),
-            // 对比区域
-            Expanded(child: _buildCompareArea(context)),
-            const SizedBox(height: 8),
-            // 底部操作栏
-            _buildActionBar(context),
-          ],
+        child: AppSurface.builder(
+          role: SurfaceRole.modal,
+          padding: const EdgeInsets.all(12),
+          borderRadius: BorderRadius.circular(20),
+          builder: (context) => Column(
+            children: [
+              // 顶部信息栏
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.25,
+                ),
+                child: SingleChildScrollView(child: _buildInfoBar(context)),
+              ),
+              const SizedBox(height: 8),
+              // Diff 统计栏
+              if (_diffResult != null) _buildStatsBar(context),
+              const SizedBox(height: 8),
+              // 对比区域
+              Expanded(child: _buildCompareArea(context)),
+              const SizedBox(height: 8),
+              // 底部操作栏
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.3,
+                ),
+                child: SingleChildScrollView(child: _buildActionBar(context)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -350,7 +374,7 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
                       Text(
                         'v${widget.oldVersion.versionNumber} → v${widget.newVersion.versionNumber}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.outline,
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -375,7 +399,11 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
                   colors.errorContainer,
                   colors.onErrorContainer,
                 ),
-                Icon(Icons.arrow_forward, size: 20, color: colors.outline),
+                Icon(
+                  Icons.arrow_forward,
+                  size: 20,
+                  color: colors.onSurfaceVariant,
+                ),
                 _buildVersionChip(
                   context,
                   '新版本 v${widget.newVersion.versionNumber}',
@@ -401,12 +429,16 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
     Color fgColor,
   ) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final chipPalette = theme.extension<AppStyleTheme>()!.resolveSurface(
+      theme,
+      role: SurfaceRole.inset,
+      color: bgColor,
+    );
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: bgColor.withValues(alpha: 0.3),
+          color: chipPalette.surface,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
@@ -416,20 +448,20 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
               title,
               style: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: fgColor,
+                color: chipPalette.ensureForeground(fgColor),
               ),
             ),
             const SizedBox(height: 2),
             Text(
               time,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+                color: chipPalette.onSurfaceVariant,
               ),
             ),
             Text(
               size,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+                color: chipPalette.onSurfaceVariant,
               ),
             ),
           ],
@@ -451,8 +483,10 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
         color: colors.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: Wrap(
+        alignment: WrapAlignment.spaceAround,
+        spacing: 16,
+        runSpacing: 10,
         children: [
           _buildStatItem(context, '+${result.addedCount}', '新增', Colors.green),
           _buildStatItem(context, '-${result.removedCount}', '删除', Colors.red),
@@ -474,26 +508,34 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
     Color color,
   ) {
     final theme = Theme.of(context);
+    final readableColor = theme
+        .extension<AppStyleTheme>()!
+        .resolveSurface(theme, role: SurfaceRole.inset)
+        .ensureForeground(color);
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: readableColor,
+            shape: BoxShape.circle,
+          ),
         ),
         const SizedBox(width: 6),
         Text(
           value,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
-            color: color,
+            color: readableColor,
           ),
         ),
         const SizedBox(width: 4),
         Text(
           label,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.outline,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -526,7 +568,7 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
           Text(
             '正在计算差异...',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.outline,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -578,13 +620,13 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
           Icon(
             Icons.check_circle_outline,
             size: 48,
-            color: theme.colorScheme.outline,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 12),
           Text(
             '两个版本内容完全相同',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.outline,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -593,6 +635,19 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
   }
 
   Widget _buildSideBySideView(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: constraints.maxWidth < 600 ? 600 : constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: _buildWideComparison(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWideComparison(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final lines = _diffResult!.lines;
@@ -736,6 +791,13 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
         lineNumber = isLeft ? line.oldLineNumber : line.newLineNumber;
     }
 
+    final rowPalette = theme.extension<AppStyleTheme>()!.resolveSurface(
+      theme,
+      role: SurfaceRole.inset,
+      color: Color.alphaBlend(bgColor, colors.surface.withValues(alpha: 1)),
+    );
+    textColor = rowPalette.ensureForeground(textColor);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       color: bgColor,
@@ -748,9 +810,9 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
             child: Text(
               lineNumber != null ? '$lineNumber' : '',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.outline,
+                color: rowPalette.onSurfaceVariant,
                 fontFamily: 'monospace',
-                fontSize: 11,
+                fontSize: 13,
               ),
               textAlign: TextAlign.right,
             ),
@@ -762,10 +824,12 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
             child: Text(
               _lineTypePrefix(line.type, isLeft),
               style: TextStyle(
-                color: _lineTypeColor(line.type, colors),
+                color: rowPalette.ensureForeground(
+                  _lineTypeColor(line.type, colors),
+                ),
                 fontWeight: FontWeight.bold,
                 fontFamily: 'monospace',
-                fontSize: 12,
+                fontSize: 13,
               ),
             ),
           ),
@@ -831,49 +895,44 @@ class _DiffViewOverlayState extends State<DiffViewOverlay>
           color: colors.surface,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Row(
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 12,
+          runSpacing: 8,
           children: [
             // 关闭按钮
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _startClose,
-                icon: const Icon(Icons.close, size: 18),
-                label: const Text('关闭'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+            OutlinedButton.icon(
+              onPressed: _startClose,
+              icon: const Icon(Icons.close, size: 18),
+              label: const Text('关闭'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
             // 回退按钮
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: widget.onRestore,
-                icon: const Icon(Icons.restore, size: 18),
-                label: const Text('回退'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+            OutlinedButton.icon(
+              onPressed: widget.onRestore,
+              icon: const Icon(Icons.restore, size: 18),
+              label: const Text('回退'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
             // 创建新文档按钮
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: widget.onCreateNewDoc,
-                icon: const Icon(Icons.note_add, size: 18),
-                label: const Text('新文档'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+            OutlinedButton.icon(
+              onPressed: widget.onCreateNewDoc,
+              icon: const Icon(Icons.note_add, size: 18),
+              label: const Text('新文档'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),

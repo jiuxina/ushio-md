@@ -40,3 +40,35 @@ Web 浮层通过现有主题载荷的 `overlay*` 颜色独立配色，正文、�
 - 布局矩阵覆盖 320/600/1280 逻辑像素宽度与 100%/200% 系统文字缩放。
 - 修改期间仅运行相关定向验证；实现与文档完成后，全量测试各运行一次。
 - 模拟器使用独立应用 ID 的合成界面，避免加载个人工作区或已有配置。
+
+## 合成验收入口
+
+`tools/readability_regression_app.dart` 不运行正常应用初始化，不初始化设置或文件
+provider，不加载已有偏好、个人目录或云端配置。它用程序生成的背景与文档展示
+共享卡片、对话框、面板及实际 Web 浮层。对外导航被限制为本地资源服务器。
+
+在 PowerShell 中构建独立调试包（项目 Gradle 属性仅影响 debug 包名）：
+
+```powershell
+Push-Location android
+.\gradlew.bat :app:assembleDebug -PreadabilityHarness=true `
+  '-Ptarget=tools/readability_regression_app.dart' --no-daemon
+Pop-Location
+```
+
+验收包应用 ID 为 `com.ushiomd.readability`，与正常应用隔离。安装后切换浅深色、
+三种风格、黑白卡片、棋盘背景、320 宽度及 200% 字号，检查卡片、输入框、
+确认弹窗、底部面板、链接提示及表格操作。输入内容只用于合成界面，不保存。
+
+正常应用人工检查路径：最近文件卡片；文件长按菜单与新建/重命名表单；
+设置中的文字与字体、表面与背景、编辑器、存储、云同步预览及关于页；
+编辑器的目录、搜索、版本历史/差异、链接与表格操作浮层。
+
+可通过定向命令生成共享组件的棋盘背景渲染图：
+
+```powershell
+flutter test --no-pub test/widgets/readable_surface_visual_test.dart --dart-define=READABILITY_CAPTURE=true
+```
+
+图片写入 `build/readability/captures/`；widget 测试默认字体用于布局验证，
+文字字形和真实玻璃渲染仍需以上独立 Android 验收入口检查。

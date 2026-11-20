@@ -30,11 +30,11 @@ class QuickActions extends StatelessWidget {
       return _buildCompactQuickActions(context);
     }
 
-    return AppSurface(
+    return AppSurface.builder(
       borderRadius: BorderRadius.circular(20),
       padding: const EdgeInsets.all(20),
       prominent: appStyle.useBorderlessButtons,
-      child: Column(
+      builder: (context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // First row
@@ -117,11 +117,11 @@ class QuickActions extends StatelessWidget {
 
   Widget _buildCompactQuickActions(BuildContext context) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return AppSurface(
+    return AppSurface.builder(
       borderRadius: BorderRadius.circular(16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       prominent: appStyle.useBorderlessButtons,
-      child: Row(
+      builder: (context) => Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildCompactIconButton(
@@ -208,13 +208,13 @@ class QuickActions extends StatelessWidget {
     bool compact = false,
   }) {
     final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return AppSurface(
+    return AppSurface.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: appStyle.scaledSurfaceColor(
         Theme.of(context).colorScheme,
         alpha: 0.5,
       ),
-      child: Row(
+      builder: (context) => Row(
         children: [
           Expanded(
             child: _buildDesktopActionButton(
@@ -298,11 +298,11 @@ class QuickActions extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
-          child: AppSurface(
+          child: AppSurface.builder(
             borderRadius: BorderRadius.circular(12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             prominent: appStyle.useBorderlessButtons,
-            child: Row(
+            builder: (context) => Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Padding(
@@ -310,11 +310,14 @@ class QuickActions extends StatelessWidget {
                   child: Icon(icon, color: context.appMutedIconColor, size: 20),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ],
             ),
@@ -336,11 +339,11 @@ class QuickActions extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: AppSurface(
+        child: AppSurface.builder(
           borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(12),
           prominent: appStyle.useBorderlessButtons,
-          child: Column(
+          builder: (context) => Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(2),

@@ -67,10 +67,13 @@ class AppSurface extends StatelessWidget {
 
     final content = ReadableSurfaceScope(
       palette: palette,
-      builder: (context) => Container(
-        padding: padding,
-        alignment: alignment,
-        child: builder?.call(context) ?? child,
+      builder: (context) => Material(
+        type: MaterialType.transparency,
+        child: Container(
+          padding: padding,
+          alignment: alignment,
+          child: builder?.call(context) ?? child,
+        ),
       ),
     );
 

@@ -42,6 +42,7 @@ import '../services/version_service.dart';
 import '../models/document_version.dart';
 import 'editor/components/version_history_sheet.dart';
 import 'editor/components/diff_view_overlay.dart';
+import '../widgets/app_modal.dart';
 
 enum EditorMode { edit, preview }
 
@@ -111,7 +112,7 @@ class _EditorScreenState extends State<EditorScreen>
       toolbarHeight: _isMilkdownEditorFocused || _editingBlockIndex != null
           ? MarkdownToolbar.heightFor(context)
           : 0,
-      headerHeight: EditorHeader.reserveHeight,
+      headerHeight: EditorHeader.reserveHeightFor(context),
     );
   }
 
@@ -458,7 +459,7 @@ class _EditorScreenState extends State<EditorScreen>
     // 顶部留白要和 _buildEditPanel 的 contentPadding 完全一致
     final caretY = _editCaretY(
       cursorOffset,
-      EditorHeader.reserveHeight + 16,
+      EditorHeader.reserveHeightFor(context) + 16,
       lineHeight,
       scrollPosition,
     );
@@ -1060,9 +1061,10 @@ class _EditorScreenState extends State<EditorScreen>
 
   /// 丢弃未保存的修改，恢复到上次保存的内容
   Future<void> _discardUnsavedChanges() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('丢弃修改'),
         content: const Text('确定要丢弃所有未保存的修改吗？\n此操作无法撤销。'),
@@ -1073,7 +1075,10 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             child: const Text('丢弃'),
           ),
         ],
@@ -1172,9 +1177,10 @@ class _EditorScreenState extends State<EditorScreen>
     _diffOverlayEntry?.remove();
 
     // 显示确认对话框
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('确认回退版本'),
         content: Text('将回退到版本 v${version.versionNumber}，当前内容会自动备份。'),
@@ -1430,9 +1436,10 @@ class _EditorScreenState extends State<EditorScreen>
       return _saveLatestForExit(showSnackbar: false);
     }
 
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -1442,12 +1449,13 @@ class _EditorScreenState extends State<EditorScreen>
                 color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.warning_amber, color: Colors.orange),
+              child: Icon(
+                Icons.warning_amber,
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text(l10n.unsavedChanges, overflow: TextOverflow.ellipsis),
-            ),
+            Expanded(child: Text(l10n.unsavedChanges)),
           ],
         ),
         content: Text(l10n.unsavedChangesMessage),
@@ -2033,7 +2041,7 @@ class _EditorScreenState extends State<EditorScreen>
               children: [
                 const Icon(Icons.broken_image, size: 48, color: Colors.grey),
                 const SizedBox(height: 8),
-                Text('图片加载失败', style: TextStyle(color: Colors.grey[600])),
+                Text('图片加载失败', style: TextStyle(color: Colors.grey[300])),
               ],
             ),
           );
@@ -2060,11 +2068,11 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               const Icon(Icons.broken_image, size: 48, color: Colors.grey),
               const SizedBox(height: 8),
-              Text('文件不存在', style: TextStyle(color: Colors.grey[600])),
+              Text('文件不存在', style: TextStyle(color: Colors.grey[300])),
               const SizedBox(height: 4),
               Text(
                 payload.src,
-                style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                style: TextStyle(color: Colors.grey[400], fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -2119,6 +2127,8 @@ class _EditorScreenState extends State<EditorScreen>
             if (payload.alt != null && payload.alt!.isNotEmpty)
               Positioned(
                 bottom: 0,
+                left: 12,
+                right: 12,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -2130,7 +2140,10 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   child: Text(
                     payload.alt!,
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    textAlign: TextAlign.center,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -2214,7 +2227,7 @@ class _EditorScreenState extends State<EditorScreen>
   Widget _buildInlineEditablePreview(SettingsProvider settings) {
     if (_hidePlatformViews) return const SizedBox.expand();
     return MilkdownWebViewEditor(
-      initialHeaderHeight: EditorHeader.reserveHeight,
+      initialHeaderHeight: EditorHeader.reserveHeightFor(context),
       initialToolbarHeight: _isMilkdownEditorFocused
           ? MarkdownToolbar.heightFor(context)
           : 0,
@@ -2718,7 +2731,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
             if (_lastActionFeedback != null)
               Positioned(
-                top: 60,
+                top: EditorHeader.reserveHeightFor(context) + 4,
                 left: 0,
                 right: 0,
                 child: Center(
@@ -2974,7 +2987,7 @@ class _EditorScreenState extends State<EditorScreen>
             // 就一直压在头部下面；底部不留出键盘高度，最后几行根本滚不进可视区。
             contentPadding: EdgeInsets.fromLTRB(
               hPad,
-              EditorHeader.reserveHeight + 16,
+              EditorHeader.reserveHeightFor(context) + 16,
               hPad,
               16 + toolbarPadding + keyboardInset,
             ),
@@ -3112,12 +3125,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _showMoreMenu() {
     final l10n = AppLocalizations.of(context)!;
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Colors.transparent,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(24),

@@ -3,22 +3,25 @@ library;
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../widgets/app_modal.dart';
 
 /// Shows a dialog with all available keyboard shortcuts.
 void showShortcutsHelpDialog(BuildContext context) {
   final bool isMac = Platform.isMacOS;
   final String mod = isMac ? '⌘' : 'Ctrl';
 
-  showDialog(
+  showAppDialog(
     context: context,
     builder: (context) => AlertDialog(
+      scrollable: true,
       title: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -27,7 +30,7 @@ void showShortcutsHelpDialog(BuildContext context) {
             ),
           ),
           const SizedBox(width: 12),
-          const Text('快捷键'),
+          const Flexible(child: Text('快捷键')),
         ],
       ),
       contentPadding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
@@ -87,17 +90,17 @@ Widget _buildShortcutCategory(
         child: Text(
           category,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       ...shortcuts.map(
         (shortcut) => ListTile(
-          dense: true,
-          visualDensity: VisualDensity.compact,
+          minVerticalPadding: 8,
           title: Text(shortcut.$1),
-          trailing: Container(
+          subtitle: Container(
+            margin: const EdgeInsets.only(top: 6),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -106,8 +109,10 @@ Widget _buildShortcutCategory(
             child: Text(
               shortcut.$2,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
-                  ),
+                fontFamily: 'monospace',
+                fontSize: 13,
+                height: 1.45,
+              ),
             ),
           ),
         ),

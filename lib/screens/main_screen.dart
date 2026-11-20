@@ -30,6 +30,7 @@ import '../utils/capsule_nav_insets.dart';
 import '../widgets/capsule_tab_bar_scope.dart';
 import '../widgets/outer_shadow.dart';
 import '../widgets/liquid_glass_capsule_tab_bar.dart';
+import '../widgets/app_modal.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -167,7 +168,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     const warmupKey = 'startup_preview_warmup_done';
     if (prefs.getBool(warmupKey) == true || !mounted) return;
 
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => ThemedProgressDialog(

@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../services/update_service.dart';
 import '../../utils/app_style.dart';
 import '../../utils/constants.dart';
+import '../../widgets/app_modal.dart';
 
 class UpdateProxiesSheet extends StatefulWidget {
   const UpdateProxiesSheet({
@@ -25,7 +26,7 @@ class UpdateProxiesSheet extends StatefulWidget {
     required List<String> proxies,
     required ValueChanged<List<String>> onChanged,
   }) {
-    return showModalBottomSheet<void>(
+    return showAppModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -44,7 +45,7 @@ class _UpdateProxiesSheetState extends State<UpdateProxiesSheet> {
   late final List<String> _items = List<String>.of(widget.proxies);
 
   Future<void> _openEditor({int? editIndex}) async {
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
       builder: (_) => _ProxyEditorDialog(
         initialValue: editIndex == null ? '' : _items[editIndex],
@@ -105,7 +106,7 @@ class _UpdateProxiesSheetState extends State<UpdateProxiesSheet> {
             Text(
               l10n.updateProxiesHint,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.outline,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 10),
@@ -124,8 +125,8 @@ class _UpdateProxiesSheetState extends State<UpdateProxiesSheet> {
                   Text(
                     l10n.updateProxyExampleNote,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.outline,
-                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -149,7 +150,7 @@ class _UpdateProxiesSheetState extends State<UpdateProxiesSheet> {
                     l10n.updateProxiesEmpty,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.outline,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -264,6 +265,7 @@ class _ProxyEditorDialogState extends State<_ProxyEditorDialog> {
     final l10n = AppLocalizations.of(context)!;
 
     return AlertDialog(
+      scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text(
         widget.initialValue.isEmpty

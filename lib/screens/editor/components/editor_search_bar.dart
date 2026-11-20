@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
+import '../../../widgets/app_surface.dart';
 import '../models/editor_models.dart';
 
 /// A callback for jumping to a search match.
@@ -82,6 +83,15 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    return AppSurface.builder(
+      role: SurfaceRole.modal,
+      padding: const EdgeInsets.all(8),
+      borderRadius: BorderRadius.circular(16),
+      builder: _buildContent,
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final appStyle = theme.extension<AppStyleTheme>()!;
@@ -141,7 +151,7 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
                     size: 20,
                     color: _showHistory
                         ? theme.colorScheme.primary
-                        : theme.colorScheme.outline,
+                        : theme.colorScheme.onSurfaceVariant,
                   ),
                   onPressed: () {
                     setState(() => _showHistory = !_showHistory);
@@ -182,7 +192,10 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
           color: theme.colorScheme.outline.withValues(alpha: 0.18),
         ),
       ),
-      child: Row(
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 4,
+        runSpacing: 4,
         children: [
           // Case sensitive toggle
           _buildOptionButton(
@@ -231,13 +244,11 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
           ),
           const SizedBox(width: 8),
           // Match count
-          Expanded(
-            child: Text(
-              widget.matches.isEmpty
-                  ? l10n.noMatch
-                  : '${widget.activeMatchIndex + 1}/${widget.matches.length}',
-              style: theme.textTheme.bodySmall,
-            ),
+          Text(
+            widget.matches.isEmpty
+                ? l10n.noMatch
+                : '${widget.activeMatchIndex + 1}/${widget.matches.length}',
+            style: theme.textTheme.bodySmall,
           ),
           // Navigation buttons
           IconButton(
@@ -273,7 +284,7 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: isActive
-                ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                ? theme.colorScheme.primaryContainer
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
@@ -281,8 +292,8 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
             icon,
             size: 18,
             color: isActive
-                ? theme.colorScheme.primary
-                : theme.colorScheme.outline,
+                ? theme.colorScheme.onPrimaryContainer
+                : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -328,7 +339,7 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
                           child: Text(
                             AppLocalizations.of(context)!.noMatchContent,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         )
@@ -342,6 +353,10 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
                             return ListTile(
                               dense: true,
                               selected: isActive,
+                              selectedTileColor:
+                                  theme.colorScheme.primaryContainer,
+                              selectedColor:
+                                  theme.colorScheme.onPrimaryContainer,
                               title: Text(
                                 match.preview,
                                 maxLines: 1,
@@ -377,12 +392,16 @@ class _EditorSearchBarState extends State<EditorSearchBar> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Row(
               children: [
-                Icon(Icons.history, size: 16, color: theme.colorScheme.outline),
+                Icon(
+                  Icons.history,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '搜索历史',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],

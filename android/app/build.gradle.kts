@@ -32,6 +32,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Keep synthetic visual checks separate from the installed app.
+            if (providers.gradleProperty("readabilityHarness").orNull == "true") {
+                applicationIdSuffix = ".readability"
+            }
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

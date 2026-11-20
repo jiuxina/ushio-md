@@ -16,6 +16,7 @@ import '../widgets/milkdown_webview_editor.dart';
 import '../l10n/app_localizations.dart';
 import 'editor_navigation_helper.dart';
 import 'responsive_layout.dart';
+import '../widgets/app_modal.dart';
 
 enum FileSource { myFiles, pinned, history }
 
@@ -66,14 +67,14 @@ class FileActions {
             ? FileSource.pinned
             : (isRecent ? FileSource.history : FileSource.myFiles));
 
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => _buildDesktopAwareSheet(
         context,
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: Colors.transparent,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.all(24),
@@ -202,14 +203,14 @@ class FileActions {
     // Note: Folder browser history (?) - history tab has folders? Yes "Recent Folders".
     // So if it's from history tab, source is history.
 
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => _buildDesktopAwareSheet(
         context,
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: Colors.transparent,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.all(24),
@@ -371,11 +372,13 @@ class FileActions {
               children: [
                 Icon(icon, color: context.appMutedIconColor),
                 const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -398,7 +401,7 @@ class FileActions {
       child: Text(
         path,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.outline,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
           height: 1.35,
         ),
         textAlign: TextAlign.center,
@@ -931,7 +934,7 @@ class FileActions {
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 11,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -951,7 +954,7 @@ class FileActions {
                   child: Text(
                     '待开发',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 13,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -982,11 +985,12 @@ class FileActions {
     // 防抖标志
     bool isRenaming = false;
 
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
+            scrollable: true,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
@@ -1092,9 +1096,10 @@ class FileActions {
   }) async {
     final fileName = path.split(Platform.pathSeparator).last;
 
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('删除文件'),
         content: Text('确定要删除 "$fileName" 吗？此操作不可撤销。'),
@@ -1105,7 +1110,10 @@ class FileActions {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             child: const Text('删除'),
           ),
         ],
@@ -1126,9 +1134,10 @@ class FileActions {
   }) async {
     final nameController = TextEditingController();
 
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('新建文件'),
         content: TextField(
@@ -1201,10 +1210,11 @@ class FileActions {
       selectedPath = fileProvider.recentFolders.first;
     }
 
-    final result = await showDialog<Map<String, String>>(
+    final result = await showAppDialog<Map<String, String>>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -1212,7 +1222,7 @@ class FileActions {
             children: [
               Icon(Icons.add_circle, color: context.appIconColor),
               const SizedBox(width: 12),
-              const Text('新建 Markdown'),
+              const Flexible(child: Text('新建 Markdown')),
             ],
           ),
           content: SingleChildScrollView(
@@ -1237,7 +1247,7 @@ class FileActions {
                 Text(
                   '保存位置',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1288,7 +1298,9 @@ class FileActions {
                             style: TextStyle(
                               color: selectedPath != null
                                   ? null
-                                  : Theme.of(context).colorScheme.outline,
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -1296,7 +1308,7 @@ class FileActions {
                         ),
                         Icon(
                           Icons.chevron_right,
-                          color: Theme.of(context).colorScheme.outline,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ],
                     ),
@@ -1362,10 +1374,11 @@ class FileActions {
       }
     }
 
-    final result = await showDialog<Map<String, String>>(
+    final result = await showAppDialog<Map<String, String>>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          scrollable: true,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -1373,7 +1386,7 @@ class FileActions {
             children: [
               Icon(Icons.create_new_folder, color: context.appIconColor),
               const SizedBox(width: 12),
-              const Text('新建文件夹'),
+              const Flexible(child: Text('新建文件夹')),
             ],
           ),
           content: SingleChildScrollView(
@@ -1397,7 +1410,7 @@ class FileActions {
                 Text(
                   '创建位置',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1448,7 +1461,9 @@ class FileActions {
                             style: TextStyle(
                               color: selectedPath != null
                                   ? null
-                                  : Theme.of(context).colorScheme.outline,
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -1527,11 +1542,12 @@ class FileActions {
     final illegalCharsRegex = RegExp(r'[\\/:*?"<>|]');
     String? errorText;
 
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
+            scrollable: true,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
@@ -1606,9 +1622,10 @@ class FileActions {
   }) async {
     final folderName = path.split(Platform.pathSeparator).last;
 
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('删除文件夹'),
         content: Text('确定要删除 "$folderName" 及其所有内容吗？此操作不可撤销。'),
@@ -1619,7 +1636,10 @@ class FileActions {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             child: const Text('删除'),
           ),
         ],

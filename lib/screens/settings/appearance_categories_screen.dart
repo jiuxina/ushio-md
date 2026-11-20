@@ -20,26 +20,27 @@ class AppearanceCategoriesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    final categories = <({IconData icon, String title, String desc, Widget page})>[
-      (
-        icon: Icons.palette_outlined,
-        title: l10n.colorThemeSettings,
-        desc: l10n.colorThemeSettingsDesc,
-        page: const ColorThemeScreen(),
-      ),
-      (
-        icon: Icons.text_fields,
-        title: l10n.textAndFontSettings,
-        desc: l10n.textAndFontSettingsDesc,
-        page: const FontSettingsScreen(),
-      ),
-      (
-        icon: Icons.layers_outlined,
-        title: l10n.surfaceAndBackgroundSettings,
-        desc: l10n.surfaceAndBackgroundSettingsDesc,
-        page: const BackgroundSettingsScreen(),
-      ),
-    ];
+    final categories =
+        <({IconData icon, String title, String desc, Widget page})>[
+          (
+            icon: Icons.palette_outlined,
+            title: l10n.colorThemeSettings,
+            desc: l10n.colorThemeSettingsDesc,
+            page: const ColorThemeScreen(),
+          ),
+          (
+            icon: Icons.text_fields,
+            title: l10n.textAndFontSettings,
+            desc: l10n.textAndFontSettingsDesc,
+            page: const FontSettingsScreen(),
+          ),
+          (
+            icon: Icons.layers_outlined,
+            title: l10n.surfaceAndBackgroundSettings,
+            desc: l10n.surfaceAndBackgroundSettingsDesc,
+            page: const BackgroundSettingsScreen(),
+          ),
+        ];
 
     return AppBackground(
       wrapWithSafeArea: false,

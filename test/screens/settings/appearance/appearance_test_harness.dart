@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -6,19 +8,22 @@ import 'package:mdreader/l10n/app_localizations.dart';
 import 'package:mdreader/providers/settings_provider.dart';
 import 'package:mdreader/utils/app_style.dart';
 import 'package:mdreader/utils/constants.dart';
+import 'package:mdreader/utils/theme_tones.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakePathProviderPlatform extends PathProviderPlatform {
-  @override
-  Future<String?> getApplicationDocumentsPath() async => 'C:/fake/documents';
+  String get _root => '${Directory.current.path}/build/test-temp/appearance';
 
   @override
-  Future<String?> getApplicationSupportPath() async => 'C:/fake/support';
+  Future<String?> getApplicationDocumentsPath() async => '$_root/documents';
 
   @override
-  Future<String?> getTemporaryPath() async => 'C:/tmp';
+  Future<String?> getApplicationSupportPath() async => '$_root/support';
+
+  @override
+  Future<String?> getTemporaryPath() async => '$_root/tmp';
 }
 
 /// 用真实 SettingsProvider + 平台 mock 构建外观页测试环境。
@@ -41,22 +46,31 @@ Future<void> pumpAppearancePage(
   SettingsProvider settings,
   Widget page, {
   Brightness brightness = Brightness.light,
+  Size logicalSize = const Size(400, 3000),
+  double textScale = 1,
 }) async {
-  tester.view.physicalSize = const Size(1200, 9000);
+  tester.view.physicalSize = logicalSize * 3;
   tester.view.devicePixelRatio = 3.0;
   addTearDown(tester.view.reset);
 
-  final scheme = ColorScheme.fromSeed(
-    seedColor: SettingsProvider.themeColors.first,
+  final paper = brightness == Brightness.dark
+      ? AppConstants.darkThemeSchemes[settings.darkThemeIndex]
+      : AppConstants.lightThemeSchemes[settings.lightThemeIndex];
+  final scheme = ThemeTones.scheme(
+    themeScheme: paper,
+    primary: settings.primaryColor,
     brightness: brightness,
+    error: AppConstants.errorColor,
   );
   final appStyle = AppStyleTheme.resolve(
     brightness: brightness,
     colorScheme: scheme,
-    backgroundColor: scheme.surface,
+    backgroundColor: paper.background,
     textSecondary: scheme.onSurfaceVariant,
-    buttonStyleMode: AppButtonStyleMode.liquidGlass,
-    cardOpacity: 0.8,
+    buttonStyleMode: settings.buttonStyleMode,
+    cardOpacity: settings.cardOpacity,
+    customCardColor: settings.customCardColor,
+    customIconColor: settings.customIconColor,
   );
 
   await tester.pumpWidget(
@@ -74,7 +88,17 @@ Future<void> pumpAppearancePage(
         theme: ThemeData(
           colorScheme: scheme,
           brightness: brightness,
+          scaffoldBackgroundColor: paper.background,
+          textTheme: TextTheme(
+            bodyMedium: TextStyle(color: settings.uiFontColorFor(brightness)),
+          ),
           extensions: [appStyle],
+        ),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
         ),
         home: page,
       ),

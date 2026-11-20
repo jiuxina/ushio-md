@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../widgets/app_modal.dart';
 
 /// 外观设置工具类，包含共用的 UI 组件
 class AppearanceUtils {
@@ -104,7 +105,7 @@ class AppearanceUtils {
     Color? previewBackgroundColor,
   }) {
     final l10n = AppLocalizations.of(context)!;
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) {
         Color selectedColor = initialColor;
@@ -122,6 +123,7 @@ class AppearanceUtils {
             }
 
             return AlertDialog(
+              scrollable: true,
               title: Text(title),
               content: SingleChildScrollView(
                 child: Column(

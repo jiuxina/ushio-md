@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/toc_item.dart';
-import '../../../widgets/outer_shadow.dart';
+import '../../../widgets/app_surface.dart';
+import '../../../utils/app_style.dart';
 
 class TocOverlayController {
   VoidCallback? _closeImpl;
@@ -160,31 +161,19 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
                   onTap: () {},
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: OuterShadow(
-                      shadows: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.22),
-                          blurRadius: 24,
-                          offset: const Offset(-6, 0),
-                        ),
-                      ],
+                    child: AppSurface.builder(
+                      role: SurfaceRole.modal,
                       borderRadius: BorderRadius.circular(22),
-                      child: Container(
-                        width: MediaQuery.of(context).size.width * 0.78,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(22),
-                          child: Column(
-                            children: [
-                              _buildHeader(context, l10n),
-                              if (widget.items.length >= _filterThreshold)
-                                _buildFilter(context, l10n),
-                              Expanded(child: _buildList(context, l10n)),
-                            ],
-                          ),
+                      width: MediaQuery.of(context).size.width * 0.88,
+                      builder: (context) => ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Column(
+                          children: [
+                            _buildHeader(context, l10n),
+                            if (widget.items.length >= _filterThreshold)
+                              _buildFilter(context, l10n),
+                            Expanded(child: _buildList(context, l10n)),
+                          ],
                         ),
                       ),
                     ),
@@ -203,14 +192,7 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 6, 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            cs.primary.withValues(alpha: 0.10),
-            cs.primary.withValues(alpha: 0.03),
-          ],
-        ),
+        color: cs.surfaceContainerHighest,
         border: Border(
           bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)),
         ),
@@ -252,15 +234,15 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
       margin: const EdgeInsets.only(right: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: cs.primary.withValues(alpha: 0.12),
+        color: cs.primaryContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         '$count',
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w700,
-          color: cs.primary,
+          color: cs.onPrimaryContainer,
         ),
       ),
     );
@@ -292,8 +274,8 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
     final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-      child: SizedBox(
-        height: 40,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 40),
         child: TextField(
           controller: _filterController,
           onChanged: (v) => setState(() => _query = v),
@@ -385,7 +367,7 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
             message,
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: cs.outline),
+            ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
       ),
@@ -404,14 +386,7 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
     final indent = (level - 1) * 15.0;
     final isCurrent = origIndex == widget.currentHeadingIndex;
 
-    final pulseBoost = (_pulsedIndex == origIndex)
-        ? Curves.easeOut.transform(1 - _pulse.value) * 0.14
-        : 0.0;
-
-    final baseAlpha = (0.92 - (level - 1) * 0.09).clamp(0.55, 0.92);
-    final textColor = isCurrent
-        ? accent
-        : cs.onSurface.withValues(alpha: baseAlpha);
+    final textColor = isCurrent ? cs.onPrimaryContainer : cs.onSurface;
 
     final reveal = _itemReveal(visualIndex);
 
@@ -431,10 +406,13 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
                 curve: Curves.easeOut,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
                 decoration: BoxDecoration(
-                  color: isCurrent
-                      ? accent.withValues(alpha: 0.10 + pulseBoost)
-                      : accent.withValues(alpha: pulseBoost),
+                  color: isCurrent ? cs.primaryContainer : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: accent.withValues(
+                      alpha: _pulsedIndex == origIndex ? 1 - _pulse.value : 0,
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -460,7 +438,7 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
                         style: TextStyle(
                           fontSize: level == 1
                               ? 15.5
-                              : (15.0 - (level - 1) * 0.6).clamp(12.5, 15.0),
+                              : (15.0 - (level - 1) * 0.6).clamp(13.0, 15.0),
                           fontWeight: level == 1
                               ? FontWeight.w700
                               : (level == 2
@@ -493,10 +471,7 @@ class _TocOverlayState extends State<TocOverlay> with TickerProviderStateMixin {
       height: isCurrent ? 8 : 6,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isCurrent ? accent : cs.onSurfaceVariant.withValues(alpha: 0.45),
-        boxShadow: isCurrent
-            ? [BoxShadow(color: accent.withValues(alpha: 0.5), blurRadius: 6)]
-            : null,
+        color: isCurrent ? cs.onPrimaryContainer : cs.onSurfaceVariant,
       ),
     );
   }

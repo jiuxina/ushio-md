@@ -14,6 +14,7 @@ import '../providers/settings_provider.dart';
 import '../services/my_files_service.dart';
 import 'app_style.dart';
 import 'editor_navigation_helper.dart';
+import '../widgets/app_modal.dart';
 
 /// 文件导入结果
 class FileImportResult {
@@ -76,7 +77,7 @@ class FileImportHelper {
     // 文件不在工作区内，询问用户
     if (!context.mounted) return const FileImportResult(success: false);
 
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
       builder: (context) => _ImportDialog(fileName: _getFileName(filePath)),
     );
@@ -168,6 +169,7 @@ class _ImportDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [

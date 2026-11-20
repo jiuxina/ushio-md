@@ -14,6 +14,7 @@ import '../../services/my_files_service.dart';
 import '../../widgets/app_background.dart';
 import '../../utils/app_style.dart';
 import '../../widgets/app_surface.dart';
+import '../../widgets/app_modal.dart';
 
 class StorageSettingsScreen extends StatefulWidget {
   const StorageSettingsScreen({super.key});
@@ -130,143 +131,151 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   }
 
   Widget _buildSection(String title, IconData icon, List<Widget> children) {
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return AppSurface(
-      padding: const EdgeInsets.all(16),
-      color: appStyle.scaledSurfaceColor(
-        Theme.of(context).colorScheme,
-        alpha: 0.7,
-      ),
-      border: appStyle.useBorderlessButtons
-          ? null
-          : Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Builder(
+      builder: (context) {
+        final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+        return AppSurface.builder(
+          padding: const EdgeInsets.all(16),
+          color: appStyle.scaledSurfaceColor(
+            Theme.of(context).colorScheme,
+            alpha: 0.7,
+          ),
+          border: appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                ),
+          builder: (context) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                color: Theme.of(context).colorScheme.primary,
-                size: 20,
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-              ),
+              const SizedBox(height: 16),
+              ...children,
             ],
           ),
-          const SizedBox(height: 16),
-          ...children,
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildWorkspaceInfo(AppLocalizations l10n) {
-    final settings = context.watch<SettingsProvider>();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return Builder(
+      builder: (context) {
+        final settings = context.watch<SettingsProvider>();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.folder, color: context.appMutedIconColor),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${settings.workspaceName} ${l10n.workspace}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Icon(Icons.folder, color: context.appMutedIconColor),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${settings.workspaceName} ${l10n.workspace}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _workspacePathError ??
+                            (_workspacePath.isEmpty
+                                ? l10n.loading
+                                : _workspacePath),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _workspacePathError ??
-                        (_workspacePath.isEmpty
-                            ? l10n.loading
-                            : _workspacePath),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 工作区文件夹名称设置
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.workspaceFolderName),
+              subtitle: Text(settings.workspaceName),
+              trailing: TextButton(
+                onPressed: () => _showEditWorkspaceNameDialog(settings, l10n),
+                child: Text(l10n.change),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 基础路径自定义设置
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.customBasePathAdvanced),
+              subtitle: Text(
+                settings.customWorkspaceBasePath ?? l10n.useDefaultPath,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (settings.customWorkspaceBasePath != null)
+                    TextButton(
+                      onPressed: () => _clearCustomBasePath(settings, l10n),
+                      child: Text(l10n.reset),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  TextButton(
+                    onPressed: () => _showEditBasePathDialog(settings, l10n),
+                    child: Text(l10n.change),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: context.appMutedIconColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      l10n.workspaceFilesSyncToCloud,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        // 工作区文件夹名称设置
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.workspaceFolderName),
-          subtitle: Text(settings.workspaceName),
-          trailing: TextButton(
-            onPressed: () => _showEditWorkspaceNameDialog(settings, l10n),
-            child: Text(l10n.change),
-          ),
-        ),
-        const SizedBox(height: 12),
-        // 基础路径自定义设置
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(l10n.customBasePathAdvanced),
-          subtitle: Text(
-            settings.customWorkspaceBasePath ?? l10n.useDefaultPath,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (settings.customWorkspaceBasePath != null)
-                TextButton(
-                  onPressed: () => _clearCustomBasePath(settings, l10n),
-                  child: Text(l10n.reset),
-                ),
-              TextButton(
-                onPressed: () => _showEditBasePathDialog(settings, l10n),
-                child: Text(l10n.change),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                color: context.appMutedIconColor,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  l10n.workspaceFilesSyncToCloud,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -274,23 +283,27 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     FileProvider fileProvider,
     AppLocalizations l10n,
   ) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(Icons.history, color: context.appMutedIconColor),
-      title: Text(l10n.clearRecentFiles),
-      subtitle: Text(l10n.filesCount(fileProvider.recentFiles.length)),
-      trailing: TextButton(
-        onPressed: fileProvider.recentFiles.isEmpty
-            ? null
-            : () => _showClearConfirmDialog(
-                context,
-                l10n.clearRecentFiles,
-                l10n.confirmClearRecentFiles,
-                () => fileProvider.clearRecentFiles(),
-                l10n,
-              ),
-        child: Text(l10n.clear),
-      ),
+    return Builder(
+      builder: (context) {
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.history, color: context.appMutedIconColor),
+          title: Text(l10n.clearRecentFiles),
+          subtitle: Text(l10n.filesCount(fileProvider.recentFiles.length)),
+          trailing: TextButton(
+            onPressed: fileProvider.recentFiles.isEmpty
+                ? null
+                : () => _showClearConfirmDialog(
+                    context,
+                    l10n.clearRecentFiles,
+                    l10n.confirmClearRecentFiles,
+                    () => fileProvider.clearRecentFiles(),
+                    l10n,
+                  ),
+            child: Text(l10n.clear),
+          ),
+        );
+      },
     );
   }
 
@@ -298,23 +311,27 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     FileProvider fileProvider,
     AppLocalizations l10n,
   ) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(Icons.folder_open, color: context.appMutedIconColor),
-      title: Text(l10n.clearRecentFolders),
-      subtitle: Text(l10n.foldersCount(fileProvider.recentFolders.length)),
-      trailing: TextButton(
-        onPressed: fileProvider.recentFolders.isEmpty
-            ? null
-            : () => _showClearConfirmDialog(
-                context,
-                l10n.clearRecentFolders,
-                l10n.confirmClearRecentFolders,
-                () => fileProvider.clearRecentFolders(),
-                l10n,
-              ),
-        child: Text(l10n.clear),
-      ),
+    return Builder(
+      builder: (context) {
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.folder_open, color: context.appMutedIconColor),
+          title: Text(l10n.clearRecentFolders),
+          subtitle: Text(l10n.foldersCount(fileProvider.recentFolders.length)),
+          trailing: TextButton(
+            onPressed: fileProvider.recentFolders.isEmpty
+                ? null
+                : () => _showClearConfirmDialog(
+                    context,
+                    l10n.clearRecentFolders,
+                    l10n.confirmClearRecentFolders,
+                    () => fileProvider.clearRecentFolders(),
+                    l10n,
+                  ),
+            child: Text(l10n.clear),
+          ),
+        );
+      },
     );
   }
 
@@ -325,9 +342,10 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
     VoidCallback onConfirm,
     AppLocalizations l10n,
   ) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(title),
         content: Text(message),
@@ -356,7 +374,10 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
                 ),
               );
             },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             child: Text(l10n.confirm),
           ),
         ],
@@ -370,9 +391,10 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
   ) {
     final controller = TextEditingController(text: settings.workspaceName);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -497,9 +519,10 @@ class _StorageSettingsScreenState extends State<StorageSettingsScreen> {
 
     if (!mounted) return;
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [

@@ -22,6 +22,7 @@ import '../../services/cloud_sync_service.dart';
 import '../../widgets/app_background.dart';
 import '../../utils/app_style.dart';
 import '../../widgets/app_surface.dart';
+import '../../widgets/app_modal.dart';
 
 class CloudSyncScreen extends StatefulWidget {
   const CloudSyncScreen({super.key});
@@ -227,240 +228,268 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   }
 
   Widget _buildInfoCard() {
-    final l10n = AppLocalizations.of(context)!;
-    final settings = context.watch<SettingsProvider>();
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    final fullPath = settings.getFullSyncPath();
-    final syncTypeName = _selectedSyncType == 'webdav' ? l10n.webdav : l10n.ftp;
+    return Builder(
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        final settings = context.watch<SettingsProvider>();
+        final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+        final fullPath = settings.getFullSyncPath();
+        final syncTypeName = _selectedSyncType == 'webdav'
+            ? l10n.webdav
+            : l10n.ftp;
 
-    return AppSurface(
-      padding: const EdgeInsets.all(16),
-      borderRadius: BorderRadius.circular(16),
-      color: appStyle.scaledSurfaceColor(
-        Theme.of(context).colorScheme,
-        alpha: 0.8,
-      ),
-      border: appStyle.useBorderlessButtons
-          ? null
-          : Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(2),
-            child: Icon(Icons.cloud_sync, color: context.appIconColor),
+        return AppSurface.builder(
+          padding: const EdgeInsets.all(16),
+          borderRadius: BorderRadius.circular(16),
+          color: appStyle.scaledSurfaceColor(
+            Theme.of(context).colorScheme,
+            alpha: 0.8,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$syncTypeName ${l10n.cloudSync}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+          border: appStyle.useBorderlessButtons
+              ? null
+              : Border.all(
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '将"我的文件"同步到云端 $fullPath 文件夹',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
+          builder: (context) => Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(Icons.cloud_sync, color: context.appIconColor),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$syncTypeName ${l10n.cloudSync}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '将"我的文件"同步到云端 $fullPath 文件夹',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildCredentialsSection() {
-    final l10n = AppLocalizations.of(context)!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.cloudSyncConfig,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-
-        // 同步类型选择器
-        DropdownButtonFormField<String>(
-          value: _selectedSyncType,
-          decoration: InputDecoration(
-            labelText: l10n.syncServiceType,
-            prefixIcon: const Icon(Icons.sync_alt),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          items: [
-            DropdownMenuItem(value: 'webdav', child: Text(l10n.webdav)),
-            DropdownMenuItem(value: 'ftp', child: Text(l10n.ftp)),
-          ],
-          onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _selectedSyncType = value;
-                _testResult = null; // 重置测试结果
-              });
-              _initializeSyncService();
-            }
-          },
-        ),
-        const SizedBox(height: 16),
-
-        // 根据选择的类型显示不同的配置字段
-        if (_selectedSyncType == 'webdav') ..._buildWebDAVFields(),
-        if (_selectedSyncType == 'ftp') ...[
-          // FTP 安全警告
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(
+    return AppSurface.builder(
+      padding: const EdgeInsets.all(16),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.cloudSyncConfig,
+              style: Theme.of(
                 context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+
+            // 同步类型选择器
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              value: _selectedSyncType,
+              decoration: InputDecoration(
+                labelText: l10n.syncServiceType,
+                prefixIcon: const Icon(Icons.sync_alt),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              items: [
+                DropdownMenuItem(value: 'webdav', child: Text(l10n.webdav)),
+                DropdownMenuItem(value: 'ftp', child: Text(l10n.ftp)),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedSyncType = value;
+                    _testResult = null; // 重置测试结果
+                  });
+                  _initializeSyncService();
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // 根据选择的类型显示不同的配置字段
+            if (_selectedSyncType == 'webdav') ..._buildWebDAVFields(context),
+            if (_selectedSyncType == 'ftp') ...[
+              // FTP 安全警告
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(
+                      context,
+                    ).dividerColor.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber,
+                      color: context.appMutedIconColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '⚠️ FTP 不加密传输，密码和文件内容可能被窃取。建议使用 WebDAV (HTTPS)。此功能将在未来版本移除。',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ..._buildFTPFields(context),
+            ],
+
+            // 共用字段
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _folderNameController,
+              decoration: InputDecoration(
+                labelText: l10n.cloudFolderName,
+                hintText: 'Ushio-MD',
+                prefixIcon: const Icon(Icons.folder),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                helperText: l10n.folderNameHelper,
+                helperMaxLines: 2,
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return l10n.enterFolderName;
+                }
+                if (value.contains('/') || value.contains('\\')) {
+                  return l10n.folderNameNoSlashes;
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _remotePathController,
+              decoration: InputDecoration(
+                labelText: l10n.cloudPathPrefix,
+                hintText: '例如：/storage/emulated/0/ 或 /documents/',
+                prefixIcon: const Icon(Icons.folder_open),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                helperText:
+                    '${l10n.cloudPathHelper}${_folderNameController.text}',
               ),
             ),
-            child: Row(
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                Icon(
-                  Icons.warning_amber,
-                  color: context.appMutedIconColor,
-                  size: 20,
+                OutlinedButton.icon(
+                  onPressed: _isTesting ? null : _testConnection,
+                  icon: _isTesting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.wifi_tethering),
+                  label: Text(_isTesting ? l10n.testing : l10n.testConnection),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '⚠️ FTP 不加密传输，密码和文件内容可能被窃取。建议使用 WebDAV (HTTPS)。此功能将在未来版本移除。',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                FilledButton.icon(
+                  onPressed: _saveCredentials,
+                  icon: const Icon(Icons.save),
+                  label: Text(l10n.saveConfig),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-          ..._buildFTPFields(),
-        ],
-
-        // 共用字段
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _folderNameController,
-          decoration: InputDecoration(
-            labelText: l10n.cloudFolderName,
-            hintText: 'Ushio-MD',
-            prefixIcon: const Icon(Icons.folder),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            helperText: l10n.folderNameHelper,
-            helperMaxLines: 2,
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return l10n.enterFolderName;
-            }
-            if (value.contains('/') || value.contains('\\')) {
-              return l10n.folderNameNoSlashes;
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _remotePathController,
-          decoration: InputDecoration(
-            labelText: l10n.cloudPathPrefix,
-            hintText: '例如：/storage/emulated/0/ 或 /documents/',
-            prefixIcon: const Icon(Icons.folder_open),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            helperText: '${l10n.cloudPathHelper}${_folderNameController.text}',
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _isTesting ? null : _testConnection,
-                icon: _isTesting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.wifi_tethering),
-                label: Text(_isTesting ? l10n.testing : l10n.testConnection),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            if (_testResult != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(
+                      context,
+                    ).dividerColor.withValues(alpha: 0.5),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: _saveCredentials,
-                icon: const Icon(Icons.save),
-                label: Text(l10n.saveConfig),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _testResult! ? Icons.check_circle : Icons.error,
+                      color: Theme.of(context)
+                          .extension<AppStyleTheme>()!
+                          .resolveSurface(Theme.of(context))
+                          .ensureForeground(
+                            _testResult! ? Colors.green : Colors.red,
+                            minimumContrast: 3,
+                          ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _testResult!
+                            ? l10n.connectionSuccess
+                            : l10n.connectionFailed,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+            ],
           ],
-        ),
-        if (_testResult != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  _testResult! ? Icons.check_circle : Icons.error,
-                  color: _testResult! ? Colors.green : Colors.red,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  _testResult! ? l10n.connectionSuccess : l10n.connectionFailed,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
 
-  List<Widget> _buildWebDAVFields() {
+  List<Widget> _buildWebDAVFields(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return [
       TextFormField(
@@ -523,7 +552,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     ];
   }
 
-  List<Widget> _buildFTPFields() {
+  List<Widget> _buildFTPFields(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return [
       TextFormField(
@@ -605,300 +634,338 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
   }
 
   Widget _buildSyncControlsSection(SettingsProvider settings) {
-    final l10n = AppLocalizations.of(context)!;
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.syncControls,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        AppSurface(
-          padding: const EdgeInsets.all(16),
-          color: Theme.of(context).colorScheme.surface,
-          border: appStyle.useBorderlessButtons
-              ? null
-              : Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.autorenew,
-                    color: context.appMutedIconColor,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.autoSync,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        Text(
-                          l10n.autoSyncDescription,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                        ),
-                      ],
+    return AppSurface.builder(
+      padding: const EdgeInsets.all(16),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.syncControls,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            AppSurface.builder(
+              role: SurfaceRole.inset,
+              padding: const EdgeInsets.all(16),
+              color: Theme.of(context).colorScheme.surface,
+              border: appStyle.useBorderlessButtons
+                  ? null
+                  : Border.all(
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.5),
                     ),
-                  ),
-                  Switch(
-                    value: settings.autoSyncEnabled,
-                    onChanged: settings.isSyncConfigured
-                        ? (value) => settings.setAutoSyncEnabled(value)
-                        : null,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // 同步进度条
-              ValueListenableBuilder<SyncProgress?>(
-                valueListenable: _cloudSyncService.progressNotifier,
-                builder: (context, progress, child) {
-                  if (progress == null || !_isSyncing) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Column(
+              builder: (context) => Column(
+                children: [
+                  Row(
                     children: [
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).dividerColor.withValues(alpha: 0.5),
-                          ),
-                        ),
+                      Icon(
+                        Icons.autorenew,
+                        color: context.appMutedIconColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  progress.operation == 'upload'
-                                      ? Icons.upload
-                                      : Icons.download,
-                                  size: 16,
-                                  color: context.appMutedIconColor,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    progress.currentFile,
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
-                                        ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${progress.processedFiles}/${progress.totalFiles}',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: LinearProgressIndicator(
-                                value: progress.percentage / 100,
-                                minHeight: 8,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHighest,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).colorScheme.primary,
-                                ),
+                            Text(
+                              l10n.autoSync,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const SizedBox(height: 8),
                             Text(
-                              '${progress.percentage.toStringAsFixed(1)}%',
+                              l10n.autoSyncDescription,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.7),
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                             ),
                           ],
                         ),
                       ),
+                      Switch(
+                        value: settings.autoSyncEnabled,
+                        onChanged: settings.isSyncConfigured
+                            ? (value) => settings.setAutoSyncEnabled(value)
+                            : null,
+                      ),
                     ],
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: settings.isSyncConfigured && !_isSyncing
-                      ? _performSync
-                      : null,
-                  icon: _isSyncing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                  ),
+                  const SizedBox(height: 16),
+                  // 同步进度条
+                  ValueListenableBuilder<SyncProgress?>(
+                    valueListenable: _cloudSyncService.progressNotifier,
+                    builder: (context, progress, child) {
+                      if (progress == null || !_isSyncing) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return Column(
+                        children: [
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
+                                  .withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).dividerColor.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      progress.operation == 'upload'
+                                          ? Icons.upload
+                                          : Icons.download,
+                                      size: 16,
+                                      color: context.appMutedIconColor,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        progress.currentFile,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurface,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${progress.processedFiles}/${progress.totalFiles}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: LinearProgressIndicator(
+                                    value: progress.percentage / 100,
+                                    minHeight: 8,
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '${progress.percentage.toStringAsFixed(1)}%',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface
+                                            .withValues(alpha: 0.7),
+                                      ),
+                                ),
+                              ],
+                            ),
                           ),
-                        )
-                      : const Icon(Icons.sync),
-                  label: Text(_isSyncing ? l10n.syncing : l10n.syncNow),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: settings.isSyncConfigured && !_isSyncing
+                          ? _performSync
+                          : null,
+                      icon: _isSyncing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.sync),
+                      label: Text(_isSyncing ? l10n.syncing : l10n.syncNow),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
+            if (_syncError != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _syncError!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-        ),
-        if (_syncError != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _syncError!,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
+          ],
+        );
+      },
     );
   }
 
   Widget _buildStatusSection(SettingsProvider settings) {
-    final l10n = AppLocalizations.of(context)!;
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
-    final syncTypeName = settings.syncType == 'webdav' ? l10n.webdav : l10n.ftp;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.syncStatus,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        AppSurface(
-          padding: const EdgeInsets.all(16),
-          color: Theme.of(context).colorScheme.surface,
-          border: appStyle.useBorderlessButtons
-              ? null
-              : Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                ),
-          child: Column(
-            children: [
-              _buildStatusRow(
-                l10n.syncService,
-                syncTypeName,
-                Theme.of(context).colorScheme.primary,
+    return AppSurface.builder(
+      padding: const EdgeInsets.all(16),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+        final syncTypeName = settings.syncType == 'webdav'
+            ? l10n.webdav
+            : l10n.ftp;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.syncStatus,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            AppSurface.builder(
+              role: SurfaceRole.inset,
+              padding: const EdgeInsets.all(16),
+              color: Theme.of(context).colorScheme.surface,
+              border: appStyle.useBorderlessButtons
+                  ? null
+                  : Border.all(
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.5),
+                    ),
+              builder: (context) => Column(
+                children: [
+                  _buildStatusRow(
+                    l10n.syncService,
+                    syncTypeName,
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                  const Divider(height: 24),
+                  _buildStatusRow(
+                    l10n.configStatus,
+                    settings.isSyncConfigured
+                        ? l10n.configured
+                        : l10n.notConfigured,
+                    settings.isSyncConfigured ? Colors.green : Colors.orange,
+                  ),
+                  const Divider(height: 24),
+                  _buildStatusRow(
+                    l10n.lastSync,
+                    settings.lastSyncTime != null
+                        ? _formatDateTime(settings.lastSyncTime!)
+                        : l10n.neverSynced,
+                    settings.lastSyncTime != null ? Colors.green : Colors.grey,
+                  ),
+                ],
               ),
-              const Divider(height: 24),
-              _buildStatusRow(
-                l10n.configStatus,
-                settings.isSyncConfigured
-                    ? l10n.configured
-                    : l10n.notConfigured,
-                settings.isSyncConfigured ? Colors.green : Colors.orange,
-              ),
-              const Divider(height: 24),
-              _buildStatusRow(
-                l10n.lastSync,
-                settings.lastSyncTime != null
-                    ? _formatDateTime(settings.lastSyncTime!)
-                    : l10n.neverSynced,
-                settings.lastSyncTime != null ? Colors.green : Colors.grey,
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildStatusRow(String label, String value, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-        ),
-      ],
+    return Builder(
+      builder: (context) {
+        final readableColor = Theme.of(context)
+            .extension<AppStyleTheme>()!
+            .resolveSurface(Theme.of(context), role: SurfaceRole.inset)
+            .ensureForeground(color, minimumContrast: 3);
+        return Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: readableColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1099,12 +1166,13 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
 
   /// 显示同步预览对话框
   Future<bool> _showSyncPreviewDialog(SyncPreview preview) async {
-    return await showDialog<bool>(
+    return await showAppDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (dialogContext) {
             final l10n = AppLocalizations.of(dialogContext)!;
             return AlertDialog(
+              scrollable: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -1112,7 +1180,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                 children: [
                   Icon(Icons.sync, color: dialogContext.appIconColor),
                   const SizedBox(width: 12),
-                  Text(l10n.syncPreview),
+                  Expanded(child: Text(l10n.syncPreview)),
                 ],
               ),
               content: SingleChildScrollView(
@@ -1122,6 +1190,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                   children: [
                     if (preview.toUpload.isNotEmpty) ...[
                       _buildPreviewSection(
+                        dialogContext,
                         l10n.willUpload(preview.toUpload.length),
                         preview.toUpload,
                       ),
@@ -1129,6 +1198,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                     ],
                     if (preview.toDownload.isNotEmpty) ...[
                       _buildPreviewSection(
+                        dialogContext,
                         l10n.willDownload(preview.toDownload.length),
                         preview.toDownload,
                       ),
@@ -1154,21 +1224,25 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                           children: [
                             Row(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.warning_amber,
-                                  color: Colors.orange,
+                                  color: Theme.of(
+                                    dialogContext,
+                                  ).colorScheme.error,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  l10n.conflictWarning(
-                                    preview.conflicts.length,
-                                  ),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(
-                                      dialogContext,
-                                    ).colorScheme.onSurface,
+                                Expanded(
+                                  child: Text(
+                                    l10n.conflictWarning(
+                                      preview.conflicts.length,
+                                    ),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(
+                                        dialogContext,
+                                      ).colorScheme.onSurface,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1176,7 +1250,7 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
                             const SizedBox(height: 8),
                             Text(
                               l10n.conflictDescription,
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(fontSize: 13),
                             ),
                             const SizedBox(height: 8),
                             ...preview.conflicts.map(
@@ -1206,113 +1280,117 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
         false;
   }
 
-  Widget _buildPreviewSection(String title, List<String> files) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (files.length <= 3) ...[
-            const SizedBox(height: 4),
-            ...files.map(
-              (f) => Text(
-                f,
-                style: const TextStyle(fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConflictItem(SyncConflict conflict) {
-    final l10n = AppLocalizations.of(context)!;
-    return StatefulBuilder(
-      builder: (context, setConflictState) {
+  Widget _buildPreviewSection(
+    BuildContext context,
+    String title,
+    List<String> files,
+  ) {
+    return Builder(
+      builder: (context) {
         return Container(
-          margin: const EdgeInsets.only(top: 8),
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-            ),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                conflict.relativePath,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${l10n.localVersion}: ${_formatConflictTime(conflict.localModified)} | ${l10n.cloudVersion}: ${_formatConflictTime(conflict.remoteModified)}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                title,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
+              if (files.length <= 3) ...[
+                const SizedBox(height: 4),
+                ...files.map(
+                  (f) => Text(
+                    f,
+                    style: const TextStyle(fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildConflictItem(SyncConflict conflict) {
+    return Builder(
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return StatefulBuilder(
+          builder: (context, setConflictState) {
+            return Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _buildResolutionButton(
-                      conflict,
-                      ConflictResolution.keepLocal,
-                      l10n.keepLocal,
-                      Icons.phone_android,
-                      setConflictState,
+                  Text(
+                    conflict.relativePath,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${l10n.localVersion}: ${_formatConflictTime(conflict.localModified)} | ${l10n.cloudVersion}: ${_formatConflictTime(conflict.remoteModified)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildResolutionButton(
-                      conflict,
-                      ConflictResolution.keepRemote,
-                      l10n.keepRemote,
-                      Icons.cloud,
-                      setConflictState,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildResolutionButton(
-                      conflict,
-                      ConflictResolution.skip,
-                      l10n.skip,
-                      Icons.skip_next,
-                      setConflictState,
-                    ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildResolutionButton(
+                        conflict,
+                        ConflictResolution.keepLocal,
+                        l10n.keepLocal,
+                        Icons.phone_android,
+                        setConflictState,
+                      ),
+                      _buildResolutionButton(
+                        conflict,
+                        ConflictResolution.keepRemote,
+                        l10n.keepRemote,
+                        Icons.cloud,
+                        setConflictState,
+                      ),
+                      _buildResolutionButton(
+                        conflict,
+                        ConflictResolution.skip,
+                        l10n.skip,
+                        Icons.skip_next,
+                        setConflictState,
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -1325,47 +1403,61 @@ class _CloudSyncScreenState extends State<CloudSyncScreen> {
     IconData icon,
     StateSetter setConflictState,
   ) {
-    final isSelected = conflict.resolution == resolution;
-    return GestureDetector(
-      onTap: () {
-        setConflictState(() {
-          conflict.resolution = resolution;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Theme.of(context).colorScheme.primary : null,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    return Builder(
+      builder: (context) {
+        final isSelected = conflict.resolution == resolution;
+        return Semantics(
+          button: true,
+          selected: isSelected,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              setConflictState(() {
+                conflict.resolution = resolution;
+              });
+            },
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48, minWidth: 80),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              decoration: BoxDecoration(
                 color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).dividerColor,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : context.appIconColor,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : null,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

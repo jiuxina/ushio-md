@@ -21,6 +21,7 @@ import '../../../utils/file_actions.dart';
 import '../../../utils/responsive_layout.dart';
 import '../../../widgets/responsive_page_frame.dart';
 import '../../folder/components/file_tile.dart';
+import '../../../widgets/app_modal.dart';
 
 /// 历史记录视图模式
 enum HistoryViewMode { files, folders }
@@ -94,9 +95,10 @@ class _HistoryTabState extends State<HistoryTab> {
 
   void _showClearHistoryDialog() {
     final l10n = AppLocalizations.of(context)!;
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(l10n.clearHistoryConfirm),
         content: Text(
@@ -118,7 +120,10 @@ class _HistoryTabState extends State<HistoryTab> {
                 widget.fileProvider.clearRecentFolders();
               }
             },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             child: Text(l10n.clear),
           ),
         ],
@@ -153,7 +158,7 @@ class _HistoryTabState extends State<HistoryTab> {
         ),
       );
     }
-    return AppSurface(
+    return AppSurface.builder(
       borderRadius: BorderRadius.circular(12),
       color: appStyle.scaledSurfaceColor(
         Theme.of(context).colorScheme,
@@ -164,7 +169,7 @@ class _HistoryTabState extends State<HistoryTab> {
           : Border.all(
               color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
             ),
-      child: SlidingSegmentToggle(
+      builder: (context) => SlidingSegmentToggle(
         width: 88,
         height: 36,
         selectedIndex: _viewMode == HistoryViewMode.files ? 0 : 1,

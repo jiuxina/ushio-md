@@ -5,7 +5,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../utils/app_style.dart';
 import '../../../widgets/app_surface.dart';
 import '../../../widgets/glass_header_button.dart';
-import '../../../widgets/liquid_glass_card.dart';
+import '../../../widgets/app_modal.dart';
 
 class EditorHeader extends StatelessWidget {
   final String fileName;
@@ -44,13 +44,19 @@ class EditorHeader extends StatelessWidget {
   String get _displayFileName =>
       fileName.replaceAll('.markdown', '').replaceAll('.md', '');
 
-  /// 头部同样是浮在正文之上的覆盖层：上下各 8 的内边距 + 40 高的按钮。
+  /// 头部同样是浮在正文之上的覆盖层：上下各 8 的内边距 + 48 高的按钮。
   /// 正文顶部要按这个值留白，否则第一行永远压在头部下面。
-  static const double reserveHeight = 8 + 40 + 8;
+  static const double reserveHeight = 8 + 48 + 8;
+
+  static double reserveHeightFor(BuildContext context) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    final textHeight =
+        textScaler.scale(16) * 1.1 + textScaler.scale(13) * 1.1 + 3;
+    return 16 + (textHeight > 48 ? textHeight : 48);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
       child: Row(
@@ -58,22 +64,10 @@ class EditorHeader extends StatelessWidget {
           GlassHeaderButton(icon: Icons.arrow_back, onPressed: onBack),
           const SizedBox(width: 8),
           Expanded(
-            child: Container(
-              child: appStyle.useLiquidGlass
-                  ? LiquidGlassCard(
-                      borderRadius: BorderRadius.circular(12),
-                      child: _buildInfoContent(context),
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
-                        color: appStyle.scaledSurfaceColor(
-                          Theme.of(context).colorScheme,
-                          alpha: 0.6,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: _buildInfoContent(context),
-                    ),
+            child: AppSurface.builder(
+              role: SurfaceRole.modal,
+              borderRadius: BorderRadius.circular(12),
+              builder: _buildInfoContent,
             ),
           ),
           const SizedBox(width: 8),
@@ -105,7 +99,7 @@ class EditorHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: SizedBox(
-        height: 40,
+        height: reserveHeightFor(context) - 16,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,11 +125,6 @@ class EditorHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final appStyle = theme.extension<AppStyleTheme>()!;
-    final iconColor = isSaving
-        ? colorScheme.primary
-        : isModified
-        ? colorScheme.error
-        : context.appMutedIconColor;
 
     return Tooltip(
       message: isSaving ? '保存中' : '保存',
@@ -144,14 +133,15 @@ class EditorHeader extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: isSaving ? null : onSave,
-          child: AppSurface(
+          child: AppSurface.builder(
+            role: SurfaceRole.modal,
             borderRadius: BorderRadius.circular(12),
             alignment: Alignment.center,
-            height: 40,
-            width: 40,
+            height: 48,
+            width: 48,
             color: appStyle.scaledSurfaceColor(colorScheme, alpha: 0.82),
             prominent: appStyle.useBorderlessButtons,
-            child: AnimatedSwitcher(
+            builder: (context) => AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
               child: isSaving
                   ? SizedBox(
@@ -160,14 +150,16 @@ class EditorHeader extends StatelessWidget {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: iconColor,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
                   : Icon(
                       Icons.save,
                       key: ValueKey('save-$isModified'),
                       size: 20,
-                      color: iconColor,
+                      color: isModified
+                          ? Theme.of(context).colorScheme.error
+                          : context.appMutedIconColor,
                     ),
             ),
           ),
@@ -235,7 +227,7 @@ class _AdaptiveWordCount extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final style = theme.textTheme.bodySmall?.copyWith(
-      color: colorScheme.outline,
+      color: colorScheme.onSurfaceVariant,
       height: 1.1,
     );
 
@@ -266,17 +258,13 @@ class _AdaptiveWordCount extends StatelessWidget {
                   ),
                 ),
               Flexible(
-                child: FittedBox(
-                  alignment: Alignment.centerLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    displayText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: isAutoSaving
-                        ? style?.copyWith(color: colorScheme.primary)
-                        : style,
-                  ),
+                child: Text(
+                  displayText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: isAutoSaving
+                      ? style?.copyWith(color: colorScheme.primary)
+                      : style,
                 ),
               ),
             ],
@@ -311,9 +299,10 @@ class _AdaptiveFileName extends StatelessWidget {
         return GestureDetector(
           onTap: () {
             if (fullFilePath != null && fullFilePath!.isNotEmpty) {
-              showDialog(
+              showAppDialog(
                 context: context,
                 builder: (context) => AlertDialog(
+                  scrollable: true,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -321,7 +310,7 @@ class _AdaptiveFileName extends StatelessWidget {
                     children: [
                       Icon(Icons.description, size: 20),
                       SizedBox(width: 8),
-                      Text('文件路径', style: TextStyle(fontSize: 16)),
+                      Flexible(child: Text('文件路径')),
                     ],
                   ),
                   content: SelectableText(
@@ -360,7 +349,6 @@ class _AdaptiveFileName extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: 0,
-              maxHeight: 18,
               maxWidth: constraints.maxWidth,
             ),
             child: Text(

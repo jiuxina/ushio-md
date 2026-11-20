@@ -6,8 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import '../services/my_files_service.dart';
 import '../utils/app_style.dart';
 import '../utils/responsive_layout.dart';
-import 'liquid_glass_card.dart';
-import 'outer_shadow.dart';
+import 'app_surface.dart';
+import 'app_modal.dart';
 
 enum MarkdownToolbarAction {
   undo,
@@ -78,17 +78,23 @@ class MarkdownToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appStyle = Theme.of(context).extension<AppStyleTheme>()!;
+    return AppSurface.builder(
+      role: SurfaceRole.modal,
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(
+          ResponsiveLayout.isDesktopWidth(context) ? 12 : 20,
+        ),
+      ),
+      height: heightFor(context),
+      builder: _buildToolbar,
+    );
+  }
+
+  Widget _buildToolbar(BuildContext context) {
     final showCustomUndoRedo =
         undoController == null && onUndo != null && onRedo != null;
     // Increase toolbar height on touch devices
-    final isDesktop = ResponsiveLayout.isDesktopWidth(context);
     final touchDevice = isTouchDevice(context);
-    final toolbarHeight = heightFor(context);
-
-    final borderRadius = BorderRadius.vertical(
-      top: Radius.circular(isDesktop ? 12 : 20),
-    );
     final list = ListView(
       scrollDirection: Axis.horizontal,
       padding: EdgeInsets.symmetric(
@@ -315,33 +321,7 @@ class MarkdownToolbar extends StatelessWidget {
         ],
       ],
     );
-    if (appStyle.useLiquidGlass) {
-      return SizedBox(
-        height: toolbarHeight,
-        child: LiquidGlassCard(borderRadius: borderRadius, child: list),
-      );
-    }
-    return OuterShadow(
-      shadows: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.08),
-          blurRadius: 10,
-          offset: const Offset(0, -2),
-        ),
-      ],
-      borderRadius: borderRadius,
-      child: Container(
-        height: toolbarHeight,
-        decoration: BoxDecoration(
-          color: appStyle.scaledSurfaceColor(
-            Theme.of(context).colorScheme,
-            alpha: 0.95,
-          ),
-          borderRadius: borderRadius,
-        ),
-        child: list,
-      ),
-    );
+    return list;
   }
 
   Widget _buildDivider(BuildContext context) {
@@ -438,12 +418,12 @@ class MarkdownToolbar extends StatelessWidget {
   }
 
   void _showImageDialog(BuildContext context) {
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Colors.transparent,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(24),
@@ -539,7 +519,7 @@ class MarkdownToolbar extends StatelessWidget {
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -547,7 +527,7 @@ class MarkdownToolbar extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right,
-                color: Theme.of(context).colorScheme.outline,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -560,15 +540,16 @@ class MarkdownToolbar extends StatelessWidget {
     final urlController = TextEditingController();
     final descController = TextEditingController(text: '图片描述');
 
-    final result = await showDialog<Map<String, String>>(
+    final result = await showAppDialog<Map<String, String>>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Icon(Icons.link, color: context.appIconColor),
             const SizedBox(width: 12),
-            const Text('插入图片链接'),
+            const Flexible(child: Text('插入图片链接')),
           ],
         ),
         content: SingleChildScrollView(
@@ -762,12 +743,13 @@ class MarkdownToolbar extends StatelessWidget {
       (r) => List.generate(cols, (c) => r == 0 ? '列${c + 1}' : '内容'),
     );
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              scrollable: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -775,7 +757,7 @@ class MarkdownToolbar extends StatelessWidget {
                 children: [
                   Icon(Icons.table_chart, color: context.appIconColor),
                   const SizedBox(width: 12),
-                  const Text('插入表格'),
+                  const Flexible(child: Text('插入表格')),
                 ],
               ),
               content: SingleChildScrollView(
@@ -783,8 +765,10 @@ class MarkdownToolbar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Row and column controls
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    Wrap(
+                      alignment: WrapAlignment.spaceEvenly,
+                      spacing: 16,
+                      runSpacing: 12,
                       children: [
                         _buildStepper(
                           label: '行',
@@ -919,8 +903,8 @@ class MarkdownToolbar extends StatelessWidget {
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         ),
-        SizedBox(
-          width: 32,
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 32),
           child: Text(
             '$value',
             textAlign: TextAlign.center,
@@ -961,7 +945,7 @@ class MarkdownToolbar extends StatelessWidget {
               padding: const EdgeInsets.all(4),
               child: Text(
                 cell,
-                style: const TextStyle(fontSize: 11),
+                style: const TextStyle(fontSize: 13),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
@@ -1061,18 +1045,9 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
             height: isTouchDevice ? 44 : (isDesktop ? 34 : 36),
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
-              gradient: (_isHovered && isEnabled)
-                  ? LinearGradient(
-                      colors: [
-                        Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.2),
-                        Theme.of(
-                          context,
-                        ).colorScheme.secondary.withValues(alpha: 0.1),
-                      ],
-                    )
-                  : null,
+              color: (_isHovered && isEnabled)
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -1081,8 +1056,8 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
               size: isTouchDevice ? 20 : 18,
               color: isEnabled
                   ? (_isHovered
-                        ? Theme.of(context).colorScheme.primary
-                        : context.appIconColor.withValues(alpha: 0.7))
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : context.appIconColor)
                   : context.appIconColor.withValues(alpha: 0.3), // 禁用时灰色
             ),
           ),
